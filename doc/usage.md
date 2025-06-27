@@ -72,14 +72,34 @@ pnpm run dev
 Discordボットモジュールはコアサーバーに接続してDiscord固有の機能を提供します。
 
 **セットアップ:**
-1. Discordボットトークンを設定
-2. コアサーバーエンドポイントURLを設定
-3. Discordボットクライアントを起動
+```bash
+cd discord/
+pnpm install
+# 環境変数を設定
+# DISCORD_BOT_TOKEN=your_discord_bot_token
+# DISCORD_CLIENT_ID=your_discord_client_id
+pnpm run dev
+```
+
+**利用可能なコマンド:**
+- `/authenticate`: Google OAuth認証を開始
+- `/checkauth`: 認証状態を確認（オプション）
+- `/getcontent`: 認証後に保護されたコンテンツを取得
+- `/status`: Patchouliサーバーの接続状態を確認
+- `/logout`: セッションをクリア
+
+**認証フロー:**
+1. `/authenticate` コマンドを実行
+2. 提供されたURLでブラウザ認証を完了
+3. 認証完了時に自動でセッションが保存される
+4. `/getcontent` で即座にコンテンツアクセス可能（checkauthは不要）
 
 **統合パターン:**
 - coreサーバーAPIにHTTPリクエストを送信
 - Discord固有のイベントとコマンドを処理
 - DiscordインタラクションをコアAPI呼び出しに変換
+- **自動セッション管理**: 認証完了時の自動セッションID保存
+- **Express通知サーバー**: OAuth callback通知の受信とリアルタイム更新
 
 ### MCPモジュール (mcp/)
 Model Context Protocolモジュールはコアサーバーを通じてAIモデル統合を提供します。
@@ -137,6 +157,14 @@ Model Context Protocolモジュールはコアサーバーを通じてAIモデ�
 
 **クライアントモジュール:**
 - `PATCHOULI_SERVER_URL`: コアサーバーエンドポイント (デフォルト: http://localhost:8080)
+
+**Discordボット:**
+- `DISCORD_BOT_TOKEN`: Discord ボットトークン（必須）
+- `DISCORD_CLIENT_ID`: Discord クライアントID（必須）
+- `DISCORD_BOT_PORT`: 通知サーバーポート（デフォルト: 3001）
+- `DISCORD_BOT_URL`: 通知サーバーURL（デフォルト: http://localhost:3001）
+
+**その他:**
 - 必要に応じてモジュール固有の設定変数
 
 ### 設定ファイル

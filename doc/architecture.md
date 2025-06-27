@@ -40,9 +40,14 @@ Patchouliはファイルサーバーのコンテンツを1つのナレッジベ�
 
 #### discord/
 - **役割**: Discordボットクライアント
-- **技術**: TypeScript + discord.js
+- **技術**: TypeScript + discord.js + Express
 - **統合**: coreサーバーAPIを消費
-- **機能**: Discord固有の機能とコマンド
+- **機能**: 
+  - **Discordスラッシュコマンド**（認証、コンテンツ取得、ステータス確認）
+  - **Google OAuth 2.0統合**（Discord用カスタム認証フロー）
+  - **自動セッション管理**（認証完了時の自動セッションID保存）
+  - **認証完了通知**（リアルタイム認証状態フィードバック）
+  - **Express通知サーバー**（OAuth callback通知の受信）
 
 #### mcp/
 - **役割**: Model Context Protocol実装
