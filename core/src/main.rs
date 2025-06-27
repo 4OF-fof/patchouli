@@ -122,10 +122,18 @@ async fn index() -> Html<&'static str> {
     "#)
 }
 
-async fn login(State(state): State<AppState>) -> Redirect {
+async fn login(Query(query): Query<std::collections::HashMap<String, String>>, State(state): State<AppState>) -> Redirect {
+    let csrf_state = if let Some(token) = query.get("token") {
+        // API認証用のトークンが指定された場合はそれをstateに使用
+        CsrfToken::new(token.clone())
+    } else {
+        // 通常のWeb認証の場合はランダムなCSRFトークンを生成
+        CsrfToken::new_random()
+    };
+
     let (auth_url, _csrf_token) = state
         .oauth_client
-        .authorize_url(CsrfToken::new_random)
+        .authorize_url(|| csrf_state)
         .add_scope(Scope::new("openid".to_string()))
         .add_scope(Scope::new("email".to_string()))
         .add_scope(Scope::new("profile".to_string()))
