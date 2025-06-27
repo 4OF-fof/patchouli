@@ -17,6 +17,15 @@ const patchouliClient = new PatchouliClient();
 
 const tools: Tool[] = [
   {
+    name: 'authenticate',
+    description: 'Authenticate with Patchouli server and obtain session ID',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'get_protected_content',
     description: 'Get protected content from Patchouli Knowledge Base for authenticated users',
     inputSchema: {
@@ -40,6 +49,31 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   switch (name) {
+    case 'authenticate':
+      try {
+        const sessionId = await patchouliClient.authenticate();
+        
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Authentication successful! Session ID: ${sessionId}`,
+            },
+          ],
+        };
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Authentication failed: ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
     case 'get_protected_content':
       try {
         const { session_id } = args as { session_id: string };

@@ -8,6 +8,7 @@ Patchouli ナレッジベースシステム用のModel Context Protocol (MCP) �
 
 ## 機能
 
+- **authenticate**: Patchouliサーバーで認証を行いセッションIDを取得
 - **get_protected_content**: Patchouli認証システムから有効なセッションIDを使用して保護されたコンテンツを取得
 
 ## 前提条件
@@ -37,32 +38,51 @@ pnpm start
 
 ## 使用方法
 
-### 認証フロー
+### 基本的な使用フロー
 
-1. まず、Patchouliコアサーバーで認証を行います：
-   - `http://localhost:8080/login` にアクセス
-   - Google OAuth認証を完了
-   - コールバックからセッションIDを取得
-
-2. MCPツールでセッションIDを使用：
+1. **認証**: `authenticate` ツールを使用してセッションIDを取得
+2. **コンテンツアクセス**: 取得したセッションIDで `get_protected_content` を呼び出し
 
 ```json
+// 1. 認証
+{
+  "name": "authenticate",
+  "arguments": {}
+}
+
+// 2. 保護されたコンテンツの取得
 {
   "name": "get_protected_content",
   "arguments": {
-    "session_id": "your-session-id-here"
+    "session_id": "認証で取得したセッションID"
   }
 }
 ```
 
 ### ツールリファレンス
 
+#### authenticate
+
+Patchouliサーバーで認証を行いセッションIDを取得します。
+
+**パラメータ:** なし
+
+**動作:**
+1. 一時的な認証トークンを生成
+2. ブラウザでGoogle OAuth認証ページを開く
+3. ユーザーが認証を完了するまでポーリング
+4. 認証完了後、セッションIDを返す
+
+**戻り値:**
+- 成功: 認証成功メッセージとセッションID
+- エラー: 認証エラーメッセージ
+
 #### get_protected_content
 
 認証されたユーザー向けの保護されたコンテンツを取得します。
 
 **パラメータ:**
-- `session_id` (文字列、必須): Patchouli認証から取得した有効なセッションID
+- `session_id` (文字列、必須): `authenticate` ツールで取得したセッションID
 
 **戻り値:**
 - 成功: 認証されたユーザー向けにパーソナライズされた保護されたコンテンツ文字列
