@@ -122,16 +122,49 @@ async fn index() -> Html<&'static str> {
     "#)
 }
 
-async fn login(State(state): State<AppState>) -> Redirect {
+async fn login(Query(query): Query<std::collections::HashMap<String, String>>, State(state): State<AppState>) -> Redirect {
+    let csrf_state = if let Some(token) = query.get("token") {
+        // API認証用のトークンが指定された場合はそれをstateに使用
+        CsrfToken::new(token.clone())
+    } else {
+        // 通常のWeb認証の場合はランダムなCSRFトークンを生成
+        CsrfToken::new_random()
+    };
+
     let (auth_url, _csrf_token) = state
         .oauth_client
-        .authorize_url(CsrfToken::new_random)
+        .authorize_url(|| csrf_state)
         .add_scope(Scope::new("openid".to_string()))
         .add_scope(Scope::new("email".to_string()))
         .add_scope(Scope::new("profile".to_string()))
         .url();
 
     Redirect::permanent(&auth_url.to_string())
+}
+
+async fn send_discord_notification(auth_token: &str, user_email: &str) -> Result<(), reqwest::Error> {
+    let discord_bot_url = std::env::var("DISCORD_BOT_URL")
+        .unwrap_or_else(|_| "http://localhost:3001".to_string());
+    
+    let notification_payload = serde_json::json!({
+        "auth_token": auth_token,
+        "user_email": user_email
+    });
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&format!("{}/auth-complete", discord_bot_url))
+        .json(&notification_payload)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        info!("Discord notification sent successfully for user: {}", user_email);
+    } else {
+        warn!("Discord notification failed with status: {}", response.status());
+    }
+
+    Ok(())
 }
 
 async fn callback(
@@ -195,6 +228,12 @@ async fn callback(
     drop(auth_tokens);
     
     if is_api_auth {
+        // Discord通知を送信
+        let notification_result = send_discord_notification(&params.state, &user_info.email).await;
+        if let Err(e) = notification_result {
+            warn!("Failed to send Discord notification: {:?}", e);
+        }
+
         // API認証の場合はそのまま表示
         Ok(Html(format!(
             r#"
