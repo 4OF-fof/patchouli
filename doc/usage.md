@@ -40,6 +40,34 @@ cargo run
 
 ## クライアントモジュールの使用
 
+### Webフロントエンド (frontend/)
+ReactベースのWebアプリケーションでPatchouliの機能にアクセスします。
+
+**セットアップ:**
+```bash
+cd frontend/
+pnpm install
+pnpm run dev
+```
+
+**利用可能な機能:**
+- Google OAuth 2.0によるログイン
+- 保護されたコンテンツへのアクセス
+- セッション管理とログアウト
+- レスポンシブなWebUI
+
+**アクセス方法:**
+1. ブラウザで http://localhost:3000 にアクセス
+2. 「Googleでログイン」をクリック
+3. Google OAuth認証を完了
+4. ダッシュボードで保護されたコンテンツを表示
+
+**統合パターン:**
+- Viteプロキシ経由でcoreサーバーAPIにアクセス
+- React Routerによるクライアントサイドルーティング
+- ローカルストレージによるセッション永続化
+- Panda CSSによるモダンなUI実装
+
 ### Discordボット (discord/)
 Discordボットモジュールはコアサーバーに接続してDiscord固有の機能を提供します。
 
