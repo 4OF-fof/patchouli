@@ -6,7 +6,9 @@
       "Bash(pnpm run:*)",
       "Bash(pnpm add:*)",
       "Bash(cargo:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(pnpm install:*)",
+      "Bash(pnpm build)"
     ],
     "deny": []
   }
