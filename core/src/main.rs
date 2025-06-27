@@ -35,7 +35,6 @@ struct UserSession {
 struct AuthRequest {
     code: String,
     state: String,
-    auth_token: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -178,17 +177,23 @@ async fn callback(
         sessions.insert(session_id.clone(), user_session);
     }
 
-    // API認証トークンが提供されている場合は、それを更新
-    if let Some(auth_token) = &params.auth_token {
+    // stateパラメータがauth_tokenの場合は、それを更新
+    // (login_apiでstateパラメータとしてauth_tokenを設定している)
+    {
         let mut auth_tokens = state.auth_tokens.write().await;
-        if auth_tokens.contains_key(auth_token) {
-            auth_tokens.insert(auth_token.clone(), Some(session_id.clone()));
+        if auth_tokens.contains_key(&params.state) {
+            auth_tokens.insert(params.state.clone(), Some(session_id.clone()));
         }
     }
 
     info!("User {} logged in successfully", user_info.email);
 
-    let additional_message = if params.auth_token.is_some() {
+    // stateパラメータがauth_tokenかどうかで判定
+    let auth_tokens = state.auth_tokens.read().await;
+    let is_api_auth = auth_tokens.contains_key(&params.state);
+    drop(auth_tokens);
+    
+    let additional_message = if is_api_auth {
         "<p><strong>API認証が完了しました。このウィンドウを閉じてください。</strong></p>"
     } else {
         ""
@@ -287,9 +292,11 @@ async fn callback_api(
 
 async fn login_api(State(state): State<AppState>) -> Json<AuthTokenResponse> {
     let auth_token = Uuid::new_v4().to_string();
+    
+    // auth_tokenをstateパラメータとして使用（CSRFトークンの代わり）
     let (auth_url, _csrf_token) = state
         .oauth_client
-        .authorize_url(CsrfToken::new_random)
+        .authorize_url(|| CsrfToken::new(auth_token.clone()))
         .add_scope(Scope::new("openid".to_string()))
         .add_scope(Scope::new("email".to_string()))
         .add_scope(Scope::new("profile".to_string()))
@@ -300,11 +307,9 @@ async fn login_api(State(state): State<AppState>) -> Json<AuthTokenResponse> {
         auth_tokens.insert(auth_token.clone(), None);
     }
 
-    let login_url = format!("{}?auth_token={}", auth_url, auth_token);
-
     Json(AuthTokenResponse {
-        auth_token,
-        login_url,
+        auth_token: auth_token.clone(),
+        login_url: auth_url.to_string(),
     })
 }
 
