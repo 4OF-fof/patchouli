@@ -1,0 +1,28 @@
+{
+  "name": "patchouli-mcp",
+  "version": "1.0.0",
+  "description": "Model Context Protocol implementation for Patchouli Knowledge Base",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "jest"
+  },
+  "packageManager": "pnpm@10.12.3",
+  "keywords": ["mcp", "model-context-protocol", "patchouli", "knowledge-base"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.4.0",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "tsx": "^4.6.0",
+    "typescript": "^5.3.0",
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.0"
+  }
+}

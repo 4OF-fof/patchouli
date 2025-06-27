@@ -35,6 +35,69 @@ The modular architecture allows for:
 
 When adding new functionality, consider which component it belongs to and maintain the modular separation.
 
+## Development Workflow
+
+### Branch Creation Policy
+
+Before starting any development work, ALWAYS follow this workflow:
+
+1. **Ask for user confirmation** before creating any new branch
+2. **Create a new branch** for each feature, refactoring, or bug fix
+3. **Work exclusively on the new branch** until completion
+4. **Never work directly on main/master branch**
+
+**Examples of when to create branches:**
+- New feature development
+- Code refactoring
+- Bug fixes
+- Documentation updates
+- Configuration changes
+
+**Branch naming conventions:**
+- Features: `feat/feature-name`
+- Bug fixes: `fix/bug-description`
+- Refactoring: `refactor/component-name`
+- Documentation: `docs/update-description`
+
+**Workflow steps:**
+1. Explain what you plan to do
+2. Ask user: "Should I create a new branch for this work?"
+3. Wait for user confirmation
+4. Create branch with appropriate name
+5. Perform the work on the new branch
+6. Test and verify the implementation works correctly
+7. **Create a commit** with appropriate commit message after successful testing
+8. Complete the task before switching branches
+
+### Commit Message Guidelines
+
+After completing development work and verifying functionality:
+
+1. **Summarize the work performed** in the commit message
+2. **Use conventional commit format** when applicable:
+   - `feat: add new feature description`
+   - `fix: resolve bug description`
+   - `refactor: improve code structure`
+   - `docs: update documentation`
+   - `test: add or update tests`
+
+3. **Include key changes** in the commit body if needed
+4. **Always commit after successful testing** - never commit broken or untested code
+
+**Example commit messages:**
+- `feat: implement MCP server with protected content retrieval`
+- `fix: resolve authentication timeout in core server`
+- `refactor: restructure client error handling for better UX`
+- `docs: add Japanese README for MCP component`
+
+## Package Manager
+
+This project uses **pnpm** as the package manager for all TypeScript/JavaScript components (discord/, mcp/). When working with these components:
+
+- Use `pnpm install` instead of `npm install`
+- Use `pnpm run <script>` instead of `npm run <script>`
+- All package.json files specify `"packageManager": "pnpm@10.12.3"`
+
 ## Documentation Language
 
 - **CLAUDE.md**: English (for Claude Code compatibility)
