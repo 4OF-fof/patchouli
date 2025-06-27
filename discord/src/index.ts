@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { Client, GatewayIntentBits, REST, Routes } from 'discord.js';
 import { PatchouliClient } from './client.js';
-import { commands } from './commands.js';
+import { commands, handleAuthCompletion } from './commands.js';
+import express from 'express';
 
 const TOKEN = process.env.DISCORD_BOT_TOKEN;
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
@@ -96,6 +97,33 @@ process.on('SIGTERM', () => {
   console.log('Received SIGTERM, shutting down gracefully...');
   client.destroy();
   process.exit(0);
+});
+
+// Express サーバーを起動して認証完了通知を受け取る
+const app = express();
+app.use(express.json());
+
+app.post('/auth-complete', async (req, res) => {
+  try {
+    const { auth_token, user_email } = req.body;
+    
+    if (!auth_token || !user_email) {
+      return res.status(400).json({ error: 'Missing auth_token or user_email' });
+    }
+
+    console.log(`Received auth completion notification: ${user_email} (token: ${auth_token})`);
+    await handleAuthCompletion(auth_token, user_email, client);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error handling auth completion:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+const DISCORD_BOT_PORT = process.env.DISCORD_BOT_PORT || 3001;
+app.listen(DISCORD_BOT_PORT, () => {
+  console.log(`Discord bot notification server running on port ${DISCORD_BOT_PORT}`);
 });
 
 client.login(TOKEN);

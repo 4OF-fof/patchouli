@@ -9,6 +9,64 @@ export interface Command {
 // セッションストレージ（メモリ内、実際のプロダクションではデータベースを使用）
 const userSessions = new Map<string, string>();
 const pendingAuth = new Map<string, string>();
+const authChannels = new Map<string, string>(); // authToken -> channelId の対応
+
+// 認証完了通知を処理する関数
+export async function handleAuthCompletion(authToken: string, userEmail: string, client: any) {
+  const channelId = authChannels.get(authToken);
+  if (!channelId) {
+    console.log(`No channel found for auth token: ${authToken}`);
+    return;
+  }
+
+  // 認証完了時にセッションIDを取得して保存
+  let userId: string | null = null;
+  for (const [user, token] of pendingAuth.entries()) {
+    if (token === authToken) {
+      userId = user;
+      break;
+    }
+  }
+
+  if (userId) {
+    try {
+      // PatchouliClientを使用してセッションIDを取得
+      const patchouliClient = new (await import('./client.js')).PatchouliClient();
+      const authStatus = await patchouliClient.checkAuthStatus(authToken);
+      
+      if (authStatus.status === 'completed' && authStatus.session_id) {
+        // セッションIDを保存
+        userSessions.set(userId, authStatus.session_id);
+        pendingAuth.delete(userId);
+        console.log(`Stored session ID for user ${userId}: ${authStatus.session_id}`);
+      }
+    } catch (error) {
+      console.error('Failed to retrieve session ID during auth completion:', error);
+    }
+  }
+
+  try {
+    const channel = await client.channels.fetch(channelId);
+    if (channel?.isTextBased()) {
+      const embed = new EmbedBuilder()
+        .setColor(0x00FF00)
+        .setTitle('✅ 認証完了')
+        .setDescription('Patchouliサーバーでの認証が完了しました！\n`/getcontent` コマンドで保護されたコンテンツにアクセスできます。')
+        .addFields(
+          { name: 'ユーザー', value: userEmail }
+        )
+        .setTimestamp();
+
+      await channel.send({ embeds: [embed] });
+      console.log(`Sent auth completion notification to channel ${channelId} for user ${userEmail}`);
+    }
+  } catch (error) {
+    console.error('Failed to send auth completion notification:', error);
+  }
+
+  // 通知送信後にクリーンアップ
+  authChannels.delete(authToken);
+}
 
 export const commands: Command[] = [
   {
@@ -32,6 +90,7 @@ export const commands: Command[] = [
         // 認証トークンを取得
         const authToken = await patchouliClient.authenticateForDiscordUser(userId);
         pendingAuth.set(userId, authToken);
+        authChannels.set(authToken, interaction.channelId!);
 
         const embed = new EmbedBuilder()
           .setColor(0x0099FF)
