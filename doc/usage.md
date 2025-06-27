@@ -22,7 +22,19 @@ cargo run
 - コンテンツキュレーション（SQLiteでメタデータ、タグ付け、分類管理）
 - インテリジェント検索（SQLite FTSによる全文検索、セマンティック検索、コンテキスト検索）
 - ナレッジグラフ管理（SQLiteでコンテンツ間の関係性構築・可視化）
-- ユーザー認証・認可
+- **Google OAuth 2.0認証システム**
+  - ブラウザベース認証フロー
+  - セッション管理とアクセス制御
+  - 保護されたリソースへのアクセス
+
+**認証エンドポイント:**
+- `GET /`: ホームページ（ログインリンク表示）
+- `GET /login`: Google OAuth認証開始
+- `GET /login/api`: API認証用トークン生成とログインURL取得
+- `GET /callback`: OAuth認証コールバック（ブラウザ用）
+- `GET /auth/status/:token`: 認証状態ポーリング（API用）
+- `GET /protected`: 認証済みユーザー向け保護されたコンテンツ
+- `GET /logout`: ログアウト
 
 具体的なエンドポイントのドキュメントは実装後に利用可能になります。
 
@@ -49,10 +61,22 @@ Model Context Protocolモジュールはコアサーバーを通じてAIモデ�
 2. コアサーバーエンドポイントURLを設定
 3. MCPサービスを起動
 
+**利用可能なツール:**
+- `authenticate`: ブラウザベース認証でセッションIDを取得
+- `get_protected_content`: 認証済みユーザー向けの保護されたコンテンツ取得
+
+**認証フロー:**
+1. `authenticate`ツールを実行
+2. 自動でブラウザが開きGoogle OAuth認証を実行
+3. 認証完了後、セッションIDを自動取得
+4. `get_protected_content`でセッションIDを使用してコンテンツアクセス
+
 **統合パターン:**
 - MCPプロトコル仕様を実装
 - coreサーバーAPIを通じてリクエストをルーティング
 - AIモデルのコンテキストと状態を管理
+- **ブラウザ自動化による認証システム**（openパッケージ使用）
+- 認証状態のポーリングとセッション管理
 
 ## 開発ワークフロー
 
@@ -77,8 +101,14 @@ Model Context Protocolモジュールはコアサーバーを通じてAIモデ�
 ## 設定
 
 ### 環境変数
+
+**コアサーバー:**
+- `GOOGLE_CLIENT_ID`: Google OAuth 2.0 クライアントID（必須）
+- `GOOGLE_CLIENT_SECRET`: Google OAuth 2.0 クライアントシークレット（必須）
+- `REDIRECT_URL`: OAuth リダイレクトURL（デフォルト: http://localhost:8080/callback）
+
+**クライアントモジュール:**
 - `PATCHOULI_SERVER_URL`: コアサーバーエンドポイント (デフォルト: http://localhost:8080)
-- `PATCHOULI_API_KEY`: API アクセス用の認証キー
 - 必要に応じてモジュール固有の設定変数
 
 ### 設定ファイル

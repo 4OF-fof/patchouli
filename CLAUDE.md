@@ -18,7 +18,14 @@ The architecture follows a microservices pattern where:
 
 ## Development Status
 
-This repository is currently in initial setup phase with prepared directory structure but no implemented code yet. When working in this codebase:
+This repository has implemented core authentication and MCP functionality. Current implementation status:
+
+- **core/**: ✅ Google OAuth 2.0 authentication system with API endpoints
+- **mcp/**: ✅ Browser-based authentication and protected content access tools
+- **discord/**: ⏳ Not implemented yet
+- **doc/**: ✅ Architecture and usage documentation
+
+When working in this codebase:
 
 1. Check each component directory for its specific tech stack and dependencies
 2. Look for README files in each subdirectory for component-specific instructions
@@ -73,22 +80,35 @@ Before starting any development work, ALWAYS follow this workflow:
 
 After completing development work and verifying functionality:
 
-1. **Summarize the work performed** in the commit message
-2. **Use conventional commit format** when applicable:
+1. **Update documentation before committing** - Always update doc/ files to reflect new features or changes
+2. **Summarize the work performed** in the commit message
+3. **Use conventional commit format** when applicable:
    - `feat: add new feature description`
    - `fix: resolve bug description`
    - `refactor: improve code structure`
    - `docs: update documentation`
    - `test: add or update tests`
 
-3. **Include key changes** in the commit body if needed
-4. **Always commit after successful testing** - never commit broken or untested code
+4. **Include key changes** in the commit body if needed
+5. **Always commit after successful testing** - never commit broken or untested code
 
 **Example commit messages:**
 - `feat: implement MCP server with protected content retrieval`
 - `fix: resolve authentication timeout in core server`
 - `refactor: restructure client error handling for better UX`
 - `docs: add Japanese README for MCP component`
+
+### Documentation Update Policy
+
+Before creating any commit, ALWAYS:
+
+1. **Update relevant documentation** in doc/ directory
+2. **Reflect architectural changes** in doc/architecture.md
+3. **Update usage instructions** in doc/usage.md  
+4. **Add new setup guides** when introducing new components
+5. **Ensure documentation accuracy** matches the actual implementation
+
+Documentation updates should be included in the same commit as the feature implementation.
 
 ## Package Manager
 
