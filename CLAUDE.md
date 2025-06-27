@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a multi-component Patchouli project with a Rust-based core server architecture designed to operate as a knowledge base management system, treating file server contents as a unified knowledge base for management and operation:
 
 - **core/**: Core Rust server using Axum framework providing API endpoints and main functionality for knowledge base management, content curation, and intelligent search capabilities. Uses SQLite as auxiliary database for metadata and indexing while primary content remains as files
+- **frontend/**: React-based web application using Vite, TypeScript, and Panda CSS for modern responsive UI
 - **discord/**: Discord bot integration using TypeScript and discord.js consuming the core server API
 - **doc/**: Project documentation and user guides
 - **mcp/**: Model Context Protocol (MCP) implementation using TypeScript SDK consuming the core server API
@@ -18,9 +19,10 @@ The architecture follows a microservices pattern where:
 
 ## Development Status
 
-This repository has implemented core authentication and MCP functionality. Current implementation status:
+This repository has implemented core authentication, MCP functionality, and frontend separation. Current implementation status:
 
-- **core/**: ✅ Google OAuth 2.0 authentication system with API endpoints
+- **core/**: ✅ Google OAuth 2.0 authentication system with API endpoints and CORS support
+- **frontend/**: ✅ React-based web application with OAuth integration and responsive UI
 - **mcp/**: ✅ Browser-based authentication and protected content access tools
 - **discord/**: ⏳ Not implemented yet
 - **doc/**: ✅ Architecture and usage documentation

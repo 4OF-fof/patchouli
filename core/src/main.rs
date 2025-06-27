@@ -14,7 +14,7 @@ use oauth2::{
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::RwLock;
-use tower_http::trace::TraceLayer;
+use tower_http::{trace::TraceLayer, cors::CorsLayer};
 use tracing::{info, warn};
 use uuid::Uuid;
 
@@ -99,6 +99,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/protected", get(protected))
         .route("/logout", get(logout))
         .with_state(state)
+        .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
@@ -193,28 +194,47 @@ async fn callback(
     let is_api_auth = auth_tokens.contains_key(&params.state);
     drop(auth_tokens);
     
-    let additional_message = if is_api_auth {
-        "<p><strong>API認証が完了しました。このウィンドウを閉じてください。</strong></p>"
+    if is_api_auth {
+        // API認証の場合はそのまま表示
+        Ok(Html(format!(
+            r#"
+            <html>
+            <head><title>Login Success</title></head>
+            <body>
+                <h1>Login Successful!</h1>
+                <p>Welcome, {}!</p>
+                <p><strong>API認証が完了しました。このウィンドウを閉じてください。</strong></p>
+            </body>
+            </html>
+            "#,
+            user_info.name
+        )))
     } else {
-        ""
-    };
-
-    Ok(Html(format!(
-        r#"
-        <html>
-        <head><title>Login Success</title></head>
-        <body>
-            <h1>Login Successful!</h1>
-            <p>Welcome, {}!</p>
-            <p>Your session ID: {}</p>
-            {}
-            <p><a href="/protected?session_id={}">Access Protected Resource</a></p>
-            <p><a href="/logout?session_id={}">Logout</a></p>
-        </body>
-        </html>
-        "#,
-        user_info.name, session_id, additional_message, session_id, session_id
-    )))
+        // 通常のWeb認証の場合はフロントエンドにリダイレクト
+        let redirect_url = format!(
+            "http://localhost:3000/callback?session_id={}&user_email={}",
+            urlencoding::encode(&session_id),
+            urlencoding::encode(&user_info.email)
+        );
+        
+        Ok(Html(format!(
+            r#"
+            <html>
+            <head>
+                <title>Redirecting...</title>
+                <script>
+                    window.location.href = '{}';
+                </script>
+            </head>
+            <body>
+                <p>Redirecting to application...</p>
+                <p>If you are not redirected automatically, <a href="{}">click here</a>.</p>
+            </body>
+            </html>
+            "#,
+            redirect_url, redirect_url
+        )))
+    }
 }
 
 #[derive(Deserialize)]
