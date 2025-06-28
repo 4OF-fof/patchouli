@@ -129,7 +129,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/invite/create", get(create_invite))
         .route("/invite/list", get(list_invites))
         .route("/admin/users", get(list_users))
-        .route("/admin/users/:user_id", axum::routing::delete(delete_user))
+        .route("/admin/users/:user_id", 
+               axum::routing::delete(delete_user).options(|| async { StatusCode::OK }))
         .with_state(state)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http());
@@ -806,6 +807,7 @@ async fn delete_user(
     Query(query): Query<SessionQuery>,
     State(state): State<AppState>,
 ) -> Result<Json<DeleteUserResponse>, StatusCode> {
+    info!("Delete user request received: user_id={}, session_id={}", user_id, query.session_id);
     let sessions = state.sessions.read().await;
     
     if let Some(session) = sessions.get(&query.session_id) {
@@ -845,9 +847,10 @@ async fn delete_user(
         }
 
         // ユーザーを削除
+        info!("Attempting to delete user ID: {}", target_user_id);
         match state.database.delete_user(target_user_id).await {
             Ok(true) => {
-                info!("Root user {} deleted user ID {}", user.email, target_user_id);
+                info!("Root user {} successfully deleted user ID {}", user.email, target_user_id);
                 
                 Ok(Json(DeleteUserResponse {
                     success: true,
@@ -855,14 +858,18 @@ async fn delete_user(
                 }))
             }
             Ok(false) => {
+                warn!("Delete operation returned false for user ID: {}", target_user_id);
                 Ok(Json(DeleteUserResponse {
                     success: false,
                     message: "ユーザーが見つからないか、rootユーザーは削除できません".to_string(),
                 }))
             }
             Err(e) => {
-                warn!("Failed to delete user: {:?}", e);
-                Err(StatusCode::INTERNAL_SERVER_ERROR)
+                warn!("Database error during user deletion - ID: {}, Error: {:?}", target_user_id, e);
+                Ok(Json(DeleteUserResponse {
+                    success: false,
+                    message: format!("削除中にデータベースエラーが発生しました: {}", e),
+                }))
             }
         }
     } else {

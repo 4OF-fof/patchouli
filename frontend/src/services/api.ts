@@ -118,10 +118,19 @@ class PatchouliAPI {
   }
 
   async deleteUser(sessionId: string, userId: number): Promise<DeleteUserResponse> {
-    const response = await this.client.delete(`/admin/users/${userId}`, {
-      params: { session_id: sessionId },
-    });
+    const response = await this.client.delete(`/admin/users/${userId}?session_id=${encodeURIComponent(sessionId)}`);
     return response.data;
+  }
+
+  async validateSession(sessionId: string): Promise<boolean> {
+    try {
+      const response = await this.client.get('/protected', {
+        params: { session_id: sessionId },
+      });
+      return response.status === 200;
+    } catch {
+      return false;
+    }
   }
 }
 

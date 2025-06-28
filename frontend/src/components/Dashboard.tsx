@@ -128,9 +128,34 @@ export const Dashboard: React.FC = () => {
       } else {
         alert(`削除に失敗しました: ${response.message}`);
       }
-    } catch (err) {
-      alert('ユーザー削除中にエラーが発生しました');
-      console.error(err);
+    } catch (err: any) {
+      console.error('Delete user error:', err);
+      console.error('Error response:', err.response);
+      console.error('Error status:', err.response?.status);
+      console.error('Error data:', err.response?.data);
+      
+      let errorMessage = 'ユーザー削除中にエラーが発生しました';
+      
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage = err.response.data;
+        } else if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else if (err.response.data.success === false) {
+          errorMessage = err.response.data.message || '削除に失敗しました';
+        }
+      } else if (err.response?.statusText) {
+        errorMessage = err.response.statusText;
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      alert(`エラー (${err.response?.status || 'Unknown'}): ${errorMessage}`);
+      
+      // 権限エラーの場合はセッションが無効な可能性
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        logout();
+      }
     }
   };
 

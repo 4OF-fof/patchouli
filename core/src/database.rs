@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{migrate::MigrateDatabase, Pool, Row, Sqlite, SqlitePool};
 use std::env;
 use uuid::Uuid;
+use tracing::{info, warn};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisteredUser {
@@ -263,12 +264,60 @@ impl Database {
     }
 
     pub async fn delete_user(&self, user_id: i64) -> Result<bool, sqlx::Error> {
-        let result = sqlx::query("DELETE FROM registered_users WHERE id = ?1 AND is_root = FALSE")
+        info!("Starting delete operation for user ID: {}", user_id);
+        
+        // トランザクションを開始
+        let mut tx = self.pool.begin().await?;
+        info!("Transaction started for user deletion");
+
+        // 1. まず、削除対象がrootユーザーでないことを確認
+        let user_check = sqlx::query("SELECT is_root, email FROM registered_users WHERE id = ?1")
             .bind(user_id)
-            .execute(&self.pool)
+            .fetch_optional(&mut *tx)
             .await?;
 
-        Ok(result.rows_affected() > 0)
+        match user_check {
+            Some(row) => {
+                let is_root: bool = row.get("is_root");
+                let email: String = row.get("email");
+                info!("Found user for deletion: email={}, is_root={}", email, is_root);
+                
+                if is_root {
+                    warn!("Attempted to delete root user: {}", email);
+                    tx.rollback().await?;
+                    return Ok(false); // rootユーザーは削除できない
+                }
+            }
+            None => {
+                warn!("User ID {} not found for deletion", user_id);
+                tx.rollback().await?;
+                return Ok(false); // ユーザーが存在しない
+            }
+        }
+
+        // 2. 関連する招待コードを削除または無効化
+        info!("Deleting related invite codes for user ID: {}", user_id);
+        let invite_result = sqlx::query("DELETE FROM invite_codes WHERE created_by = ?1 OR used_by = ?1")
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
+        info!("Deleted {} invite codes", invite_result.rows_affected());
+
+        // 3. ユーザーを削除
+        info!("Deleting user record for ID: {}", user_id);
+        let result = sqlx::query("DELETE FROM registered_users WHERE id = ?1")
+            .bind(user_id)
+            .execute(&mut *tx)
+            .await?;
+
+        let deleted_rows = result.rows_affected();
+        info!("User deletion affected {} rows", deleted_rows);
+
+        // トランザクションをコミット
+        tx.commit().await?;
+        info!("Transaction committed for user deletion");
+
+        Ok(deleted_rows > 0)
     }
 
     pub async fn create_invite_code(&self, created_by: i64) -> Result<InviteCode, sqlx::Error> {
