@@ -16,6 +16,12 @@ mkdir -p /tmp/patchouli_dev
 
 # クリーンアップ関数
 cleanup() {
+    # 重複実行を防ぐ
+    if [ "${CLEANUP_DONE:-}" = "1" ]; then
+        return
+    fi
+    CLEANUP_DONE=1
+    
     printf 'プロセスを終了します...\n'
     
     # PIDファイルから各プロセスを終了
@@ -37,7 +43,6 @@ cleanup() {
     pkill -f "patchouli" 2>/dev/null || true
     
     printf 'Frontend, Backend, Discordのプロセスを終了しました。\n'
-    exit 0
 }
 
 # シグナルハンドラを設定
@@ -65,5 +70,6 @@ while true; do
     read -p "終了するには 'q' または 'exit' を入力してください: " input
     if [ "$input" = "q" ] || [ "$input" = "exit" ]; then
         cleanup
+        exit 0
     fi
 done
