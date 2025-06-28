@@ -98,52 +98,6 @@ export const RegistrationPage: React.FC = () => {
             </button>
           </div>
 
-          <div className={css({ 
-            border: '1px solid', 
-            borderColor: 'blue.200', 
-            bg: 'blue.50',
-            rounded: 'md', 
-            p: '4' 
-          })}>
-            <h3 className={css({ 
-              fontSize: 'md', 
-              fontWeight: 'semibold', 
-              mb: '2',
-              color: 'blue.800'
-            })}>
-              既に登録済みの方
-            </h3>
-            <p className={css({ 
-              color: 'blue.700', 
-              fontSize: 'sm', 
-              mb: '3' 
-            })}>
-              登録済みのGoogleアカウントでログインしてください。
-            </p>
-            
-            <a
-              href="/login"
-              className={css({
-                display: 'inline-block',
-                w: 'full',
-                bg: 'blue.600',
-                color: 'white',
-                py: '2',
-                px: '4',
-                rounded: 'md',
-                fontWeight: 'medium',
-                textAlign: 'center',
-                textDecoration: 'none',
-                transition: 'colors',
-                cursor: 'pointer',
-                _hover: {
-                  bg: 'blue.700',
-                },
-              })}
-            >
-              ログインページへ
-            </a>
-          </div>
           
           <div className={css({ 
             fontSize: 'xs', 

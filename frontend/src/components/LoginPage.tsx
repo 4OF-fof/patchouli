@@ -183,28 +183,6 @@ export const LoginPage: React.FC = () => {
             {isRegistration ? '登録後、自動的にダッシュボードにリダイレクトされます' : 'ログイン後、自動的にダッシュボードにリダイレクトされます'}
           </div>
 
-          {/* 招待コードなしでアクセスした場合の通常の登録リンク */}
-          {!isRegistration && (
-            <div className={css({ 
-              fontSize: 'sm', 
-              color: 'gray.600', 
-              textAlign: 'center' 
-            })}>
-              初回登録の方は{' '}
-              <a
-                href="/register"
-                className={css({
-                  color: 'brand.primary',
-                  textDecoration: 'underline',
-                  _hover: {
-                    color: 'brand.secondary',
-                  },
-                })}
-              >
-                こちら
-              </a>
-            </div>
-          )}
         </div>
       </div>
     </div>
