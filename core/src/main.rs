@@ -5,6 +5,8 @@ use axum::{
     routing::get,
     Router,
 };
+mod database;
+use database::Database;
 use oauth2::{
     basic::BasicClient,
     reqwest::async_http_client,
@@ -23,6 +25,7 @@ struct AppState {
     oauth_client: BasicClient,
     sessions: Arc<RwLock<HashMap<String, UserSession>>>,
     auth_tokens: Arc<RwLock<HashMap<String, Option<String>>>>,
+    database: Database,
 }
 
 #[derive(Clone, Debug)]
@@ -83,10 +86,13 @@ async fn main() -> anyhow::Result<()> {
     )
     .set_redirect_uri(RedirectUrl::new(redirect_url)?);
 
+    let database = Database::new().await?;
+
     let state = AppState {
         oauth_client,
         sessions: Arc::new(RwLock::new(HashMap::new())),
         auth_tokens: Arc::new(RwLock::new(HashMap::new())),
+        database,
     };
 
     let app = Router::new()
@@ -123,12 +129,14 @@ async fn index() -> Html<&'static str> {
 }
 
 async fn login(Query(query): Query<std::collections::HashMap<String, String>>, State(state): State<AppState>) -> Redirect {
+    let is_registration = query.get("register").map(|v| v == "true").unwrap_or(false);
+    
     let csrf_state = if let Some(token) = query.get("token") {
         // API認証用のトークンが指定された場合はそれをstateに使用
-        CsrfToken::new(token.clone())
+        CsrfToken::new(format!("{}:{}", token, if is_registration { "register" } else { "login" }))
     } else {
         // 通常のWeb認証の場合はランダムなCSRFトークンを生成
-        CsrfToken::new_random()
+        CsrfToken::new(if is_registration { "register".to_string() } else { "login".to_string() })
     };
 
     let (auth_url, _csrf_token) = state
@@ -200,6 +208,77 @@ async fn callback(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
+    // stateパラメータから登録かログインかを判定
+    let state_parts: Vec<&str> = params.state.split(':').collect();
+    let is_registration = state_parts.get(1).map(|&s| s == "register").unwrap_or_else(|| params.state == "register");
+    let auth_token = if state_parts.len() > 1 { state_parts[0] } else { &params.state };
+
+    // 登録処理かログイン処理かを判定
+    if is_registration {
+        // 既に登録済みかチェック
+        match state.database.is_user_registered(&user_info.email).await {
+            Ok(true) => {
+                // 既に登録済みの場合はエラー
+                return Ok(Html(format!(
+                    r#"
+                    <html>
+                    <head><title>Registration Error</title></head>
+                    <body>
+                        <h1>登録エラー</h1>
+                        <p>このアカウント（{}）は既に登録済みです。</p>
+                        <p><a href="/login">ログインページに戻る</a></p>
+                    </body>
+                    </html>
+                    "#,
+                    user_info.email
+                )));
+            }
+            Ok(false) => {
+                // 新規登録
+                if let Err(e) = state.database.register_user(&user_info.id, &user_info.email, &user_info.name).await {
+                    warn!("Failed to register user: {:?}", e);
+                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                }
+                info!("New user registered: {}", user_info.email);
+            }
+            Err(e) => {
+                warn!("Database error during registration check: {:?}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+    } else {
+        // ログイン処理 - 登録済みかチェック
+        match state.database.is_user_registered(&user_info.email).await {
+            Ok(false) => {
+                // 未登録の場合はエラー
+                return Ok(Html(format!(
+                    r#"
+                    <html>
+                    <head><title>Login Error</title></head>
+                    <body>
+                        <h1>ログインエラー</h1>
+                        <p>このアカウント（{}）は登録されていません。</p>
+                        <p><a href="/register">新規登録ページへ</a></p>
+                    </body>
+                    </html>
+                    "#,
+                    user_info.email
+                )));
+            }
+            Ok(true) => {
+                // 最終ログイン時刻を更新
+                if let Err(e) = state.database.update_last_login(&user_info.email).await {
+                    warn!("Failed to update last login: {:?}", e);
+                }
+            }
+            Err(e) => {
+                warn!("Database error during login check: {:?}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+    }
+
+    // セッション作成
     let session_id = Uuid::new_v4().to_string();
     let user_session = UserSession {
         user_id: user_info.id.clone(),
@@ -211,25 +290,22 @@ async fn callback(
         sessions.insert(session_id.clone(), user_session);
     }
 
-    // stateパラメータがauth_tokenの場合は、それを更新
-    // (login_apiでstateパラメータとしてauth_tokenを設定している)
+    // API認証の場合のauth_token処理
     {
         let mut auth_tokens = state.auth_tokens.write().await;
-        if auth_tokens.contains_key(&params.state) {
-            auth_tokens.insert(params.state.clone(), Some(session_id.clone()));
+        if state_parts.len() > 1 && auth_tokens.contains_key(auth_token) {
+            auth_tokens.insert(auth_token.to_string(), Some(session_id.clone()));
         }
     }
 
-    info!("User {} logged in successfully", user_info.email);
-
     // stateパラメータがauth_tokenかどうかで判定
     let auth_tokens = state.auth_tokens.read().await;
-    let is_api_auth = auth_tokens.contains_key(&params.state);
+    let is_api_auth = auth_tokens.contains_key(auth_token);
     drop(auth_tokens);
     
     if is_api_auth {
         // Discord通知を送信
-        let notification_result = send_discord_notification(&params.state, &user_info.email).await;
+        let notification_result = send_discord_notification(auth_token, &user_info.email).await;
         if let Err(e) = notification_result {
             warn!("Failed to send Discord notification: {:?}", e);
         }
@@ -238,14 +314,16 @@ async fn callback(
         Ok(Html(format!(
             r#"
             <html>
-            <head><title>Login Success</title></head>
+            <head><title>{} Success</title></head>
             <body>
-                <h1>Login Successful!</h1>
+                <h1>{} Successful!</h1>
                 <p>Welcome, {}!</p>
                 <p><strong>API認証が完了しました。このウィンドウを閉じてください。</strong></p>
             </body>
             </html>
             "#,
+            if is_registration { "Registration" } else { "Login" },
+            if is_registration { "Registration" } else { "Login" },
             user_info.name
         )))
     } else {
@@ -288,10 +366,23 @@ async fn protected(
     let sessions = state.sessions.read().await;
     
     if let Some(session) = sessions.get(&query.session_id) {
-        Ok(format!(
-            "Hello {}! Here's your protected content: 'The Grand Library of Patchouli Knowledge awaits your exploration. May your quest for knowledge be fruitful and your discoveries illuminate the path ahead.'",
-            session.email
-        ))
+        // セッションに対応するユーザーが登録済みかダブルチェック
+        match state.database.is_user_registered(&session.email).await {
+            Ok(true) => {
+                Ok(format!(
+                    "Hello {}! Here's your protected content: 'The Grand Library of Patchouli Knowledge awaits your exploration. May your quest for knowledge be fruitful and your discoveries illuminate the path ahead.'",
+                    session.email
+                ))
+            }
+            Ok(false) => {
+                warn!("Session exists but user {} is not registered", session.email);
+                Err(StatusCode::FORBIDDEN)
+            }
+            Err(e) => {
+                warn!("Database error during protected access: {:?}", e);
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
     } else {
         Err(StatusCode::UNAUTHORIZED)
     }
