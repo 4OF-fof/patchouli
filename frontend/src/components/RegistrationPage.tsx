@@ -1,8 +1,27 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { css } from '../../styled-system/css';
 import { center, stack } from '../../styled-system/patterns';
+import { patchouliAPI } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 export const RegistrationPage: React.FC = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkRootAndRedirect = async () => {
+      try {
+        const { root_exists } = await patchouliAPI.checkRootExists();
+        if (root_exists) {
+          navigate('/login');
+        }
+      } catch (error) {
+        console.error('Failed to check root existence:', error);
+      }
+    };
+    
+    checkRootAndRedirect();
+  }, [navigate]);
+
   const handleRegistration = () => {
     window.location.href = '/api/login?register=true';
   };

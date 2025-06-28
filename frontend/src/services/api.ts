@@ -56,6 +56,10 @@ export interface DeleteUserResponse {
   message: string;
 }
 
+export interface RootExistsResponse {
+  root_exists: boolean;
+}
+
 class PatchouliAPI {
   private client: AxiosInstance;
 
@@ -131,6 +135,11 @@ class PatchouliAPI {
     } catch {
       return false;
     }
+  }
+
+  async checkRootExists(): Promise<RootExistsResponse> {
+    const response = await this.client.get('/root/exists');
+    return response.data;
   }
 }
 

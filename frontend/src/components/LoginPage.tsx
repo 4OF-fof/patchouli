@@ -1,19 +1,39 @@
 import React, { useEffect, useState } from 'react';
 import { css } from '../../styled-system/css';
 import { center, stack } from '../../styled-system/patterns';
+import { patchouliAPI } from '../services/api';
+import { useNavigate } from 'react-router-dom';
 
 export const LoginPage: React.FC = () => {
+  const navigate = useNavigate();
   const [isRegistration, setIsRegistration] = useState(false);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string>('');
 
   useEffect(() => {
+    const checkRootAndRedirect = async () => {
+      try {
+        const { root_exists } = await patchouliAPI.checkRootExists();
+        if (!root_exists) {
+          navigate('/register');
+          return;
+        }
+      } catch (error) {
+        console.error('Failed to check root existence:', error);
+      }
+    };
+
     const urlParams = new URLSearchParams(window.location.search);
     const register = urlParams.get('register') === 'true';
     const invite = urlParams.get('invite');
     
     setIsRegistration(register);
     setInviteCode(invite);
+
+    // 通常のログインページの場合のみrootアカウント存在確認
+    if (!register) {
+      checkRootAndRedirect();
+    }
 
     // 招待コード付きの登録URLの場合の検証
     if (register && invite) {
@@ -23,7 +43,7 @@ export const LoginPage: React.FC = () => {
         setInviteError('無効な招待コード形式です');
       }
     }
-  }, []);
+  }, [navigate]);
 
   const handleLogin = () => {
     let loginUrl = '/api/login';

@@ -88,6 +88,11 @@ struct DeleteUserResponse {
     message: String,
 }
 
+#[derive(Serialize)]
+struct RootExistsResponse {
+    root_exists: bool,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
@@ -131,6 +136,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/users", get(list_users))
         .route("/admin/users/:user_id", 
                axum::routing::delete(delete_user).options(|| async { StatusCode::OK }))
+        .route("/root/exists", get(check_root_exists))
         .with_state(state)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http());
@@ -874,5 +880,17 @@ async fn delete_user(
         }
     } else {
         Err(StatusCode::UNAUTHORIZED)
+    }
+}
+
+async fn check_root_exists(State(state): State<AppState>) -> Result<Json<RootExistsResponse>, StatusCode> {
+    match state.database.count_registered_users().await {
+        Ok(count) => Ok(Json(RootExistsResponse {
+            root_exists: count > 0,
+        })),
+        Err(e) => {
+            warn!("Database error during root exists check: {:?}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
     }
 }
