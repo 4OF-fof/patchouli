@@ -124,3 +124,7 @@ This project uses **pnpm** as the package manager for all TypeScript/JavaScript 
 
 - **CLAUDE.md**: English (for Claude Code compatibility)
 - **patchouli_doc/**: Japanese (for project documentation)
+
+## Communication Language
+
+All interactions with users should be conducted in **Japanese**. When providing explanations, responses, or asking questions, use Japanese language to ensure clear communication with the project team.
