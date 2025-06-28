@@ -118,7 +118,7 @@ This project uses **pnpm** as the package manager for all TypeScript/JavaScript 
 
 - Use `pnpm install` instead of `npm install`
 - Use `pnpm run <script>` instead of `npm run <script>`
-- All package.json files specify `"packageManager": "pnpm@10.12.3"`
+- All package.json files specify `"packageManager": "pnpm@10.12.4"`
 
 ## Documentation Language
 
