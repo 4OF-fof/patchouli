@@ -1,3 +1,17 @@
+param(
+    [string]$Command = ""
+)
+
+if ($Command -eq "install") {
+    Write-Host "依存関係を一括インストールします..." -ForegroundColor Cyan
+    foreach ($dir in @("frontend", "mcp", "discord")) {
+        Write-Host "→ $dir で pnpm i 実行中..." -ForegroundColor Yellow
+        Start-Process -NoNewWindow -Wait -WorkingDirectory $dir pnpm -ArgumentList "install"
+    }
+    Write-Host "全ての依存関係のインストールが完了しました。" -ForegroundColor Green
+    exit
+}
+
 # mcpのビルド（完了まで待機）
 Start-Process -NoNewWindow -Wait -WorkingDirectory "mcp" pnpm -ArgumentList "build"
 

@@ -1,6 +1,16 @@
 #!/bin/sh
 # 一時ディレクトリは常に /tmp を使用
 
+if [ "$1" = "install" ]; then
+  echo '依存関係を一括インストールします...'
+  for dir in frontend mcp discord; do
+    echo "> $dir で pnpm i 実行中..."
+    (cd "$dir" && pnpm install)
+  done
+  echo '全ての依存関係のインストールが完了しました。'
+  exit 0
+fi
+
 # mcpのビルド（完了まで待機）
 cd mcp && pnpm build && cd ..
 
@@ -13,13 +23,13 @@ cd mcp && pnpm build && cd ..
 # discord (Node.js) を起動（バックグラウンド）
 (cd discord && nohup pnpm dev > "/tmp/discord.log" 2> "/tmp/discord.err" &)
 
-printf '\033[0;32mFrontend, Backend, Discordを並列で起動しました。\033[0m\n'
+printf 'Frontend, Backend, Discordを並列で起動しました。\n'
 
 # ユーザー入力待機ループ
 while true; do
     read -p "終了するには 'q' または 'exit' を入力してください: " input
     if [ "$input" = "q" ] || [ "$input" = "exit" ]; then
-        printf '\033[0;33mプロセスを終了します...\033[0m\n'
+        printf 'プロセスを終了します...\n'
         pkill -f "pnpm dev"
         pkill -f "cargo run"
         pkill -f "patchouli"
