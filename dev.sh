@@ -23,15 +23,18 @@ cleanup() {
         if [ -f "$pidfile" ]; then
             pid=$(cat "$pidfile")
             if kill -0 "$pid" 2>/dev/null; then
-                kill "$pid"
+                # プロセスグループ全体を終了
+                kill -- -"$pid" 2>/dev/null || kill "$pid" 2>/dev/null
             fi
             rm -f "$pidfile"
         fi
     done
     
-    # 念のため、pnpm dev プロセスも終了
+    # 念のため、関連プロセスも終了
     pkill -f "pnpm.*dev" 2>/dev/null || true
     pkill -f "cargo run" 2>/dev/null || true
+    # Rustバイナリも明示的に終了
+    pkill -f "patchouli" 2>/dev/null || true
     
     printf 'Frontend, Backend, Discordのプロセスを終了しました。\n'
     exit 0
@@ -48,7 +51,7 @@ cd mcp && pnpm build && cd ..
 echo $! > /tmp/patchouli_dev/frontend.pid
 
 # backend (Rust) を起動（バックグラウンド）
-(cd core && cargo run > "/tmp/core.log" 2> "/tmp/core.err" &)
+(cd core && exec cargo run > "/tmp/core.log" 2> "/tmp/core.err" &)
 echo $! > /tmp/patchouli_dev/core.pid
 
 # discord (Node.js) を起動（バックグラウンド）
