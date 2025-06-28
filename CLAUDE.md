@@ -21,8 +21,8 @@ The architecture follows a microservices pattern where:
 
 This repository has implemented core authentication, MCP functionality, and frontend separation. Current implementation status:
 
-- **core/**: ✅ Google OAuth 2.0 authentication system with API endpoints and CORS support
-- **frontend/**: ✅ React-based web application with OAuth integration and responsive UI
+- **core/**: ✅ Google OAuth 2.0 authentication system with API endpoints, CORS support, and smart redirect logic
+- **frontend/**: ✅ React-based web application with OAuth integration, responsive UI, and automatic page routing
 - **mcp/**: ✅ Browser-based authentication and protected content access tools
 - **discord/**: ⏳ Not implemented yet
 - **doc/**: ✅ Architecture and usage documentation
