@@ -15,6 +15,47 @@ export interface SessionQuery {
   session_id: string;
 }
 
+export interface InviteCodeResponse {
+  invite_code: string;
+  invite_url: string;
+}
+
+export interface InviteCode {
+  id: number;
+  code: string;
+  created_by: number;
+  created_at: string;
+  expires_at: string | null;
+  used_by: number | null;
+  used_at: string | null;
+  is_active: boolean;
+}
+
+export interface InviteCodesListResponse {
+  invite_codes: InviteCode[];
+}
+
+export interface RegisteredUser {
+  id: number;
+  google_id: string;
+  email: string;
+  name: string;
+  registered_at: string;
+  last_login: string | null;
+  is_root: boolean;
+  can_invite: boolean;
+  invited_by: number | null;
+}
+
+export interface UsersListResponse {
+  users: RegisteredUser[];
+}
+
+export interface DeleteUserResponse {
+  success: boolean;
+  message: string;
+}
+
 class PatchouliAPI {
   private client: AxiosInstance;
 
@@ -53,6 +94,34 @@ class PatchouliAPI {
     } catch {
       return false;
     }
+  }
+
+  async createInviteCode(sessionId: string): Promise<InviteCodeResponse> {
+    const response = await this.client.get('/invite/create', {
+      params: { session_id: sessionId },
+    });
+    return response.data;
+  }
+
+  async listInviteCodes(sessionId: string): Promise<InviteCodesListResponse> {
+    const response = await this.client.get('/invite/list', {
+      params: { session_id: sessionId },
+    });
+    return response.data;
+  }
+
+  async listUsers(sessionId: string): Promise<UsersListResponse> {
+    const response = await this.client.get('/admin/users', {
+      params: { session_id: sessionId },
+    });
+    return response.data;
+  }
+
+  async deleteUser(sessionId: string, userId: number): Promise<DeleteUserResponse> {
+    const response = await this.client.delete(`/admin/users/${userId}`, {
+      params: { session_id: sessionId },
+    });
+    return response.data;
   }
 }
 

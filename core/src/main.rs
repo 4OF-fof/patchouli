@@ -6,7 +6,7 @@ use axum::{
     Router,
 };
 mod database;
-use database::Database;
+use database::{Database, InviteCode, RegisteredUser};
 use oauth2::{
     basic::BasicClient,
     reqwest::async_http_client,
@@ -66,6 +66,28 @@ struct AuthStatusResponse {
     user_email: Option<String>,
 }
 
+#[derive(Serialize)]
+struct InviteCodeResponse {
+    invite_code: String,
+    invite_url: String,
+}
+
+#[derive(Serialize)]
+struct InviteCodesListResponse {
+    invite_codes: Vec<InviteCode>,
+}
+
+#[derive(Serialize)]
+struct UsersListResponse {
+    users: Vec<RegisteredUser>,
+}
+
+#[derive(Serialize)]
+struct DeleteUserResponse {
+    success: bool,
+    message: String,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenvy::dotenv().ok();
@@ -104,6 +126,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/auth/status/:token", get(auth_status))
         .route("/protected", get(protected))
         .route("/logout", get(logout))
+        .route("/invite/create", get(create_invite))
+        .route("/invite/list", get(list_invites))
+        .route("/admin/users", get(list_users))
+        .route("/admin/users/:user_id", axum::routing::delete(delete_user))
         .with_state(state)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http());
@@ -129,14 +155,29 @@ async fn index() -> Html<&'static str> {
 }
 
 async fn login(Query(query): Query<std::collections::HashMap<String, String>>, State(state): State<AppState>) -> Redirect {
+    info!("Login request received with query params: {:?}", query);
     let is_registration = query.get("register").map(|v| v == "true").unwrap_or(false);
+    let invite_code = query.get("invite").cloned();
+    info!("Parsed login params: is_registration={}, invite_code={:?}", is_registration, invite_code);
     
     let csrf_state = if let Some(token) = query.get("token") {
         // API認証用のトークンが指定された場合はそれをstateに使用
-        CsrfToken::new(format!("{}:{}", token, if is_registration { "register" } else { "login" }))
+        let state_suffix = if is_registration { "register" } else { "login" };
+        let state_with_invite = if let Some(ref code) = invite_code {
+            format!("{}:{}:{}", token, state_suffix, code)
+        } else {
+            format!("{}:{}", token, state_suffix)
+        };
+        CsrfToken::new(state_with_invite)
     } else {
         // 通常のWeb認証の場合はランダムなCSRFトークンを生成
-        CsrfToken::new(if is_registration { "register".to_string() } else { "login".to_string() })
+        let state_suffix = if is_registration { "register" } else { "login" };
+        let state_with_invite = if let Some(ref code) = invite_code {
+            format!("{}:{}", state_suffix, code)
+        } else {
+            state_suffix.to_string()
+        };
+        CsrfToken::new(state_with_invite)
     };
 
     let (auth_url, _csrf_token) = state
@@ -208,11 +249,43 @@ async fn callback(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    // stateパラメータから登録かログインかを判定
+    // stateパラメータから登録かログインか、招待コードを判定
     let state_parts: Vec<&str> = params.state.split(':').collect();
-    let is_registration = state_parts.get(1).map(|&s| s == "register").unwrap_or_else(|| params.state == "register");
-    let auth_token = if state_parts.len() > 1 { state_parts[0] } else { &params.state };
+    info!("State parameter received: '{}', parts: {:?}", params.state, state_parts);
+    
+    // Web認証とAPI認証を区別して処理
+    let (is_registration, auth_token_str, invite_code) = if state_parts.len() >= 3 {
+        // API認証の場合: "token:register:invite_code" または "token:login"
+        let is_reg = state_parts.get(1).map(|&s| s == "register").unwrap_or(false);
+        let token = state_parts[0].to_string();
+        let invite = if state_parts.len() >= 3 { Some(state_parts[2]) } else { None };
+        (is_reg, token, invite)
+    } else if state_parts.len() == 2 {
+        // Web認証の場合: "register:invite_code" または "login" または "register"
+        if state_parts[0] == "register" || state_parts[0] == "login" {
+            let is_reg = state_parts[0] == "register";
+            let invite = if state_parts.len() == 2 { Some(state_parts[1]) } else { None };
+            (is_reg, params.state.clone(), invite)
+        } else {
+            // API認証だが招待コードなし: "token:register" または "token:login"
+            let is_reg = state_parts.get(1).map(|&s| s == "register").unwrap_or(false);
+            let token = state_parts[0].to_string();
+            (is_reg, token, None)
+        }
+    } else {
+        // 単純なケース: "register" または "login"
+        let is_reg = params.state == "register";
+        (is_reg, params.state.clone(), None)
+    };
+    
+    let auth_token = &auth_token_str;
+    
+    info!("Parsed: is_registration={}, auth_token='{}', invite_code={:?}", 
+          is_registration, auth_token, invite_code);
 
+    // 登録成功フラグ
+    let mut registration_successful = false;
+    
     // 登録処理かログイン処理かを判定
     if is_registration {
         // 既に登録済みかチェック
@@ -234,12 +307,84 @@ async fn callback(
                 )));
             }
             Ok(false) => {
-                // 新規登録
-                if let Err(e) = state.database.register_user(&user_info.id, &user_info.email, &user_info.name).await {
-                    warn!("Failed to register user: {:?}", e);
-                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                // 新規登録時の招待コード検証
+                let user_count = match state.database.count_registered_users().await {
+                    Ok(count) => count,
+                    Err(e) => {
+                        warn!("Database error during user count: {:?}", e);
+                        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                    }
+                };
+
+                // 最初のユーザー以外は招待コードが必要
+                if user_count > 0 {
+                    match invite_code {
+                        Some(code) => {
+                            // 招待コードを検証
+                            match state.database.validate_invite_code(code).await {
+                                Ok(Some(invite)) => {
+                                    info!("Valid invite code used: {}", code);
+                                    // 招待による新規登録
+                                    let registered_user = match state.database.register_invited_user(&user_info.id, &user_info.email, &user_info.name, invite.created_by).await {
+                                        Ok(user) => user,
+                                        Err(e) => {
+                                            warn!("Failed to register invited user: {:?}", e);
+                                            return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                                        }
+                                    };
+                                    // 招待コードを使用済みにマーク
+                                    if let Err(e) = state.database.use_invite_code(code, registered_user.id).await {
+                                        warn!("Failed to mark invite code as used: {:?}", e);
+                                    }
+                                    info!("New user registered with invite: {}", user_info.email);
+                                    registration_successful = true;
+                                }
+                                Ok(None) => {
+                                    // 無効な招待コード
+                                    return Ok(Html(format!(
+                                        r#"
+                                        <html>
+                                        <head><title>Registration Error</title></head>
+                                        <body>
+                                            <h1>登録エラー</h1>
+                                            <p>無効な招待コードです。</p>
+                                            <p><a href="/login">ログインページに戻る</a></p>
+                                        </body>
+                                        </html>
+                                        "#
+                                    )));
+                                }
+                                Err(e) => {
+                                    warn!("Database error during invite validation: {:?}", e);
+                                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                                }
+                            }
+                        }
+                        None => {
+                            // 招待コードなしでの登録は拒否
+                            return Ok(Html(format!(
+                                r#"
+                                <html>
+                                <head><title>Registration Error</title></head>
+                                <body>
+                                    <h1>登録エラー</h1>
+                                    <p>新規登録には招待コードが必要です。</p>
+                                    <p><a href="/login">ログインページに戻る</a></p>
+                                </body>
+                                </html>
+                                "#
+                            )));
+                        }
+                    }
+                } else {
+                    // 最初のユーザーは招待コードなしで登録可能
+                    if let Err(e) = state.database.register_user(&user_info.id, &user_info.email, &user_info.name).await {
+                        warn!("Failed to register first user: {:?}", e);
+                        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+                    }
+                    info!("First user registered: {}", user_info.email);
+                    registration_successful = true;
                 }
-                info!("New user registered: {}", user_info.email);
             }
             Err(e) => {
                 warn!("Database error during registration check: {:?}", e);
@@ -273,6 +418,23 @@ async fn callback(
             }
             Err(e) => {
                 warn!("Database error during login check: {:?}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        }
+    }
+
+    // 登録が成功した場合は、再度登録済みかチェック（ダブルチェック）
+    if registration_successful {
+        match state.database.is_user_registered(&user_info.email).await {
+            Ok(false) => {
+                warn!("Registration marked successful but user not found in database: {}", user_info.email);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+            Ok(true) => {
+                info!("Registration confirmed in database for user: {}", user_info.email);
+            }
+            Err(e) => {
+                warn!("Database error during registration confirmation: {:?}", e);
                 return Err(StatusCode::INTERNAL_SERVER_ERROR);
             }
         }
@@ -516,5 +678,194 @@ async fn logout(
         "#))
     } else {
         Err(StatusCode::BAD_REQUEST)
+    }
+}
+
+async fn create_invite(
+    Query(query): Query<SessionQuery>,
+    State(state): State<AppState>,
+) -> Result<Json<InviteCodeResponse>, StatusCode> {
+    let sessions = state.sessions.read().await;
+    
+    if let Some(session) = sessions.get(&query.session_id) {
+        // ユーザーIDを取得
+        let user = match state.database.get_user_by_email(&session.email).await {
+            Ok(Some(user)) => user,
+            Ok(None) => return Err(StatusCode::FORBIDDEN),
+            Err(e) => {
+                warn!("Database error during invite creation: {:?}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+        // rootユーザーのみ招待コード作成可能
+        if !user.can_invite {
+            warn!("User {} attempted to create invite code without permission", user.email);
+            return Err(StatusCode::FORBIDDEN);
+        }
+
+        // 招待コードを作成
+        match state.database.create_invite_code(user.id).await {
+            Ok(invite) => {
+                let frontend_url = std::env::var("FRONTEND_URL")
+                    .unwrap_or_else(|_| "http://localhost:3000".to_string());
+                let invite_url = format!("{}/login?register=true&invite={}", frontend_url, invite.code);
+                
+                info!("Invite code created by user {}: {}", session.email, invite.code);
+                
+                Ok(Json(InviteCodeResponse {
+                    invite_code: invite.code,
+                    invite_url,
+                }))
+            }
+            Err(e) => {
+                warn!("Failed to create invite code: {:?}", e);
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
+}
+
+async fn list_invites(
+    Query(query): Query<SessionQuery>,
+    State(state): State<AppState>,
+) -> Result<Json<InviteCodesListResponse>, StatusCode> {
+    let sessions = state.sessions.read().await;
+    
+    if let Some(session) = sessions.get(&query.session_id) {
+        // ユーザーIDを取得
+        let user = match state.database.get_user_by_email(&session.email).await {
+            Ok(Some(user)) => user,
+            Ok(None) => return Err(StatusCode::FORBIDDEN),
+            Err(e) => {
+                warn!("Database error during invite list: {:?}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+        // ユーザーが作成した招待コードを取得
+        match state.database.get_invite_codes_by_user(user.id).await {
+            Ok(invite_codes) => {
+                Ok(Json(InviteCodesListResponse {
+                    invite_codes,
+                }))
+            }
+            Err(e) => {
+                warn!("Failed to get invite codes: {:?}", e);
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
+}
+
+async fn list_users(
+    Query(query): Query<SessionQuery>,
+    State(state): State<AppState>,
+) -> Result<Json<UsersListResponse>, StatusCode> {
+    let sessions = state.sessions.read().await;
+    
+    if let Some(session) = sessions.get(&query.session_id) {
+        // ユーザー情報を取得
+        let user = match state.database.get_user_by_email(&session.email).await {
+            Ok(Some(user)) => user,
+            Ok(None) => return Err(StatusCode::FORBIDDEN),
+            Err(e) => {
+                warn!("Database error during user list: {:?}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+        // rootユーザーのみアクセス可能
+        if !user.is_root {
+            warn!("User {} attempted to access user list without root permission", user.email);
+            return Err(StatusCode::FORBIDDEN);
+        }
+
+        // 全ユーザーを取得
+        match state.database.get_all_registered_users().await {
+            Ok(users) => {
+                info!("Root user {} accessed user list", user.email);
+                Ok(Json(UsersListResponse { users }))
+            }
+            Err(e) => {
+                warn!("Failed to get users list: {:?}", e);
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
+    }
+}
+
+async fn delete_user(
+    Path(user_id): Path<String>,
+    Query(query): Query<SessionQuery>,
+    State(state): State<AppState>,
+) -> Result<Json<DeleteUserResponse>, StatusCode> {
+    let sessions = state.sessions.read().await;
+    
+    if let Some(session) = sessions.get(&query.session_id) {
+        // ユーザー情報を取得
+        let user = match state.database.get_user_by_email(&session.email).await {
+            Ok(Some(user)) => user,
+            Ok(None) => return Err(StatusCode::FORBIDDEN),
+            Err(e) => {
+                warn!("Database error during user deletion: {:?}", e);
+                return Err(StatusCode::INTERNAL_SERVER_ERROR);
+            }
+        };
+
+        // rootユーザーのみアクセス可能
+        if !user.is_root {
+            warn!("User {} attempted to delete user without root permission", user.email);
+            return Err(StatusCode::FORBIDDEN);
+        }
+
+        // ユーザーIDを数値に変換
+        let target_user_id = match user_id.parse::<i64>() {
+            Ok(id) => id,
+            Err(_) => {
+                return Ok(Json(DeleteUserResponse {
+                    success: false,
+                    message: "無効なユーザーIDです".to_string(),
+                }));
+            }
+        };
+
+        // 自分自身の削除を防ぐ
+        if target_user_id == user.id {
+            return Ok(Json(DeleteUserResponse {
+                success: false,
+                message: "自分自身は削除できません".to_string(),
+            }));
+        }
+
+        // ユーザーを削除
+        match state.database.delete_user(target_user_id).await {
+            Ok(true) => {
+                info!("Root user {} deleted user ID {}", user.email, target_user_id);
+                
+                Ok(Json(DeleteUserResponse {
+                    success: true,
+                    message: "ユーザーが正常に削除されました".to_string(),
+                }))
+            }
+            Ok(false) => {
+                Ok(Json(DeleteUserResponse {
+                    success: false,
+                    message: "ユーザーが見つからないか、rootユーザーは削除できません".to_string(),
+                }))
+            }
+            Err(e) => {
+                warn!("Failed to delete user: {:?}", e);
+                Err(StatusCode::INTERNAL_SERVER_ERROR)
+            }
+        }
+    } else {
+        Err(StatusCode::UNAUTHORIZED)
     }
 }
