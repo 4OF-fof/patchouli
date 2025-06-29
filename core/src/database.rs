@@ -11,7 +11,7 @@ pub struct RegisteredUser {
     pub google_id: String,
     pub email: String,
     pub name: String,
-    pub registered_at: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
     pub last_login: Option<DateTime<Utc>>,
     pub is_root: bool,
     pub can_invite: bool,
@@ -137,7 +137,7 @@ impl Database {
             google_id: row.get("google_id"),
             email: row.get("email"),
             name: row.get("name"),
-            registered_at: row.get("registered_at"),
+            created_at: row.get("registered_at"),
             last_login: row.get("last_login"),
             is_root: row.get("is_root"),
             can_invite: row.get("can_invite"),
@@ -176,7 +176,7 @@ impl Database {
             google_id: row.get("google_id"),
             email: row.get("email"),
             name: row.get("name"),
-            registered_at: row.get("registered_at"),
+            created_at: row.get("registered_at"),
             last_login: row.get("last_login"),
             is_root: row.get("is_root"),
             can_invite: row.get("can_invite"),
@@ -196,7 +196,7 @@ impl Database {
 
     pub async fn get_user_by_email(&self, email: &str) -> Result<Option<RegisteredUser>, sqlx::Error> {
         let result = sqlx::query(
-            "SELECT id, google_id, email, name, registered_at, last_login, 
+            "SELECT id, google_id, email, name, registered_at as created_at, last_login, 
              COALESCE(is_root, FALSE) as is_root, 
              COALESCE(can_invite, TRUE) as can_invite, 
              invited_by 
@@ -212,7 +212,36 @@ impl Database {
                 google_id: row.get("google_id"),
                 email: row.get("email"),
                 name: row.get("name"),
-                registered_at: row.get("registered_at"),
+                created_at: row.get("created_at"),
+                last_login: row.get("last_login"),
+                is_root: row.get("is_root"),
+                can_invite: row.get("can_invite"),
+                invited_by: row.get("invited_by"),
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn get_user_by_id(&self, user_id: i64) -> Result<Option<RegisteredUser>, sqlx::Error> {
+        let result = sqlx::query(
+            "SELECT id, google_id, email, name, registered_at as created_at, last_login, 
+             COALESCE(is_root, FALSE) as is_root, 
+             COALESCE(can_invite, TRUE) as can_invite, 
+             invited_by 
+             FROM registered_users WHERE id = ?1"
+        )
+        .bind(user_id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(row) = result {
+            Ok(Some(RegisteredUser {
+                id: row.get("id"),
+                google_id: row.get("google_id"),
+                email: row.get("email"),
+                name: row.get("name"),
+                created_at: row.get("created_at"),
                 last_login: row.get("last_login"),
                 is_root: row.get("is_root"),
                 can_invite: row.get("can_invite"),
@@ -236,7 +265,7 @@ impl Database {
 
     pub async fn get_all_registered_users(&self) -> Result<Vec<RegisteredUser>, sqlx::Error> {
         let rows = sqlx::query(
-            "SELECT id, google_id, email, name, registered_at, last_login, 
+            "SELECT id, google_id, email, name, registered_at as created_at, last_login, 
              COALESCE(is_root, FALSE) as is_root, 
              COALESCE(can_invite, TRUE) as can_invite, 
              invited_by 
@@ -252,7 +281,7 @@ impl Database {
                 google_id: row.get("google_id"),
                 email: row.get("email"),
                 name: row.get("name"),
-                registered_at: row.get("registered_at"),
+                created_at: row.get("created_at"),
                 last_login: row.get("last_login"),
                 is_root: row.get("is_root"),
                 can_invite: row.get("can_invite"),
