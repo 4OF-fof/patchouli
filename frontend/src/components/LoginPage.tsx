@@ -9,12 +9,13 @@ export const LoginPage: React.FC = () => {
   const [isRegistration, setIsRegistration] = useState(false);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     const checkRootAndRedirect = async () => {
       try {
-        const { root_exists } = await patchouliAPI.checkRootExists();
-        if (!root_exists) {
+        const { root_user_exists } = await patchouliAPI.getSystemStatus();
+        if (!root_user_exists) {
           navigate('/register');
           return;
         }
@@ -45,23 +46,37 @@ export const LoginPage: React.FC = () => {
     }
   }, [navigate]);
 
-  const handleLogin = () => {
-    let loginUrl = '/api/login';
-    const params = new URLSearchParams();
+  const handleLogin = async () => {
+    setIsLoading(true);
+    try {
+      // 認証トークンを取得
+      const authResponse = await patchouliAPI.createAuthToken();
+      
+      // OAuth認証URLにリダイレクト
+      const params = new URLSearchParams();
+      if (isRegistration) {
+        params.append('register', 'true');
+      }
+      if (inviteCode) {
+        params.append('invite', inviteCode);
+      }
+      
+      let authUrl = authResponse.auth_url;
+      if (params.toString()) {
+        // stateパラメータに認証情報を追加
+        const urlObj = new URL(authUrl);
+        const currentState = urlObj.searchParams.get('state') || '';
+        const newState = `${currentState}:${params.toString()}`;
+        urlObj.searchParams.set('state', newState);
+        authUrl = urlObj.toString();
+      }
 
-    if (isRegistration) {
-      params.append('register', 'true');
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Failed to initiate OAuth flow:', error);
+      setInviteError('認証の開始に失敗しました。再度お試しください。');
+      setIsLoading(false);
     }
-
-    if (inviteCode) {
-      params.append('invite', inviteCode);
-    }
-
-    if (params.toString()) {
-      loginUrl += '?' + params.toString();
-    }
-
-    window.location.href = loginUrl;
   };
 
   return (
@@ -155,23 +170,26 @@ export const LoginPage: React.FC = () => {
             
             <button
               onClick={handleLogin}
-              disabled={!!inviteError}
+              disabled={!!inviteError || isLoading}
               className={css({
                 w: 'full',
-                bg: inviteError ? 'gray.400' : (isRegistration ? 'orange.600' : 'brand.primary'),
+                bg: (inviteError || isLoading) ? 'gray.400' : (isRegistration ? 'orange.600' : 'brand.primary'),
                 color: 'white',
                 py: '2',
                 px: '4',
                 rounded: 'md',
                 fontWeight: 'medium',
                 transition: 'colors',
-                cursor: inviteError ? 'not-allowed' : 'pointer',
+                cursor: (inviteError || isLoading) ? 'not-allowed' : 'pointer',
                 _hover: {
-                  bg: inviteError ? 'gray.400' : (isRegistration ? 'orange.700' : 'brand.secondary'),
+                  bg: (inviteError || isLoading) ? 'gray.400' : (isRegistration ? 'orange.700' : 'brand.secondary'),
                 },
               })}
             >
-              {isRegistration ? 'Googleアカウントで登録' : 'Googleでログイン'}
+              {isLoading 
+                ? '認証開始中...' 
+                : (isRegistration ? 'Googleアカウントで登録' : 'Googleでログイン')
+              }
             </button>
           </div>
           

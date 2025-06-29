@@ -1,34 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { patchouliAPI } from '../services/api';
-import type { InviteCode, RegisteredUser } from '../services/api';
+import type { InviteResponse, UserResponse, ProtectedContent } from '../services/api';
 import { css } from '../../styled-system/css';
 import { container, stack, hstack } from '../../styled-system/patterns';
 
 export const Dashboard: React.FC = () => {
-  const { sessionId, userEmail, logout } = useAuth();
-  const [protectedContent, setProtectedContent] = useState<string>('');
+  const { user, logout } = useAuth();
+  const [protectedContent, setProtectedContent] = useState<ProtectedContent | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>('');
-  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
+  const [inviteCodes, setInviteCodes] = useState<InviteResponse[]>([]);
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
   const [inviteError, setInviteError] = useState<string>('');
   const [newInviteUrl, setNewInviteUrl] = useState<string>('');
-  const [users, setUsers] = useState<RegisteredUser[]>([]);
+  const [users, setUsers] = useState<UserResponse[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [usersError, setUsersError] = useState<string>('');
-  const [currentUser, setCurrentUser] = useState<RegisteredUser | null>(null);
 
   const fetchProtectedContent = async () => {
-    if (!sessionId) return;
-
     setIsLoading(true);
     setError('');
     
     try {
-      const content = await patchouliAPI.getProtectedContent(sessionId);
+      const content = await patchouliAPI.getProtectedContent();
       setProtectedContent(content);
-    } catch (err) {
+    } catch (err: any) {
       setError('保護されたコンテンツの取得に失敗しました');
       console.error(err);
     } finally {
@@ -37,40 +34,43 @@ export const Dashboard: React.FC = () => {
   };
 
   const handleLogout = async () => {
-    if (sessionId) {
-      try {
-        await patchouliAPI.logout(sessionId);
-      } catch (err) {
-        console.error('Logout error:', err);
-      }
+    try {
+      await logout();
+    } catch (err) {
+      console.error('Logout error:', err);
     }
-    logout();
   };
 
   const fetchInviteCodes = async () => {
-    if (!sessionId) return;
+    if (!user?.can_invite) return;
 
     try {
-      const response = await patchouliAPI.listInviteCodes(sessionId);
-      setInviteCodes(response.invite_codes);
-    } catch (err) {
+      const codes = await patchouliAPI.getInvites();
+      setInviteCodes(codes);
+    } catch (err: any) {
       setInviteError('招待コードの取得に失敗しました');
       console.error(err);
     }
   };
 
   const createInviteCode = async () => {
-    if (!sessionId) return;
+    if (!user?.can_invite) return;
 
     setIsCreatingInvite(true);
     setInviteError('');
     setNewInviteUrl('');
 
     try {
-      const response = await patchouliAPI.createInviteCode(sessionId);
-      setNewInviteUrl(response.invite_url);
-      await fetchInviteCodes(); // 招待コードリストを更新
-    } catch (err) {
+      const invite = await patchouliAPI.createInvite();
+      
+      // 招待URLを生成
+      const baseUrl = window.location.origin;
+      const inviteUrl = `${baseUrl}/login?register=true&invite=${invite.code}`;
+      setNewInviteUrl(inviteUrl);
+      
+      // 招待コード一覧を更新
+      await fetchInviteCodes();
+    } catch (err: any) {
       setInviteError('招待コードの作成に失敗しました');
       console.error(err);
     } finally {
@@ -78,323 +78,179 @@ export const Dashboard: React.FC = () => {
     }
   };
 
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      alert('クリップボードにコピーしました');
-    } catch (err) {
-      console.error('Failed to copy text:', err);
-      alert('コピーに失敗しました');
-    }
-  };
-
   const fetchUsers = async () => {
-    if (!sessionId) return;
+    if (!user?.is_root) return;
 
     setIsLoadingUsers(true);
     setUsersError('');
 
     try {
-      const response = await patchouliAPI.listUsers(sessionId);
-      setUsers(response.users);
-      
-      // 現在のユーザー情報を取得
-      const current = response.users.find(user => user.email === userEmail);
-      setCurrentUser(current || null);
+      const usersList = await patchouliAPI.getUsers();
+      setUsers(usersList);
     } catch (err: any) {
-      if (err.response?.status === 403) {
-        setUsersError('管理者権限がありません');
-      } else {
-        setUsersError('ユーザー一覧の取得に失敗しました');
-      }
+      setUsersError('ユーザー一覧の取得に失敗しました');
       console.error(err);
     } finally {
       setIsLoadingUsers(false);
     }
   };
 
-  const deleteUser = async (userId: number, userName: string) => {
-    if (!sessionId) return;
-
-    if (!confirm(`ユーザー「${userName}」を削除しますか？この操作は取り消せません。`)) {
+  const deleteUser = async (userId: number) => {
+    if (!user?.is_root) return;
+    
+    if (!confirm('このユーザーを削除してもよろしいですか？')) {
       return;
     }
 
     try {
-      const response = await patchouliAPI.deleteUser(sessionId, userId);
-      if (response.success) {
-        alert(response.message);
-        await fetchUsers(); // リストを更新
-      } else {
-        alert(`削除に失敗しました: ${response.message}`);
-      }
+      await patchouliAPI.deleteUser(userId);
+      await fetchUsers(); // ユーザー一覧を再取得
     } catch (err: any) {
-      console.error('Delete user error:', err);
-      console.error('Error response:', err.response);
-      console.error('Error status:', err.response?.status);
-      console.error('Error data:', err.response?.data);
-      
-      let errorMessage = 'ユーザー削除中にエラーが発生しました';
-      
-      if (err.response?.data) {
-        if (typeof err.response.data === 'string') {
-          errorMessage = err.response.data;
-        } else if (err.response.data.message) {
-          errorMessage = err.response.data.message;
-        } else if (err.response.data.success === false) {
-          errorMessage = err.response.data.message || '削除に失敗しました';
-        }
-      } else if (err.response?.statusText) {
-        errorMessage = err.response.statusText;
-      } else if (err.message) {
-        errorMessage = err.message;
-      }
-      
-      alert(`エラー (${err.response?.status || 'Unknown'}): ${errorMessage}`);
-      
-      // 権限エラーの場合はセッションが無効な可能性
-      if (err.response?.status === 401 || err.response?.status === 403) {
-        logout();
-      }
+      alert('ユーザーの削除に失敗しました');
+      console.error(err);
     }
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      alert('クリップボードにコピーしました');
+    }).catch(err => {
+      console.error('コピーに失敗しました:', err);
+    });
+  };
+
+  // 初期データ読み込み
   useEffect(() => {
     fetchProtectedContent();
-    fetchInviteCodes();
-    fetchUsers();
-  }, [sessionId]);
+    if (user?.can_invite) {
+      fetchInviteCodes();
+    }
+    if (user?.is_root) {
+      fetchUsers();
+    }
+  }, [user]);
 
   return (
-    <div className={css({ minH: '100vh', bg: 'gray.50' })}>
-      {/* Header */}
-      <header className={css({ 
-        bg: 'white', 
-        shadow: 'sm', 
-        borderBottom: '1px solid', 
-        borderColor: 'gray.200' 
-      })}>
-        <div className={container({ maxW: '6xl', py: '4' })}>
-          <div className={hstack({ justify: 'space-between' })}>
-            <h1 className={css({ 
-              fontSize: '2xl', 
-              fontWeight: 'bold', 
-              color: 'gray.900' 
-            })}>
-              Patchouli Knowledge Base
-            </h1>
-            
-            <div className={hstack({ gap: '4' })}>
-              <span className={css({ color: 'gray.600', fontSize: 'sm' })}>
-                {userEmail}
-              </span>
-              <button
-                onClick={handleLogout}
-                className={css({
-                  bg: 'gray.100',
-                  color: 'gray.700',
-                  py: '2',
-                  px: '4',
-                  rounded: 'md',
-                  fontSize: 'sm',
-                  fontWeight: 'medium',
-                  transition: 'colors',
-                  cursor: 'pointer',
-                  _hover: {
-                    bg: 'gray.200',
-                  },
-                })}
-              >
-                ログアウト
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className={container({ maxW: '4xl', py: '8' })}>
-        <div className={stack({ gap: '6' })}>
+    <div className={container({ maxW: '6xl', py: '8' })}>
+      <div className={stack({ gap: '8' })}>
+        {/* ヘッダー */}
+        <header className={hstack({ justify: 'space-between', alignItems: 'center' })}>
           <div>
-            <h2 className={css({ 
-              fontSize: '2xl', 
-              fontWeight: 'bold', 
-              color: 'gray.900', 
-              mb: '2' 
-            })}>
-              ダッシュボード
-            </h2>
-            <p className={css({ color: 'gray.600' })}>
-              魔法図書館の保護されたコンテンツにアクセスできます
+            <h1 className={css({ fontSize: '3xl', fontWeight: 'bold', color: 'gray.900' })}>
+              Patchouli Dashboard
+            </h1>
+            <p className={css({ mt: '1', color: 'gray.600' })}>
+              ようこそ、{user?.name}さん ({user?.email})
             </p>
-          </div>
-
-          {/* Protected Content Section */}
-          <div className={css({ 
-            bg: 'white', 
-            rounded: 'lg', 
-            shadow: 'sm', 
-            p: '6',
-            border: '1px solid',
-            borderColor: 'gray.200'
-          })}>
-            <div className={css({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: '4' })}>
-              <h3 className={css({ 
-                fontSize: 'lg', 
-                fontWeight: 'semibold', 
-                color: 'gray.900' 
-              })}>
-                保護されたコンテンツ
-              </h3>
-              <button
-                onClick={fetchProtectedContent}
-                disabled={isLoading}
-                className={css({
-                  bg: 'brand.primary',
-                  color: 'white',
-                  py: '2',
-                  px: '4',
-                  rounded: 'md',
-                  fontSize: 'sm',
-                  fontWeight: 'medium',
-                  transition: 'colors',
-                  cursor: isLoading ? 'not-allowed' : 'pointer',
-                  opacity: isLoading ? '0.5' : '1',
-                  _hover: {
-                    bg: isLoading ? 'brand.primary' : 'brand.secondary',
-                  },
-                })}
-              >
-                {isLoading ? '読み込み中...' : '更新'}
-              </button>
+            <div className={css({ mt: '1', fontSize: 'sm', color: 'gray.500' })}>
+              {user?.is_root && <span className={css({ bg: 'red.100', color: 'red.800', px: '2', py: '1', rounded: 'md', mr: '2' })}>Root</span>}
+              {user?.can_invite && <span className={css({ bg: 'blue.100', color: 'blue.800', px: '2', py: '1', rounded: 'md' })}>招待権限</span>}
             </div>
-
-            {error && (
-              <div className={css({ 
-                bg: 'red.50', 
-                border: '1px solid', 
-                borderColor: 'red.200', 
-                rounded: 'md', 
-                p: '4', 
-                mb: '4' 
-              })}>
-                <p className={css({ color: 'red.800', fontSize: 'sm' })}>
-                  {error}
-                </p>
-              </div>
-            )}
-
-            {protectedContent && (
-              <div className={css({ 
-                bg: 'gray.50', 
-                rounded: 'md', 
-                p: '4' 
-              })}>
-                <p className={css({ color: 'gray.800', lineHeight: '1.6' })}>
-                  {protectedContent}
-                </p>
-              </div>
-            )}
-
-            {!protectedContent && !isLoading && !error && (
-              <div className={css({ 
-                textAlign: 'center', 
-                py: '8', 
-                color: 'gray.500' 
-              })}>
-                保護されたコンテンツを読み込むには「更新」ボタンを押してください
-              </div>
-            )}
           </div>
+          <button
+            onClick={handleLogout}
+            className={css({
+              bg: 'gray.600',
+              color: 'white',
+              px: '4',
+              py: '2',
+              rounded: 'md',
+              fontWeight: 'medium',
+              _hover: { bg: 'gray.700' },
+            })}
+          >
+            ログアウト
+          </button>
+        </header>
 
-          {/* Invite Management Section - rootユーザーのみ表示 */}
-          {currentUser?.can_invite && (
-            <div className={css({ 
-              bg: 'white', 
-              rounded: 'lg', 
-              shadow: 'sm', 
-              p: '6',
-              border: '1px solid',
-              borderColor: 'gray.200'
-            })}>
-            <div className={css({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: '4' })}>
-              <h3 className={css({ 
-                fontSize: 'lg', 
-                fontWeight: 'semibold', 
-                color: 'gray.900' 
-              })}>
-                招待コード管理
-              </h3>
-              <button
-                onClick={createInviteCode}
-                disabled={isCreatingInvite}
-                className={css({
-                  bg: 'green.600',
-                  color: 'white',
-                  py: '2',
-                  px: '4',
-                  rounded: 'md',
-                  fontSize: 'sm',
-                  fontWeight: 'medium',
-                  transition: 'colors',
-                  cursor: isCreatingInvite ? 'not-allowed' : 'pointer',
-                  opacity: isCreatingInvite ? '0.5' : '1',
-                  _hover: {
-                    bg: isCreatingInvite ? 'green.600' : 'green.700',
-                  },
-                })}
-              >
-                {isCreatingInvite ? '作成中...' : '新しい招待コード作成'}
-              </button>
+        {/* 保護されたコンテンツ */}
+        <section className={css({ bg: 'white', p: '6', rounded: 'lg', shadow: 'sm' })}>
+          <h2 className={css({ fontSize: '2xl', fontWeight: 'semibold', mb: '4' })}>
+            保護されたコンテンツ
+          </h2>
+          
+          <button
+            onClick={fetchProtectedContent}
+            disabled={isLoading}
+            className={css({
+              bg: 'brand.primary',
+              color: 'white',
+              px: '4',
+              py: '2',
+              rounded: 'md',
+              fontWeight: 'medium',
+              mb: '4',
+              _hover: { bg: 'brand.secondary' },
+              _disabled: { bg: 'gray.400', cursor: 'not-allowed' },
+            })}
+          >
+            {isLoading ? 'ロード中...' : 'コンテンツを取得'}
+          </button>
+
+          {error && (
+            <div className={css({ bg: 'red.50', border: '1px solid', borderColor: 'red.200', rounded: 'md', p: '4', mb: '4' })}>
+              <p className={css({ color: 'red.800' })}>{error}</p>
             </div>
+          )}
+
+          {protectedContent && (
+            <div className={css({ bg: 'gray.50', p: '4', rounded: 'md' })}>
+              <p className={css({ mb: '2' })}>{protectedContent.message}</p>
+              <p className={css({ fontSize: 'sm', color: 'gray.600' })}>
+                取得時刻: {new Date(protectedContent.timestamp).toLocaleString('ja-JP')}
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* 招待コード管理 (招待権限を持つユーザーのみ) */}
+        {user?.can_invite && (
+          <section className={css({ bg: 'white', p: '6', rounded: 'lg', shadow: 'sm' })}>
+            <h2 className={css({ fontSize: '2xl', fontWeight: 'semibold', mb: '4' })}>
+              招待コード管理
+            </h2>
+
+            <button
+              onClick={createInviteCode}
+              disabled={isCreatingInvite}
+              className={css({
+                bg: 'green.600',
+                color: 'white',
+                px: '4',
+                py: '2',
+                rounded: 'md',
+                fontWeight: 'medium',
+                mb: '4',
+                _hover: { bg: 'green.700' },
+                _disabled: { bg: 'gray.400', cursor: 'not-allowed' },
+              })}
+            >
+              {isCreatingInvite ? '作成中...' : '新しい招待コードを作成'}
+            </button>
 
             {inviteError && (
-              <div className={css({ 
-                bg: 'red.50', 
-                border: '1px solid', 
-                borderColor: 'red.200', 
-                rounded: 'md', 
-                p: '4', 
-                mb: '4' 
-              })}>
-                <p className={css({ color: 'red.800', fontSize: 'sm' })}>
-                  {inviteError}
-                </p>
+              <div className={css({ bg: 'red.50', border: '1px solid', borderColor: 'red.200', rounded: 'md', p: '4', mb: '4' })}>
+                <p className={css({ color: 'red.800' })}>{inviteError}</p>
               </div>
             )}
 
             {newInviteUrl && (
-              <div className={css({ 
-                bg: 'green.50', 
-                border: '1px solid', 
-                borderColor: 'green.200', 
-                rounded: 'md', 
-                p: '4', 
-                mb: '4' 
-              })}>
-                <h4 className={css({ 
-                  fontSize: 'sm', 
-                  fontWeight: 'semibold', 
-                  color: 'green.900', 
-                  mb: '2' 
-                })}>
+              <div className={css({ bg: 'green.50', border: '1px solid', borderColor: 'green.200', rounded: 'md', p: '4', mb: '4' })}>
+                <h3 className={css({ fontWeight: 'semibold', color: 'green.800', mb: '2' })}>
                   新しい招待URLが作成されました
-                </h4>
-                <div className={css({ display: 'flex', gap: '2', alignItems: 'center' })}>
+                </h3>
+                <div className={hstack({ gap: '2' })}>
                   <input
                     type="text"
                     value={newInviteUrl}
                     readOnly
                     className={css({
                       flex: '1',
-                      bg: 'white',
+                      p: '2',
                       border: '1px solid',
                       borderColor: 'green.300',
                       rounded: 'md',
-                      px: '3',
-                      py: '2',
                       fontSize: 'sm',
-                      fontFamily: 'mono'
                     })}
                   />
                   <button
@@ -402,14 +258,11 @@ export const Dashboard: React.FC = () => {
                     className={css({
                       bg: 'green.600',
                       color: 'white',
-                      py: '2',
                       px: '3',
+                      py: '2',
                       rounded: 'md',
                       fontSize: 'sm',
-                      cursor: 'pointer',
-                      _hover: {
-                        bg: 'green.700',
-                      },
+                      _hover: { bg: 'green.700' },
                     })}
                   >
                     コピー
@@ -418,297 +271,140 @@ export const Dashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Existing Invite Codes */}
-            <div>
-              <h4 className={css({ 
-                fontSize: 'md', 
-                fontWeight: 'semibold', 
-                color: 'gray.900', 
-                mb: '3' 
-              })}>
-                作成済み招待コード
-              </h4>
-              
-              {inviteCodes.length === 0 ? (
-                <div className={css({ 
-                  textAlign: 'center', 
-                  py: '6', 
-                  color: 'gray.500' 
-                })}>
-                  まだ招待コードがありません
-                </div>
-              ) : (
-                <div className={stack({ gap: '3' })}>
-                  {inviteCodes.map((invite) => (
-                    <div
-                      key={invite.id}
-                      className={css({
-                        bg: 'gray.50',
-                        border: '1px solid',
-                        borderColor: 'gray.200',
-                        rounded: 'md',
-                        p: '4'
-                      })}
-                    >
-                      <div className={hstack({ justify: 'space-between', mb: '2' })}>
-                        <span className={css({ 
-                          fontSize: 'sm', 
-                          fontWeight: 'medium',
-                          fontFamily: 'mono',
-                          color: 'gray.800'
-                        })}>
-                          {invite.code}
-                        </span>
-                        <span className={css({
-                          px: '2',
-                          py: '1',
-                          rounded: 'sm',
-                          fontSize: 'xs',
-                          fontWeight: 'medium',
-                          bg: invite.used_by ? 'red.100' : 'green.100',
-                          color: invite.used_by ? 'red.800' : 'green.800'
-                        })}>
-                          {invite.used_by ? '使用済み' : '未使用'}
-                        </span>
-                      </div>
-                      <div className={css({ fontSize: 'xs', color: 'gray.600' })}>
-                        作成日: {new Date(invite.created_at).toLocaleDateString('ja-JP')}
-                        {invite.used_at && (
-                          <span> | 使用日: {new Date(invite.used_at).toLocaleDateString('ja-JP')}</span>
-                        )}
-                      </div>
-                      {!invite.used_by && (
-                        <button
-                          onClick={() => copyToClipboard(`${window.location.origin}/login?register=true&invite=${invite.code}`)}
-                          className={css({
-                            mt: '2',
-                            bg: 'blue.600',
-                            color: 'white',
-                            py: '1',
-                            px: '3',
-                            rounded: 'sm',
-                            fontSize: 'xs',
-                            cursor: 'pointer',
-                            _hover: {
-                              bg: 'blue.700',
-                            },
-                          })}
-                        >
-                          招待URLをコピー
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-          )}
-
-          {/* User Management Section - rootユーザーのみ表示 */}
-          {currentUser?.is_root && (
-            <div className={css({ 
-              bg: 'white', 
-              rounded: 'lg', 
-              shadow: 'sm', 
-              p: '6',
-              border: '1px solid',
-              borderColor: 'gray.200'
-            })}>
-              <div className={css({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: '4' })}>
-                <h3 className={css({ 
-                  fontSize: 'lg', 
-                  fontWeight: 'semibold', 
-                  color: 'gray.900' 
-                })}>
-                  ユーザー管理 (管理者)
-                </h3>
-                <button
-                  onClick={fetchUsers}
-                  disabled={isLoadingUsers}
-                  className={css({
-                    bg: 'blue.600',
-                    color: 'white',
-                    py: '2',
-                    px: '4',
-                    rounded: 'md',
-                    fontSize: 'sm',
-                    fontWeight: 'medium',
-                    transition: 'colors',
-                    cursor: isLoadingUsers ? 'not-allowed' : 'pointer',
-                    opacity: isLoadingUsers ? '0.5' : '1',
-                    _hover: {
-                      bg: isLoadingUsers ? 'blue.600' : 'blue.700',
-                    },
-                  })}
-                >
-                  {isLoadingUsers ? '読み込み中...' : '更新'}
-                </button>
-              </div>
-
-              {usersError && (
-                <div className={css({ 
-                  bg: 'red.50', 
-                  border: '1px solid', 
-                  borderColor: 'red.200', 
-                  rounded: 'md', 
-                  p: '4', 
-                  mb: '4' 
-                })}>
-                  <p className={css({ color: 'red.800', fontSize: 'sm' })}>
-                    {usersError}
-                  </p>
-                </div>
-              )}
-
+            {inviteCodes.length > 0 && (
               <div>
-                <h4 className={css({ 
-                  fontSize: 'md', 
-                  fontWeight: 'semibold', 
-                  color: 'gray.900', 
-                  mb: '3' 
-                })}>
-                  登録ユーザー一覧
-                </h4>
-                
-                {users.length === 0 ? (
-                  <div className={css({ 
-                    textAlign: 'center', 
-                    py: '6', 
-                    color: 'gray.500' 
-                  })}>
-                    ユーザーが見つかりません
-                  </div>
-                ) : (
-                  <div className={stack({ gap: '3' })}>
-                    {users.map((user) => (
-                      <div
-                        key={user.id}
-                        className={css({
-                          bg: user.is_root ? 'yellow.50' : 'gray.50',
-                          border: '1px solid',
-                          borderColor: user.is_root ? 'yellow.200' : 'gray.200',
-                          rounded: 'md',
-                          p: '4'
-                        })}
-                      >
-                        <div className={hstack({ justify: 'space-between', mb: '2' })}>
-                          <div>
-                            <span className={css({ 
-                              fontSize: 'md', 
-                              fontWeight: 'semibold',
-                              color: 'gray.800'
-                            })}>
-                              {user.name}
-                            </span>
-                            <span className={css({ 
-                              fontSize: 'sm', 
-                              color: 'gray.600',
-                              ml: '2'
-                            })}>
-                              ({user.email})
-                            </span>
-                          </div>
-                          <div className={hstack({ gap: '2' })}>
-                            {user.is_root && (
-                              <span className={css({
-                                px: '2',
-                                py: '1',
-                                rounded: 'sm',
-                                fontSize: 'xs',
-                                fontWeight: 'medium',
-                                bg: 'yellow.100',
-                                color: 'yellow.800'
-                              })}>
-                                ROOT
+                <h3 className={css({ fontSize: 'lg', fontWeight: 'semibold', mb: '3' })}>
+                  作成済み招待コード
+                </h3>
+                <div className={css({ overflowX: 'auto' })}>
+                  <table className={css({ w: 'full', border: '1px solid', borderColor: 'gray.200' })}>
+                    <thead className={css({ bg: 'gray.50' })}>
+                      <tr>
+                        <th className={css({ p: '3', textAlign: 'left', borderBottom: '1px solid', borderColor: 'gray.200' })}>コード</th>
+                        <th className={css({ p: '3', textAlign: 'left', borderBottom: '1px solid', borderColor: 'gray.200' })}>作成日時</th>
+                        <th className={css({ p: '3', textAlign: 'left', borderBottom: '1px solid', borderColor: 'gray.200' })}>使用状況</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {inviteCodes.map((invite) => (
+                        <tr key={invite.id}>
+                          <td className={css({ p: '3', borderBottom: '1px solid', borderColor: 'gray.200' })}>
+                            <code className={css({ fontSize: 'sm', bg: 'gray.100', p: '1', rounded: 'sm' })}>
+                              {invite.code}
+                            </code>
+                          </td>
+                          <td className={css({ p: '3', borderBottom: '1px solid', borderColor: 'gray.200' })}>
+                            {new Date(invite.created_at).toLocaleString('ja-JP')}
+                          </td>
+                          <td className={css({ p: '3', borderBottom: '1px solid', borderColor: 'gray.200' })}>
+                            {invite.used_by ? (
+                              <span className={css({ color: 'green.600' })}>
+                                使用済み ({invite.used_at ? new Date(invite.used_at).toLocaleString('ja-JP') : ''})
                               </span>
+                            ) : (
+                              <span className={css({ color: 'blue.600' })}>未使用</span>
                             )}
-                            {user.can_invite && (
-                              <span className={css({
-                                px: '2',
-                                py: '1',
-                                rounded: 'sm',
-                                fontSize: 'xs',
-                                fontWeight: 'medium',
-                                bg: 'green.100',
-                                color: 'green.800'
-                              })}>
-                                招待権限
-                              </span>
-                            )}
-                            {user.invited_by && (
-                              <span className={css({
-                                px: '2',
-                                py: '1',
-                                rounded: 'sm',
-                                fontSize: 'xs',
-                                fontWeight: 'medium',
-                                bg: 'blue.100',
-                                color: 'blue.800'
-                              })}>
-                                招待済み
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className={css({ fontSize: 'xs', color: 'gray.600', mb: '2' })}>
-                          登録日: {new Date(user.registered_at).toLocaleDateString('ja-JP')}
-                          {user.last_login && (
-                            <span> | 最終ログイン: {new Date(user.last_login).toLocaleDateString('ja-JP')}</span>
-                          )}
-                          {user.invited_by && (
-                            <span> | 招待者ID: {user.invited_by}</span>
-                          )}
-                        </div>
-                        {!user.is_root && user.id !== currentUser?.id && (
-                          <button
-                            onClick={() => deleteUser(user.id, user.name)}
-                            className={css({
-                              bg: 'red.600',
-                              color: 'white',
-                              py: '1',
-                              px: '3',
-                              rounded: 'sm',
-                              fontSize: 'xs',
-                              cursor: 'pointer',
-                              _hover: {
-                                bg: 'red.700',
-                              },
-                            })}
-                          >
-                            削除
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </section>
+        )}
 
-          {/* Session Info */}
-          <div className={css({ 
-            bg: 'blue.50', 
-            border: '1px solid', 
-            borderColor: 'blue.200', 
-            rounded: 'md', 
-            p: '4' 
-          })}>
-            <h4 className={css({ 
-              fontSize: 'sm', 
-              fontWeight: 'semibold', 
-              color: 'blue.900', 
-              mb: '2' 
-            })}>
-              セッション情報
-            </h4>
-            <div className={css({ fontSize: 'xs', color: 'blue.800', fontFamily: 'mono' })}>
-              セッションID: {sessionId}
-            </div>
-          </div>
-        </div>
-      </main>
+        {/* ユーザー管理 (Rootユーザーのみ) */}
+        {user?.is_root && (
+          <section className={css({ bg: 'white', p: '6', rounded: 'lg', shadow: 'sm' })}>
+            <h2 className={css({ fontSize: '2xl', fontWeight: 'semibold', mb: '4' })}>
+              ユーザー管理
+            </h2>
+
+            <button
+              onClick={fetchUsers}
+              disabled={isLoadingUsers}
+              className={css({
+                bg: 'blue.600',
+                color: 'white',
+                px: '4',
+                py: '2',
+                rounded: 'md',
+                fontWeight: 'medium',
+                mb: '4',
+                _hover: { bg: 'blue.700' },
+                _disabled: { bg: 'gray.400', cursor: 'not-allowed' },
+              })}
+            >
+              {isLoadingUsers ? 'ロード中...' : 'ユーザー一覧を更新'}
+            </button>
+
+            {usersError && (
+              <div className={css({ bg: 'red.50', border: '1px solid', borderColor: 'red.200', rounded: 'md', p: '4', mb: '4' })}>
+                <p className={css({ color: 'red.800' })}>{usersError}</p>
+              </div>
+            )}
+
+            {users.length > 0 && (
+              <div className={css({ overflowX: 'auto' })}>
+                <table className={css({ w: 'full', border: '1px solid', borderColor: 'gray.200' })}>
+                  <thead className={css({ bg: 'gray.50' })}>
+                    <tr>
+                      <th className={css({ p: '3', textAlign: 'left', borderBottom: '1px solid', borderColor: 'gray.200' })}>ID</th>
+                      <th className={css({ p: '3', textAlign: 'left', borderBottom: '1px solid', borderColor: 'gray.200' })}>名前</th>
+                      <th className={css({ p: '3', textAlign: 'left', borderBottom: '1px solid', borderColor: 'gray.200' })}>メール</th>
+                      <th className={css({ p: '3', textAlign: 'left', borderBottom: '1px solid', borderColor: 'gray.200' })}>権限</th>
+                      <th className={css({ p: '3', textAlign: 'left', borderBottom: '1px solid', borderColor: 'gray.200' })}>登録日</th>
+                      <th className={css({ p: '3', textAlign: 'left', borderBottom: '1px solid', borderColor: 'gray.200' })}>最終ログイン</th>
+                      <th className={css({ p: '3', textAlign: 'left', borderBottom: '1px solid', borderColor: 'gray.200' })}>操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u) => (
+                      <tr key={u.id}>
+                        <td className={css({ p: '3', borderBottom: '1px solid', borderColor: 'gray.200' })}>{u.id}</td>
+                        <td className={css({ p: '3', borderBottom: '1px solid', borderColor: 'gray.200' })}>{u.name}</td>
+                        <td className={css({ p: '3', borderBottom: '1px solid', borderColor: 'gray.200' })}>{u.email}</td>
+                        <td className={css({ p: '3', borderBottom: '1px solid', borderColor: 'gray.200' })}>
+                          <div className={stack({ gap: '1' })}>
+                            {u.is_root && <span className={css({ bg: 'red.100', color: 'red.800', px: '2', py: '1', rounded: 'sm', fontSize: 'xs' })}>Root</span>}
+                            {u.can_invite && <span className={css({ bg: 'blue.100', color: 'blue.800', px: '2', py: '1', rounded: 'sm', fontSize: 'xs' })}>招待権限</span>}
+                          </div>
+                        </td>
+                        <td className={css({ p: '3', borderBottom: '1px solid', borderColor: 'gray.200' })}>
+                          {new Date(u.created_at).toLocaleString('ja-JP')}
+                        </td>
+                        <td className={css({ p: '3', borderBottom: '1px solid', borderColor: 'gray.200' })}>
+                          {u.last_login ? new Date(u.last_login).toLocaleString('ja-JP') : 'なし'}
+                        </td>
+                        <td className={css({ p: '3', borderBottom: '1px solid', borderColor: 'gray.200' })}>
+                          {u.id !== parseInt(user.id) && !u.is_root && (
+                            <button
+                              onClick={() => deleteUser(u.id)}
+                              className={css({
+                                bg: 'red.600',
+                                color: 'white',
+                                px: '3',
+                                py: '1',
+                                rounded: 'sm',
+                                fontSize: 'sm',
+                                _hover: { bg: 'red.700' },
+                              })}
+                            >
+                              削除
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
+      </div>
     </div>
   );
 };
