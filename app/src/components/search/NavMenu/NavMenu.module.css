@@ -25,9 +25,11 @@
   color: var(--ink-2);
   font-size: 13px;
   text-align: left;
+  white-space: nowrap;
   cursor: pointer;
 }
 .root button i {
+  flex-shrink: 0;
   width: 16px;
   text-align: center;
   font-style: normal;
@@ -35,6 +37,9 @@
 }
 .root button small {
   margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font: 500 11px var(--f-mono);
   color: var(--faint);
 }

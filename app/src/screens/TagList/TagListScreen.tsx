@@ -22,6 +22,8 @@ export interface TagListScreenProps {
   expanded?: string[]
   sort?: Sort
   onOpenTag?: (tag: string) => void
+  /** ホームへのピン留めを切り替える。 */
+  onTogglePin?: (tag: string) => void
 }
 
 /** 12 タグ一覧。「写真/旅行」は「写真」の下に入り、親は下の分も数える。 */
@@ -88,7 +90,10 @@ export function TagListScreen(props: TagListScreenProps) {
           <PinToggle
             where="ホームに"
             pressed={pins().includes(r.tag)}
-            onClick={() => setPins(toggled(pins(), r.tag))}
+            onClick={() => {
+              setPins(toggled(pins(), r.tag))
+              props.onTogglePin?.(r.tag)
+            }}
           />
         </div>
         <Show when={!sub && isOpen()}>

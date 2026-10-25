@@ -1,4 +1,4 @@
-/* 画面が読む素材・ノート・プロジェクトの形と、そこから出す集計。保存や読み込みはまだない。 */
+/* 画面が読む素材・ノート・プロジェクトの形と、そこから出す集計。読み書きは backend/ が受け持つ。 */
 
 export type ItemKind = 'image' | 'video' | 'audio' | 'note'
 
@@ -43,6 +43,10 @@ export interface Item {
   blocks?: NoteBlock[]
   aliases?: string[]
   suggestion?: Suggestion
+  /** 中身を表示する URL。 */
+  src?: string
+  /** サムネイルの URL。画像だけにあり、まだできていなければない。 */
+  thumb?: string
 }
 
 export type CoverPart =
@@ -174,19 +178,47 @@ export function buildLibrary(
   }
 }
 
-/** 空のプロジェクトを足したライブラリと、その名前。名前は「新しいプロジェクト」「新しいプロジェクト 2」…と重ならないように付ける。 */
-export function withEmptyProject(lib: Library, now = new Date()): { lib: Library; name: string } {
+/** 新しいプロジェクトの名前。「新しいプロジェクト」「新しいプロジェクト 2」…と重ならないように付ける。 */
+export function newProjectName(lib: Library) {
   const base = '新しいプロジェクト'
   let name = base
   for (let n = 2; lib.projectBy.has(name); n++) name = `${base} ${n}`
-  const hm = `${now.getHours()}`.padStart(2, '0') + ':' + `${now.getMinutes()}`.padStart(2, '0')
-  const p: Project = { name, hue: 210, touched: `今日 ${hm}`, cover: [] }
-  return { lib: buildLibrary(lib.items, [...lib.projects, p], lib.today, lib.tagCovers, lib.pins), name }
+  return name
+}
+
+export const emptyProject = (name: string, now = new Date()): Project => ({
+  name,
+  hue: 210,
+  touched: touchedLabel(now, now),
+  cover: [],
+})
+
+/** プロジェクトを足したライブラリ。 */
+export const withProject = (lib: Library, p: Project) =>
+  buildLibrary(lib.items, [...lib.projects, p], lib.today, lib.tagCovers, lib.pins)
+
+/** 空のプロジェクトを足したライブラリと、その名前。 */
+export function withEmptyProject(lib: Library, now = new Date()): { lib: Library; name: string } {
+  const name = newProjectName(lib)
+  return { lib: withProject(lib, emptyProject(name, now)), name }
 }
 
 /** 項目 id のピン留めを切り替えたライブラリ。 */
 export const withToggledPin = (lib: Library, id: string) =>
   buildLibrary(lib.items, lib.projects, lib.today, lib.tagCovers, toggled(lib.pins, id))
+
+/** できたサムネイル（id → URL）を付けたライブラリ。 */
+export const withThumbs = (lib: Library, thumbs: Map<string, string>) =>
+  buildLibrary(
+    lib.items.map((i) => {
+      const thumb = thumbs.get(i.id)
+      return thumb ? { ...i, thumb } : i
+    }),
+    lib.projects,
+    lib.today,
+    lib.tagCovers,
+    lib.pins,
+  )
 
 /** タグ from を to に変えたときの、タグ t の新しい名前。下の階層も付け替える。 */
 export const retag = (from: string, to: string) => (t: string) =>
@@ -204,28 +236,39 @@ export function withRenamedTag(lib: Library, from: string, to: string): Library 
   return buildLibrary(items, lib.projects, lib.today, covers, lib.pins)
 }
 
-/** 空のノートを足したライブラリと、その id。名前がなければ「新しいノート」にし、重なるときは番号を付ける。 */
-export function withEmptyNote(lib: Library, name = '新しいノート'): { lib: Library; id: string } {
+/** 新しいノートの名前。名前がなければ「新しいノート」にし、重なるときは番号を付ける。 */
+export function newNoteName(lib: Library, name = '新しいノート') {
   let n = name
   for (let k = 2; lib.byName.has(n); k++) n = `${name} ${k}`
-  const id = `i${lib.items.length + 1}`
-  const note: Item = {
-    id,
-    kind: 'note',
-    name: n,
-    folder: null,
-    tags: [],
-    moved: 0,
-    hue: 210,
-    sat: 14,
-    ratio: 0.8,
-    rating: 0,
-    memo: '',
-    blocks: [],
-    aliases: [],
-  }
-  return { lib: buildLibrary([...lib.items, note], lib.projects, lib.today, lib.tagCovers, lib.pins), id }
+  return n
 }
+
+export const emptyNote = (id: string, name: string, folder: string | null = null): Item => ({
+  id,
+  kind: 'note',
+  name,
+  folder,
+  tags: [],
+  moved: 0,
+  hue: 210,
+  sat: 14,
+  ratio: 0.8,
+  rating: 0,
+  memo: '',
+  blocks: [],
+  aliases: [],
+})
+
+/** 項目を足したライブラリ。 */
+export const withItem = (lib: Library, it: Item) =>
+  buildLibrary([...lib.items, it], lib.projects, lib.today, lib.tagCovers, lib.pins)
+
+/** タグの名前を変えたとき、タグが変わった項目。 */
+export const retaggedItems = (before: Library, after: Library) =>
+  after.items.filter((i) => {
+    const old = before.byId.get(i.id)
+    return !!old && (old.tags.length !== i.tags.length || old.tags.some((t, k) => t !== i.tags[k]))
+  })
 
 /* ---------- 表示の文字 ---------- */
 
@@ -240,6 +283,21 @@ export const monthDay = (lib: Library, d: number) => {
 /** 「今日」「昨日」「3 日前」「10/5」。 */
 export const relDay = (lib: Library, d: number) =>
   d <= 0 ? '今日' : d === 1 ? '昨日' : d < 7 ? `${d} 日前` : monthDay(lib, d)
+
+const startOfDay = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime()
+
+/** today から見て、t が何日前の日付か。 */
+export const daysBefore = (today: Date, t: Date) => Math.max(0, Math.round((startOfDay(today) - startOfDay(t)) / DAY))
+
+/** プロジェクトの「最後に扱った日」。「今日 09:40」「昨日」「3 日前」「10/5」「2025/5/10」。 */
+export function touchedLabel(today: Date, t: Date) {
+  const d = daysBefore(today, t)
+  if (d === 0) return `今日 ${`${t.getHours()}`.padStart(2, '0')}:${`${t.getMinutes()}`.padStart(2, '0')}`
+  if (d === 1) return '昨日'
+  if (d < 7) return `${d} 日前`
+  const md = `${t.getMonth() + 1}/${t.getDate()}`
+  return t.getFullYear() === today.getFullYear() ? md : `${t.getFullYear()}/${md}`
+}
 
 /** 期日の「11/15」と「あと 24 日」。late は過ぎている。 */
 export function dueLabel(lib: Library, date: string) {
@@ -266,7 +324,7 @@ export type CardSize = 'L' | 'M' | 'S' | 'X'
 
 /** Thumb に渡す値。ノートは大きさに合わせて本文を切る。 */
 export function thumbOf(it: Item, size: CardSize = 'M') {
-  if (it.kind !== 'note') return { kind: it.kind, hue: it.hue, sat: it.sat }
+  if (it.kind !== 'note') return { kind: it.kind, hue: it.hue, sat: it.sat, src: it.thumb }
   if (size === 'X') return { kind: it.kind, excerpt: it.name }
   const ex = plainText(it.blocks ?? [])
   const lim = size === 'L' ? 140 : size === 'S' ? 0 : 46

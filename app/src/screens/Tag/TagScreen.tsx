@@ -46,6 +46,8 @@ export interface TagScreenProps {
   onOpenItem?: (id: string, list: string[]) => void
   onOpenTag?: (tag: string) => void
   onTogglePin?: (id: string) => void
+  /** このタグのホームへのピン留めを切り替える。 */
+  onToggleTagPin?: () => void
   /** 編集を終えたとき、名前が変わっていれば呼ぶ。付いている項目と下の階層の付け替えは呼んだ側でする。 */
   onRename?: (to: string) => void
 }
@@ -166,7 +168,14 @@ export function TagScreen(props: TagScreenProps) {
       onBack={props.onBack}
       actions={
         <>
-          <PinToggle where="ホームに" pressed={pinned()} onClick={() => setPinned(!pinned())} />
+          <PinToggle
+            where="ホームに"
+            pressed={pinned()}
+            onClick={() => {
+              setPinned(!pinned())
+              props.onToggleTagPin?.()
+            }}
+          />
           <FloatingPill aria-pressed={editing()} onClick={toggleEdit}>
             {editing() ? '編集を終える' : '表紙を編集'}
           </FloatingPill>

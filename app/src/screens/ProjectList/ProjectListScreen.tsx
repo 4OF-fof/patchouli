@@ -11,6 +11,8 @@ export interface ProjectListScreenProps {
   lib: Library
   pinned?: string[]
   onOpenProject?: (name: string) => void
+  /** ホームへのピン留めを切り替える。 */
+  onTogglePin?: (name: string) => void
   /** 空のプロジェクトを作る。 */
   onCreate?: () => void
 }
@@ -61,7 +63,10 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
           look="float"
           reveal
           pressed={pins().includes(p.name)}
-          onClick={() => setPins(toggled(pins(), p.name))}
+          onClick={() => {
+            setPins(toggled(pins(), p.name))
+            props.onTogglePin?.(p.name)
+          }}
         />
       </div>
     )

@@ -1,5 +1,19 @@
 import { Match, Switch, createSignal, onCleanup, onMount } from 'solid-js'
-import { type Library, retag, withEmptyNote, withEmptyProject, withRenamedTag, withToggledPin } from './model/library'
+import { type Backend, type LibraryState, sampleBackend } from './backend'
+import { Toast } from './components/overlay/Toast/Toast'
+import {
+  type Library,
+  newNoteName,
+  newProjectName,
+  retag,
+  retaggedItems,
+  toggled,
+  withItem,
+  withProject,
+  withRenamedTag,
+  withThumbs,
+  withToggledPin,
+} from './model/library'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import { AppDock, type Place } from './screens/AppDock'
 import { AssetScreen } from './screens/Asset/AssetScreen'
@@ -33,11 +47,26 @@ const LABEL: Record<View['s'], string> = {
   tidy: '整理',
 }
 
-/** 画面をつないで行き来できるようにしたもの。保存や読み込みはまだなく、中身は渡したライブラリだけ。 */
-export function App(props: { lib: Library }) {
+export interface AppProps {
+  lib: Library
+  /** 変更を書き込む先。省略すると書き込まない（見本）。 */
+  backend?: Backend
+  pinnedProjects?: string[]
+  pinnedTags?: string[]
+  /** 開いたライブラリの場所（設定に出す）。 */
+  location?: string
+  /** 開いたときに出す知らせ。 */
+  notice?: string
+}
+
+/** 画面をつないで行き来できるようにしたもの。変更は backend に書き込む。 */
+export function App(props: AppProps) {
+  const backend = props.backend ?? sampleBackend()
   const [lib, setLib] = createSignal(props.lib)
   const [stack, setStack] = createSignal<View[]>([{ s: 'edition' }])
-  const [pinnedTags, setPinnedTags] = createSignal(PINNED_TAGS)
+  const [pinnedProjects, setPinnedProjects] = createSignal(props.pinnedProjects ?? PINNED_PROJECTS)
+  const [pinnedTags, setPinnedTags] = createSignal(props.pinnedTags ?? PINNED_TAGS)
+  const [notice, setNotice] = createSignal(props.notice)
   const view = () => stack().at(-1) ?? { s: 'edition' }
   const back = () => {
     const prev = stack().at(-2)
@@ -65,23 +94,76 @@ export function App(props: { lib: Library }) {
     if (to === 'tidy') go({ s: 'tidy' })
     else setStack([{ s: to === 'tags' ? 'tlist' : to === 'projects' ? 'plist' : 'edition' }])
   }
-  const createProject = () => {
-    const r = withEmptyProject(lib())
-    setLib(r.lib)
-    go({ s: 'project', name: r.name, editing: true })
+
+  // 書き込みは出した順に 1 つずつ流し、失敗したら知らせる
+  let queue = Promise.resolve()
+  const fail = (e: unknown) => {
+    setNotice(`保存できませんでした: ${e instanceof Error ? e.message : String(e)}`)
   }
-  const createNote = (name?: string) => {
-    const r = withEmptyNote(lib(), name)
-    setLib(r.lib)
-    go({ s: 'note', id: r.id })
+  const persist = (job: () => Promise<void>) => {
+    queue = queue.then(job).catch(fail)
+  }
+  const state = (): LibraryState => ({
+    pins: lib().pins,
+    pinnedProjects: pinnedProjects(),
+    pinnedTags: pinnedTags(),
+    tagCovers: Object.fromEntries(lib().tagCovers),
+  })
+  const saveState = () => {
+    const s = state()
+    persist(() => backend.saveState(s))
+  }
+
+  const createProject = async () => {
+    const name = newProjectName(lib())
+    try {
+      setLib(withProject(lib(), await backend.createProject(name)))
+      go({ s: 'project', name, editing: true })
+    } catch (e) {
+      fail(e)
+    }
+  }
+  const createNote = async (name?: string) => {
+    try {
+      const it = await backend.createNote(newNoteName(lib(), name), null)
+      setLib(withItem(lib(), it))
+      go({ s: 'note', id: it.id })
+    } catch (e) {
+      fail(e)
+    }
   }
   const renameTag = (from: string, to: string) => {
     const re = retag(from, to)
-    setLib(withRenamedTag(lib(), from, to))
+    const before = lib()
+    const after = withRenamedTag(before, from, to)
+    setLib(after)
     setPinnedTags([...new Set(pinnedTags().map(re))])
     setStack(stack().map((v) => (v.s === 'tag' ? { ...v, tag: re(v.tag) } : v)))
+    for (const it of retaggedItems(before, after)) persist(() => backend.saveItem(it.id, { tags: it.tags }))
+    saveState()
   }
-  const togglePin = (id: string) => setLib(withToggledPin(lib(), id))
+  // ライブラリを替えたら、画面の状態ごと開き直す
+  const chooseLibrary =
+    backend.chooseLibrary &&
+    (async () => {
+      try {
+        if (await backend.chooseLibrary?.()) window.location.reload()
+      } catch (e) {
+        setNotice(`ライブラリを選べませんでした: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    })
+  const togglePin = (id: string) => {
+    setLib(withToggledPin(lib(), id))
+    saveState()
+  }
+  const toggleProjectPin = (name: string) => {
+    setPinnedProjects(toggled(pinnedProjects(), name))
+    saveState()
+  }
+  const toggleTagPin = (tag: string) => {
+    setPinnedTags(toggled(pinnedTags(), tag))
+    saveState()
+  }
   const here = (): Place | undefined =>
     view().s === 'edition' ? 'home' : view().s === 'tlist' ? 'tags' : view().s === 'plist' ? 'projects' : undefined
   const hasDock = () => ['edition', 'project', 'plist', 'tlist', 'tag'].includes(view().s)
@@ -98,13 +180,29 @@ export function App(props: { lib: Library }) {
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
+  // サムネイルは 1 枚ずつ届くので、少し溜めてからまとめて付ける
+  let thumbs = new Map<string, string>()
+  let flush = 0
+  const stopThumbs = backend.onThumbnail((id, url) => {
+    thumbs.set(id, url)
+    flush ||= window.setTimeout(() => {
+      setLib(withThumbs(lib(), thumbs))
+      thumbs = new Map()
+      flush = 0
+    }, 150)
+  })
+  onCleanup(() => {
+    stopThumbs()
+    clearTimeout(flush)
+  })
+
   return (
-    <ScreenFrame>
+    <ScreenFrame toast={notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}>
       <Switch>
         <Match when={view().s === 'edition'}>
           <EditionScreen
             lib={lib()}
-            pinnedProjects={PINNED_PROJECTS}
+            pinnedProjects={pinnedProjects()}
             pinnedTags={pinnedTags()}
             onTogglePin={togglePin}
             onOpenItem={(id) => openItem(id)}
@@ -131,13 +229,19 @@ export function App(props: { lib: Library }) {
         <Match when={view().s === 'plist'}>
           <ProjectListScreen
             lib={lib()}
-            pinned={PINNED_PROJECTS}
+            pinned={pinnedProjects()}
             onOpenProject={(name) => go({ s: 'project', name })}
+            onTogglePin={toggleProjectPin}
             onCreate={createProject}
           />
         </Match>
         <Match when={view().s === 'tlist'}>
-          <TagListScreen lib={lib()} pinned={pinnedTags()} onOpenTag={(tag) => go({ s: 'tag', tag })} />
+          <TagListScreen
+            lib={lib()}
+            pinned={pinnedTags()}
+            onOpenTag={(tag) => go({ s: 'tag', tag })}
+            onTogglePin={toggleTagPin}
+          />
         </Match>
         <Match when={view().s === 'tag' && view()} keyed>
           {(v) =>
@@ -151,6 +255,7 @@ export function App(props: { lib: Library }) {
                 onOpenItem={openItem}
                 onOpenTag={(tag) => go({ s: 'tag', tag })}
                 onTogglePin={togglePin}
+                onToggleTagPin={() => toggleTagPin(v.tag)}
                 onRename={(to) => renameTag(v.tag, to)}
               />
             )
@@ -199,6 +304,8 @@ export function App(props: { lib: Library }) {
         onOpenProject={(name) => go({ s: 'project', name })}
         onOpenItem={(id) => openItem(id)}
         onCreate={createNote}
+        library={props.location}
+        onChooseLibrary={chooseLibrary}
       />
     </ScreenFrame>
   )

@@ -8,6 +8,10 @@ export interface NavMenuItem {
   label: string
   count?: number
   kbd?: string
+  /** 右に薄く添える文字（例：開いているライブラリの名前）。 */
+  hint?: string
+  /** ホバーで出す説明。 */
+  title?: string
   /** いま開いている画面の項目。 */
   current?: boolean
   /** 見出しとして薄く出す（例：設定を開いたときの「設定」）。 */
@@ -63,11 +67,13 @@ export function NavMenu(props: NavMenuProps) {
               role="menuitem"
               aria-current={it.current ? 'page' : undefined}
               data-heading={it.heading}
+              title={it.title}
               onClick={() => props.onSelect?.(it.id)}
             >
               <i>{it.icon}</i>
               {it.label}
               {it.count != null && <small>{it.count}</small>}
+              {it.hint && <small>{it.hint}</small>}
               {it.kbd && <Kbd class={styles.kbd}>{it.kbd}</Kbd>}
             </button>
           )

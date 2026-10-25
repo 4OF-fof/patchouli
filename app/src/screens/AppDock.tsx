@@ -28,6 +28,10 @@ export interface AppDockProps {
   onOpenItem?: (id: string) => void
   /** 新しいノート。名前を入れていればその名前で。 */
   onCreate?: (name?: string) => void
+  /** 開いているライブラリの場所。設定に出す。 */
+  library?: string
+  /** 渡すと、設定にライブラリを選ぶ項目を出す。 */
+  onChooseLibrary?: () => void
 }
 
 const toggleTheme = () => {
@@ -108,6 +112,17 @@ export function AppDock(props: AppDockProps) {
       ? [
           { id: 'back', icon: '‹', label: '設定', heading: true },
           'separator',
+          ...(props.onChooseLibrary
+            ? [
+                {
+                  id: 'library',
+                  icon: '▤',
+                  label: 'ライブラリを選ぶ',
+                  hint: props.library?.split(/[\\/]/).at(-1) ?? '未選択',
+                  title: props.library,
+                },
+              ]
+            : []),
           { id: 'theme', icon: '◐', label: 'テーマを切り替える' },
           { id: 'keys', icon: '⌨', label: 'キー操作の一覧', kbd: '?' },
         ]
@@ -129,6 +144,10 @@ export function AppDock(props: AppDockProps) {
     if (id === 'back') return setState('menu')
     if (id === 'theme') return toggleTheme()
     if (id === 'keys') return setState('help')
+    if (id === 'library') {
+      close()
+      return props.onChooseLibrary?.()
+    }
     setState('closed')
     if (id === 'home' || id === 'tags' || id === 'projects') props.onGo?.(id)
   }

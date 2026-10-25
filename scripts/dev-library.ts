@@ -1,11 +1,11 @@
 // 動作確認用のライブラリ（dev-library/）を作り直す。中身は app/src/samples/spec.ts で、画面の見本と同じ。
-// ピン留め・タグの表紙・自動分類の候補は置き場所が決まっていないので書かない。
+// 自動分類の候補は置き場所が決まっていないので書かない。
 // 使い方: node scripts/dev-library.ts（Node 24 以上と ffmpeg が要る。dev-library/ は消してから作る）
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { type SpecItem, TODAY, sampleSpec } from '../app/src/samples/spec.ts'
+import { PINNED_PROJECTS, PINNED_TAGS, type SpecItem, TODAY, sampleSpec } from '../app/src/samples/spec.ts'
 
 const ID_KEY = 'patchouli-id'
 const DAY = 864e5
@@ -131,6 +131,18 @@ spec.projects.forEach((p, i) => {
   fs.mkdirSync(path.join(root, p.name))
   fs.writeFileSync(path.join(root, `${p.name}.meta`), json({ [ID_KEY]: `p${i + 1}`, cover: p.cover }))
 })
+
+// ピン留めとタグの表紙はライブラリ全体で 1 つ
+fs.mkdirSync(path.join(root, '.patchouli'))
+fs.writeFileSync(
+  path.join(root, '.patchouli', 'library.json'),
+  json({
+    pins: spec.pins,
+    pinnedProjects: PINNED_PROJECTS,
+    pinnedTags: PINNED_TAGS,
+    tagCovers: Object.fromEntries(spec.tagCovers),
+  }),
+)
 
 const jobs: (() => Promise<void>)[] = []
 const touched: { file: string; moved: number }[] = []
