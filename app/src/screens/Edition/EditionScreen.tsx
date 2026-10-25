@@ -14,6 +14,10 @@ const TIERS: { name: string; until: number; size: CardSize; h: number; gap: numb
   { name: '今月', until: 30, size: 'S', h: 76, gap: 5 },
   { name: '静かなもの', until: Infinity, size: 'X', h: 56, gap: 4 },
 ]
+const KIND_LABEL = { image: '画像', audio: '音声', video: '動画' }
+
+/** ピン留めの 1 枚。素材のときは thumb にその素材が入る。 */
+type Pin = { key: string; name: string; meta: string; tiles: Item[]; thumb?: Item; open: () => void }
 const FIRST = 36
 const MORE = 30
 
@@ -21,6 +25,8 @@ export interface EditionScreenProps {
   lib: Library
   pinnedProjects?: string[]
   pinnedTags?: string[]
+  /** ピン留めした素材の名前。プロジェクトに入っているものは出さない。 */
+  pinnedItems?: string[]
   /** 開いたときのスクロール位置（スクロール後の見た目を確かめる）。 */
   scrollTop?: number
   onOpenItem?: (id: string) => void
@@ -33,7 +39,7 @@ export function EditionScreen(props: EditionScreenProps) {
   let scroll!: HTMLDivElement
   let more: HTMLDivElement | undefined
   const lib = () => props.lib
-  const pins = createMemo(() => [
+  const pins = createMemo<Pin[]>(() => [
     ...(props.pinnedProjects ?? []).flatMap((n) => {
       const p = lib().projectBy.get(n)
       if (!p) return []
@@ -60,6 +66,20 @@ export function EditionScreen(props: EditionScreenProps) {
           meta: `タグ · ${list.length} 件`,
           tiles: list.slice(0, 5),
           open: () => props.onOpenTag?.(t),
+        },
+      ]
+    }),
+    ...(props.pinnedItems ?? []).flatMap((n) => {
+      const it = lib().byName.get(n)
+      if (!it || it.kind === 'note' || it.folder) return []
+      return [
+        {
+          key: `i:${it.id}`,
+          name: it.name,
+          meta: `素材 · ${KIND_LABEL[it.kind]}`,
+          tiles: [],
+          thumb: it,
+          open: () => props.onOpenItem?.(it.id),
         },
       ]
     }),
@@ -131,6 +151,7 @@ export function EditionScreen(props: EditionScreenProps) {
                         name={p.name}
                         meta={p.meta}
                         tiles={p.tiles.map((i) => ({ hue: i.hue, sat: i.sat }))}
+                        thumb={p.thumb && thumbOf(p.thumb, 'L')}
                         onClick={p.open}
                       />
                     )}

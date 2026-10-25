@@ -23,16 +23,14 @@ const PROJECTS: (Omit<Project, 'pins'> & { pinNames: string[] })[] = [
     touched: '今日 09:40',
     cover: [
       { type: 'desc', text: '11 月のポスターと告知用の画像をつくる。彩度を落としたセージと、差し色の朱。' },
-      { type: 'due', date: '2026-11-15' },
       {
         type: 'todo',
         items: [
-          { t: '配色を決める', ref: '配色メモ：秋の企画', done: true },
-          { t: '写真を 8 枚に絞る', done: false },
-          { t: 'ポスターの下書き', ref: 'poster-draft', done: false },
+          { t: '配色を決める', ref: '配色メモ：秋の企画', done: true, due: '2026-10-20' },
+          { t: '写真を 8 枚に絞る', done: false, due: '2026-10-21' },
+          { t: 'ポスターの下書き', ref: 'poster-draft', done: false, due: '2026-11-15' },
         ],
       },
-      { type: 'samples', refs: ['moodboard-01', 'sage-swatch', 'vermilion-dot'] },
       { type: 'links', items: [{ t: '印刷所の入稿ルール', u: 'https://example.com/' }] },
     ],
     pinNames: ['配色メモ：秋の企画', '秋の企画：進め方', 'moodboard-01', 'poster-draft'],
@@ -51,7 +49,6 @@ const PROJECTS: (Omit<Project, 'pins'> & { pinNames: string[] })[] = [
           { t: 'button-states の整理', ref: 'button-states', done: false },
         ],
       },
-      { type: 'stats' },
     ],
     pinNames: ['UI 案レビュー', 'ui-sketch-v3'],
   },
@@ -59,10 +56,7 @@ const PROJECTS: (Omit<Project, 'pins'> & { pinNames: string[] })[] = [
     name: '旅行 2026',
     hue: 118,
     touched: '3 日前',
-    cover: [
-      { type: 'desc', text: '春の旅行の写真から、展示用に 8 枚を選ぶ。' },
-      { type: 'samples', refs: ['market-photo', 'river-dusk', 'window-light'] },
-    ],
+    cover: [{ type: 'desc', text: '春の旅行の写真から、展示用に 8 枚を選ぶ。' }],
     pinNames: ['旅行写真の選定'],
   },
   {
@@ -71,8 +65,13 @@ const PROJECTS: (Omit<Project, 'pins'> & { pinNames: string[] })[] = [
     touched: '10/5',
     cover: [
       { type: 'desc', text: '工房への取材。12 月の公開に向けて編集する。' },
-      { type: 'due', date: '2026-12-01' },
-      { type: 'recent' },
+      {
+        type: 'todo',
+        items: [
+          { t: '書き起こし', done: true },
+          { t: '公開用に編集する', done: false, due: '2026-12-01' },
+        ],
+      },
     ],
     pinNames: ['インタビュー構成'],
   },
@@ -80,10 +79,10 @@ const PROJECTS: (Omit<Project, 'pins'> & { pinNames: string[] })[] = [
     name: '資料',
     hue: 36,
     touched: '9/30',
-    cover: [{ type: 'desc', text: '本や Web から集めた参考。' }, { type: 'stats' }],
+    cover: [{ type: 'desc', text: '本や Web から集めた参考。' }],
     pinNames: [],
   },
-  { name: '日記', hue: 262, touched: '今日', cover: [{ type: 'stats' }, { type: 'recent' }], pinNames: [] },
+  { name: '日記', hue: 262, touched: '今日', cover: [], pinNames: [] },
   {
     name: '2025 春の企画',
     hue: 18,
@@ -433,3 +432,5 @@ export function sampleLibrary(): Library {
 /** ホームにピン留めしているプロジェクトとタグ。 */
 export const PINNED_PROJECTS = ['秋の企画', '日記']
 export const PINNED_TAGS = ['写真', 'UI', '参考']
+/** ホームにピン留めしている素材（プロジェクトに入っていないもの）。 */
+export const PINNED_ITEMS = ['ref-a', 'IMG_3316']

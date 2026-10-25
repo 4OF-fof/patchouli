@@ -1,4 +1,4 @@
-import { type JSX, For, Show, createEffect } from 'solid-js'
+import { type JSX, For, Show, createEffect, onCleanup } from 'solid-js'
 import { Kbd } from '../Kbd/Kbd'
 import styles from './SearchDock.module.css'
 
@@ -58,16 +58,26 @@ export interface SearchDockProps {
 /** 画面の下の中央に浮かぶ検索バー。☰・検索・＋ だけを置く。 */
 export function SearchDock(props: SearchDockProps) {
   let input: HTMLInputElement | undefined
+  let root!: HTMLDivElement
   const mode = () => MODES[props.mode ?? 'search']
   createEffect(() => {
     if (props.open) queueMicrotask(() => input?.focus())
+  })
+  // メニューは検索バーの外を押すと閉じる
+  createEffect(() => {
+    if (!props.menuOpen) return
+    const away = (e: PointerEvent) => {
+      if (e.target instanceof Node && !root.contains(e.target)) props.onClose?.()
+    }
+    document.addEventListener('pointerdown', away)
+    onCleanup(() => document.removeEventListener('pointerdown', away))
   })
   return (
     <>
       <Show when={props.open}>
         <div class={styles.scrim} role="presentation" onMouseDown={() => props.onClose?.()} />
       </Show>
-      <div class={styles.root} data-open={!!props.open} role="search">
+      <div class={styles.root} ref={root} data-open={!!props.open} role="search">
         <Show when={props.open && props.results}>
           <div class={styles.res} role="listbox">
             {props.results}

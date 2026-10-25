@@ -87,18 +87,6 @@ export function AssetScreen(props: AssetScreenProps) {
                       <input type="text" placeholder="＋ タグ" aria-label="タグを足す" />
                     </div>
                   </div>
-                  <div class={styles.fl}>
-                    <span class={styles.k}>評価</span>
-                    <div class={styles.stars}>
-                      <For each={[1, 2, 3, 4, 5]}>
-                        {(n) => (
-                          <button type="button" data-on={n <= a().rating} aria-label={`★${n}`}>
-                            ★
-                          </button>
-                        )}
-                      </For>
-                    </div>
-                  </div>
                   <label class={styles.fl}>
                     <span class={styles.k}>メモ</span>
                     <textarea placeholder="メモ" value={a().memo} />

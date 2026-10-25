@@ -1,6 +1,6 @@
 import { Match, Switch, createSignal, onCleanup, onMount } from 'solid-js'
 import { type Library, withEmptyNote, withEmptyProject } from './model/library'
-import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
+import { PINNED_ITEMS, PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import { AppDock, type Place } from './screens/AppDock'
 import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
@@ -95,6 +95,7 @@ export function App(props: { lib: Library }) {
             lib={lib()}
             pinnedProjects={PINNED_PROJECTS}
             pinnedTags={PINNED_TAGS}
+            pinnedItems={PINNED_ITEMS}
             onOpenItem={(id) => openItem(id)}
             onOpenProject={(name) => go({ s: 'project', name })}
             onOpenTag={() => go({ s: 'tlist' })}
@@ -118,19 +119,12 @@ export function App(props: { lib: Library }) {
           <ProjectListScreen
             lib={lib()}
             pinned={PINNED_PROJECTS}
-            backLabel={back()}
-            onBack={stack().length > 1 ? goBack : undefined}
             onOpenProject={(name) => go({ s: 'project', name })}
             onCreate={createProject}
           />
         </Match>
         <Match when={view().s === 'tlist'}>
-          <TagListScreen
-            lib={lib()}
-            pinned={PINNED_TAGS}
-            backLabel={back()}
-            onBack={stack().length > 1 ? goBack : undefined}
-          />
+          <TagListScreen lib={lib()} pinned={PINNED_TAGS} />
         </Match>
         <Match when={view().s === 'note' && view()} keyed>
           {(v) =>

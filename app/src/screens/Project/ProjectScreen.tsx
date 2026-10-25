@@ -93,17 +93,7 @@ export function ProjectScreen(props: ProjectScreenProps) {
               </header>
               <div class={styles.body}>
                 <div class={styles.cover} aria-label="表紙">
-                  <For each={pr().cover}>
-                    {(c) => (
-                      <CoverPartView
-                        lib={lib()}
-                        project={pr()}
-                        part={c}
-                        editing={editing()}
-                        onOpenItem={(id) => props.onOpenItem?.(id, [id])}
-                      />
-                    )}
-                  </For>
+                  <For each={pr().cover}>{(c) => <CoverPartView lib={lib()} part={c} editing={editing()} />}</For>
                   <Show when={editing()}>
                     <AddPart open={addOpen()} onToggle={() => setAddOpen(!addOpen())} />
                   </Show>

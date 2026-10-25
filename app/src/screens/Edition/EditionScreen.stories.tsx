@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { DropZone } from '../../components/DropZone/DropZone'
 import { Toast } from '../../components/Toast/Toast'
 import { buildLibrary } from '../../model/library'
-import { PINNED_PROJECTS, PINNED_TAGS, TODAY, sampleLibrary } from '../../samples/library'
+import { PINNED_ITEMS, PINNED_PROJECTS, PINNED_TAGS, TODAY, sampleLibrary } from '../../samples/library'
 import { AppDock, type DockState } from '../AppDock'
 import { ScreenFrame } from '../ScreenFrame'
 import { EditionScreen } from './EditionScreen'
@@ -19,7 +19,13 @@ const edition = (o: { dock?: DockState; query?: string; scrollTop?: number; read
   const lib = sampleLibrary()
   return (
     <>
-      <EditionScreen lib={lib} pinnedProjects={PINNED_PROJECTS} pinnedTags={PINNED_TAGS} scrollTop={o.scrollTop} />
+      <EditionScreen
+        lib={lib}
+        pinnedProjects={PINNED_PROJECTS}
+        pinnedTags={PINNED_TAGS}
+        pinnedItems={PINNED_ITEMS}
+        scrollTop={o.scrollTop}
+      />
       <AppDock lib={lib} here="home" initial={o.dock} query={o.query} readOnly={o.readOnly} />
     </>
   )

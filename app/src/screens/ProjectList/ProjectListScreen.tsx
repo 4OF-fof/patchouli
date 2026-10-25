@@ -2,16 +2,13 @@ import { For, Show, createSignal } from 'solid-js'
 import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
 import { Mosaic } from '../../components/Mosaic/Mosaic'
 import { PinToggle } from '../../components/PinToggle/PinToggle'
-import { type Library, type Project, coverOf, dueLabel } from '../../model/library'
+import { type Library, type Project, coverOf, dueLabel, nextDue } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './ProjectListScreen.module.css'
 
 export interface ProjectListScreenProps {
   lib: Library
   pinned?: string[]
-  backLabel?: string
-  /** 渡さないと戻るボタンを出さない（メニューから開いたとき）。 */
-  onBack?: () => void
   onOpenProject?: (name: string) => void
   /** 空のプロジェクトを作る。 */
   onCreate?: () => void
@@ -32,9 +29,9 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
   const card = (p: Project, big: boolean) => {
     const list = () => lib().inProject(p.name)
     const desc = p.cover.find((c) => c.type === 'desc')
-    const due = p.cover.find((c) => c.type === 'due')
     const todo = p.cover.find((c) => c.type === 'todo')
-    const dl = due?.type === 'due' ? dueLabel(lib(), due.date) : null
+    const due = nextDue(p)
+    const dl = due ? dueLabel(lib(), due) : null
     const done = todo?.type === 'todo' ? todo.items.filter((x) => x.done).length : 0
     return (
       <div class={styles.wrap}>
@@ -69,13 +66,8 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
   return (
     <section class={shared.screen} aria-label="プロジェクト一覧">
       <div class={shared.scroll}>
-        <div class={shared.page}>
+        <div class={`${shared.page} ${shared.top}`}>
           <header class={shared.mast}>
-            <Show when={props.onBack}>
-              <FloatingPill class={shared.back} onClick={() => props.onBack?.()}>
-                ‹ {props.backLabel ?? 'ホーム'}
-              </FloatingPill>
-            </Show>
             <h1>プロジェクト</h1>
             <span class={shared.meta}>{lib().projects.length} 件 · 最近開いた順</span>
             <span class={shared.end}>

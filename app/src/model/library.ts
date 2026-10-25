@@ -47,12 +47,9 @@ export interface Item {
 
 export type CoverPart =
   | { type: 'desc'; text: string }
-  | { type: 'due'; date: string }
-  | { type: 'todo'; items: { t: string; ref?: string; done: boolean }[] }
-  | { type: 'samples'; refs: string[] }
+  /** due は「2026-11-15」の形の期日。 */
+  | { type: 'todo'; items: { t: string; ref?: string; done: boolean; due?: string }[] }
   | { type: 'links'; items: { t: string; u: string }[] }
-  | { type: 'stats' }
-  | { type: 'recent' }
 
 export interface Project {
   name: string
@@ -202,13 +199,14 @@ export const monthDay = (lib: Library, d: number) => {
 export const relDay = (lib: Library, d: number) =>
   d <= 0 ? '今日' : d === 1 ? '昨日' : d < 7 ? `${d} 日前` : monthDay(lib, d)
 
-/** 期日の「11/15」と「あと 24 日」。 */
+/** 期日の「11/15」と「あと 24 日」。late は過ぎている。 */
 export function dueLabel(lib: Library, date: string) {
   const t = new Date(date + 'T12:00')
   const d = Math.round((t.getTime() - lib.today.getTime()) / DAY)
   return {
     date: `${t.getMonth() + 1}/${t.getDate()}`,
     left: d > 0 ? `あと ${d} 日` : d === 0 ? '今日' : `${-d} 日過ぎた`,
+    late: d < 0,
   }
 }
 
@@ -235,13 +233,18 @@ export function thumbOf(it: Item, size: CardSize = 'M') {
 
 /** プロジェクトの表紙に並べる項目（見本に選んだもの → 素材の新しい順）。 */
 export function coverOf(lib: Library, p: Project, n: number) {
-  const samples = p.cover.find((c) => c.type === 'samples')
-  const picked = samples?.type === 'samples' ? samples.refs.flatMap((r) => lib.byName.get(r) ?? []) : []
-  const rest = lib
+  return lib
     .inProject(p.name)
-    .filter((i) => !picked.includes(i))
     .toSorted((a, b) => Number(a.kind === 'note') - Number(b.kind === 'note') || a.moved - b.moved)
-  return [...picked, ...rest].slice(0, n)
+    .slice(0, n)
+}
+
+/** まだ済んでいないやることのうち、いちばん近い期日。 */
+export function nextDue(p: Project): string | undefined {
+  return p.cover
+    .flatMap((c) => (c.type === 'todo' ? c.items : []))
+    .flatMap((x) => (!x.done && x.due ? [x.due] : []))
+    .toSorted()[0]
 }
 
 /** ホームでの重み。つながりと評価が多いほど前に出る。 */

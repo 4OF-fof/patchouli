@@ -119,7 +119,6 @@ export function NoteScreen(props: NoteScreenProps) {
           <div class={styles.bar}>
             <FloatingPill onClick={() => props.onBack?.()}>‹ {props.backLabel ?? 'ホーム'}</FloatingPill>
             <span class={styles.sp} />
-            <span class={styles.state}>保存済み</span>
             <FloatingPill class={styles.more} aria-label="その他">
               ⋯
             </FloatingPill>

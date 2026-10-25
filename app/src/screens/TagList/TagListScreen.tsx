@@ -1,5 +1,4 @@
 import { For, Show, createMemo, createSignal } from 'solid-js'
-import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/PinToggle/PinToggle'
 import { Tabs } from '../../components/Tabs/Tabs'
 import { Thumb } from '../../components/Thumb/Thumb'
@@ -23,9 +22,6 @@ export interface TagListScreenProps {
   /** 下の階層を開いているタグ。 */
   expanded?: string[]
   sort?: Sort
-  backLabel?: string
-  /** 渡さないと戻るボタンを出さない（メニューから開いたとき）。 */
-  onBack?: () => void
   onOpenTag?: (tag: string) => void
 }
 
@@ -114,13 +110,8 @@ export function TagListScreen(props: TagListScreenProps) {
   return (
     <section class={shared.screen} aria-label="タグ一覧">
       <div class={shared.scroll}>
-        <div class={shared.page}>
+        <div class={`${shared.page} ${shared.top}`}>
           <header class={shared.mast}>
-            <Show when={props.onBack}>
-              <FloatingPill class={shared.back} onClick={() => props.onBack?.()}>
-                ‹ {props.backLabel ?? 'ホーム'}
-              </FloatingPill>
-            </Show>
             <h1>タグ</h1>
             <span class={shared.meta}>
               {flat().size} 件 · {sort() === 'name' ? '五十音順' : '件数の多い順'}
