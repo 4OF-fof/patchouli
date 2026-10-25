@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
-import { DropZone } from '../../components/DropZone/DropZone'
-import { Toast } from '../../components/Toast/Toast'
+import { DropZone } from '../../components/overlay/DropZone/DropZone'
+import { Toast } from '../../components/overlay/Toast/Toast'
 import { buildLibrary } from '../../model/library'
 import { PINNED_ITEMS, PINNED_PROJECTS, PINNED_TAGS, TODAY, sampleLibrary } from '../../samples/library'
 import { AppDock, type DockState } from '../AppDock'

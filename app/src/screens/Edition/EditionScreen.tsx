@@ -1,10 +1,10 @@
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
-import { ItemCard } from '../../components/ItemCard/ItemCard'
-import { JustifiedRow } from '../../components/JustifiedRow/JustifiedRow'
-import { Kbd } from '../../components/Kbd/Kbd'
-import { PinnedCard } from '../../components/PinnedCard/PinnedCard'
-import { SectionLabel } from '../../components/SectionLabel/SectionLabel'
-import { ThumbStrip } from '../../components/ThumbStrip/ThumbStrip'
+import { ItemCard } from '../../components/media/ItemCard/ItemCard'
+import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
+import { Kbd } from '../../components/base/Kbd/Kbd'
+import { PinnedCard } from '../../components/media/PinnedCard/PinnedCard'
+import { SectionLabel } from '../../components/base/SectionLabel/SectionLabel'
+import { ThumbStrip } from '../../components/media/ThumbStrip/ThumbStrip'
 import {
   type CardSize,
   type Item,

@@ -1,11 +1,11 @@
 import { Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
-import { HelpDialog } from '../components/HelpDialog/HelpDialog'
-import { NavMenu, type NavMenuEntry } from '../components/NavMenu/NavMenu'
-import { SearchDock } from '../components/SearchDock/SearchDock'
+import { HelpDialog } from '../components/overlay/HelpDialog/HelpDialog'
+import { NavMenu, type NavMenuEntry } from '../components/search/NavMenu/NavMenu'
+import { SearchDock } from '../components/search/SearchDock/SearchDock'
 import type { Library } from '../model/library'
 import { findItems, searchTerms } from '../model/search'
 import styles from './AppDock.module.css'
-import { type Row, SearchResults } from './SearchResults'
+import { type Row, SearchResults } from '../components/search/SearchResults/SearchResults'
 
 /** 行き先。 */
 export type Place = 'home' | 'tags' | 'projects' | 'tidy'

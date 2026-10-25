@@ -1,0 +1,15 @@
+import type { Meta, StoryObj } from 'storybook-solidjs-vite'
+import { Button } from './Button'
+
+const meta = { title: '部品/操作/Button', component: Button, args: { children: '編集' } } satisfies Meta<typeof Button>
+export default meta
+type Story = StoryObj<typeof meta>
+
+export const Default: Story = {}
+export const Primary: Story = { args: { variant: 'primary', children: '承認する' } }
+export const PrimaryDisabled: Story = {
+  args: { variant: 'primary', disabled: true, children: '承認する' },
+}
+export const Ghost: Story = { args: { variant: 'ghost', children: '‹ ホーム' } }
+export const Pressed: Story = { args: { pressed: true } }
+export const Small: Story = { args: { size: 'sm' } }

@@ -1,6 +1,6 @@
 import { For, Show } from 'solid-js'
-import { Kbd } from '../../components/Kbd/Kbd'
-import { Thumb } from '../../components/Thumb/Thumb'
+import { Kbd } from '../../components/base/Kbd/Kbd'
+import { Thumb } from '../../components/media/Thumb/Thumb'
 import { type Item, type Library, type TagCandidate, monthDay, thumbOf } from '../../model/library'
 import styles from './TidyPanel.module.css'
 

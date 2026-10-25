@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
-import { DropZone } from '../../components/DropZone/DropZone'
+import { DropZone } from '../../components/overlay/DropZone/DropZone'
 import { withEmptyProject } from '../../model/library'
 import { sampleLibrary } from '../../samples/library'
 import { AppDock } from '../AppDock'
