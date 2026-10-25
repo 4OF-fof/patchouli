@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { createStore } from 'solid-js/store'
 import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
 import { Kbd } from '../../components/Kbd/Kbd'
@@ -39,14 +39,10 @@ export function TidyScreen(props: TidyScreenProps) {
     if (c) return c
     return pending().find((i) => !later().includes(i.id)) ?? pending()[0]
   })
+  /** 承認待ちの中で 1 つ右。右端からは左端に戻る。 */
   const nextAfter = (id: string) => {
     const q = pending()
-    const k = q.findIndex((x) => x.id === id)
-    for (let n = 1; n < q.length; n++) {
-      const x = q[(k + n) % q.length]
-      if (x && !later().includes(x.id)) return x.id
-    }
-    return undefined
+    return q[(q.findIndex((x) => x.id === id) + 1) % q.length]?.id
   }
   const onTags = (it: Item) => draft[it.id]?.tags.filter((t) => t.on) ?? []
   const firstTag = (it: Item) => (onTags(it)[0] ?? draft[it.id]?.tags[0])?.tag ?? ''
@@ -63,11 +59,6 @@ export function TidyScreen(props: TidyScreenProps) {
     setLater([...later(), it.id])
     setCur(next)
   }
-  const prev = (it: Item) => {
-    const q = pending()
-    const k = q.indexOf(it)
-    if (k > 0) setCur(q[k - 1]?.id)
-  }
   const undo = () => {
     const last = decided().at(-1)
     if (!last) return
@@ -82,17 +73,34 @@ export function TidyScreen(props: TidyScreenProps) {
       e.preventDefault()
       approve(it)
     } else if (e.key === 'ArrowRight') putOff(it)
-    else if (e.key === 'ArrowLeft') prev(it)
-    else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') undo()
+    else if (e.key === 'ArrowLeft' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z')) undo()
   }
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
   const strip = () => (
-    <div class={styles.strip} aria-label="確認の列">
+    <div
+      class={styles.strip}
+      aria-label="確認の列"
+      onWheel={(e) => {
+        if (!e.deltaY || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
+        e.preventDefault()
+        e.currentTarget.scrollLeft += e.deltaY
+      }}
+    >
       <For each={queue()}>
         {(x) => (
           <button
+            ref={(el) =>
+              // 大きな絵の差し替えで止まらないよう、描き終えてから寄せる
+              createEffect(
+                () =>
+                  x.id === current()?.id &&
+                  requestAnimationFrame(() =>
+                    el.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }),
+                  ),
+              )
+            }
             type="button"
             class={styles.q}
             data-later={later().includes(x.id) && !decided().includes(x.id)}
@@ -120,7 +128,7 @@ export function TidyScreen(props: TidyScreenProps) {
           <b>整理</b>タグの候補を承認する · 残り {pending().length}
         </span>
         <span class={styles.sp} />
-        <FloatingPill kbd="Ctrl Z" onClick={undo}>
+        <FloatingPill kbd="←" onClick={undo}>
           取り消す
         </FloatingPill>
       </div>
@@ -187,7 +195,10 @@ export function TidyScreen(props: TidyScreenProps) {
                               checked={t.on}
                               onChange={(e) => setDraft(it().id, 'tags', k(), 'on', e.currentTarget.checked)}
                             />
-                            <span># {t.tag}</span>
+                            <span>
+                              <i class={styles.mark}>{t.on ? '✓' : '#'}</i>
+                              {t.tag}
+                            </span>
                             <small>{t.conf}</small>
                           </label>
                         )}
@@ -234,15 +245,6 @@ export function TidyScreen(props: TidyScreenProps) {
                     </span>
                   </div>
                   <div class={styles.dec}>
-                    <button
-                      type="button"
-                      class={styles.prev}
-                      aria-label="前へ"
-                      disabled={pos() <= 1}
-                      onClick={() => prev(it())}
-                    >
-                      ‹
-                    </button>
                     <button type="button" onClick={() => putOff(it())}>
                       あとで <Kbd>→</Kbd>
                     </button>

@@ -18,6 +18,8 @@ export interface AppDockProps {
   initial?: DockState
   /** 検索欄に最初から入っている語。 */
   query?: string
+  /** ふだんは出さず、Ctrl P で検索を開いたときだけ出す（ノートや素材を見ているとき）。 */
+  hidden?: boolean
   /** 保存先に書き込めない。＋ を止め、上に知らせを出す。 */
   readOnly?: boolean
   onGo?: (to: Place) => void
@@ -236,46 +238,48 @@ export function AppDock(props: AppDockProps) {
           <button type="button">編集を有効にする</button>
         </div>
       </Show>
-      <SearchDock
-        open={open()}
-        mode={state() === 'prompt' ? 'prompt' : 'search'}
-        query={query()}
-        results={state() === 'search' ? results() : undefined}
-        menuOpen={state() === 'menu' || state() === 'settings'}
-        menu={<NavMenu focusFirst={init === 'closed'} items={menuItems()} onSelect={onMenu} onClose={close} />}
-        readOnly={props.readOnly}
-        onOpen={() => setState('search')}
-        onClose={close}
-        onQueryInput={(q) => {
-          setQuery(q)
-          setIdx(0)
-        }}
-        onMenuToggle={() => setState(state() === 'closed' ? 'menu' : 'closed')}
-        onCreate={() => {
-          const q = query().trim()
-          close()
-          props.onCreate?.(q || undefined)
-        }}
-        onInputKeyDown={(e) => {
-          if (e.key === 'Escape') close()
-          else if (e.key === 'Tab') {
-            e.preventDefault()
-            setState(state() === 'prompt' ? 'search' : 'prompt')
+      <Show when={!props.hidden || open()}>
+        <SearchDock
+          open={open()}
+          mode={state() === 'prompt' ? 'prompt' : 'search'}
+          query={query()}
+          results={state() === 'search' ? results() : undefined}
+          menuOpen={state() === 'menu' || state() === 'settings'}
+          menu={<NavMenu focusFirst={init === 'closed'} items={menuItems()} onSelect={onMenu} onClose={close} />}
+          readOnly={props.readOnly}
+          onOpen={() => setState('search')}
+          onClose={close}
+          onQueryInput={(q) => {
+            setQuery(q)
             setIdx(0)
-          } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-            e.preventDefault()
-            const n = rows().length
-            setIdx(Math.max(0, Math.min(n - 1, idx() + (e.key === 'ArrowDown' ? 1 : -1))))
-          } else if (e.key === 'Enter' && state() === 'search') {
-            e.preventDefault()
-            if (e.ctrlKey || e.metaKey) {
-              const q = query().trim()
-              close()
-              props.onCreate?.(q || undefined)
-            } else run(rows()[idx()])
-          }
-        }}
-      />
+          }}
+          onMenuToggle={() => setState(state() === 'closed' ? 'menu' : 'closed')}
+          onCreate={() => {
+            const q = query().trim()
+            close()
+            props.onCreate?.(q || undefined)
+          }}
+          onInputKeyDown={(e) => {
+            if (e.key === 'Escape') close()
+            else if (e.key === 'Tab') {
+              e.preventDefault()
+              setState(state() === 'prompt' ? 'search' : 'prompt')
+              setIdx(0)
+            } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+              e.preventDefault()
+              const n = rows().length
+              setIdx(Math.max(0, Math.min(n - 1, idx() + (e.key === 'ArrowDown' ? 1 : -1))))
+            } else if (e.key === 'Enter' && state() === 'search') {
+              e.preventDefault()
+              if (e.ctrlKey || e.metaKey) {
+                const q = query().trim()
+                close()
+                props.onCreate?.(q || undefined)
+              } else run(rows()[idx()])
+            }
+          }}
+        />
+      </Show>
       <Show when={state() === 'help'}>
         <HelpDialog onClose={close} />
       </Show>

@@ -67,7 +67,7 @@
   gap: 6px;
   padding: 4px;
   overflow-x: auto;
-  scrollbar-width: none;
+  scrollbar-width: thin;
 }
 .q {
   position: relative;
@@ -174,7 +174,7 @@
   opacity: 0;
   pointer-events: none;
 }
-.cand:focus-within {
+.cand:has(input:focus-visible) {
   outline: 2px solid var(--sage);
   outline-offset: 2px;
 }
@@ -182,10 +182,12 @@
   background: var(--sage-soft);
   color: var(--sage-ink);
   box-shadow: inset 0 0 0 1.5px var(--sage);
-  font-weight: 600;
 }
-.cand[data-on='true'] span::before {
-  content: '✓ ';
+/* # と ✓ を同じ幅の枠で入れ替え、選んでも幅が変わらないようにする */
+.mark {
+  display: inline-block;
+  width: 1em;
+  font-style: normal;
 }
 .cand small {
   font-size: 11px;
@@ -261,9 +263,6 @@
 .dec button:disabled {
   opacity: 0.45;
   cursor: default;
-}
-.dec .prev {
-  flex: 0 0 56px;
 }
 .dec .ok2 {
   background: var(--sage);

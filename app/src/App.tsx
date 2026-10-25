@@ -188,16 +188,15 @@ export function App(props: { lib: Library }) {
           }
         </Match>
       </Switch>
-      {hasDock() && (
-        <AppDock
-          lib={lib()}
-          here={here()}
-          onGo={onGo}
-          onOpenProject={(name) => go({ s: 'project', name })}
-          onOpenItem={(id) => openItem(id)}
-          onCreate={createNote}
-        />
-      )}
+      <AppDock
+        hidden={!hasDock()}
+        lib={lib()}
+        here={here()}
+        onGo={onGo}
+        onOpenProject={(name) => go({ s: 'project', name })}
+        onOpenItem={(id) => openItem(id)}
+        onCreate={createNote}
+      />
     </ScreenFrame>
   )
 }

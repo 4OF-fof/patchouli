@@ -14,9 +14,6 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.root:hover {
-  color: var(--ink);
-}
 .count {
   font: 600 12px var(--f-mono);
   color: var(--sage);
