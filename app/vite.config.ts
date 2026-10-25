@@ -1,28 +1,37 @@
-/// <reference types="vite-plus" />
-import { defineConfig, lazyPlugins } from "vite-plus";
-import solid from "vite-plugin-solid";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
-import { playwright } from "vite-plus/test/browser-playwright";
-const dirname =
-  typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
+import path from 'node:path'
+import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
+import { defineConfig, lazyPlugins } from 'vite-plus'
+import { playwright } from 'vite-plus/test/browser-playwright'
+import solid from 'vite-plugin-solid'
 
-// More info at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon
 export default defineConfig({
   staged: {
-    "*": "vp check --fix",
+    '*': 'vp check --fix',
   },
-  fmt: {},
+  fmt: {
+    semi: false,
+    singleQuote: true,
+    printWidth: 120,
+  },
   lint: {
-    jsPlugins: [
-      {
-        name: "vite-plus",
-        specifier: "vite-plus/oxlint-plugin",
-      },
-    ],
+    plugins: ['typescript', 'unicorn', 'oxc', 'import', 'jsx-a11y', 'vitest'],
+    jsPlugins: [{ name: 'vite-plus', specifier: 'vite-plus/oxlint-plugin' }],
+    categories: {
+      correctness: 'error',
+      suspicious: 'warn',
+    },
     rules: {
-      "vite-plus/prefer-vite-plus-imports": "error",
+      'vite-plus/prefer-vite-plus-imports': 'error',
+      // Solid の `let el!: HTMLElement` + `ref={el}` はコンパイル時に代入されるので誤検知になる
+      'no-unassigned-vars': 'off',
+      // 部品は CSS を副作用の import で読み込む
+      'import/no-unassigned-import': ['warn', { allow: ['**/*.css'] }],
+      // 検索結果の listbox などは見た目のために ARIA で組んでいて、select などには置き換えられない
+      'jsx-a11y/prefer-tag-over-role': 'off',
+    },
+    env: {
+      builtin: true,
+      browser: true,
     },
     options: {
       typeAware: true,
@@ -31,30 +40,31 @@ export default defineConfig({
   },
   plugins: lazyPlugins(() => [solid()]),
   test: {
+    // vite-plugin-solid は既定で jsdom を使おうとするので、明示しておく
+    environment: 'node',
     projects: [
       {
+        // 画面に依存しない処理のテスト（src/**/*.test.ts）
         extends: true,
-        plugins: [
-          // The plugin will run tests for the stories defined in your Storybook config
-          // See options at: https://storybook.js.org/docs/next/writing-tests/integrations/vitest-addon#storybooktest
-          storybookTest({
-            configDir: path.join(dirname, ".storybook"),
-          }),
-        ],
         test: {
-          name: "storybook",
+          name: 'unit',
+          include: ['src/**/*.test.{ts,tsx}'],
+        },
+      },
+      {
+        // Storybook のストーリーを Chromium で描画できるか確かめる
+        extends: true,
+        plugins: [storybookTest({ configDir: path.join(import.meta.dirname, '.storybook') })],
+        test: {
+          name: 'storybook',
           browser: {
             enabled: true,
             headless: true,
             provider: playwright({}),
-            instances: [
-              {
-                browser: "chromium",
-              },
-            ],
+            instances: [{ browser: 'chromium' }],
           },
         },
       },
     ],
   },
-});
+})

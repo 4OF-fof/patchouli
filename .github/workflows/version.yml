@@ -1,0 +1,22 @@
+# master への PR で、元のブランチと版（app/package.json の version）を確かめる。master の保護ルールはこの check を必須にする
+name: version
+on:
+  pull_request:
+    branches: [master]
+jobs:
+  version:
+    name: version
+    runs-on: ubuntu-latest
+    steps:
+      - name: PR の元は dev か hotfix/*
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          case "$HEAD_REF" in
+            dev | hotfix/*) ;;
+            *) echo "master への PR は dev か hotfix/* から出す（今は $HEAD_REF）" >&2; exit 1 ;;
+          esac
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: scripts/check-version.sh "origin/${{ github.base_ref }}"

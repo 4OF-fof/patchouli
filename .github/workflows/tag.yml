@@ -1,0 +1,16 @@
+# master に入ったら、app/package.json の version で vX.Y.Z のタグを打つ
+name: tag
+on:
+  push:
+    branches: [master]
+permissions:
+  contents: write
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          v="v$(node -p 'require("./app/package.json").version')"
+          git tag "$v"
+          git push origin "$v"
