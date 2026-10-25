@@ -14,5 +14,6 @@
   top: 16px;
   z-index: 50;
   transform: translateX(-50%);
+  width: max-content;
   max-width: calc(100% - 32px);
 }

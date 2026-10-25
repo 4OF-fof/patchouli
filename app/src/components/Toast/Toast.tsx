@@ -14,7 +14,8 @@ export interface ToastProps {
 export function Toast(props: ToastProps) {
   return (
     <div class={styles.root} role="status">
-      <span>{props.message}</span>
+      <span class={styles.msg}>{props.message}</span>
+      {(props.actionLabel || props.onClose) && <span class={styles.sep} />}
       {props.actionLabel && (
         <button type="button" class={styles.act} onClick={() => props.onAction?.()}>
           {props.actionLabel}

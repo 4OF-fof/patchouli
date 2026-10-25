@@ -187,7 +187,7 @@ export function TidyScreen(props: TidyScreenProps) {
                     </small>
                   </div>
                   <div class={styles.fl}>
-                    <span class={styles.sub}>タグ（いくつでも）</span>
+                    <span class={styles.sub}>タグ</span>
                     <div class={styles.cands}>
                       <For each={d()?.tags}>
                         {(t, k) => (
@@ -206,7 +206,7 @@ export function TidyScreen(props: TidyScreenProps) {
                     </div>
                   </div>
                   <div class={styles.fl}>
-                    <span class={styles.sub}>プロジェクト（手で入れる・なくてよい）</span>
+                    <span class={styles.sub}>プロジェクト</span>
                     <div class={styles.pselect}>
                       <select
                         aria-label="プロジェクトに入れる"
@@ -219,7 +219,6 @@ export function TidyScreen(props: TidyScreenProps) {
                         </For>
                       </select>
                     </div>
-                    <span class={styles.hint}>自動分類はプロジェクトを出しません。入れたいときだけ ▾ で選びます。</span>
                   </div>
                   <Show when={same() > 0}>
                     <div class={styles.bulk}>

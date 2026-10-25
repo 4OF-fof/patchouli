@@ -1,29 +1,45 @@
 .root {
   display: inline-flex;
   align-items: center;
-  gap: 14px;
-  max-width: calc(100% - 32px);
-  padding: 10px 14px;
-  border-left: 3px solid var(--warm-ink);
-  border-radius: 10px;
+  min-height: 34px;
+  max-width: 100%;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
   background: var(--float);
   backdrop-filter: blur(14px);
-  box-shadow: var(--shadow-float);
+  box-shadow: var(--shadow-pill);
   color: var(--ink);
-  font-size: 13px;
+  font-size: 12.5px;
+}
+.root:has(button) {
+  padding-right: 6px;
+}
+.msg {
+  padding: 7px 0;
+}
+.sep {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  margin: 0 10px 0 14px;
+  background: var(--line-2);
 }
 .root button {
+  height: 26px;
   padding: 0;
   border: 0;
   background: none;
   white-space: nowrap;
   cursor: pointer;
 }
-.act {
-  color: var(--sage);
-  font-weight: 700;
+.root .act {
+  padding: 0 4px;
+  color: var(--ai-ink);
+  font-weight: 600;
 }
 .x {
+  width: 26px;
+  margin-left: 4px;
   color: var(--muted);
 }
 .x:hover {

@@ -47,10 +47,6 @@ export function HelpDialog(props: HelpDialogProps) {
             )}
           </For>
         </dl>
-        <p>
-          macOS では Ctrl の代わりに ⌘
-          も使えます。ノートの見出し・つながりのショートカットはまだ決めていないので、本文の左上（見出し）と右下（つながり）にあるボタンを使ってください。
-        </p>
       </div>
     </div>
   )

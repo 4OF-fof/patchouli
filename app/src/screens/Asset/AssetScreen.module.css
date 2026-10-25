@@ -80,13 +80,13 @@
 }
 .pill {
   position: absolute;
-  left: 18px;
+  right: 18px;
   bottom: 18px;
   z-index: 5;
 }
 .info {
   position: absolute;
-  left: 18px;
+  right: 18px;
   bottom: 18px;
   z-index: 5;
   width: 320px;
