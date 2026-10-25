@@ -96,8 +96,23 @@ export function TagListScreen(props: TagListScreenProps) {
             </For>
           </div>
           <PinToggle where="ホームに" pressed={pins().includes(r.tag)} onClick={() => setPins(toggle(pins(), r.tag))} />
-          <button type="button" class={styles.all} onClick={() => props.onOpenTag?.(r.tag)}>
-            すべて ›
+          <button
+            type="button"
+            class={styles.all}
+            aria-label={`# ${r.tag} をすべて見る`}
+            title="すべて見る"
+            onClick={() => props.onOpenTag?.(r.tag)}
+          >
+            <svg viewBox="0 0 16 16" aria-hidden="true">
+              <path
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M6 3.5 10.5 8 6 12.5"
+              />
+            </svg>
           </button>
         </div>
         <Show when={!sub && isOpen()}>

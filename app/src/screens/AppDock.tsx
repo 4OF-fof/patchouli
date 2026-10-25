@@ -209,11 +209,11 @@ export function AppDock(props: AppDockProps) {
         ]
       : [
           { id: 'home', icon: '⌂', label: 'ホーム', current: props.here === 'home' },
-          { id: 'tags', icon: '#', label: 'タグ一覧', count: lib().tagGroups().size, current: props.here === 'tags' },
+          { id: 'tags', icon: '#', label: 'タグ', count: lib().tagGroups().size, current: props.here === 'tags' },
           {
             id: 'projects',
             icon: '▦',
-            label: 'プロジェクト一覧',
+            label: 'プロジェクト',
             count: lib().projects.length,
             current: props.here === 'projects',
           },
