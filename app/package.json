@@ -20,6 +20,7 @@
     "@storybook/addon-docs": "^10.6.3",
     "@storybook/addon-mcp": "^10.6.3",
     "@storybook/addon-vitest": "^10.6.3",
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^24.19.2",
     "@vitest/browser-playwright": "catalog:",
     "@vitest/coverage-v8": "catalog:",

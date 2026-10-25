@@ -39,6 +39,11 @@ export default defineConfig({
     },
   },
   plugins: lazyPlugins(() => [solid()]),
+  // Tauri は devUrl のポートを決め打ちで開くので、ずらさない
+  server: {
+    strictPort: true,
+    watch: { ignored: ['**/src-tauri/**'] },
+  },
   test: {
     // vite-plugin-solid は既定で jsdom を使おうとするので、明示しておく
     environment: 'node',
