@@ -17,6 +17,10 @@ impl Guest for Audio {
         Some(View::Audio)
     }
 
+    fn decode(_format: String, _f: File) -> Result<Vec<u8>, String> {
+        Err("decode はない".into())
+    }
+
     fn settings() -> Vec<Setting> {
         Vec::new()
     }

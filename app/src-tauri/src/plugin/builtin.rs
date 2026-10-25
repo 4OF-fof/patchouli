@@ -55,6 +55,7 @@ pub(super) fn load() -> Vec<Loaded> {
                 builtin: true,
                 dir: None,
                 wasm,
+                ui: None,
                 settings,
                 problems,
                 source: None,

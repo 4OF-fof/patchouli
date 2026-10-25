@@ -5,19 +5,19 @@ import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { LinkNone, LinkRow } from '../../components/overlay/LinkRow/LinkRow'
 import { MediaView } from '../../components/media/MediaView/MediaView'
-import { PluginFrame } from '../../components/media/PluginFrame/PluginFrame'
+import { PluginView } from '../../components/media/PluginView/PluginView'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { type Library, relDay, thumbOf } from '../../model/library'
-import type { ItemView } from '../../plugins/types'
+import type { ItemView, Part } from '../../plugins/types'
+import type { UiApi, UiItem } from '../../plugins/ui'
 import shared from '../screen.module.css'
 import styles from './AssetScreen.module.css'
 
-/** 詳細に出すものを受け持つプラグインに聞き、プラグインの画面とやりとりする窓口。 */
+/** 詳細に出すものを受け持つプラグインに聞き、組み込み UI に窓口を渡す。 */
 export interface AssetViewHost {
   view: (id: string) => Promise<ItemView | null>
-  read?: (id: string, offset: number, length: number) => Promise<ArrayBuffer>
-  call?: (id: string, method: string, args: string) => Promise<string>
+  ui?: (item: UiItem, part: Part, plugin: string) => UiApi
 }
 
 export interface AssetScreenProps {
@@ -48,15 +48,21 @@ export function AssetScreen(props: AssetScreenProps) {
     () => (props.host ? it()?.id : undefined),
     async (id) => (await props.host?.view(id).catch(() => null)) ?? null,
   )
+  /** いまの素材について決まったもの。決まるまでは、前の素材のものもサムネイルも出さない。 */
+  const settled = () => !props.host || view.state === 'ready'
+  const current = () => (view.state === 'ready' ? view() : undefined)
   /** 本体が描くもの。中身の URL がなければ（見本など）描かない。 */
   const media = () => {
-    const v = view.latest
-    const src = it()?.src
-    return v && v.kind !== 'page' && src ? { kind: v.kind, src } : undefined
+    const v = current()
+    const src = (v?.kind === 'image' && v.url) || it()?.src
+    return v && v.kind !== 'ui' && src ? { kind: v.kind, src } : undefined
   }
-  const page = () => {
-    const v = view.latest
-    return v?.kind === 'page' ? v.url : undefined
+  const ui = () => {
+    const v = current()
+    const a = it()
+    const make = props.host?.ui
+    if (v?.kind !== 'ui' || !a || !make) return undefined
+    return { url: v.url, api: make({ id: a.id, name: a.name, ext: a.ext, url: a.src }, 'view', v.plugin) }
   }
   return (
     <section class={`${shared.screen} ${styles.root}`} data-idle={!!props.idle} aria-label="素材">
@@ -64,17 +70,15 @@ export function AssetScreen(props: AssetScreenProps) {
         {(a) => (
           <>
             <div class={styles.stage}>
-              <Switch fallback={<Thumb {...thumbOf(a(), 'L')} class={styles.box} />}>
-                <Match when={page()}>
-                  {(url) => (
-                    <PluginFrame
-                      url={url()}
-                      file={{ name: a().name, ext: a().ext }}
-                      onRead={props.host?.read && ((o, n) => props.host!.read!(a().id, o, n))}
-                      onCall={props.host?.call && ((m, args) => props.host!.call!(a().id, m, args))}
-                      class={styles.page}
-                    />
-                  )}
+              <Switch
+                fallback={
+                  <Show when={settled()}>
+                    <Thumb {...thumbOf(a(), 'L')} class={styles.box} />
+                  </Show>
+                }
+              >
+                <Match when={ui()} keyed>
+                  {(u) => <PluginView url={u.url} api={u.api} class={styles.page} />}
                 </Match>
                 <Match when={media()}>
                   {(m) => (

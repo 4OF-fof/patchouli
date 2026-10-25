@@ -1,0 +1,10 @@
+{
+  "id": "example.text",
+  "name": "テキスト",
+  "version": "0.2.0",
+  "description": "テキストファイルを詳細で読む（組み込み UI の例）",
+  "ui": "ui.js",
+  "formats": {
+    "txt": { "label": "テキスト", "ratio": 0.8, "ui": ["thumbnail", "view"] }
+  }
+}

@@ -1,0 +1,11 @@
+# 例のプラグイン。scripts/dev-library.ts が wasm32-wasip2 でビルドし、example/dev-plugins/ に入れる
+[workspace]
+members = ["text-plugin", "ppm-plugin"]
+resolver = "3"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

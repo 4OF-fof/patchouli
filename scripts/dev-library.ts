@@ -1,16 +1,27 @@
-// 動作確認用のライブラリ（dev-library/）を作り直す。中身は app/src/samples/spec.ts で、画面の見本と同じ。
-// 自動分類の候補は置き場所が決まっていないので書かない。
-// 使い方: node scripts/dev-library.ts（Node 24 以上と ffmpeg が要る。dev-library/ は消してから作る）
+// 動作確認用のライブラリ（example/dev-library/）を作り直す。中身は app/src/samples/spec.ts で、画面の見本と同じ。
+// 例のプラグイン（example/ の下）もビルドして example/dev-plugins/ に入れ、ライブラリに記録する。
+// 開発中のアプリは、どちらも既定で使う。自動分類の候補は置き場所が決まっていないので書かない。
+// 使い方: node scripts/dev-library.ts（Node 24 以上と ffmpeg、cargo と wasm32-wasip2 が要る。
+// example/dev-library/ と example/dev-plugins/ は消してから作る）
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { PINNED_PROJECTS, PINNED_TAGS, type SpecItem, TODAY, sampleSpec } from '../app/src/samples/spec.ts'
+import {
+  EXAMPLE_PLUGINS,
+  PINNED_PROJECTS,
+  PINNED_TAGS,
+  type SpecItem,
+  TODAY,
+  sampleSpec,
+} from '../app/src/samples/spec.ts'
 
 const ID_KEY = 'patchouli-id'
 const DAY = 864e5
 
-const root = path.resolve(import.meta.dirname, '..', 'dev-library')
+const example = path.resolve(import.meta.dirname, '..', 'example')
+const root = path.join(example, 'dev-library')
+const pluginDir = path.join(example, 'dev-plugins')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'patchouli-dev-library-'))
 
 const FONTS = [
@@ -91,14 +102,44 @@ function ffmpegArgs(it: SpecItem, out: string): string[] {
   ]
 }
 
-function run(args: string[]) {
+function run(args: string[], cmd = 'ffmpeg', cwd = tmp) {
   return new Promise<void>((resolve, reject) => {
-    const p = spawn('ffmpeg', args, { cwd: tmp, stdio: ['ignore', 'ignore', 'pipe'] })
+    const p = spawn(cmd, args, { cwd, stdio: ['ignore', 'ignore', 'pipe'] })
     let err = ''
     p.stderr.on('data', (d) => (err += d))
-    p.on('error', (e) => reject(new Error(`ffmpeg を起動できない: ${e.message}`)))
-    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg が失敗した (${code}): ${err}`))))
+    p.on('error', (e) => reject(new Error(`${cmd} を起動できない: ${e.message}`)))
+    p.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`${cmd} が失敗した (${code}): ${err}`))))
   })
+}
+
+/**
+ * 例のプラグインをビルドし、それぞれのフォルダに plugin.wasm を置いてから、アプリのプラグインの置き場と同じ形で
+ * pluginDir に入れる（<id>/ と、取得先を書いた sources.json）。返すのはライブラリに残す記録。
+ */
+async function installExamples() {
+  await run(
+    ['build', '--release', '--target', 'wasm32-wasip2', '--manifest-path', path.join(example, 'Cargo.toml')],
+    'cargo',
+    // example/.cargo/config.toml を効かせる
+    example,
+  )
+  fs.rmSync(pluginDir, { recursive: true, force: true })
+  fs.mkdirSync(pluginDir)
+  const sources: Record<string, unknown> = {}
+  const record: Record<string, unknown> = {}
+  for (const dir of EXAMPLE_PLUGINS) {
+    const src = path.join(example, dir)
+    const m: { id: string; version: string } = JSON.parse(fs.readFileSync(path.join(src, 'plugin.json'), 'utf8'))
+    const crate = /^name\s*=\s*"([^"]+)"/m.exec(fs.readFileSync(path.join(src, 'Cargo.toml'), 'utf8'))?.[1]
+    if (!crate) throw new Error(`${dir}/Cargo.toml に name がない`)
+    const wasm = path.join(example, 'target', 'wasm32-wasip2', 'release', `${crate.replaceAll('-', '_')}.wasm`)
+    fs.copyFileSync(wasm, path.join(src, 'plugin.wasm'))
+    fs.cpSync(src, path.join(pluginDir, m.id), { recursive: true })
+    sources[m.id] = { local: src }
+    record[m.id] = { version: m.version, source: { local: src } }
+  }
+  fs.writeFileSync(path.join(pluginDir, 'sources.json'), json(sources))
+  return record
 }
 
 /** ノートの本文を Markdown にする。続いた li の間は空けない。 */
@@ -125,7 +166,7 @@ const json = (v: unknown) => `${JSON.stringify(v, null, 2)}\n`
 
 const spec = sampleSpec()
 fs.rmSync(root, { recursive: true, force: true })
-fs.mkdirSync(root)
+fs.mkdirSync(root, { recursive: true })
 
 spec.projects.forEach((p, i) => {
   fs.mkdirSync(path.join(root, p.name))
@@ -143,6 +184,7 @@ fs.writeFileSync(
     tagCovers: Object.fromEntries(spec.tagCovers),
   }),
 )
+fs.writeFileSync(path.join(root, '.patchouli', 'plugins.json'), json({ plugins: await installExamples() }))
 
 const jobs: (() => Promise<void>)[] = []
 const touched: { file: string; moved: number }[] = []
@@ -158,7 +200,8 @@ for (const it of spec.items) {
   const meta = `${file}.meta`
   fs.writeFileSync(meta, json({ [ID_KEY]: it.id, tags: it.tags, rating: it.rating, memo: it.memo }))
   touched.push({ file, moved: it.moved }, { file: meta, moved: it.moved })
-  jobs.push(() => run(ffmpegArgs(it, file)))
+  if (it.media === 'text') fs.writeFileSync(file, `${it.text ?? ''}\n`)
+  else jobs.push(() => run(ffmpegArgs(it, file)))
 }
 
 const width = Math.max(2, Math.floor(os.availableParallelism() / 2))
@@ -185,5 +228,6 @@ fs.rmSync(tmp, { recursive: true, force: true })
 const count = (k: string) => spec.items.filter((i) => i.media === k).length
 console.log(
   `${path.relative(process.cwd(), root) || root} を作った（見本の今日 ${TODAY.toLocaleDateString('ja-JP')}）: ` +
-    `プロジェクト ${spec.projects.length}、ノート ${count('note')}、画像 ${count('image')}、動画 ${count('video')}、音声 ${count('audio')}`,
+    `プロジェクト ${spec.projects.length}、ノート ${count('note')}、画像 ${count('image')}、動画 ${count('video')}、音声 ${count('audio')}、` +
+    `テキスト ${count('text')}、例のプラグイン ${EXAMPLE_PLUGINS.length}（${path.relative(process.cwd(), pluginDir)}）`,
 )

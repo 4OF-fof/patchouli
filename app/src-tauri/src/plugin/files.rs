@@ -1,4 +1,5 @@
-//! 外のプラグインの画面（`plugin://localhost/<id>/<パス>`）を返す。画面は隔離した iframe で開く。
+//! 使っている外のプラグインのフォルダの中のファイル（`plugin://localhost/<id>/<パス>`）を返す。
+//! 組み込み UI の ES モジュールと、そこから読むファイルに使う。
 
 use std::fs;
 use std::path::Path;
@@ -29,19 +30,9 @@ pub fn serve(dir: Option<&Path>, rest: &str) -> Response<Vec<u8>> {
     let Some(body) = inside.then(|| fs::read(&file).ok()).flatten() else {
         return not_found();
     };
-    let me = "http://plugin.localhost plugin://localhost";
     Response::builder()
         .header(header::CONTENT_TYPE, mime_of(&file))
-        // 外への通信と、プラグインのフォルダの外からの読み込みを止める
-        .header(
-            header::CONTENT_SECURITY_POLICY,
-            format!(
-                "default-src 'none'; script-src {me} 'unsafe-inline' 'wasm-unsafe-eval'; \
-                 style-src {me} 'unsafe-inline'; img-src {me} data: blob:; \
-                 media-src {me} data: blob:; font-src {me} data:"
-            ),
-        )
-        // iframe は origin を持たない（sandbox）ので、module の script も読めるようにする
+        // 本体の画面とは origin が違うので、module の script として読めるようにする
         .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
         .body(body)
         .unwrap()

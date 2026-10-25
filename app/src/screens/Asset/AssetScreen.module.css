@@ -16,7 +16,7 @@
   max-height: 100%;
   border-radius: 2px;
 }
-/* プラグインの画面は、上の帯の下いっぱいに広げる */
+/* 組み込み UI の表示は、上の帯の下いっぱいに広げる */
 .stage .page {
   flex: 1;
   align-self: stretch;

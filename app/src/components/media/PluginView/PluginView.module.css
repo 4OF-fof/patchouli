@@ -1,0 +1,73 @@
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.mount {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font: 13px var(--f-sans);
+}
+.error {
+  margin: auto;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+  font-size: 12.5px;
+}
+
+/* プラグインが描く素の要素の既定の見た目。:where で詳細度を 0 にして、プラグインの CSS で上書きできるようにする */
+:where(.mount) :where(button) {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+:where(.mount) :where(button:hover) {
+  border-color: var(--faint);
+}
+:where(.mount) :where(button:disabled) {
+  color: var(--faint);
+  cursor: default;
+}
+:where(.mount) :where(input:not([type='checkbox'], [type='radio'], [type='range']), select, textarea) {
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+:where(.mount) :where(textarea) {
+  height: auto;
+  padding: 6px 8px;
+}
+:where(.mount) :where(input, select, textarea, button):focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: -1px;
+}
+:where(.mount) :where(input[type='checkbox'], input[type='radio'], input[type='range']) {
+  accent-color: var(--sage);
+}
+:where(.mount) :where(a) {
+  color: var(--sage);
+}
+:where(.mount) :where(code, pre, kbd) {
+  font-family: var(--f-mono);
+}
+:where(.mount) :where(hr) {
+  border: 0;
+  border-top: 1px solid var(--line);
+}

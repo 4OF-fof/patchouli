@@ -122,30 +122,32 @@ pub fn encode(mut img: DynamicImage, edge: u32) -> Result<Vec<u8>, String> {
 /// プラグインにサムネイルを作らせて置く。返すのは素材の大きさ（プラグインがわからなければサムネイルの大きさ）。
 /// プラグインが作らなければ None。
 fn make(runner: &mut Runner, job: &Job) -> Result<Option<(u32, u32)>, String> {
-    let err = |e: &dyn std::fmt::Display| format!("{}: {e}", job.src.display());
     let Some((png, original)) = runner.thumbnail(&job.ext, &job.src, EDGE)? else {
         return Ok(None);
     };
+    place(&png, original, &job.out)
+        .map(Some)
+        .map_err(|e| format!("{}: {e}", job.src.display()))
+}
+
+/// プラグインが作ったサムネイルを確かめて out に置く。返すのは素材の大きさ（わからなければサムネイルの大きさ）。
+pub fn place(png: &[u8], original: Option<(u32, u32)>, out: &Path) -> Result<(u32, u32), String> {
     // PNG でないものや、大きすぎるものは置かない
-    let size = imagesize::blob_size(&png).map_err(|e| err(&e))?;
+    let size = imagesize::blob_size(png).map_err(|e| e.to_string())?;
     let (w, h) = (size.width as u32, size.height as u32);
-    if imagesize::image_type(&png).ok() != Some(imagesize::ImageType::Png)
+    if imagesize::image_type(png).ok() != Some(imagesize::ImageType::Png)
         || w > EDGE * 2
         || h > EDGE * 2
     {
-        return Err(err(
-            &"プラグインが返したサムネイルが PNG でないか、大きすぎる",
-        ));
+        return Err("プラグインが返したサムネイルが PNG でないか、大きすぎる".into());
     }
-    if let Some(dir) = job.out.parent() {
-        fs::create_dir_all(dir).map_err(|e| err(&e))?;
+    if let Some(dir) = out.parent() {
+        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
-    let tmp = job.out.with_extension("tmp");
-    fs::write(&tmp, &png).map_err(|e| err(&e))?;
-    fs::rename(&tmp, &job.out).map_err(|e| err(&e))?;
-    Ok(Some(
-        original.filter(|(w, h)| *w > 0 && *h > 0).unwrap_or((w, h)),
-    ))
+    let tmp = out.with_extension("tmp");
+    fs::write(&tmp, png).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, out).map_err(|e| e.to_string())?;
+    Ok(original.filter(|(w, h)| *w > 0 && *h > 0).unwrap_or((w, h)))
 }
 
 /// 新しいものから順に、手の空いた数だけ並べて作る。できたものごとに、素材の大きさを添えて done を呼ぶ。

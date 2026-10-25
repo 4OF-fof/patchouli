@@ -3,7 +3,8 @@
  * 画面はファイルの場所や形式を知らない。
  */
 import type { CoverPart, Item, Library, NoteBlock, Project, TagCoverPart, Thumbnail } from '../model/library'
-import type { ItemView, PluginActions, PluginReport } from '../plugins/types'
+import type { ItemView, Part, PluginActions, PluginReport } from '../plugins/types'
+import type { UiApi, UiItem } from '../plugins/ui'
 
 /** ライブラリ全体にかかわる状態。 */
 export interface LibraryState {
@@ -88,8 +89,6 @@ export interface Backend {
   pluginActions?: PluginActions
   /** 素材の詳細に出すもの。受け持つプラグインが決める。決まらなければ null。 */
   itemView?: (id: string) => Promise<ItemView | null>
-  /** 詳細の画面（iframe）から、素材の中身を offset から最大 length バイト読む。 */
-  readItem?: (id: string, offset: number, length: number) => Promise<ArrayBuffer>
-  /** 詳細の画面（iframe）から、詳細を受け持つプラグインの関数を呼ぶ。 */
-  callPlugin?: (id: string, method: string, args: string) => Promise<string>
+  /** 素材 item の part を受け持つ組み込み UI（plugin）に渡す窓口。 */
+  uiApi?: (item: UiItem, part: Part, plugin: string) => UiApi
 }

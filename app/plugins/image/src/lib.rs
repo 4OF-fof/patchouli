@@ -23,6 +23,10 @@ impl Guest for Image {
         Some(View::Image)
     }
 
+    fn decode(_format: String, _f: File) -> Result<Vec<u8>, String> {
+        Err("decode はない".into())
+    }
+
     fn settings() -> Vec<Setting> {
         Vec::new()
     }

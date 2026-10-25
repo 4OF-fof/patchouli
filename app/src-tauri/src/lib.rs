@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use library::{ItemPatch, Library, LibraryState, Opened, StoredItem, StoredProject};
 use plugin::record::{self, Source};
-use plugin::{Registry, Runner, ViewOut};
+use plugin::{By, Part, Registry, Runner, ViewOut};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{Emitter, Manager, State};
@@ -36,10 +36,13 @@ fn dev_path(var: &str) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// 外のプラグインの本体を置くところ。
+/// 外のプラグインの本体を置くところ。開発中は、例のプラグインを入れた置き場（scripts/dev-library.ts が作る）。
 fn plugin_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     if let Some(p) = dev_path("PATCHOULI_PLUGIN_DIR") {
         return Ok(p);
+    }
+    if cfg!(debug_assertions) {
+        return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../example/dev-plugins"));
     }
     Ok(app
         .path()
@@ -57,7 +60,7 @@ fn library_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         return Ok(p);
     }
     if cfg!(debug_assertions) {
-        return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../dev-library"));
+        return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../example/dev-library"));
     }
     Err("ライブラリが選ばれていない。設定から選んでください".into())
 }
@@ -78,7 +81,8 @@ fn with_session<T>(
     f(s)
 }
 
-/// サムネイルを作れるもののうち、できているものは thumb に入れ、まだのものは作る仕事にする。
+/// サムネイルを作れるもののうち、できているものは thumb に入れ、まだのもので WASM が作るものは作る仕事にする。
+/// 組み込み UI が作るものは、画面が作って put_thumbnail で渡す。
 /// できているものの大きさは、サムネイルの大きさで代える（縦横比が同じなので）。
 /// 返すのは、作る仕事、いまのサムネイルすべての場所、すべての場所を決められたか。
 fn plan_thumbs(
@@ -89,10 +93,10 @@ fn plan_thumbs(
     let mut jobs = Vec::new();
     let mut current = Vec::new();
     let mut all = true;
-    for it in items
-        .iter_mut()
-        .filter(|i| plugins.handles(&i.ext, plugin::Part::Thumbnail))
-    {
+    for it in items.iter_mut() {
+        let Some(by) = plugins.handles(&it.ext, Part::Thumbnail) else {
+            continue;
+        };
         let Some(out) = thumb::path_for(thumbs, &it.file) else {
             all = false;
             continue;
@@ -105,7 +109,7 @@ fn plan_thumbs(
                 (it.width, it.height) = (Some(s.width as u32), Some(s.height as u32));
             }
             it.thumb = Some(out);
-        } else {
+        } else if by == By::Wasm {
             jobs.push(thumb::Job {
                 id: it.id.clone(),
                 src: it.file.clone(),
@@ -120,17 +124,21 @@ fn plan_thumbs(
 
 /// 裏でサムネイルを作り、できたものから画面へ知らせる。
 fn make_thumbs(app: &tauri::AppHandle, plugins: &Arc<Registry>, jobs: Vec<thumb::Job>) {
-    thumb::make_all(plugins, jobs, |j, (width, height)| {
-        let _ = app.emit(
-            "thumbnail",
-            ThumbReady {
-                id: &j.id,
-                file: &j.out,
-                width,
-                height,
-            },
-        );
+    thumb::make_all(plugins, jobs, |j, size| {
+        tell_thumb(app, &j.id, &j.out, size)
     })
+}
+
+fn tell_thumb(app: &tauri::AppHandle, id: &str, file: &Path, (width, height): (u32, u32)) {
+    let _ = app.emit(
+        "thumbnail",
+        ThumbReady {
+            id,
+            file,
+            width,
+            height,
+        },
+    );
 }
 
 #[tauri::command]
@@ -316,7 +324,18 @@ async fn item_view(cur: State<'_, Current>, id: String) -> Result<Option<ViewOut
     })
 }
 
-/// 詳細の画面（iframe）から、開いている素材の中身を読む。
+/// 詳細に出す画像を、詳細を受け持つ WASM が PNG にしたもの。
+#[tauri::command]
+async fn item_decoded(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Response, String> {
+    let png = with_session(&cur, |s| {
+        let (path, ext) = s.lib.asset(&id)?;
+        let path = path.to_owned();
+        s.runner.decode(&ext, &path)
+    })?;
+    Ok(tauri::ipc::Response::new(png))
+}
+
+/// 組み込み UI から、開いている素材の中身を読む。
 #[tauri::command]
 async fn plugin_read(
     cur: State<'_, Current>,
@@ -330,35 +349,78 @@ async fn plugin_read(
     )?))
 }
 
-/// 詳細の画面（iframe）から、詳細を受け持つプラグインの関数を呼ぶ。
+/// 素材 id の part を受け持つ組み込み UI から、そのプラグインの WASM の関数を呼ぶ。
 #[tauri::command]
 async fn plugin_call(
     cur: State<'_, Current>,
     id: String,
+    part: Part,
     method: String,
     args: String,
 ) -> Result<String, String> {
     with_session(&cur, |s| {
         let (path, ext) = s.lib.asset(&id)?;
         let path = path.to_owned();
-        s.runner.call_page(&ext, &path, &method, &args)
+        s.runner.call_ui(&ext, part, &path, &method, &args)
     })
 }
 
-/// 使っているプラグインの画面のファイルを返す。
-fn plugin_page(
+/// 使っているプラグインの、設定のいまの値。
+#[tauri::command]
+async fn plugin_settings(
+    cur: State<'_, Current>,
+    plugin: String,
+) -> Result<serde_json::Map<String, Value>, String> {
+    with_session(&cur, |s| {
+        s.plugins
+            .settings_of(&plugin)
+            .ok_or_else(|| format!("{plugin} を使っていない"))
+    })
+}
+
+/// 組み込み UI が作ったサムネイル（本文が PNG）を置いて、画面へ知らせる。
+/// 見出しの id は素材、width と height は素材の大きさ（わからなければ付けない）。
+#[tauri::command]
+async fn put_thumbnail(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(png) = request.body() else {
+        return Err("本文が PNG でない".into());
+    };
+    let head = |k: &str| request.headers().get(k).and_then(|v| v.to_str().ok());
+    let id = head("id").ok_or("id がない")?.to_owned();
+    let num = |k: &str| head(k).and_then(|v| v.parse::<u32>().ok());
+    let original = num("width").zip(num("height"));
+    let (src, out) = with_session(&cur, |s| {
+        let (path, ext) = s.lib.asset(&id)?;
+        if s.plugins.handles(&ext, Part::Thumbnail) != Some(By::Ui) {
+            return Err(format!("{ext} のサムネイルは組み込み UI が作るものでない"));
+        }
+        let out = thumb::path_for(&s.thumbs, path)
+            .ok_or_else(|| format!("{} を読めない", path.display()))?;
+        Ok((path.to_owned(), out))
+    })?;
+    let size = thumb::place(png, original, &out).map_err(|e| format!("{}: {e}", src.display()))?;
+    tell_thumb(&app, &id, &out, size);
+    Ok(())
+}
+
+/// 使っているプラグインのフォルダの中のファイルを返す。
+fn plugin_file(
     app: &tauri::AppHandle,
     req: &tauri::http::Request<Vec<u8>>,
 ) -> tauri::http::Response<Vec<u8>> {
-    let Some((id, rest)) = plugin::page::split(req.uri().path()) else {
-        return plugin::page::serve(None, "");
+    let Some((id, rest)) = plugin::files::split(req.uri().path()) else {
+        return plugin::files::serve(None, "");
     };
     let cur = app.state::<Current>();
     let dir = cur.0.lock().ok().and_then(|g| {
         g.as_ref()
             .and_then(|s| s.plugins.dir_of(&id).map(Path::to_owned))
     });
-    plugin::page::serve(dir.as_deref(), &rest)
+    plugin::files::serve(dir.as_deref(), &rest)
 }
 
 /// フォルダを選ぶ窓を出し、選んだフォルダを次から開くライブラリにする。選ばなければ false。
@@ -418,7 +480,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Current::default())
-        .register_uri_scheme_protocol("plugin", |ctx, req| plugin_page(ctx.app_handle(), &req))
+        .register_uri_scheme_protocol("plugin", |ctx, req| plugin_file(ctx.app_handle(), &req))
         .invoke_handler(tauri::generate_handler![
             open_library,
             choose_library,
@@ -437,8 +499,11 @@ pub fn run() {
             pick_plugin,
             set_plugin_setting,
             item_view,
+            item_decoded,
             plugin_read,
-            plugin_call
+            plugin_call,
+            plugin_settings,
+            put_thumbnail
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

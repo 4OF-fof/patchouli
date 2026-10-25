@@ -1,5 +1,5 @@
 import { For, Show, createSignal, onCleanup, onMount } from 'solid-js'
-import type { Need, PluginActions, PluginReport, PluginSource, PluginStatus } from '../../../plugins/types'
+import type { Need, Part, PluginActions, PluginReport, PluginSource, PluginStatus } from '../../../plugins/types'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
@@ -17,6 +17,8 @@ export interface PluginsDialogProps {
 }
 
 const NEED: Record<Need, string> = { none: '使わない', optional: 'あれば使う', required: '必須' }
+
+const PART: Record<Part, string> = { thumbnail: 'サムネイル', view: '詳細の表示' }
 
 const sourceLabel = (s: PluginSource) => s.local
 
@@ -78,6 +80,22 @@ export function PluginsDialog(props: PluginsDialogProps) {
         </div>
         <Show when={p.description}>
           <p class={styles.desc}>{p.description}</p>
+        </Show>
+        <Show when={p.caps.length}>
+          <div class={styles.caps}>
+            <For each={p.caps}>
+              {(c) => (
+                <span
+                  class={styles.cap}
+                  data-by={c.by}
+                  title={c.by === 'ui' ? '隔離されずに、本体の画面で動く' : 'WASM が受け持ち、本体が描く'}
+                >
+                  {PART[c.part]}
+                  {c.by === 'ui' && '（隔離しない UI）'}
+                </span>
+              )}
+            </For>
+          </div>
         </Show>
         <div class={styles.meta}>
           <span class={styles.formats}>

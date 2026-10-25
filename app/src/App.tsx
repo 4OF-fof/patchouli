@@ -167,11 +167,7 @@ export function App(props: AppProps) {
         setNotice(`ライブラリを選べませんでした: ${e instanceof Error ? e.message : String(e)}`)
       }
     })
-  const viewHost = backend.itemView && {
-    view: backend.itemView,
-    read: backend.readItem,
-    call: backend.callPlugin,
-  }
+  const viewHost = backend.itemView && { view: backend.itemView, ui: backend.uiApi }
   const togglePin = (id: string) => {
     setLib(withToggledPin(lib(), id))
     saveState()

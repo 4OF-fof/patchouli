@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::fs::File as FsFile;
 use std::io::{Read, Seek, SeekFrom};
-use std::path::{Component as PathPart, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
 use serde::Serialize;
@@ -12,7 +12,7 @@ use wasmtime::component::{Component, Linker, ResourceTable};
 use wasmtime::{Engine, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
-use super::{Choice, Part, Registry, SettingDecl, SettingKind, ffmpeg, os};
+use super::{By, Choice, Part, Registry, SettingDecl, SettingKind, UiRef, ffmpeg, os};
 use crate::{library, thumb};
 
 wasmtime::component::bindgen!({ world: "plugin", path: "../plugins/wit" });
@@ -203,17 +203,10 @@ pub enum ViewOut {
     Image,
     Video,
     Audio,
-    /// プラグインのフォルダの中の HTML。
-    Page {
-        plugin: String,
-        path: String,
-    },
-}
-
-/// プラグインのフォルダの中を指す、相対のパスか。
-fn inside(rel: &str) -> bool {
-    let p = Path::new(rel);
-    !rel.is_empty() && p.components().all(|c| matches!(c, PathPart::Normal(_)))
+    /// WASM が PNG にしたもの（Runner::decode）を画像として出す。
+    Decoded,
+    /// 組み込み UI が描く。
+    Ui(UiRef),
 }
 
 /// プラグインを呼ぶ窓口。スレッドごとに 1 つ作る。動かしたプラグインは使い回す。
@@ -236,20 +229,23 @@ impl Runner {
         &self.reg
     }
 
-    /// part を受け持つプラグインで f を呼ぶ。受け持つものがなければ None。
+    /// part を by で受け持つプラグインで f を呼ぶ。受け持つものがなければ None。
     fn call<R>(
         &mut self,
         ext: &str,
         part: Part,
+        by: By,
         path: &Path,
         f: impl FnOnce(&Plugin, &mut Store<HostState>, &str, File) -> wasmtime::Result<R>,
     ) -> Option<Result<R, String>> {
-        let (i, format) = self.reg.part(ext, part)?;
+        let (i, format) = self.reg.part(ext, part, by)?;
         let format = format.to_owned();
         let id = self.reg.plugins[i].manifest.id.clone();
         let size = std::fs::metadata(path).map_or(0, |m| m.len());
         if !self.instances.contains_key(&i) {
-            let pre = self.reg.plugins[i].wasm.as_ref()?;
+            let Some(pre) = self.reg.plugins[i].wasm.as_ref() else {
+                return Some(Err(format!("{id} に処理の部分（plugin.wasm）がない")));
+            };
             match pre.0.instantiate(&mut self.store) {
                 Ok(p) => {
                     self.instances.insert(i, p);
@@ -279,7 +275,7 @@ impl Runner {
     /// サムネイルの PNG と、素材そのものの大きさ。受け持つプラグインがない、または作らなかったときは None。
     pub fn thumbnail(&mut self, ext: &str, path: &Path, edge: u32) -> Result<Option<Made>, String> {
         let t = self
-            .call(ext, Part::Thumbnail, path, |p, s, fmt, file| {
+            .call(ext, Part::Thumbnail, By::Wasm, path, |p, s, fmt, file| {
                 p.call_thumbnail(s, fmt, &file, edge)
             })
             .unwrap_or(Ok(Ok(None)))??;
@@ -288,7 +284,10 @@ impl Runner {
 
     /// 詳細に出すもの。受け持つプラグインがない、または出さないときは None。
     pub fn view(&mut self, ext: &str, path: &Path) -> Option<ViewOut> {
-        let r = self.call(ext, Part::View, path, |p, s, fmt, file| {
+        if let Some(ui) = self.reg.ui_of(ext, Part::View) {
+            return Some(ViewOut::Ui(ui));
+        }
+        let r = self.call(ext, Part::View, By::Wasm, path, |p, s, fmt, file| {
             p.call_view(s, fmt, &file)
         })?;
         let v = match r {
@@ -302,33 +301,30 @@ impl Runner {
             types::View::Image => ViewOut::Image,
             types::View::Video => ViewOut::Video,
             types::View::Audio => ViewOut::Audio,
-            types::View::Page(page) => {
-                let (i, _) = self.reg.part(ext, Part::View)?;
-                let p = &self.reg.plugins[i];
-                let ok = inside(&page) && p.dir.as_ref().is_some_and(|d| d.join(&page).is_file());
-                if !ok {
-                    log::warn!("[{}] 画面 {page} がプラグインの中にない", p.manifest.id);
-                    return None;
-                }
-                ViewOut::Page {
-                    plugin: p.manifest.id.clone(),
-                    path: page,
-                }
-            }
+            types::View::Decoded => ViewOut::Decoded,
         })
     }
 
-    /// 詳細の画面（iframe）から、詳細を受け持つプラグインの関数を呼ぶ。
-    pub fn call_page(
+    /// 詳細に出す PNG。view が decoded を返した形式で使う。
+    pub fn decode(&mut self, ext: &str, path: &Path) -> Result<Vec<u8>, String> {
+        self.call(ext, Part::View, By::Wasm, path, |p, s, fmt, file| {
+            p.call_decode(s, fmt, &file)
+        })
+        .ok_or("詳細を受け持つプラグインがない")??
+    }
+
+    /// part を受け持つ組み込み UI から、そのプラグインの WASM の関数を呼ぶ。
+    pub fn call_ui(
         &mut self,
         ext: &str,
+        part: Part,
         path: &Path,
         method: &str,
         args: &str,
     ) -> Result<String, String> {
-        self.call(ext, Part::View, path, |p, s, fmt, file| {
+        self.call(ext, part, By::Ui, path, |p, s, fmt, file| {
             p.call_call(s, fmt, &file, method, args)
         })
-        .ok_or("詳細を受け持つプラグインがない")??
+        .ok_or("組み込み UI で受け持つプラグインがない")??
     }
 }

@@ -1,0 +1,9 @@
+{
+  "id": "example.ppm",
+  "name": "PPM 画像",
+  "version": "0.1.0",
+  "description": "アプリが読めない PPM（P6）を WASM で読む（宣言型の例）",
+  "formats": {
+    "ppm": { "label": "PPM 画像", "ratio": 1.6, "parts": ["thumbnail", "view"] }
+  }
+}

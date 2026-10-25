@@ -1,11 +1,12 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { builtinReport } from '../../../plugins/builtin'
 import type { PluginReport, PluginStatus } from '../../../plugins/types'
+import { sampleReport } from '../../../samples/plugins'
 import { PluginsDialog } from './PluginsDialog'
 
 const ffmpeg = { path: 'C:\\Users\\me\\scoop\\shims\\ffmpeg.exe', version: '7.1' }
 
-/** 外から入れたプラグイン。iframe の画面と設定を持つ。 */
+/** 外から入れたプラグイン。組み込み UI と設定を持つ。 */
 const text: PluginStatus = {
   id: 'example.text',
   name: 'テキスト',
@@ -16,6 +17,10 @@ const text: PluginStatus = {
   builtin: false,
   state: 'active',
   ffmpeg: 'none',
+  caps: [
+    { part: 'thumbnail', by: 'ui' },
+    { part: 'view', by: 'ui' },
+  ],
   formats: ['log', 'txt'],
   settings: [
     { key: 'wrap', label: '折り返す', kind: 'toggle', default: true, value: true },
@@ -57,6 +62,7 @@ const external: PluginReport = {
       builtin: false,
       state: 'missing',
       ffmpeg: 'none',
+      caps: [],
       formats: [],
       settings: [],
       problems: [{ level: 'error', text: 'アプリに入っていない。取得先から入れるまで使えない' }],
@@ -70,6 +76,10 @@ const external: PluginReport = {
       builtin: false,
       state: 'unused',
       ffmpeg: 'none',
+      caps: [
+        { part: 'thumbnail', by: 'wasm' },
+        { part: 'view', by: 'ui' },
+      ],
       formats: ['glb', 'gltf'],
       settings: [],
       problems: [],
@@ -111,6 +121,7 @@ const troubled: PluginReport = {
       builtin: false,
       state: 'active',
       ffmpeg: 'required',
+      caps: [{ part: 'thumbnail', by: 'wasm' }],
       formats: [],
       settings: [],
       problems: [
@@ -164,5 +175,5 @@ export const Failed: Story = {
     },
   },
 }
-export const Sample: Story = { name: '見本（組み込みだけ）', args: { report: builtinReport(), actions: {} } }
+export const Sample: Story = { name: '見本（例のプラグインも）', args: { report: sampleReport(), actions: {} } }
 export const Loading: Story = { name: '読み込み中', args: { report: undefined } }

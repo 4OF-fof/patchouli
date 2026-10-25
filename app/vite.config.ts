@@ -43,6 +43,8 @@ export default defineConfig({
   server: {
     strictPort: true,
     watch: { ignored: ['**/src-tauri/**'] },
+    // 画面の見本が、例のプラグインの plugin.json（../example/）を読む
+    fs: { allow: [import.meta.dirname, path.join(import.meta.dirname, '../example')] },
   },
   test: {
     // vite-plugin-solid は既定で jsdom を使おうとするので、明示しておく

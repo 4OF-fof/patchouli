@@ -4,12 +4,13 @@
 
 - 仕様や設計は勝手に決めない。選択肢を示して、決めてもらう。
 - テストは、頼まれたときだけ書く。
-- 実際の素材ライブラリには手を出さない。画面は見本データ（`app/src/samples/`）で、ファイルを扱う動作は動作確認用のライブラリ（`dev-library/`）で確かめる。
+- 実際の素材ライブラリには手を出さない。画面は見本データ（`app/src/samples/`）で、ファイルを扱う動作は動作確認用のライブラリ（`example/dev-library/`）で確かめる。
 
 ## 見本と動作確認用のライブラリ
 
-- 中身は `app/src/samples/spec.ts` の 1 か所で決める。画面の見本（`library.ts`）と `dev-library/` は、どちらもここから作る。中身を変えるときは `spec.ts` を直す。
-- `dev-library/` は `node scripts/dev-library.ts` で作る（ffmpeg が要る）。作り直すたびに消えるので、手で直さない。
+- 中身は `app/src/samples/spec.ts` の 1 か所で決める。画面の見本（`library.ts`）と `example/dev-library/` は、どちらもここから作る。中身を変えるときは `spec.ts` を直す。
+- `example/dev-library/` は `node scripts/dev-library.ts` で作る（ffmpeg と、cargo の wasm32-wasip2 が要る）。作り直すたびに消えるので、手で直さない。
+- 例のプラグインは `example/<名前>-plugin/` に置き、使うものを `spec.ts` の `EXAMPLE_PLUGINS` に書く。スクリプトがビルドして `example/dev-plugins/` に入れ、ライブラリに記録する。開発中のアプリは、既定でこのライブラリとプラグインの置き場を使う。
 - `spec.ts` は Node がそのまま読むので、型のほかは import しない。
 - ライブラリの形式が決まったり変わったりしたら、`spec.ts` とスクリプトにも反映する。
 

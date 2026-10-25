@@ -1,15 +1,16 @@
-//! プラグイン。形式（拡張子）ごとに、サムネイルの生成と、素材の詳細に出すものを受け持つ。
+//! プラグイン。形式（拡張子）ごとに、サムネイルの生成と、素材の詳細に出すものを受け持つ。受け持ち方は 2 層ある。
 //!
-//! - 処理は WASM のコンポーネント（`app/plugins/wit/plugin.wit`）で動かす。画面の部分は記述を返し、本体の部品が描く。独自の画面は iframe で隔離する
+//! - 宣言型: 処理は WASM のコンポーネント（`app/plugins/wit/plugin.wit`）で動かす。表示や設定は記述を返し、本体の部品が描く
+//! - 組み込み UI: `plugin.json` の `ui` の ES モジュールを、隔離せずに本体の画面で動かす（`src/plugins/ui.ts`）
 //! - 形式はほかの形式を引き継いで（extends）、一部（parts）だけを自分で受け持てる
 //! - 同じ形式を 2 つのプラグインが受け持つときは、先に読んだほうを使い、両方にエラーを付ける
 //! - 外のプラグインの本体はアプリのデータフォルダに置き、ライブラリに記録したものだけを使う（record.rs）
 
 mod builtin;
 pub mod ffmpeg;
+pub mod files;
 pub mod install;
 mod os;
-pub mod page;
 pub mod record;
 mod runtime;
 
@@ -34,8 +35,8 @@ pub enum Need {
     Required,
 }
 
-/// 形式ごとに受け持つもの。どれも WASM で受け持つ。
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+/// 形式ごとに受け持つもの。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Part {
     Thumbnail,
@@ -43,6 +44,14 @@ pub enum Part {
     /// この版のアプリが知らないもの。読み飛ばす。
     #[serde(other)]
     Unknown,
+}
+
+/// 受け持ち方。wasm は宣言型、ui は組み込み UI。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum By {
+    Wasm,
+    Ui,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -53,8 +62,12 @@ pub struct FormatDecl {
     pub label: Option<String>,
     /// 縦横比（幅 / 高さ）の既定。サムネイルができるまで使う。
     pub ratio: Option<f64>,
+    /// WASM で受け持つもの。
     #[serde(default)]
     pub parts: Vec<Part>,
+    /// 組み込み UI で受け持つもの。
+    #[serde(default)]
+    pub ui: Vec<Part>,
 }
 
 /// `plugin.json`。処理の部分は同じフォルダの `plugin.wasm`。
@@ -68,6 +81,8 @@ pub struct Manifest {
     pub description: String,
     #[serde(default)]
     pub ffmpeg: Need,
+    /// 組み込み UI の ES モジュール（plugin.json からの相対パス）。外のプラグインだけが持てる。
+    pub ui: Option<String>,
     pub formats: BTreeMap<String, FormatDecl>,
 }
 
@@ -84,6 +99,34 @@ impl Manifest {
     fn wants_wasm(&self) -> bool {
         self.formats.values().any(|d| !d.parts.is_empty())
     }
+
+    fn wants_ui(&self) -> bool {
+        self.formats.values().any(|d| !d.ui.is_empty())
+    }
+
+    /// 受け持つもの（形式をまたいでまとめる）。
+    fn caps(&self) -> Vec<Cap> {
+        let mut out: Vec<Cap> = self
+            .formats
+            .values()
+            .flat_map(|d| {
+                let wasm = d.parts.iter().map(|&part| Cap { part, by: By::Wasm });
+                wasm.chain(d.ui.iter().map(|&part| Cap { part, by: By::Ui }))
+            })
+            .filter(|c| c.part != Part::Unknown)
+            .collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+}
+
+/// プラグインのフォルダの中を指す、相対のパスか。
+fn inside(rel: &str) -> bool {
+    !rel.is_empty()
+        && Path::new(rel)
+            .components()
+            .all(|c| matches!(c, std::path::Component::Normal(_)))
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -178,6 +221,8 @@ struct Loaded {
     /// 外のプラグインのフォルダ。
     dir: Option<PathBuf>,
     wasm: Option<Arc<runtime::Prepared>>,
+    /// 組み込み UI の ES モジュール。フォルダの中にあると確かめたもの。
+    ui: Option<String>,
     settings: Vec<SettingDecl>,
     problems: Vec<Problem>,
     source: Option<Source>,
@@ -191,8 +236,29 @@ struct Resolved {
     owner: usize,
     label: String,
     ratio: f64,
-    /// 受け持つものごとに、受け持つプラグインと、その中での形式。
-    parts: HashMap<Part, (usize, String)>,
+    parts: HashMap<Part, Handler>,
+}
+
+/// 受け持つプラグインと、その中での形式、受け持ち方。
+#[derive(Debug, Clone)]
+struct Handler {
+    plugin: usize,
+    format: String,
+    by: By,
+}
+
+/// 組み込み UI の場所。module はプラグインのフォルダの中のパス。
+#[derive(Debug, Clone, Serialize)]
+pub struct UiRef {
+    pub plugin: String,
+    pub module: String,
+}
+
+/// 受け持つもの 1 つ。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+pub struct Cap {
+    pub part: Part,
+    pub by: By,
 }
 
 /// 画面に渡す形式。
@@ -205,6 +271,9 @@ pub struct FormatInfo {
     /// 受け持つプラグインの id。
     pub plugin: String,
     pub thumbnail: bool,
+    /// サムネイルを組み込み UI が作るときの、その UI。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_thumbnail: Option<UiRef>,
 }
 
 /// active 使っている / missing ライブラリに記録してあるがアプリに入っていない / unused アプリに入っているがこのライブラリでは使っていない
@@ -233,6 +302,8 @@ pub struct PluginStatus {
     pub builtin: bool,
     pub state: State,
     pub ffmpeg: Need,
+    /// 受け持つもの。
+    pub caps: Vec<Cap>,
     /// 受け持っている形式。
     pub formats: Vec<String>,
     pub settings: Vec<SettingStatus>,
@@ -308,6 +379,7 @@ impl Registry {
                     builtin: false,
                     state: State::Missing,
                     ffmpeg: Need::None,
+                    caps: Vec::new(),
                     formats: Vec::new(),
                     settings: Vec::new(),
                     problems: vec![error(
@@ -320,6 +392,7 @@ impl Registry {
             if record.plugins.contains_key(&id) || builtin_ids.contains(&id) {
                 continue;
             }
+            let caps = m.caps();
             others.push(PluginStatus {
                 id,
                 name: m.name,
@@ -330,6 +403,7 @@ impl Registry {
                 builtin: false,
                 state: State::Unused,
                 ffmpeg: m.ffmpeg,
+                caps,
                 formats: m.formats.into_keys().collect(),
                 settings: Vec::new(),
                 problems: Vec::new(),
@@ -386,8 +460,15 @@ impl Registry {
                 let decl = &self.plugins[at].manifest.formats[&fmt];
                 label = label.or_else(|| decl.label.clone());
                 ratio = ratio.or(decl.ratio);
-                for &part in decl.parts.iter().filter(|p| **p != Part::Unknown) {
-                    parts.entry(part).or_insert((at, fmt.clone()));
+                let own = decl.parts.iter().map(|&p| (p, By::Wasm));
+                for (part, by) in own.chain(decl.ui.iter().map(|&p| (p, By::Ui))) {
+                    if part != Part::Unknown {
+                        parts.entry(part).or_insert_with(|| Handler {
+                            plugin: at,
+                            format: fmt.clone(),
+                            by,
+                        });
+                    }
                 }
                 let Some(base) = &decl.extends else { break };
                 let Some(&next) = claim.get(base) else {
@@ -401,8 +482,11 @@ impl Registry {
                 };
                 (at, fmt) = (next, base.clone());
             }
-            // 処理の部分がないプラグインは、何も受け持てない
-            parts.retain(|_, (p, _)| self.plugins[*p].wasm.is_some());
+            // 処理の部分や組み込み UI がなければ、受け持てない
+            parts.retain(|_, h| match h.by {
+                By::Wasm => self.plugins[h.plugin].wasm.is_some(),
+                By::Ui => self.plugins[h.plugin].ui.is_some(),
+            });
             formats.insert(
                 ext.clone(),
                 Resolved {
@@ -417,6 +501,12 @@ impl Registry {
             if p.manifest.wants_wasm() && p.wasm.is_none() && p.problems.is_empty() {
                 p.problems.push(error(
                     "処理の部分（plugin.wasm）がないので、サムネイルと詳細の表示を受け持てない"
+                        .into(),
+                ));
+            }
+            if p.manifest.wants_ui() && p.ui.is_none() && p.problems.is_empty() {
+                p.problems.push(error(
+                    "組み込み UI（plugin.json の ui）がないので、UI で受け持つものを受け持てない"
                         .into(),
                 ));
             }
@@ -446,15 +536,25 @@ impl Registry {
             .is_some_and(|e| self.knows(&e.to_lowercase()))
     }
 
-    pub fn handles(&self, ext: &str, part: Part) -> bool {
-        self.formats
-            .get(ext)
-            .is_some_and(|f| f.parts.contains_key(&part))
+    /// part をどう受け持つか。受け持つものがなければ None。
+    pub fn handles(&self, ext: &str, part: Part) -> Option<By> {
+        Some(self.formats.get(ext)?.parts.get(&part)?.by)
     }
 
-    fn part(&self, ext: &str, part: Part) -> Option<(usize, &str)> {
-        let (p, f) = self.formats.get(ext)?.parts.get(&part)?;
-        Some((*p, f))
+    /// part を by で受け持つプラグインと、その中での形式。
+    fn part(&self, ext: &str, part: Part, by: By) -> Option<(usize, &str)> {
+        let h = self.formats.get(ext)?.parts.get(&part)?;
+        (h.by == by).then_some((h.plugin, h.format.as_str()))
+    }
+
+    /// part を受け持つ組み込み UI。
+    pub fn ui_of(&self, ext: &str, part: Part) -> Option<UiRef> {
+        let (i, _) = self.part(ext, part, By::Ui)?;
+        let p = &self.plugins[i];
+        Some(UiRef {
+            plugin: p.manifest.id.clone(),
+            module: p.ui.clone()?,
+        })
     }
 
     /// 使っている外のプラグインのフォルダ。
@@ -486,6 +586,18 @@ impl Registry {
             .get(key)
             .and_then(|v| decl.accept(v));
         Some(stored.unwrap_or_else(|| decl.default.clone()))
+    }
+
+    /// 使っているプラグインの、設定のいまの値すべて。
+    pub fn settings_of(&self, id: &str) -> Option<serde_json::Map<String, Value>> {
+        let i = self.plugins.iter().position(|p| p.manifest.id == id)?;
+        Some(
+            self.plugins[i]
+                .settings
+                .iter()
+                .filter_map(|d| Some((d.key.clone(), self.setting(i, &d.key)?)))
+                .collect(),
+        )
     }
 
     /// 設定を変えて、ライブラリの記録に書く。
@@ -527,6 +639,7 @@ impl Registry {
                 ratio: f.ratio,
                 plugin: id(f.owner),
                 thumbnail: f.parts.contains_key(&Part::Thumbnail),
+                ui_thumbnail: self.ui_of(ext, Part::Thumbnail),
             })
             .collect();
         out.sort_by(|a, b| a.ext.cmp(&b.ext));
@@ -589,6 +702,7 @@ impl Registry {
                     builtin: p.builtin,
                     state: State::Active,
                     ffmpeg: m.ffmpeg,
+                    caps: m.caps(),
                     formats,
                     settings,
                     problems,
@@ -621,12 +735,22 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
     } else {
         None
     };
+    let ui = manifest.ui.clone().filter(|m| {
+        let ok = inside(m) && dir.join(m).is_file();
+        if !ok {
+            problems.push(error(format!(
+                "組み込み UI（{m}）がプラグインのフォルダの中にない"
+            )));
+        }
+        ok
+    });
     let settings = settings_of(wasm.as_deref(), &manifest.id, &mut problems);
     Loaded {
         manifest,
         builtin: false,
         dir: Some(dir),
         wasm,
+        ui,
         settings,
         problems,
         source: entry.source.clone(),

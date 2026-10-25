@@ -107,6 +107,25 @@
   font-size: 12px;
   color: var(--muted);
 }
+.caps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.cap {
+  padding: 1px 7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-chip);
+  background: var(--sage-soft);
+  color: var(--sage-ink);
+  font-size: 11px;
+}
+.cap[data-by='ui'] {
+  border-color: var(--warm-line);
+  background: var(--warm);
+  color: var(--warm-ink);
+}
 .meta {
   display: flex;
   align-items: baseline;

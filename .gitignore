@@ -1,4 +1,8 @@
 .claude/
 
-# 動作確認用のライブラリ（scripts/dev-library.ts で作る）
-/dev-library/
+# 動作確認用のライブラリと、例のプラグインを入れた置き場（scripts/dev-library.ts で作る）
+/example/dev-library/
+/example/dev-plugins/
+# 例のプラグインのビルド
+/example/target/
+/example/*/plugin.wasm

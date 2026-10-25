@@ -40,6 +40,9 @@ fn build_plugins() {
         .env_remove("RUSTFLAGS")
         .env_remove("CARGO_BUILD_TARGET")
         .env_remove("CARGO_TARGET_DIR")
+        // clippy で調べているときも、プラグインは普通にビルドする
+        .env_remove("RUSTC_WORKSPACE_WRAPPER")
+        .env_remove("CLIPPY_ARGS")
         .status()
         .expect("プラグインのビルドを始められない");
     assert!(

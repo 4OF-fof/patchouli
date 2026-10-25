@@ -1,0 +1,11 @@
+[package]
+name = "example-text"
+version = "0.2.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = "0.63"

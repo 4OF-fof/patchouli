@@ -17,6 +17,10 @@ impl Guest for Video {
         Some(View::Video)
     }
 
+    fn decode(_format: String, _f: File) -> Result<Vec<u8>, String> {
+        Err("decode はない".into())
+    }
+
     fn settings() -> Vec<Setting> {
         Vec::new()
     }

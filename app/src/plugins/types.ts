@@ -1,7 +1,16 @@
 /* プラグインの形。plugin.json と、Rust 側（src-tauri/src/plugin/）から届くもの。Rust 側と合わせる。 */
 
-/** 形式ごとに受け持つもの。どれも WASM で受け持つ。 */
+/** 形式ごとに受け持つもの。 */
 export type Part = 'thumbnail' | 'view'
+
+/** 受け持ち方。wasm は宣言型（WASM が記述を返し、本体が描く）、ui は組み込み UI（隔離せずに本体の画面で動く）。 */
+export type By = 'wasm' | 'ui'
+
+/** 受け持つもの 1 つ。 */
+export interface Cap {
+  part: Part
+  by: By
+}
 
 /** FFmpeg をどれだけ要るか。 */
 export type Need = 'none' | 'optional' | 'required'
@@ -12,7 +21,10 @@ export interface FormatDecl {
   label?: string
   /** 縦横比（幅 / 高さ）の既定。サムネイルができるまで使う。 */
   ratio?: number
+  /** WASM で受け持つもの。 */
   parts?: Part[]
+  /** 組み込み UI で受け持つもの。 */
+  ui?: Part[]
 }
 
 /** plugin.json。 */
@@ -22,7 +34,15 @@ export interface Manifest {
   version: string
   description?: string
   ffmpeg?: Need
+  /** 組み込み UI の ES モジュール（plugin.json からの相対パス）。中身は ui.ts の UiModule。 */
+  ui?: string
   formats: Record<string, FormatDecl>
+}
+
+/** 組み込み UI の場所。module はプラグインのフォルダの中のパス。 */
+export interface UiRef {
+  plugin: string
+  module: string
 }
 
 /** 引き継ぎをたどったあとの形式。 */
@@ -34,6 +54,8 @@ export interface FormatInfo {
   plugin: string
   /** サムネイルを作れる。 */
   thumbnail: boolean
+  /** サムネイルを組み込み UI が作るときの、その UI。 */
+  uiThumbnail?: UiRef
 }
 
 export interface Problem {
@@ -75,6 +97,8 @@ export interface PluginStatus {
   builtin: boolean
   state: PluginState
   ffmpeg: Need
+  /** 受け持つもの。 */
+  caps: Cap[]
   /** 受け持っている形式。 */
   formats: string[]
   settings: Setting[]
@@ -87,8 +111,15 @@ export interface PluginReport {
   ffmpeg?: { path: string; version: string } | null
 }
 
-/** 素材の詳細に出すもの。page はプラグインのフォルダの中の HTML で、隔離した iframe で開く。 */
-export type ItemView = { kind: 'image' } | { kind: 'video' } | { kind: 'audio' } | { kind: 'page'; url: string }
+/**
+ * 素材の詳細に出すもの。image の url は WASM が PNG にしたもので、なければ素材そのものを出す。
+ * ui は組み込み UI が描く（url はその ES モジュール）。
+ */
+export type ItemView =
+  | { kind: 'image'; url?: string }
+  | { kind: 'video' }
+  | { kind: 'audio' }
+  | { kind: 'ui'; plugin: string; url: string }
 
 /** プラグインを入れたり外したりする操作。ない操作のボタンは出さない。 */
 export interface PluginActions {
