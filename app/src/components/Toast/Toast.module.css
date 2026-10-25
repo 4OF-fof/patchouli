@@ -1,0 +1,31 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100% - 32px);
+  padding: 10px 14px;
+  border-left: 3px solid var(--warm-ink);
+  border-radius: 10px;
+  background: var(--float);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+  font-size: 13px;
+}
+.root button {
+  padding: 0;
+  border: 0;
+  background: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.act {
+  color: var(--sage);
+  font-weight: 700;
+}
+.x {
+  color: var(--muted);
+}
+.x:hover {
+  color: var(--ink);
+}

@@ -1,0 +1,25 @@
+.root {
+  --s: 28%;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  width: 100%;
+  /* 置き場所の側が --mosaic-h で高さを決めてもよい */
+  height: var(--mosaic-h, 160px);
+  overflow: hidden;
+  border-radius: 4px;
+}
+.root > span {
+  display: block;
+  background: linear-gradient(
+    155deg,
+    hsl(var(--h) var(--s) var(--tl)),
+    hsl(calc(var(--h) + 28) var(--s) calc(var(--tl) - 9%))
+  );
+  background-size: cover;
+  background-position: center;
+}
+.root > span:first-child {
+  grid-row: span 2;
+}

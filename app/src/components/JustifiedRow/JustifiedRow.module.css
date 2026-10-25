@@ -1,0 +1,24 @@
+/* 中のカードの絵の高さをそろえ、名前の下の一言は出さない */
+.root {
+  --thumb-h: var(--hh);
+  --card-why: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--gap);
+}
+/* 最後の段だけ伸びすぎないよう、残りを埋める */
+.root::after {
+  content: '';
+  flex: 999 1 0;
+}
+.root[data-one='true'] {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.root[data-one='true']::after {
+  display: none;
+}
+.root > * {
+  flex: var(--ar, 1) var(--ar, 1) calc(var(--ar, 1) * var(--hh));
+  min-width: 0;
+}

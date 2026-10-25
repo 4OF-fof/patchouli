@@ -1,0 +1,207 @@
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+.doc {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 96px 40px 140px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* 見出しのカードを開いているとき、中くらいの窓では本文を右へ寄せてカードと重ねない */
+@media (min-width: 861px) and (max-width: 1319px) {
+  [data-heads='true'] .doc {
+    margin-left: 260px;
+    margin-right: auto;
+  }
+}
+.doc h1 {
+  margin: 0;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.props {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: -6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.tag {
+  color: var(--sage);
+}
+.panel {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 6px 12px;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--side);
+  font-size: 12.5px;
+}
+.panel dt {
+  font-family: var(--f-mono);
+  color: var(--muted);
+}
+.panel dd {
+  margin: 0;
+}
+.panel input {
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  font-size: 12.5px;
+}
+.body {
+  min-height: 300px;
+  font-size: 16px;
+  line-height: 1.95;
+  color: var(--ink-2);
+}
+.body p {
+  margin: 0 0 14px;
+}
+.body h2 {
+  margin: 22px 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.body ul {
+  margin: 0 0 14px;
+  padding-left: 1.4em;
+}
+.wl {
+  display: inline;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--wl);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.wl[data-missing='true'] {
+  color: var(--faint);
+  text-decoration-style: dashed;
+}
+
+/* 上の帯：何も触っていないときは消える */
+.bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 6;
+  height: 66px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.sp {
+  flex: 1;
+}
+.state {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: var(--float);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-pill);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.bar .more {
+  width: 34px;
+  justify-content: center;
+  padding: 0;
+}
+.pill {
+  position: absolute;
+  z-index: 5;
+  transition: opacity 0.18s ease;
+}
+[data-idle='true'] .bar,
+[data-idle='true'] .pill {
+  opacity: 0;
+  pointer-events: none;
+}
+[data-idle='true'] .bar {
+  transform: translateY(-8px);
+}
+[data-idle='true'] .pill:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* 見出しは左上、つながりは右下。ボタンの場所にカードが開く */
+.l {
+  left: 20px;
+  top: 66px;
+}
+.r {
+  right: 20px;
+  bottom: 20px;
+}
+.card {
+  position: absolute;
+  z-index: 5;
+  width: min(300px, calc(50% - 380px));
+  min-width: 220px;
+  max-height: calc(100% - 90px);
+  overflow-y: auto;
+}
+.card > section {
+  width: 100%;
+}
+.connect {
+  align-self: flex-start;
+  margin: 0 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sage);
+  font-size: 12px;
+  cursor: pointer;
+}
+.connect:hover {
+  text-decoration: underline;
+}
+@media (max-width: 860px) {
+  .card {
+    width: 260px;
+  }
+}
+@media (max-width: 640px) {
+  .doc {
+    padding: 64px 18px 100px;
+  }
+  .card {
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+}

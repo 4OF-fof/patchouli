@@ -1,0 +1,99 @@
+.row {
+  --thumb-h: 62px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.row[data-sub='true'] {
+  --thumb-h: 44px;
+  padding: 8px 0 8px 36px;
+}
+.tw {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-2);
+}
+button.tw {
+  cursor: pointer;
+}
+button.tw:hover {
+  background: var(--side);
+}
+.tw svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.15s ease;
+}
+.tw[aria-expanded='true'] svg {
+  transform: rotate(90deg);
+}
+.tn {
+  width: 180px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.row[data-sub='true'] .tn {
+  width: 144px;
+}
+.tn b {
+  font-size: 18px;
+  font-weight: 700;
+}
+.row[data-sub='true'] .tn b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.tn i {
+  font-style: normal;
+  color: var(--faint);
+}
+.tn span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.tn:focus-visible {
+  border-radius: 4px;
+  outline-offset: 3px;
+}
+.strip {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+}
+.all {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--sage);
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.all:hover {
+  text-decoration: underline;
+}
+.row .strip > [data-kind='note'] {
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--ink-2);
+}

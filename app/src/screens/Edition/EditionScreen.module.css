@@ -1,0 +1,65 @@
+.ed {
+  padding: 18px 28px 100px;
+}
+.ed > section {
+  margin-bottom: 14px;
+}
+.pins {
+  display: flex;
+  gap: 12px;
+}
+.more {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.mono {
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+}
+.spin {
+  width: 14px;
+  height: 14px;
+  border-radius: 7px;
+  border: 2px solid var(--line-2);
+  border-top-color: var(--sage);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 08 · まだ何もない */
+.empty {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 16px 70px;
+}
+.emptyDrop {
+  width: min(720px, 100%);
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--line-2);
+  border-radius: 16px;
+  font-size: 15px;
+  color: var(--muted);
+}
+.emptyHint {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--faint);
+}

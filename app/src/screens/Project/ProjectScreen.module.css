@@ -1,0 +1,32 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-top: 16px;
+}
+.body [data-first] {
+  padding-top: 0;
+}
+.cover {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+/* カードとピンを重ねる枠。JustifiedRow の中で --ar の幅を取る */
+.pc {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.pin {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.pc:hover .pin,
+.pin:focus-visible,
+.pin[aria-pressed='true'] {
+  opacity: 1;
+}

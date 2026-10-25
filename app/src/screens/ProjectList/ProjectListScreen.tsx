@@ -1,0 +1,119 @@
+import { For, Show, createSignal } from 'solid-js'
+import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
+import { Mosaic } from '../../components/Mosaic/Mosaic'
+import { PinToggle } from '../../components/PinToggle/PinToggle'
+import { type Library, type Project, coverOf, dueLabel } from '../../model/library'
+import shared from '../screen.module.css'
+import styles from './ProjectListScreen.module.css'
+
+export interface ProjectListScreenProps {
+  lib: Library
+  pinned?: string[]
+  /** 新しいプロジェクトの名前を入れている。 */
+  creating?: boolean
+  backLabel?: string
+  onBack?: () => void
+  onOpenProject?: (name: string) => void
+}
+
+/** 11 プロジェクト一覧。ピン留め、最近のもの、しばらく触っていないもの。 */
+export function ProjectListScreen(props: ProjectListScreenProps) {
+  const lib = () => props.lib
+  const [pins, setPins] = createSignal(props.pinned ?? [])
+  const [creating, setCreating] = createSignal(!!props.creating)
+  const recency = (p: Project) => {
+    if (p.touched.startsWith('今日')) return 0
+    const l = lib().inProject(p.name)
+    return l.length ? Math.min(...l.map((i) => i.moved)) : 999
+  }
+  const sorted = () => lib().projects.toSorted((a, b) => recency(a) - recency(b))
+  const togglePin = (n: string) => setPins(pins().includes(n) ? pins().filter((x) => x !== n) : [...pins(), n])
+
+  const card = (p: Project, big: boolean) => {
+    const list = () => lib().inProject(p.name)
+    const desc = p.cover.find((c) => c.type === 'desc')
+    const due = p.cover.find((c) => c.type === 'due')
+    const todo = p.cover.find((c) => c.type === 'todo')
+    const dl = due?.type === 'due' ? dueLabel(lib(), due.date) : null
+    const done = todo?.type === 'todo' ? todo.items.filter((x) => x.done).length : 0
+    return (
+      <div class={styles.wrap}>
+        <button type="button" class={styles.card} data-big={big} onClick={() => props.onOpenProject?.(p.name)}>
+          <Mosaic tiles={coverOf(lib(), p, 5).map((i) => ({ hue: i.hue, sat: i.sat }))} />
+          <span class={styles.nm}>{p.name}</span>
+          {big && <span class={styles.ds}>{desc?.type === 'desc' ? desc.text : ' '}</span>}
+          <span class={styles.pm}>
+            <span>{list().length} 件</span>
+            {big && <b>今週 +{list().filter((i) => i.moved <= 7).length}</b>}
+            {big && dl && (
+              <span>
+                {dl.date} · {dl.left}
+              </span>
+            )}
+            <span class={styles.r}>{p.touched}</span>
+          </span>
+          {big && todo?.type === 'todo' && todo.items.length > 0 && (
+            <span class={styles.pm}>
+              <span>やること</span>
+              <span class={styles.bar}>
+                <span style={{ width: `${(done / todo.items.length) * 100}%` }} />
+              </span>
+            </span>
+          )}
+        </button>
+        <PinToggle class={styles.pin} pressed={pins().includes(p.name)} onClick={() => togglePin(p.name)} />
+      </div>
+    )
+  }
+
+  return (
+    <section class={shared.screen} aria-label="プロジェクト一覧">
+      <div class={shared.scroll}>
+        <div class={shared.page}>
+          <header class={shared.mast}>
+            <FloatingPill class={shared.back} onClick={() => props.onBack?.()}>
+              ‹ {props.backLabel ?? '紙面'}
+            </FloatingPill>
+            <h1>プロジェクト</h1>
+            <span class={shared.meta}>{lib().projects.length} 件 · 最近開いた順</span>
+            <span class={shared.right}>
+              <Show
+                when={creating()}
+                fallback={<FloatingPill onClick={() => setCreating(true)}>＋ 新しいプロジェクト</FloatingPill>}
+              >
+                <input
+                  class={styles.new}
+                  type="text"
+                  placeholder="新しいプロジェクトの名前（Enter）"
+                  aria-label="新しいプロジェクトの名前"
+                  onKeyDown={(e) => e.key === 'Escape' && setCreating(false)}
+                />
+              </Show>
+            </span>
+          </header>
+          <Show when={pins().length}>
+            <div class={shared.head}>
+              <h2>ピン留め</h2>
+              <span>{pins().length} 件 · ピン留めした順</span>
+            </div>
+            <div class={styles.grid} data-pinned>
+              <For each={pins().flatMap((n) => lib().projectBy.get(n) ?? [])}>{(p) => card(p, true)}</For>
+            </div>
+          </Show>
+          <div class={shared.head}>
+            <h2>すべてのプロジェクト</h2>
+            <span>{lib().projects.length} 件 · 最近開いた順</span>
+          </div>
+          <div class={styles.grid}>
+            <For each={sorted().filter((p) => recency(p) <= 30)}>{(p) => card(p, true)}</For>
+          </div>
+          <Show when={sorted().some((p) => recency(p) > 30)}>
+            <div class={styles.quiet}>
+              <For each={sorted().filter((p) => recency(p) > 30)}>{(p) => card(p, false)}</For>
+            </div>
+          </Show>
+        </div>
+      </div>
+    </section>
+  )
+}

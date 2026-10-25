@@ -1,0 +1,112 @@
+/* Patchouli トークン。暗い作業台（C4）を既定とし、data-theme="light" でライト。 */
+:root {
+  --desk: #141517;
+  --paper: #1c1d20;
+  --side: #232428;
+  --card: #2a2b30;
+  --ink: #e6e7ea;
+  --ink-2: #c9cbd0;
+  --muted: #8e929a;
+  --faint: #62666e;
+  --line: #2a2b30;
+  --line-2: #3b3d43;
+  --sage: #3d8bff;
+  --sage-ink: #cfe0ff;
+  --sage-soft: rgba(61, 139, 255, 0.18);
+  --on-sage: #fff;
+  --warm: #3a3226;
+  --warm-line: #5a4a2e;
+  --warm-ink: #f2c46d;
+  --ai: rgba(61, 139, 255, 0.2);
+  --ai-ink: #9cc0ff;
+  --unsaved: #f2c46d;
+  --danger: #f28b8b;
+  --danger-line: #6b3a3a;
+  --mark: rgba(61, 139, 255, 0.35);
+  --scrim: rgba(10, 11, 13, 0.6);
+  --float: rgba(42, 43, 48, 0.86);
+  --glyph: rgba(255, 255, 255, 0.8);
+  --wl: #8db6ff;
+  --tl: 64%;
+  --menu: #2e3035;
+  --stage: #121315;
+  --stage-ink: #e6e7ea;
+  --stage-bar: rgba(42, 43, 48, 0.86);
+  --stage-btn: rgba(255, 255, 255, 0.08);
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  --shadow-float: 0 10px 32px rgba(0, 0, 0, 0.35);
+  --shadow-pill: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --radius-thumb: 5px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+  --radius-chip: 12px;
+  --radius-pill: 17px;
+  --float-inset: 20px;
+  --f-sans: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', system-ui, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+  color-scheme: dark;
+}
+:root[data-theme='light'] {
+  --desk: #e6e7ea;
+  --paper: #f4f4f5;
+  --side: #eaebee;
+  --card: #fff;
+  --ink: #1f2024;
+  --ink-2: #3a3c42;
+  --muted: #6e727a;
+  --faint: #a0a3aa;
+  --line: #e6e7ea;
+  --line-2: #e2e3e7;
+  --sage: #2f6feb;
+  --sage-ink: #1d4fb8;
+  --sage-soft: rgba(47, 111, 235, 0.12);
+  --warm: #fbf1dc;
+  --warm-line: #eadfc6;
+  --warm-ink: #9a6200;
+  --ai: rgba(47, 111, 235, 0.12);
+  --ai-ink: #1d4fb8;
+  --unsaved: #b45309;
+  --danger: #b42318;
+  --danger-line: #f1c0ba;
+  --mark: rgba(47, 111, 235, 0.22);
+  --scrim: rgba(20, 21, 24, 0.4);
+  --float: rgba(255, 255, 255, 0.88);
+  --glyph: rgba(255, 255, 255, 0.88);
+  --wl: #2f6feb;
+  --tl: 74%;
+  --menu: #fff;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.14);
+  color-scheme: light;
+}
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font: 14px/1.6 var(--f-sans);
+}
+button,
+input {
+  font: inherit;
+  color: inherit;
+}
+mark {
+  background: var(--mark);
+  color: inherit;
+  border-radius: 2px;
+}
+:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

@@ -1,0 +1,45 @@
+.root {
+  height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  cursor: pointer;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.root:hover {
+  border-color: var(--faint);
+}
+.root[data-size='sm'] {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+.root[data-variant='primary'] {
+  border: 0;
+  background: var(--sage);
+  color: var(--on-sage);
+  font-weight: 700;
+}
+.root[data-variant='primary']:disabled {
+  background: var(--line);
+  color: var(--faint);
+  cursor: default;
+}
+.root[data-variant='ghost'] {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.root[data-variant='ghost']:hover {
+  background: var(--side);
+}
+.root[aria-pressed='true'] {
+  background: var(--sage-soft);
+  border-color: var(--sage);
+  color: var(--sage-ink);
+  font-weight: 700;
+}

@@ -1,0 +1,93 @@
+import type { Meta, StoryObj } from 'storybook-solidjs-vite'
+import { DropZone } from '../../components/DropZone/DropZone'
+import { Toast } from '../../components/Toast/Toast'
+import { buildLibrary } from '../../model/library'
+import { PINNED_PROJECTS, PINNED_TAGS, TODAY, sampleLibrary } from '../../samples/library'
+import { AppDock, type DockState } from '../AppDock'
+import { ScreenFrame } from '../ScreenFrame'
+import { EditionScreen } from './EditionScreen'
+
+const meta = {
+  title: '画面/00 紙面',
+  parameters: { layout: 'fullscreen' },
+} satisfies Meta
+export default meta
+type Story = StoryObj
+
+/** 紙面に検索バーを重ねた、アプリを開いたときの見た目。 */
+const edition = (o: { dock?: DockState; query?: string; scrollTop?: number; readOnly?: boolean } = {}) => {
+  const lib = sampleLibrary()
+  return (
+    <>
+      <EditionScreen lib={lib} pinnedProjects={PINNED_PROJECTS} pinnedTags={PINNED_TAGS} scrollTop={o.scrollTop} />
+      <AppDock lib={lib} here="home" initial={o.dock} query={o.query} readOnly={o.readOnly} />
+    </>
+  )
+}
+
+export const Default: Story = { render: () => <ScreenFrame>{edition()}</ScreenFrame> }
+export const Scrolled: Story = {
+  name: 'スクロール後',
+  render: () => <ScreenFrame>{edition({ scrollTop: 1100 })}</ScreenFrame>,
+}
+export const Search: Story = {
+  name: '検索を開く',
+  render: () => <ScreenFrame>{edition({ dock: 'search' })}</ScreenFrame>,
+}
+export const Typing: Story = {
+  name: '検索に入力中',
+  render: () => <ScreenFrame>{edition({ dock: 'search', query: '配色' })}</ScreenFrame>,
+}
+export const Prompt: Story = {
+  name: 'プロンプト',
+  render: () => <ScreenFrame>{edition({ dock: 'prompt' })}</ScreenFrame>,
+}
+export const Menu: Story = {
+  name: 'メニューを開く',
+  render: () => <ScreenFrame>{edition({ dock: 'menu' })}</ScreenFrame>,
+}
+export const Settings: Story = {
+  name: 'メニュー · 設定',
+  render: () => <ScreenFrame>{edition({ dock: 'settings' })}</ScreenFrame>,
+}
+export const Help: Story = {
+  name: 'キー操作の一覧',
+  render: () => <ScreenFrame>{edition({ dock: 'help' })}</ScreenFrame>,
+}
+export const Drop: Story = {
+  name: '08 ファイルを持ってきた',
+  render: () => (
+    <ScreenFrame>
+      {edition()}
+      <DropZone title="12 個を取り込む" sub="離すと取り込み、自動分類の確認に回ります" />
+    </ScreenFrame>
+  ),
+}
+export const ReadOnly: Story = {
+  name: '08 書き込めない保存先',
+  render: () => <ScreenFrame>{edition({ readOnly: true })}</ScreenFrame>,
+}
+export const Empty: Story = {
+  name: '08 まだ何もない',
+  render: () => {
+    const lib = buildLibrary([], [], TODAY)
+    return (
+      <ScreenFrame>
+        <EditionScreen lib={lib} />
+        <AppDock lib={lib} here="home" />
+      </ScreenFrame>
+    )
+  },
+}
+export const LoadError: Story = {
+  name: '08 一部を読み込めない',
+  render: () => (
+    <ScreenFrame
+      toast={
+        <Toast message="3 件のノートを読み込めませんでした" actionLabel="見る" onAction={() => {}} onClose={() => {}} />
+      }
+    >
+      {edition()}
+    </ScreenFrame>
+  ),
+}

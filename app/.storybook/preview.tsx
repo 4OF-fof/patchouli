@@ -1,20 +1,33 @@
 import type { Preview } from 'storybook-solidjs-vite'
+import '../src/index.css'
 
 const preview: Preview = {
-  parameters: {
-    controls: {
-      matchers: {
-        color: /(background|color)$/i,
-        date: /Date$/i,
+  globalTypes: {
+    theme: {
+      description: 'テーマ',
+      toolbar: {
+        title: 'テーマ',
+        icon: 'circlehollow',
+        items: [
+          { value: 'dark', title: 'ダーク' },
+          { value: 'light', title: 'ライト' },
+        ],
+        dynamicTitle: true,
       },
     },
-
-    a11y: {
-      // 'todo' - show a11y violations in the test UI only
-      // 'error' - fail CI on a11y violations
-      // 'off' - skip a11y checks entirely
-      test: 'todo',
+  },
+  initialGlobals: { theme: 'dark' },
+  decorators: [
+    (Story, context) => {
+      document.documentElement.dataset.theme = context.globals.theme
+      return <Story />
     },
+  ],
+  parameters: {
+    layout: 'centered',
+    backgrounds: { disable: true },
+    controls: { matchers: { color: /(background|color)$/i, date: /Date$/i } },
+    a11y: { test: 'todo' },
   },
 }
 

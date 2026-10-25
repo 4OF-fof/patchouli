@@ -1,0 +1,65 @@
+.root {
+  --s: 28%;
+  display: block;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  /* 並べる側（JustifiedRow など）が --thumb-h で高さを決める */
+  height: var(--thumb-h, 104px);
+  border-radius: var(--radius-thumb);
+  background: linear-gradient(
+    155deg,
+    hsl(var(--h) var(--s) var(--tl)),
+    hsl(calc(var(--h) + 28) var(--s) calc(var(--tl) - 9%))
+  );
+  background-size: cover;
+  background-position: center;
+}
+.root[data-kind='note'] {
+  background: var(--card);
+  border: 1px solid var(--line-2);
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+.root[data-kind='note'] b {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.root[data-kind='audio']::before {
+  content: '';
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 50%;
+  height: 34%;
+  transform: translateY(-50%);
+  background: repeating-linear-gradient(90deg, var(--glyph) 0 3px, transparent 3px 7px);
+}
+.root[data-kind='video']::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-left: 15px solid var(--glyph);
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  transform: translate(-35%, -50%);
+}
+.root[data-selected='true'] {
+  outline: 3px solid var(--sage);
+  outline-offset: -3px;
+}
+.dirty {
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--unsaved);
+}

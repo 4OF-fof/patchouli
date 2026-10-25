@@ -1,0 +1,62 @@
+.root {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.root > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.root:hover,
+.root:focus-visible,
+.root[data-current='true'] {
+  background: var(--card);
+  color: var(--ink);
+}
+.root[data-current='true'] {
+  font-weight: 700;
+}
+.root[data-indent='true'] {
+  padding-left: 22px;
+}
+.root em {
+  width: 14px;
+  flex: none;
+  font-style: normal;
+  color: var(--faint);
+  text-align: center;
+}
+.root small {
+  margin-left: auto;
+  flex: none;
+  font-size: 11px;
+  color: var(--faint);
+}
+.root[data-missing='true'] > span {
+  border-bottom: 1px dashed var(--line-2);
+  color: var(--muted);
+}
+.cap {
+  padding: 0 6px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.none {
+  padding: 4px 6px;
+  font-size: 12px;
+  color: var(--faint);
+}

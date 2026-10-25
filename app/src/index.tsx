@@ -1,8 +1,8 @@
 /* @refresh reload */
 import { render } from 'solid-js/web'
+import { App } from './App'
+import { sampleLibrary } from './samples/library'
 import './index.css'
-import App from './App.tsx'
 
-const root = document.getElementById('root')
-
-render(() => <App />, root!)
+// 保存先を読む処理はまだないので、見本のライブラリで画面を出す
+render(() => <App lib={sampleLibrary()} />, document.getElementById('root')!)

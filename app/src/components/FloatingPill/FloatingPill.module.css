@@ -1,0 +1,27 @@
+.root {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--float);
+  backdrop-filter: blur(14px);
+  box-shadow: var(--shadow-pill);
+  color: var(--muted);
+  font-size: 12.5px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.root:hover {
+  color: var(--ink);
+}
+.count {
+  font: 600 12px var(--f-mono);
+  color: var(--sage);
+}
+.root[aria-pressed='true'] {
+  background: var(--sage);
+  color: var(--on-sage);
+}

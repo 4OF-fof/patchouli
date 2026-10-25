@@ -1,0 +1,59 @@
+.root {
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border-radius: 12px;
+  background: var(--menu);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+}
+.root hr {
+  border: 0;
+  height: 1px;
+  background: var(--line-2);
+  margin: 5px 4px;
+}
+.root button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.root button i {
+  width: 16px;
+  text-align: center;
+  font-style: normal;
+  color: var(--faint);
+}
+.root button small {
+  margin-left: auto;
+  font: 500 11px var(--f-mono);
+  color: var(--faint);
+}
+.root button .kbd {
+  margin-left: auto;
+}
+.root button:hover,
+.root button:focus-visible,
+.root button[aria-current='page'] {
+  background: var(--card);
+  color: var(--ink);
+}
+.root button:focus-visible {
+  outline-offset: -2px;
+}
+.root button[aria-current='page'] i {
+  color: var(--sage);
+}
+.root button[data-heading='true'] {
+  color: var(--faint);
+  font-size: 12px;
+}
