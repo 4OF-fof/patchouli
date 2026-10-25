@@ -68,7 +68,7 @@ export function SearchResults(props: SearchResultsProps) {
                 />
               ) : r.type === 'item' ? (
                 <ResultRow
-                  kind={r.it.kind === 'note' ? 'note' : 'asset'}
+                  kind={r.it.note ? 'note' : 'asset'}
                   title={marked(r.it.name, props.terms)}
                   sub={marked(r.where, props.terms)}
                   thumb={thumbOf(r.it)}

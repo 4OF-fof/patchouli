@@ -23,5 +23,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", ".storybook/*.ts", ".storybook/*.tsx"]
+  "include": ["src", "plugins", ".storybook/*.ts", ".storybook/*.tsx"]
 }

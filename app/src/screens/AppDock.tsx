@@ -1,17 +1,20 @@
 import { Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import { HelpDialog } from '../components/overlay/HelpDialog/HelpDialog'
 import { type Notices, NoticesDialog } from '../components/overlay/NoticesDialog/NoticesDialog'
+import { PluginsDialog } from '../components/overlay/PluginsDialog/PluginsDialog'
 import { NavMenu, type NavMenuEntry } from '../components/search/NavMenu/NavMenu'
 import { SearchDock } from '../components/search/SearchDock/SearchDock'
 import type { Library } from '../model/library'
+import { builtinReport } from '../plugins/builtin'
+import type { PluginActions, PluginReport } from '../plugins/types'
 import { findItems, searchTerms } from '../model/search'
 import styles from './AppDock.module.css'
 import { type Row, SearchResults } from '../components/search/SearchResults/SearchResults'
 
 /** 行き先。 */
 export type Place = 'home' | 'tags' | 'projects' | 'tidy'
-/** closed 閉じている / menu ☰ を開いた / settings その先の設定 / search 検索に入力中 / prompt プロンプト / help キー操作の一覧 / notices 権利表示 */
-export type DockState = 'closed' | 'menu' | 'settings' | 'search' | 'prompt' | 'help' | 'notices'
+/** closed 閉じている / menu ☰ を開いた / settings その先の設定 / search 検索に入力中 / prompt プロンプト / help キー操作の一覧 / plugins プラグイン / notices 権利表示 */
+export type DockState = 'closed' | 'menu' | 'settings' | 'search' | 'prompt' | 'help' | 'plugins' | 'notices'
 
 export interface AppDockProps {
   lib: Library
@@ -33,6 +36,12 @@ export interface AppDockProps {
   library?: string
   /** 渡すと、設定にライブラリを選ぶ項目を出す。 */
   onChooseLibrary?: () => void
+  /** プラグインの一覧を読む。省略すると組み込みのものだけを出す。 */
+  loadPlugins?: () => Promise<PluginReport>
+  /** プラグインを入れる・外すなどの操作。 */
+  pluginActions?: PluginActions
+  /** 使うプラグインが変わったとき。ライブラリを開き直す。 */
+  onPluginsChanged?: () => void
 }
 
 const toggleTheme = () => {
@@ -106,6 +115,11 @@ export function AppDock(props: AppDockProps) {
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
+  // 開くたびに読み直す（FFmpeg を入れたあとなど）
+  const [plugins, { refetch: reloadPlugins }] = createResource(
+    () => state() === 'plugins' || undefined,
+    () => (props.loadPlugins ?? (async () => builtinReport()))(),
+  )
   // 一覧は大きいので、初めて開いたときに読む
   const [notices] = createResource(
     () => state() === 'notices' || undefined,
@@ -132,6 +146,7 @@ export function AppDock(props: AppDockProps) {
             : []),
           { id: 'theme', icon: '◐', label: 'テーマを切り替える' },
           { id: 'keys', icon: '⌨', label: 'キー操作の一覧', kbd: '?' },
+          { id: 'plugins', icon: '⧉', label: 'プラグイン' },
           { id: 'notices', icon: '©', label: '権利表示' },
         ]
       : [
@@ -152,6 +167,7 @@ export function AppDock(props: AppDockProps) {
     if (id === 'back') return setState('menu')
     if (id === 'theme') return toggleTheme()
     if (id === 'keys') return setState('help')
+    if (id === 'plugins') return setState('plugins')
     if (id === 'notices') return setState('notices')
     if (id === 'library') {
       close()
@@ -214,6 +230,15 @@ export function AppDock(props: AppDockProps) {
       </Show>
       <Show when={state() === 'help'}>
         <HelpDialog onClose={close} />
+      </Show>
+      <Show when={state() === 'plugins'}>
+        <PluginsDialog
+          report={plugins.latest}
+          actions={props.pluginActions}
+          onChanged={props.onPluginsChanged}
+          onRefresh={() => void reloadPlugins()}
+          onClose={close}
+        />
       </Show>
       <Show when={state() === 'notices'}>
         <NoticesDialog notices={notices()} onClose={close} />

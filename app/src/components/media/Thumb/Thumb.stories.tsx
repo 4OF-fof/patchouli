@@ -17,11 +17,9 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Image: Story = {}
-export const Video: Story = { args: { kind: 'video', hue: 20 } }
-export const Audio: Story = { args: { kind: 'audio', hue: 150 } }
 export const Note: Story = {
   args: {
-    kind: 'note',
+    note: true,
     title: '配色のメモ',
     excerpt: '彩度を落とした青を基調に、差し色を一点だけ使う。',
   },

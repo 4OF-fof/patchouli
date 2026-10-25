@@ -10,7 +10,8 @@ use std::time::SystemTime;
 
 use serde::Serialize;
 
-use crate::library::{Library, StoredItem, StoredProject, check_name, dunce, kind_of, meta_path};
+use crate::library::{Library, StoredItem, StoredProject, check_name, dunce, meta_path};
+use crate::plugin::Registry;
 
 /// 落とそうとしているものの中身。
 #[derive(Debug, Serialize)]
@@ -46,12 +47,6 @@ pub struct Imported {
     pub failed: Vec<String>,
 }
 
-fn importable(p: &Path) -> bool {
-    p.extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| kind_of(&e.to_lowercase()).is_some())
-}
-
 /// フォルダの中のファイル（下の階層も）を名前順に。`.` で始まるものと `.meta` は除く。
 /// 返すのは、下の階層にあったフォルダの数。
 fn files_in(dir: &Path, out: &mut Vec<PathBuf>) -> usize {
@@ -78,7 +73,7 @@ fn files_in(dir: &Path, out: &mut Vec<PathBuf>) -> usize {
 }
 
 /// 取り込めるものを数える。root（開いているライブラリ）の中にあるものは数えない。
-pub fn inspect(paths: &[PathBuf], root: Option<&Path>) -> DropInfo {
+pub fn inspect(paths: &[PathBuf], root: Option<&Path>, plugins: &Registry) -> DropInfo {
     let mut folders = Vec::new();
     let mut loose = 0;
     for (key, p) in paths.iter().enumerate() {
@@ -97,10 +92,10 @@ pub fn inspect(paths: &[PathBuf], root: Option<&Path>) -> DropInfo {
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_default(),
-                files: fs.iter().filter(|f| importable(f)).count(),
+                files: fs.iter().filter(|f| plugins.knows_path(f)).count(),
                 subfolders,
             });
-        } else if importable(p) {
+        } else if plugins.knows_path(p) {
             loose += 1;
         }
     }
@@ -140,6 +135,7 @@ impl Library {
         folder: Option<&str>,
         projects: &[usize],
     ) -> Result<Imported, String> {
+        let plugins = self.plugins();
         let root = self.root().to_owned();
         let dest = match folder {
             Some(f) => {
@@ -166,7 +162,7 @@ impl Library {
                 continue;
             }
             if !p.is_dir() {
-                if importable(&p) {
+                if plugins.knows_path(&p) {
                     self.copy_in(&p, &dest, folder, &mut out);
                 } else {
                     out.skipped += 1;
@@ -175,7 +171,7 @@ impl Library {
             }
             let mut files = Vec::new();
             files_in(&p, &mut files);
-            let (ok, ng): (Vec<_>, Vec<_>) = files.into_iter().partition(|f| importable(f));
+            let (ok, ng): (Vec<_>, Vec<_>) = files.into_iter().partition(|f| plugins.knows_path(f));
             out.skipped += ng.len();
             if !projects.contains(&key) {
                 for f in &ok {

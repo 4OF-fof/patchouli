@@ -1,0 +1,650 @@
+//! プラグイン。形式（拡張子）ごとに、サムネイルの生成と、素材の詳細に出すものを受け持つ。
+//!
+//! - 処理は WASM のコンポーネント（`app/plugins/wit/plugin.wit`）で動かす。画面の部分は記述を返し、本体の部品が描く。独自の画面は iframe で隔離する
+//! - 形式はほかの形式を引き継いで（extends）、一部（parts）だけを自分で受け持てる
+//! - 同じ形式を 2 つのプラグインが受け持つときは、先に読んだほうを使い、両方にエラーを付ける
+//! - 外のプラグインの本体はアプリのデータフォルダに置き、ライブラリに記録したものだけを使う（record.rs）
+
+mod builtin;
+pub mod ffmpeg;
+pub mod install;
+mod os;
+pub mod page;
+pub mod record;
+mod runtime;
+
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use record::{Record, Source};
+pub use runtime::{Runner, ViewOut, read};
+
+/// FFmpeg をどれだけ要るか。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Need {
+    #[default]
+    None,
+    Optional,
+    Required,
+}
+
+/// 形式ごとに受け持つもの。どれも WASM で受け持つ。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Part {
+    Thumbnail,
+    View,
+    /// この版のアプリが知らないもの。読み飛ばす。
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FormatDecl {
+    /// 引き継ぐ形式。自分で受け持たないものと、書いていない呼び名などはそちらのものを使う。
+    pub extends: Option<String>,
+    pub label: Option<String>,
+    /// 縦横比（幅 / 高さ）の既定。サムネイルができるまで使う。
+    pub ratio: Option<f64>,
+    #[serde(default)]
+    pub parts: Vec<Part>,
+}
+
+/// `plugin.json`。処理の部分は同じフォルダの `plugin.wasm`。
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Manifest {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub ffmpeg: Need,
+    pub formats: BTreeMap<String, FormatDecl>,
+}
+
+pub const MANIFEST: &str = "plugin.json";
+pub const WASM: &str = "plugin.wasm";
+
+impl Manifest {
+    pub fn read(dir: &Path) -> Result<Manifest, String> {
+        let p = dir.join(MANIFEST);
+        let text = fs::read_to_string(&p).map_err(|e| format!("{}: {e}", p.display()))?;
+        serde_json::from_str(&text).map_err(|e| format!("{}: {e}", p.display()))
+    }
+
+    fn wants_wasm(&self) -> bool {
+        self.formats.values().any(|d| !d.parts.is_empty())
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Level {
+    Error,
+    Warning,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Problem {
+    pub level: Level,
+    pub text: String,
+}
+
+fn error(text: String) -> Problem {
+    Problem {
+        level: Level::Error,
+        text,
+    }
+}
+
+/// 設定の項目の種類。
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum SettingKind {
+    Toggle,
+    Number {
+        min: Option<f64>,
+        max: Option<f64>,
+        step: Option<f64>,
+    },
+    Text,
+    Choice {
+        choices: Vec<Choice>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Choice {
+    pub value: String,
+    pub label: String,
+}
+
+/// プラグインが返した設定の項目。
+#[derive(Debug, Clone, Serialize)]
+pub struct SettingDecl {
+    pub key: String,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
+    #[serde(flatten)]
+    pub kind: SettingKind,
+    pub default: Value,
+}
+
+impl SettingDecl {
+    /// 種類に合う値にする。合わなければ None。
+    fn accept(&self, v: &Value) -> Option<Value> {
+        match (&self.kind, v) {
+            (SettingKind::Toggle, Value::Bool(_)) => Some(v.clone()),
+            (SettingKind::Number { min, max, .. }, Value::Number(n)) => {
+                let mut x = n.as_f64()?;
+                if let Some(m) = min {
+                    x = x.max(*m);
+                }
+                if let Some(m) = max {
+                    x = x.min(*m);
+                }
+                serde_json::Number::from_f64(x).map(Value::Number)
+            }
+            (SettingKind::Text, Value::String(_)) => Some(v.clone()),
+            (SettingKind::Choice { choices }, Value::String(s)) => {
+                choices.iter().any(|c| &c.value == s).then(|| v.clone())
+            }
+            _ => None,
+        }
+    }
+}
+
+/// 画面に渡す設定の項目。value はいまの値。
+#[derive(Debug, Clone, Serialize)]
+pub struct SettingStatus {
+    #[serde(flatten)]
+    pub decl: SettingDecl,
+    pub value: Value,
+}
+
+struct Loaded {
+    manifest: Manifest,
+    builtin: bool,
+    /// 外のプラグインのフォルダ。
+    dir: Option<PathBuf>,
+    wasm: Option<Arc<runtime::Prepared>>,
+    settings: Vec<SettingDecl>,
+    problems: Vec<Problem>,
+    source: Option<Source>,
+    /// ライブラリに記録した版。
+    recorded: Option<String>,
+}
+
+/// 引き継ぎをたどったあとの形式。
+#[derive(Debug, Clone)]
+struct Resolved {
+    owner: usize,
+    label: String,
+    ratio: f64,
+    /// 受け持つものごとに、受け持つプラグインと、その中での形式。
+    parts: HashMap<Part, (usize, String)>,
+}
+
+/// 画面に渡す形式。
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FormatInfo {
+    pub ext: String,
+    pub label: String,
+    pub ratio: f64,
+    /// 受け持つプラグインの id。
+    pub plugin: String,
+    pub thumbnail: bool,
+}
+
+/// active 使っている / missing ライブラリに記録してあるがアプリに入っていない / unused アプリに入っているがこのライブラリでは使っていない
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum State {
+    Active,
+    Missing,
+    Unused,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginStatus {
+    pub id: String,
+    pub name: String,
+    /// アプリに入っている版。入っていなければない。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    /// ライブラリに記録した版。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub recorded: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<Source>,
+    pub description: String,
+    pub builtin: bool,
+    pub state: State,
+    pub ffmpeg: Need,
+    /// 受け持っている形式。
+    pub formats: Vec<String>,
+    pub settings: Vec<SettingStatus>,
+    pub problems: Vec<Problem>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PluginReport {
+    pub plugins: Vec<PluginStatus>,
+    /// 見つけた FFmpeg。見つからなければない。
+    pub ffmpeg: Option<ffmpeg::Found>,
+}
+
+pub struct Registry {
+    plugins: Vec<Loaded>,
+    formats: HashMap<String, Resolved>,
+    /// 記録してあるのに入っていないもの、入っているのに記録していないもの。
+    others: Vec<PluginStatus>,
+    /// ライブラリの記録。設定を変えると書き直す。
+    record: RwLock<Record>,
+    /// 記録の置き場所。組み込みだけのときはない。
+    record_path: Option<PathBuf>,
+}
+
+const DEFAULT_RATIO: f64 = 1.6;
+
+/// 組み込みのプラグインの id。外のプラグインには使えない。
+pub fn builtin_ids() -> Vec<String> {
+    builtin::ids()
+}
+
+impl Registry {
+    /// 組み込みのプラグインだけ。ライブラリを開く前に使う。
+    pub fn builtin() -> Registry {
+        let mut r = Registry {
+            plugins: builtin::load(),
+            formats: HashMap::new(),
+            others: Vec::new(),
+            record: RwLock::new(Record::default()),
+            record_path: None,
+        };
+        r.resolve();
+        r
+    }
+
+    /// 組み込みのプラグインと、ライブラリ root に記録してあるプラグイン（本体は dir の下）を読む。
+    /// 記録を読めなかったときは、組み込みのものだけにして、その理由を返す。
+    pub fn open(root: &Path, dir: &Path) -> (Registry, Vec<String>) {
+        let mut problems = Vec::new();
+        let record_path = record::path(root);
+        let record = Record::read(&record_path).unwrap_or_else(|e| {
+            problems.push(e);
+            Record::default()
+        });
+        let mut plugins = builtin::load();
+        let mut others = Vec::new();
+        let builtin_ids: HashSet<String> = plugins.iter().map(|p| p.manifest.id.clone()).collect();
+        for (id, entry) in &record.plugins {
+            if builtin_ids.contains(id) {
+                continue;
+            }
+            let at = dir.join(id);
+            match Manifest::read(&at) {
+                Ok(manifest) => plugins.push(load_external(manifest, at, entry)),
+                Err(_) => others.push(PluginStatus {
+                    id: id.clone(),
+                    name: id.clone(),
+                    version: None,
+                    recorded: entry.version.clone(),
+                    source: entry.source.clone(),
+                    description: String::new(),
+                    builtin: false,
+                    state: State::Missing,
+                    ffmpeg: Need::None,
+                    formats: Vec::new(),
+                    settings: Vec::new(),
+                    problems: vec![error(
+                        "アプリに入っていない。取得先から入れるまで使えない".into(),
+                    )],
+                }),
+            }
+        }
+        for (id, m) in install::installed(dir) {
+            if record.plugins.contains_key(&id) || builtin_ids.contains(&id) {
+                continue;
+            }
+            others.push(PluginStatus {
+                id,
+                name: m.name,
+                version: Some(m.version),
+                recorded: None,
+                source: install::source_of(dir, &m.id),
+                description: m.description,
+                builtin: false,
+                state: State::Unused,
+                ffmpeg: m.ffmpeg,
+                formats: m.formats.into_keys().collect(),
+                settings: Vec::new(),
+                problems: Vec::new(),
+            });
+        }
+        let mut r = Registry {
+            plugins,
+            formats: HashMap::new(),
+            others,
+            record: RwLock::new(record),
+            record_path: Some(record_path),
+        };
+        r.resolve();
+        (r, problems)
+    }
+
+    fn resolve(&mut self) {
+        // 形式ごとに、受け持つプラグインを決める
+        let mut claim: HashMap<String, usize> = HashMap::new();
+        let mut conflicts = Vec::new();
+        for (i, p) in self.plugins.iter().enumerate() {
+            for ext in p.manifest.formats.keys() {
+                match claim.get(ext) {
+                    Some(&first) => conflicts.push((first, i, ext.clone())),
+                    None => {
+                        claim.insert(ext.clone(), i);
+                    }
+                }
+            }
+        }
+        for (first, second, ext) in conflicts {
+            let (a, b) = (self.name(first).to_owned(), self.name(second).to_owned());
+            self.plugins[first].problems.push(error(format!(
+                "「{ext}」を「{b}」も受け持とうとしている。こちらを使う"
+            )));
+            self.plugins[second].problems.push(error(format!(
+                "「{ext}」はもう「{a}」が受け持っているので、受け持てない"
+            )));
+        }
+
+        let mut formats = HashMap::new();
+        let mut problems: Vec<(usize, Problem)> = Vec::new();
+        for (ext, &owner) in &claim {
+            let mut label = None;
+            let mut ratio = None;
+            let mut parts = HashMap::new();
+            let mut seen = HashSet::new();
+            let (mut at, mut fmt) = (owner, ext.clone());
+            loop {
+                if !seen.insert(fmt.clone()) {
+                    problems.push((owner, error(format!("「{ext}」の引き継ぎが輪になっている"))));
+                    break;
+                }
+                let decl = &self.plugins[at].manifest.formats[&fmt];
+                label = label.or_else(|| decl.label.clone());
+                ratio = ratio.or(decl.ratio);
+                for &part in decl.parts.iter().filter(|p| **p != Part::Unknown) {
+                    parts.entry(part).or_insert((at, fmt.clone()));
+                }
+                let Some(base) = &decl.extends else { break };
+                let Some(&next) = claim.get(base) else {
+                    problems.push((
+                        at,
+                        error(format!(
+                            "「{fmt}」が引き継ぐ「{base}」を受け持つプラグインがない"
+                        )),
+                    ));
+                    break;
+                };
+                (at, fmt) = (next, base.clone());
+            }
+            // 処理の部分がないプラグインは、何も受け持てない
+            parts.retain(|_, (p, _)| self.plugins[*p].wasm.is_some());
+            formats.insert(
+                ext.clone(),
+                Resolved {
+                    owner,
+                    label: label.unwrap_or_else(|| ext.to_uppercase()),
+                    ratio: ratio.unwrap_or(DEFAULT_RATIO),
+                    parts,
+                },
+            );
+        }
+        for (i, p) in self.plugins.iter_mut().enumerate() {
+            if p.manifest.wants_wasm() && p.wasm.is_none() && p.problems.is_empty() {
+                p.problems.push(error(
+                    "処理の部分（plugin.wasm）がないので、サムネイルと詳細の表示を受け持てない"
+                        .into(),
+                ));
+            }
+            p.problems.extend(
+                problems
+                    .iter()
+                    .filter(|(at, _)| *at == i)
+                    .map(|(_, x)| x.clone()),
+            );
+        }
+        self.formats = formats;
+    }
+
+    fn name(&self, i: usize) -> &str {
+        &self.plugins[i].manifest.name
+    }
+
+    /// この拡張子（小文字）のファイルを扱えるか。
+    pub fn knows(&self, ext: &str) -> bool {
+        self.formats.contains_key(ext)
+    }
+
+    /// 拡張子（大文字小文字を問わない）からファイルを扱えるか。
+    pub fn knows_path(&self, p: &Path) -> bool {
+        p.extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| self.knows(&e.to_lowercase()))
+    }
+
+    pub fn handles(&self, ext: &str, part: Part) -> bool {
+        self.formats
+            .get(ext)
+            .is_some_and(|f| f.parts.contains_key(&part))
+    }
+
+    fn part(&self, ext: &str, part: Part) -> Option<(usize, &str)> {
+        let (p, f) = self.formats.get(ext)?.parts.get(&part)?;
+        Some((*p, f))
+    }
+
+    /// 使っている外のプラグインのフォルダ。
+    pub fn dir_of(&self, id: &str) -> Option<&Path> {
+        self.plugins
+            .iter()
+            .find(|p| p.manifest.id == id)?
+            .dir
+            .as_deref()
+    }
+
+    /// 記録してある取得先。
+    pub fn source_of(&self, id: &str) -> Option<Source> {
+        let r = self.record.read().ok()?;
+        r.plugins.get(id)?.source.clone()
+    }
+
+    /// i 番目のプラグインの設定 key のいまの値。変えていなければ既定の値。
+    fn setting(&self, i: usize, key: &str) -> Option<Value> {
+        let p = &self.plugins[i];
+        let decl = p.settings.iter().find(|s| s.key == key)?;
+        let stored = self
+            .record
+            .read()
+            .ok()?
+            .plugins
+            .get(&p.manifest.id)?
+            .settings
+            .get(key)
+            .and_then(|v| decl.accept(v));
+        Some(stored.unwrap_or_else(|| decl.default.clone()))
+    }
+
+    /// 設定を変えて、ライブラリの記録に書く。
+    pub fn set_setting(&self, id: &str, key: &str, value: &Value) -> Result<(), String> {
+        let path = self
+            .record_path
+            .as_ref()
+            .ok_or("ライブラリを開いていない")?;
+        let p = self
+            .plugins
+            .iter()
+            .find(|p| p.manifest.id == id)
+            .ok_or_else(|| format!("{id} を使っていない"))?;
+        let decl = p
+            .settings
+            .iter()
+            .find(|s| s.key == key)
+            .ok_or_else(|| format!("{id} に {key} という設定はない"))?;
+        let v = decl
+            .accept(value)
+            .ok_or_else(|| format!("{key} に使えない値: {value}"))?;
+        let mut r = self.record.write().map_err(|e| e.to_string())?;
+        r.plugins
+            .entry(id.to_owned())
+            .or_default()
+            .settings
+            .insert(key.to_owned(), v);
+        r.write(path)
+    }
+
+    pub fn formats(&self) -> Vec<FormatInfo> {
+        let id = |i: usize| self.plugins[i].manifest.id.clone();
+        let mut out: Vec<FormatInfo> = self
+            .formats
+            .iter()
+            .map(|(ext, f)| FormatInfo {
+                ext: ext.clone(),
+                label: f.label.clone(),
+                ratio: f.ratio,
+                plugin: id(f.owner),
+                thumbnail: f.parts.contains_key(&Part::Thumbnail),
+            })
+            .collect();
+        out.sort_by(|a, b| a.ext.cmp(&b.ext));
+        out
+    }
+
+    pub fn report(&self) -> PluginReport {
+        let found = ffmpeg::find();
+        let mut plugins: Vec<PluginStatus> = self
+            .plugins
+            .iter()
+            .enumerate()
+            .map(|(i, p)| {
+                let m = &p.manifest;
+                let mut problems = p.problems.clone();
+                match (m.ffmpeg, found) {
+                    (Need::Required, None) => problems.push(error(
+                        "FFmpeg が見つからない。FFmpeg を入れるまで、このプラグインは動かない"
+                            .into(),
+                    )),
+                    (Need::Optional, None) => problems.push(Problem {
+                        level: Level::Warning,
+                        text:
+                            "FFmpeg が見つからないので、OS の機能で代わりにする。読めない形式がある"
+                                .into(),
+                    }),
+                    _ => {}
+                }
+                if let Some(r) = p.recorded.as_ref().filter(|r| **r != m.version) {
+                    problems.push(Problem {
+                        level: Level::Warning,
+                        text: format!(
+                            "ライブラリには {r} が記録されているが、アプリに入っているのは {}",
+                            m.version
+                        ),
+                    });
+                }
+                let mut formats: Vec<String> = self
+                    .formats
+                    .iter()
+                    .filter(|(_, f)| f.owner == i)
+                    .map(|(e, _)| e.clone())
+                    .collect();
+                formats.sort();
+                let settings = p
+                    .settings
+                    .iter()
+                    .map(|d| SettingStatus {
+                        decl: d.clone(),
+                        value: self.setting(i, &d.key).unwrap_or(Value::Null),
+                    })
+                    .collect();
+                PluginStatus {
+                    id: m.id.clone(),
+                    name: m.name.clone(),
+                    version: Some(m.version.clone()),
+                    recorded: p.recorded.clone(),
+                    source: p.source.clone(),
+                    description: m.description.clone(),
+                    builtin: p.builtin,
+                    state: State::Active,
+                    ffmpeg: m.ffmpeg,
+                    formats,
+                    settings,
+                    problems,
+                }
+            })
+            .collect();
+        plugins.extend(self.others.iter().cloned());
+        PluginReport {
+            plugins,
+            ffmpeg: found.cloned(),
+        }
+    }
+}
+
+/// 外のプラグインを読み、処理の部分を動かせるようにして、設定の項目を聞いておく。
+fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loaded {
+    let mut problems = Vec::new();
+    let wasm_path = dir.join(WASM);
+    let wasm = if wasm_path.is_file() {
+        match fs::read(&wasm_path)
+            .map_err(|e| e.to_string())
+            .and_then(|b| runtime::Prepared::new(&b))
+        {
+            Ok(p) => Some(Arc::new(p)),
+            Err(e) => {
+                problems.push(error(format!("処理の部分を読み込めない: {e}")));
+                None
+            }
+        }
+    } else {
+        None
+    };
+    let settings = settings_of(wasm.as_deref(), &manifest.id, &mut problems);
+    Loaded {
+        manifest,
+        builtin: false,
+        dir: Some(dir),
+        wasm,
+        settings,
+        problems,
+        source: entry.source.clone(),
+        recorded: entry.version.clone(),
+    }
+}
+
+fn settings_of(
+    wasm: Option<&runtime::Prepared>,
+    id: &str,
+    problems: &mut Vec<Problem>,
+) -> Vec<SettingDecl> {
+    let Some(w) = wasm else { return Vec::new() };
+    match w.settings(id) {
+        Ok(s) => s,
+        Err(e) => {
+            problems.push(error(format!("設定の項目を読めない: {e}")));
+            Vec::new()
+        }
+    }
+}

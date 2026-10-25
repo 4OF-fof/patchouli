@@ -6,17 +6,7 @@ import { Kbd } from '../../components/base/Kbd/Kbd'
 import { PinnedCard } from '../../components/media/PinnedCard/PinnedCard'
 import { SectionLabel } from '../../components/base/SectionLabel/SectionLabel'
 import { ThumbStrip } from '../../components/media/ThumbStrip/ThumbStrip'
-import {
-  type CardSize,
-  type Item,
-  KIND_LABEL,
-  type Library,
-  coverOf,
-  hasTag,
-  scoreOf,
-  thumbOf,
-  toggled,
-} from '../../model/library'
+import { type CardSize, type Item, type Library, coverOf, hasTag, scoreOf, thumbOf, toggled } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './EditionScreen.module.css'
 
@@ -76,7 +66,7 @@ export function EditionScreen(props: EditionScreenProps) {
     }),
     ...(props.pinnedTags ?? []).flatMap((t) => {
       const list = lib()
-        .items.filter((i) => i.kind !== 'note' && hasTag(i, t))
+        .items.filter((i) => !i.note && hasTag(i, t))
         .toSorted((a, b) => a.moved - b.moved)
       if (!list.length) return []
       return [
@@ -92,12 +82,12 @@ export function EditionScreen(props: EditionScreenProps) {
     // 素材はプロジェクトに入っていないものだけ出す
     ...itemPins().flatMap((id) => {
       const it = lib().byId.get(id)
-      if (!it || it.kind === 'note' || it.folder) return []
+      if (!it || it.note || it.folder) return []
       return [
         {
           key: `i:${it.id}`,
           name: it.name,
-          meta: `素材 · ${KIND_LABEL[it.kind]}`,
+          meta: `素材 · ${lib().formatLabel(it)}`,
           tiles: [],
           thumb: it,
           open: () => props.onOpenItem?.(it.id),

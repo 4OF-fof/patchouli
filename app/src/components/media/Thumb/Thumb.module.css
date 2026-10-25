@@ -16,40 +16,21 @@
   background-size: cover;
   background-position: center;
 }
-.root[data-kind='note'] {
+/* 置き場所の側で、--note-pad・--note-font・--note-ink で余白と文字を変えられる */
+.root[data-note='true'] {
   background: var(--card);
   border: 1px solid var(--line-2);
-  padding: 10px 12px;
-  font-size: 12px;
+  padding: var(--note-pad, 10px 12px);
+  font-size: var(--note-font, 12px);
   line-height: 1.65;
-  color: var(--muted);
+  color: var(--note-ink, var(--muted));
 }
-.root[data-kind='note'] b {
+.root[data-note='true'] b {
   display: block;
   margin-bottom: 3px;
   color: var(--ink);
   font-size: 13px;
   font-weight: 700;
-}
-.root[data-kind='audio']::before {
-  content: '';
-  position: absolute;
-  left: 14%;
-  right: 14%;
-  top: 50%;
-  height: 34%;
-  transform: translateY(-50%);
-  background: repeating-linear-gradient(90deg, var(--glyph) 0 3px, transparent 3px 7px);
-}
-.root[data-kind='video']::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  border-left: 15px solid var(--glyph);
-  border-top: 9px solid transparent;
-  border-bottom: 9px solid transparent;
-  transform: translate(-35%, -50%);
 }
 .root[data-selected='true'] {
   outline: 3px solid var(--sage);

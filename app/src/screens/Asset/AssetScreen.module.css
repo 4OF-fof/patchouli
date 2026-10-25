@@ -12,6 +12,18 @@
   padding: 20px;
 }
 .stage .view {
+  max-width: 96%;
+  max-height: 100%;
+  border-radius: 2px;
+}
+/* プラグインの画面は、上の帯の下いっぱいに広げる */
+.stage .page {
+  flex: 1;
+  align-self: stretch;
+  margin-top: 44px;
+}
+/* 詳細に出すものが決まらないときの仮の絵 */
+.stage .box {
   width: auto;
   height: min(88%, 66vw);
   max-width: 96%;

@@ -1,0 +1,15 @@
+{
+  "id": "patchouli.audio",
+  "name": "音声",
+  "version": "0.1.0",
+  "description": "音声のジャケットと再生",
+  "ffmpeg": "optional",
+  "formats": {
+    "m4a": { "label": "音声", "ratio": 1.6, "parts": ["thumbnail", "view"] },
+    "mp3": { "extends": "m4a" },
+    "wav": { "extends": "m4a" },
+    "ogg": { "extends": "m4a" },
+    "flac": { "extends": "m4a" },
+    "opus": { "extends": "m4a" }
+  }
+}

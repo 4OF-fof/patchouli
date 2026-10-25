@@ -1,0 +1,16 @@
+{
+  "id": "patchouli.image",
+  "name": "画像",
+  "version": "0.1.0",
+  "description": "写真やイラストのサムネイルと表示",
+  "ffmpeg": "none",
+  "formats": {
+    "jpg": { "label": "画像", "ratio": 1.6, "parts": ["thumbnail", "view"] },
+    "jpeg": { "extends": "jpg" },
+    "png": { "extends": "jpg" },
+    "webp": { "extends": "jpg" },
+    "gif": { "extends": "jpg" },
+    "avif": { "extends": "jpg" },
+    "bmp": { "extends": "jpg" }
+  }
+}

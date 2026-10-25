@@ -13,7 +13,7 @@ type Story = StoryObj
 /** 秋の企画の素材を並びにして、moodboard-01 を開く。 */
 const asset = (o: Partial<AssetScreenProps> = {}) => {
   const lib = sampleLibrary()
-  const list = lib.inProject('秋の企画').filter((i) => i.kind !== 'note')
+  const list = lib.inProject('秋の企画').filter((i) => !i.note)
   return (
     <ScreenFrame>
       <AssetScreen lib={lib} list={list.map((i) => i.id)} index={0} {...o} />

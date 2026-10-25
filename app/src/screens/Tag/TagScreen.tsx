@@ -4,7 +4,7 @@ import { Chip } from '../../components/controls/Chip/Chip'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
-import { type Library, type TagCoverPart, extOf, hasTag } from '../../model/library'
+import { type Library, type TagCoverPart, hasTag } from '../../model/library'
 import { AddPart } from '../Detail/AddPart'
 import { DetailPart } from '../Detail/DetailPart'
 import { DetailScreen } from '../Detail/DetailScreen'
@@ -81,7 +81,7 @@ export function TagScreen(props: TagScreenProps) {
       .map((t) => ({ tag: t, n: all().filter((i) => hasTag(i, t)).length }))
       .toSorted((a, b) => b.n - a.n || a.tag.localeCompare(b.tag, 'ja')),
   )
-  const exts = createMemo(() => count(shown().map(extOf)))
+  const exts = createMemo(() => count(shown().map((i) => i.ext)))
   const most = () => exts()[0]?.[1] ?? 1
   const together = createMemo(() =>
     count(shown().flatMap((i) => [...new Set(i.tags)].filter((t) => !near(props.tag, t)))).slice(0, 6),

@@ -5,11 +5,11 @@ import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
 import { type CardSize, type Item, thumbOf, toggled } from '../../model/library'
+import { useFormats } from '../../plugins/formats'
 import shared from '../screen.module.css'
 import styles from './DetailScreen.module.css'
 
 type Sort = 'moved' | 'name' | 'kind'
-const KIND_ORDER = { note: 0, image: 1, video: 2, audio: 3 }
 
 export interface DetailScreenProps {
   /** 画面の読み上げ名（例「プロジェクト」「タグ」）。 */
@@ -35,6 +35,8 @@ export interface DetailScreenProps {
 /** プロジェクトやタグの中身を見る画面の枠。上に名前、その下を左右 1:2 に分け、右にピン留めとすべての項目を並べる。 */
 export function DetailScreen(props: DetailScreenProps) {
   const [sort, setSort] = createSignal<Sort>('moved')
+  const formats = useFormats()
+  const labelOf = (it: Item) => formats.get(it.ext)?.label ?? it.ext
   const side = children(() => props.side)
   const hasSide = () => side.toArray().some((x) => x != null)
   const [pins, setPins] = createSignal(props.pins ?? [])
@@ -51,7 +53,7 @@ export function DetailScreen(props: DetailScreenProps) {
       sort() === 'name'
         ? (a, b) => a.name.localeCompare(b.name, 'ja')
         : sort() === 'kind'
-          ? (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || a.moved - b.moved
+          ? (a, b) => Number(b.note) - Number(a.note) || labelOf(a).localeCompare(labelOf(b), 'ja') || a.moved - b.moved
           : (a, b) => a.moved - b.moved,
     ),
   )

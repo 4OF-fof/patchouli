@@ -1,6 +1,7 @@
 // アプリと、アプリに同梱するもののうち権利表示が要るものの一覧（app/src/notices/third-party.json）を作り直す。
 // 設定の「権利表示」で出す。
 // 対象は、フロントの dependencies のうち JS を持つものと、Rust のふつうの依存のうちビルド先に入るもの（ビルドだけに使うものと proc-macro は除く）。
+// Rust は、アプリと、組み込みのプラグインの処理部分（app/plugins、WASM）の両方。
 // 複数のライセンスから選べるものは、義務のいちばん軽いものを選ぶ。選んだライセンスで権利表示が要らないものは載せない。
 // 使い方: node scripts/licenses.ts [ビルド先のターゲット]（省略するとこの PC。依存を足したり上げたりしたら流し直す）
 import { execSync } from 'node:child_process'
@@ -155,10 +156,12 @@ interface CargoNode {
   deps: { pkg: string; dep_kinds: { kind: string | null }[] }[]
 }
 
-function cargo(): Entry[] {
-  const meta: { packages: CargoPackage[]; resolve: { root: string; nodes: CargoNode[] } } = JSON.parse(
-    run(`cargo metadata --format-version 1 --filter-platform ${target} --manifest-path src-tauri/Cargo.toml`),
-  )
+function cargo(manifest: string, platform: string): Entry[] {
+  const meta: {
+    packages: CargoPackage[]
+    workspace_members: string[]
+    resolve: { root: string | null; nodes: CargoNode[] }
+  } = JSON.parse(run(`cargo metadata --format-version 1 --filter-platform ${platform} --manifest-path ${manifest}`))
   const pkgs = new Map(meta.packages.map((p) => [p.id, p]))
   const nodes = new Map(meta.resolve.nodes.map((n) => [n.id, n]))
   const seen = new Set<string>()
@@ -170,7 +173,7 @@ function cargo(): Entry[] {
       walk(d.pkg)
     }
   }
-  walk(meta.resolve.root)
+  for (const root of meta.resolve.root ? [meta.resolve.root] : meta.workspace_members) walk(root)
   return [...seen].flatMap((id) => {
     const p = pkgs.get(id)
     if (!p) return []
@@ -180,7 +183,15 @@ function cargo(): Entry[] {
 }
 
 const byName = (a: Entry, b: Entry) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version)
-const all = [...npm(), ...cargo()].toSorted(byName)
+const own = new Set(['patchouli', 'patchouli-plugin-image', 'patchouli-plugin-video', 'patchouli-plugin-audio'])
+const unique = (es: Entry[]) => [...new Map(es.map((e) => [`${e.name}@${e.version}`, e])).values()]
+const all = unique([
+  ...npm(),
+  ...cargo('src-tauri/Cargo.toml', target),
+  ...cargo('plugins/Cargo.toml', 'wasm32-wasip2'),
+])
+  .filter((e) => !own.has(e.name))
+  .toSorted(byName)
 const self = { name: 'Patchouli', license: 'MIT', text: readText(path.join(app, '..', 'LICENSE')) }
 fs.mkdirSync(path.dirname(out), { recursive: true })
 fs.writeFileSync(out, JSON.stringify({ self, target, entries: all, texts }) + '\n')

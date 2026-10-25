@@ -3,7 +3,7 @@
  * （scripts/dev-library.ts）の両方がここから作る。スクリプトは Node が TS をそのまま読むので、
  * ここでは型のほかは何も import しない。
  */
-import type { Item, ItemKind, NoteBlock, Project, Suggestion, TagCoverPart } from '../model/library'
+import type { Item, NoteBlock, Project, Suggestion, TagCoverPart } from '../model/library'
 
 /** 見本の「今日」。日記の名前と、何日前に動いたかの起点。 */
 export const TODAY = new Date(2026, 9, 22, 12)
@@ -12,8 +12,12 @@ export const TODAY = new Date(2026, 9, 22, 12)
 export const PINNED_PROJECTS = ['秋の企画', '日記']
 export const PINNED_TAGS = ['写真', 'UI', '参考']
 
+/** 見本のファイルの作り方。 */
+export type Media = 'image' | 'video' | 'audio' | 'note'
+
 /** 見本の項目。素材はファイルを作るための大きさか長さを持つ。 */
 export type SpecItem = Item & {
+  media: Media
   /** 画像と動画の幅と高さ（px）。 */
   size?: [number, number]
   /** 動画と音声の長さ（秒）。 */
@@ -28,7 +32,7 @@ export interface Spec {
   pins: string[]
 }
 
-const KIND_OF: Record<string, ItemKind> = {
+const MEDIA_OF: Record<string, Media> = {
   jpg: 'image',
   png: 'image',
   webp: 'image',
@@ -384,10 +388,10 @@ const charSum = (s: string) => {
 }
 
 /** 画像と動画の大きさ。名前から、よくある大きさを選ぶ。 */
-function sizeOf(kind: ItemKind, ext: string, name: string): [number, number] | undefined {
+function sizeOf(media: Media, ext: string, name: string): [number, number] | undefined {
   const odd = charSum(name) % 3 === 0
-  if (kind === 'video') return name.includes('vertical') ? [1080, 1920] : [1920, 1080]
-  if (kind !== 'image') return undefined
+  if (media === 'video') return name.includes('vertical') ? [1080, 1920] : [1920, 1080]
+  if (media !== 'image') return undefined
   if (/^(IMG_|photo_)/.test(name)) return odd ? [3024, 4032] : [4032, 3024]
   if (/^(screenshot|スクリーンショット|capture|pasted)/.test(name)) return [2880, 1800]
   if (/^(icon-|logo-)/.test(name)) return [1024, 1024]
@@ -397,10 +401,11 @@ function sizeOf(kind: ItemKind, ext: string, name: string): [number, number] | u
   return odd ? [2400, 1600] : [2000, 2000]
 }
 
-const secOf = (kind: ItemKind, name: string) =>
-  kind === 'image' || kind === 'note' ? undefined : 3 + (charSum(name) % 6)
+const secOf = (media: Media, name: string) =>
+  media === 'image' || media === 'note' ? undefined : 3 + (charSum(name) % 6)
 
-const ratioOf = (kind: ItemKind, size?: [number, number]) => (size ? size[0] / size[1] : kind === 'note' ? 0.8 : 1.6)
+const ratioOf = (media: Media, size?: [number, number]) =>
+  size ? size[0] / size[1] : media === 'note' ? 0.8 : media === 'video' ? 16 / 9 : 1.6
 
 const blocks = (raw: RawBlock[]): NoteBlock[] => raw.map(([type, text]) => ({ type, text }))
 
@@ -412,16 +417,20 @@ export function sampleSpec(): Spec {
 
   const items: SpecItem[] = []
   const add = (
-    it: Omit<SpecItem, 'id' | 'kind' | 'ratio' | 'rating' | 'memo' | 'ext'> & { ext: string; rating?: number },
+    it: Omit<SpecItem, 'id' | 'media' | 'note' | 'ratio' | 'rating' | 'memo' | 'ext'> & {
+      ext: string
+      rating?: number
+    },
   ) => {
-    const kind = KIND_OF[it.ext] ?? 'note'
-    const size = sizeOf(kind, it.ext, it.name)
-    const sec = secOf(kind, it.name)
+    const media = MEDIA_OF[it.ext] ?? 'note'
+    const size = sizeOf(media, it.ext, it.name)
+    const sec = secOf(media, it.name)
     const full: SpecItem = {
       ...it,
       id: `i${items.length + 1}`,
-      kind,
-      ratio: ratioOf(kind, size),
+      media,
+      note: media === 'note',
+      ratio: ratioOf(media, size),
       rating: it.rating ?? 0,
       memo: '',
       ...(size && { size }),
@@ -454,7 +463,7 @@ export function sampleSpec(): Spec {
     }
   }
 
-  const linkable = items.filter((i) => i.kind !== 'note')
+  const linkable = items.filter((i) => !i.note)
   const pick = () => linkable[Math.floor(rnd() * linkable.length)]?.name ?? ''
   for (let d = 0; d < 30; d++) {
     if (d % 5 === 3) continue

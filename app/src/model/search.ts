@@ -7,7 +7,7 @@ export const searchTerms = (q: string) => q.trim().toLowerCase().replace(/#\s*/g
 export function findItems(lib: Library, terms: string[]): { it: Item; where: string }[] {
   const found: { it: Item; sc: number; where: string }[] = []
   for (const it of lib.items) {
-    const text = it.kind === 'note' ? plainText(it.blocks ?? []) : ''
+    const text = it.note ? plainText(it.blocks ?? []) : ''
     let sc = 0
     const where: string[] = []
     const ok = terms.every((t) => {

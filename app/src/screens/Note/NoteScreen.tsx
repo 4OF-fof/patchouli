@@ -175,7 +175,7 @@ export function NoteScreen(props: NoteScreenProps) {
                             <LinkRow
                               mark="→"
                               label={name}
-                              sub={!it ? '未作成' : it.kind === 'note' ? 'ノート' : '素材'}
+                              sub={!it ? '未作成' : it.note ? 'ノート' : '素材'}
                               missing={!it}
                               onClick={() => props.onOpenRef?.(name)}
                             />

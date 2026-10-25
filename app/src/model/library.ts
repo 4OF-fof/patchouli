@@ -1,6 +1,6 @@
 /* 画面が読む素材・ノート・プロジェクトの形と、そこから出す集計。読み書きは backend/ が受け持つ。 */
-
-export type ItemKind = 'image' | 'video' | 'audio' | 'note'
+import { BUILTIN_FORMATS } from '../plugins/builtin'
+import type { FormatInfo } from '../plugins/types'
 
 /** ノート本文の 1 段。text の中の [[名前]] がリンクになる。 */
 export interface NoteBlock {
@@ -24,7 +24,8 @@ export interface Suggestion {
 
 export interface Item {
   id: string
-  kind: ItemKind
+  /** ノート。ノートはアプリが特別に扱い、ほかの形式はプラグインが受け持つ。 */
+  note: boolean
   name: string
   /** 入っているプロジェクト。null はどこにも入っていない。 */
   folder: string | null
@@ -36,8 +37,8 @@ export interface Item {
   sat: number
   /** 縦横比（幅 / 高さ）。 */
   ratio: number
-  /** 拡張子。なければ種類から決める（extOf）。 */
-  ext?: string
+  /** 拡張子（小文字）。形式を決める。 */
+  ext: string
   rating: number
   memo: string
   blocks?: NoteBlock[]
@@ -45,7 +46,7 @@ export interface Item {
   suggestion?: Suggestion
   /** 中身を表示する URL。 */
   src?: string
-  /** サムネイルの URL。画像だけにあり、まだできていなければない。 */
+  /** サムネイルの URL。作れる形式だけにあり、まだできていなければない。 */
   thumb?: string
 }
 
@@ -97,11 +98,8 @@ export function splitLinks(text: string): ({ text: string } | { ref: string })[]
   return out
 }
 
-/** 種類の呼び名。 */
-export const KIND_LABEL: Record<ItemKind, string> = { image: '画像', audio: '音声', video: '動画', note: 'ノート' }
-
-const EXT = { image: 'jpg', audio: 'm4a', video: 'mp4', note: 'md' }
-export const extOf = (it: Item) => it.ext ?? EXT[it.kind]
+/** ノートの拡張子。 */
+export const NOTE_EXT = 'md'
 
 /** v が入っていれば外し、なければ後ろに足した新しいリスト。 */
 export const toggled = <T>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
@@ -129,6 +127,10 @@ export interface Library {
   tagGroups: () => Map<string, Item[]>
   /** 自動分類の確認を待っているもの（取り込んだ順）。 */
   pending: () => Item[]
+  /** 扱える形式（拡張子 → 形式）。 */
+  formats: ReadonlyMap<string, FormatInfo>
+  /** 形式の呼び名（「画像」「動画」など）。 */
+  formatLabel: (it: Item) => string
 }
 
 export function buildLibrary(
@@ -137,6 +139,7 @@ export function buildLibrary(
   today: Date,
   tagCovers = new Map<string, TagCoverPart[]>(),
   pins: string[] = [],
+  formats: ReadonlyMap<string, FormatInfo> = BUILTIN_FORMATS,
 ): Library {
   const byId = new Map(items.map((i) => [i.id, i]))
   const byName = new Map(items.map((i) => [i.name, i]))
@@ -144,7 +147,7 @@ export function buildLibrary(
   const links = new Map<string, Item[]>()
   const back = new Map<string, Item[]>()
   for (const n of items) {
-    if (n.kind !== 'note' || !n.blocks) continue
+    if (!n.note || !n.blocks) continue
     const to = refsOfBlocks(n.blocks)
       .map((r) => byName.get(r))
       .filter((x): x is Item => !!x && x !== n)
@@ -164,7 +167,7 @@ export function buildLibrary(
     pins,
     linksOf,
     backOf,
-    linkCount: (it) => (it.kind === 'note' ? linksOf(it).length : 0) + backOf(it).length,
+    linkCount: (it) => (it.note ? linksOf(it).length : 0) + backOf(it).length,
     inProject: (name) => items.filter((i) => i.folder === name),
     tagGroups: () => {
       const m = new Map<string, Item[]>()
@@ -175,6 +178,8 @@ export function buildLibrary(
       items
         .filter((i) => i.suggestion && !i.folder && !i.tags.length)
         .toSorted((a, b) => (a.suggestion?.order ?? 0) - (b.suggestion?.order ?? 0)),
+    formats,
+    formatLabel: (it) => formats.get(it.ext)?.label ?? it.ext.toUpperCase(),
   }
 }
 
@@ -195,7 +200,7 @@ export const emptyProject = (name: string, now = new Date()): Project => ({
 
 /** プロジェクトを足したライブラリ。 */
 export const withProject = (lib: Library, p: Project) =>
-  buildLibrary(lib.items, [...lib.projects, p], lib.today, lib.tagCovers, lib.pins)
+  buildLibrary(lib.items, [...lib.projects, p], lib.today, lib.tagCovers, lib.pins, lib.formats)
 
 /** 空のプロジェクトを足したライブラリと、その名前。 */
 export function withEmptyProject(lib: Library, now = new Date()): { lib: Library; name: string } {
@@ -205,19 +210,26 @@ export function withEmptyProject(lib: Library, now = new Date()): { lib: Library
 
 /** 項目 id のピン留めを切り替えたライブラリ。 */
 export const withToggledPin = (lib: Library, id: string) =>
-  buildLibrary(lib.items, lib.projects, lib.today, lib.tagCovers, toggled(lib.pins, id))
+  buildLibrary(lib.items, lib.projects, lib.today, lib.tagCovers, toggled(lib.pins, id), lib.formats)
 
-/** できたサムネイル（id → URL）を付けたライブラリ。 */
-export const withThumbs = (lib: Library, thumbs: Map<string, string>) =>
+/** できたサムネイル。ratio はサムネイルの縦横比（元と同じ）。 */
+export interface Thumbnail {
+  url: string
+  ratio: number
+}
+
+/** できたサムネイル（id → サムネイル）を付けたライブラリ。縦横比もサムネイルに合わせる（大きさを読めない形式のため）。 */
+export const withThumbs = (lib: Library, thumbs: Map<string, Thumbnail>) =>
   buildLibrary(
     lib.items.map((i) => {
-      const thumb = thumbs.get(i.id)
-      return thumb ? { ...i, thumb } : i
+      const t = thumbs.get(i.id)
+      return t ? { ...i, thumb: t.url, ratio: t.ratio } : i
     }),
     lib.projects,
     lib.today,
     lib.tagCovers,
     lib.pins,
+    lib.formats,
   )
 
 /** タグ from を to に変えたときの、タグ t の新しい名前。下の階層も付け替える。 */
@@ -233,7 +245,7 @@ export function withRenamedTag(lib: Library, from: string, to: string): Library 
     suggestion: i.suggestion && { ...i.suggestion, tags: i.suggestion.tags.map((c) => ({ ...c, tag: re(c.tag) })) },
   }))
   const covers = new Map([...lib.tagCovers].map(([t, c]) => [re(t), c]))
-  return buildLibrary(items, lib.projects, lib.today, covers, lib.pins)
+  return buildLibrary(items, lib.projects, lib.today, covers, lib.pins, lib.formats)
 }
 
 /** 新しいノートの名前。名前がなければ「新しいノート」にし、重なるときは番号を付ける。 */
@@ -245,9 +257,10 @@ export function newNoteName(lib: Library, name = '新しいノート') {
 
 export const emptyNote = (id: string, name: string, folder: string | null = null): Item => ({
   id,
-  kind: 'note',
+  note: true,
   name,
   folder,
+  ext: NOTE_EXT,
   tags: [],
   moved: 0,
   hue: 210,
@@ -264,7 +277,14 @@ export const withItem = (lib: Library, it: Item) => withAdded(lib, [it])
 
 /** 項目とプロジェクトを足したライブラリ。 */
 export const withAdded = (lib: Library, items: Item[], projects: Project[] = []) =>
-  buildLibrary([...lib.items, ...items], [...projects, ...lib.projects], lib.today, lib.tagCovers, lib.pins)
+  buildLibrary(
+    [...lib.items, ...items],
+    [...projects, ...lib.projects],
+    lib.today,
+    lib.tagCovers,
+    lib.pins,
+    lib.formats,
+  )
 
 /** タグの名前を変えたとき、タグが変わった項目。 */
 export const retaggedItems = (before: Library, after: Library) =>
@@ -315,11 +335,11 @@ export function dueLabel(lib: Library, date: string) {
 
 /** カードの名前の下の一言（なぜここにあるか）。 */
 export function whyOf(lib: Library, it: Item) {
-  if (it.kind === 'note' && it.moved === 0) return '編集 · 今日'
+  if (it.note && it.moved === 0) return '編集 · 今日'
   const n = lib.linkCount(it)
   if (n >= 2) return `つながり ${n} · ${relDay(lib, it.moved)}`
   if (it.rating === 5) return `★5 · ${relDay(lib, it.moved)}`
-  return `${it.kind === 'note' ? '編集' : '更新'} · ${relDay(lib, it.moved)}`
+  return `${it.note ? '編集' : '更新'} · ${relDay(lib, it.moved)}`
 }
 
 /** カードの大きさ。L 大 / M 中 / S 小 / X 絵だけ。 */
@@ -327,18 +347,18 @@ export type CardSize = 'L' | 'M' | 'S' | 'X'
 
 /** Thumb に渡す値。ノートは大きさに合わせて本文を切る。 */
 export function thumbOf(it: Item, size: CardSize = 'M') {
-  if (it.kind !== 'note') return { kind: it.kind, hue: it.hue, sat: it.sat, src: it.thumb }
-  if (size === 'X') return { kind: it.kind, excerpt: it.name }
+  if (!it.note) return { hue: it.hue, sat: it.sat, src: it.thumb }
+  if (size === 'X') return { note: true, excerpt: it.name }
   const ex = plainText(it.blocks ?? [])
   const lim = size === 'L' ? 140 : size === 'S' ? 0 : 46
-  return { kind: it.kind, title: it.name, excerpt: lim ? ex.slice(0, lim) + (ex.length > lim ? '…' : '') : '' }
+  return { note: true, title: it.name, excerpt: lim ? ex.slice(0, lim) + (ex.length > lim ? '…' : '') : '' }
 }
 
 /** プロジェクトの表紙に並べる項目（見本に選んだもの → 素材の新しい順）。 */
 export function coverOf(lib: Library, p: Project, n: number) {
   return lib
     .inProject(p.name)
-    .toSorted((a, b) => Number(a.kind === 'note') - Number(b.kind === 'note') || a.moved - b.moved)
+    .toSorted((a, b) => Number(a.note) - Number(b.note) || a.moved - b.moved)
     .slice(0, n)
 }
 
@@ -351,4 +371,4 @@ export function nextDue(p: Project): string | undefined {
 }
 
 /** ホームでの重み。つながりと評価が多いほど前に出る。 */
-export const scoreOf = (lib: Library, it: Item) => lib.linkCount(it) * 2 + it.rating + (it.kind === 'note' ? 1 : 0)
+export const scoreOf = (lib: Library, it: Item) => lib.linkCount(it) * 2 + it.rating + (it.note ? 1 : 0)

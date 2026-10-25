@@ -1,13 +1,23 @@
 /* 保存先のないときの窓口。見本のライブラリを開き、書き込みは捨てる（ブラウザでの確認と Storybook 用）。 */
 import { emptyNote, emptyProject } from '../model/library'
+import { BUILTIN_FORMATS, builtinReport } from '../plugins/builtin'
+import type { ItemView } from '../plugins/types'
 import { PINNED_PROJECTS, PINNED_TAGS, sampleLibrary } from '../samples/library'
 import type { Backend } from './types'
 
+/** 組み込みのプラグインが詳細に出すもの（WASM が返すものと同じ）。 */
+const VIEW: Record<string, ItemView> = {
+  'patchouli.image': { kind: 'image' },
+  'patchouli.video': { kind: 'video' },
+  'patchouli.audio': { kind: 'audio' },
+}
+
 export function sampleBackend(): Backend {
   let n = 0
+  const lib = sampleLibrary()
   return {
     async open() {
-      return { lib: sampleLibrary(), pinnedProjects: PINNED_PROJECTS, pinnedTags: PINNED_TAGS, problems: [] }
+      return { lib, pinnedProjects: PINNED_PROJECTS, pinnedTags: PINNED_TAGS, problems: [] }
     },
     async saveItem() {},
     async saveState() {},
@@ -19,5 +29,11 @@ export function sampleBackend(): Backend {
     },
     async saveProject() {},
     onThumbnail: () => () => {},
+    plugins: async () => builtinReport(),
+    async itemView(id) {
+      const ext = lib.byId.get(id)?.ext
+      const plugin = ext && BUILTIN_FORMATS.get(ext)?.plugin
+      return (plugin && VIEW[plugin]) || null
+    },
   }
 }

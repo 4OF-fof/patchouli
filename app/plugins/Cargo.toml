@@ -1,0 +1,11 @@
+# 組み込みのプラグインの処理部分。wasm32-wasip2 で WASM のコンポーネントにし、アプリ（src-tauri/build.rs）が組み込む
+[workspace]
+members = ["image", "video", "audio"]
+resolver = "3"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

@@ -34,7 +34,7 @@ export function TidyPanel(props: TidyPanelProps) {
   const nothing = () => !onTags().length && !props.project
   const near = () =>
     lib()
-      .items.filter((x) => x.kind !== 'note' && x.id !== props.it.id && x.tags.includes(firstTag()))
+      .items.filter((x) => !x.note && x.id !== props.it.id && x.tags.includes(firstTag()))
       .toSorted((a, b) => Math.abs(a.hue - props.it.hue) - Math.abs(b.hue - props.it.hue))
       .slice(0, 6)
   const reason = () => (onTags().length ? onTags().map((t) => t.tag) : [firstTag()])

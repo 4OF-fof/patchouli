@@ -29,7 +29,19 @@ uuid = { version = "1.29.0", features = ["v4"] }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }
 tauri-plugin-dialog = "2.8.3"
 kamadak-exif = "0.6.1"
+wasmtime = { version = "50", default-features = false, features = ["cranelift", "component-model", "runtime", "std"] }
+wasmtime-wasi = { version = "50", default-features = false, features = ["p2"] }
+zip = { version = "9.1.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+ureq = { version = "3.5.0", default-features = false, features = ["json", "native-tls-no-default"] }
 
 # 開発中も画像の読み込みと縮小が遅くならないよう、依存クレートは最適化してビルドする
 [profile.dev.package."*"]
 opt-level = 3
+
+[target."cfg(windows)".dependencies]
+windows = { version = "0.62", features = [
+  "Win32_UI_Shell",
+  "Win32_Graphics_Gdi",
+  "Win32_System_Com",
+  "Win32_Foundation",
+] }

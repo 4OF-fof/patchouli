@@ -1,12 +1,16 @@
-//! 画像のサムネイル。ライブラリには置かず、端末のキャッシュに作る（消してもまた作れる）。
+//! サムネイル。作り方はプラグインが決める。ライブラリには置かず、端末のキャッシュに作る（消してもまた作れる）。
 
 use std::collections::HashSet;
 use std::fs;
+use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::UNIX_EPOCH;
 
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader};
+
+use crate::plugin::{Registry, Runner};
 
 /// 長いほうの辺の長さ（px）。
 const EDGE: u32 = 512;
@@ -14,6 +18,8 @@ const EDGE: u32 = 512;
 pub struct Job {
     pub id: String,
     pub src: PathBuf,
+    /// 拡張子（小文字）。
+    pub ext: String,
     pub out: PathBuf,
     pub mtime: f64,
 }
@@ -87,7 +93,8 @@ pub fn prune(dir: &Path, current: &[PathBuf], all_found: bool) {
     }
 }
 
-pub fn make(src: &Path, out: &Path) -> Result<(), String> {
+/// 画像を、長いほうの辺が edge 以下になるよう縮めた PNG。写真の向き（EXIF）を反映する。
+pub fn shrink(src: &Path, edge: u32) -> Result<Vec<u8>, String> {
     let err = |e: &dyn std::fmt::Display| format!("{}: {e}", src.display());
     let mut dec = ImageReader::open(src)
         .map_err(|e| err(&e))?
@@ -98,29 +105,62 @@ pub fn make(src: &Path, out: &Path) -> Result<(), String> {
     let orientation = dec.orientation().map_err(|e| err(&e))?;
     let mut img = DynamicImage::from_decoder(dec).map_err(|e| err(&e))?;
     img.apply_orientation(orientation);
-    if img.width() > EDGE || img.height() > EDGE {
-        img = img.thumbnail(EDGE, EDGE);
-    }
-    if let Some(dir) = out.parent() {
-        fs::create_dir_all(dir).map_err(|e| err(&e))?;
-    }
-    let tmp = out.with_extension("tmp");
-    img.save_with_format(&tmp, ImageFormat::Png)
-        .map_err(|e| err(&e))?;
-    fs::rename(&tmp, out).map_err(|e| err(&e))
+    encode(img, edge).map_err(|e| err(&e))
 }
 
-/// 新しいものから順に、手の空いた数だけ並べて作る。できたものごとに done を呼ぶ。
-pub fn make_all(mut jobs: Vec<Job>, done: impl Fn(&Job) + Sync) {
+/// 長いほうの辺が edge より長ければ縮めて、PNG にする。
+pub fn encode(mut img: DynamicImage, edge: u32) -> Result<Vec<u8>, String> {
+    if img.width() > edge || img.height() > edge {
+        img = img.thumbnail(edge, edge);
+    }
+    let mut png = Vec::new();
+    img.write_to(&mut Cursor::new(&mut png), ImageFormat::Png)
+        .map_err(|e| e.to_string())?;
+    Ok(png)
+}
+
+/// プラグインにサムネイルを作らせて置く。返すのは素材の大きさ（プラグインがわからなければサムネイルの大きさ）。
+/// プラグインが作らなければ None。
+fn make(runner: &mut Runner, job: &Job) -> Result<Option<(u32, u32)>, String> {
+    let err = |e: &dyn std::fmt::Display| format!("{}: {e}", job.src.display());
+    let Some((png, original)) = runner.thumbnail(&job.ext, &job.src, EDGE)? else {
+        return Ok(None);
+    };
+    // PNG でないものや、大きすぎるものは置かない
+    let size = imagesize::blob_size(&png).map_err(|e| err(&e))?;
+    let (w, h) = (size.width as u32, size.height as u32);
+    if imagesize::image_type(&png).ok() != Some(imagesize::ImageType::Png)
+        || w > EDGE * 2
+        || h > EDGE * 2
+    {
+        return Err(err(
+            &"プラグインが返したサムネイルが PNG でないか、大きすぎる",
+        ));
+    }
+    if let Some(dir) = job.out.parent() {
+        fs::create_dir_all(dir).map_err(|e| err(&e))?;
+    }
+    let tmp = job.out.with_extension("tmp");
+    fs::write(&tmp, &png).map_err(|e| err(&e))?;
+    fs::rename(&tmp, &job.out).map_err(|e| err(&e))?;
+    Ok(Some(
+        original.filter(|(w, h)| *w > 0 && *h > 0).unwrap_or((w, h)),
+    ))
+}
+
+/// 新しいものから順に、手の空いた数だけ並べて作る。できたものごとに、素材の大きさを添えて done を呼ぶ。
+pub fn make_all(reg: &Arc<Registry>, mut jobs: Vec<Job>, done: impl Fn(&Job, (u32, u32)) + Sync) {
     jobs.sort_by(|a, b| b.mtime.total_cmp(&a.mtime));
     let next = AtomicUsize::new(0);
     let width = std::thread::available_parallelism().map_or(2, |n| (n.get() / 2).max(1));
     std::thread::scope(|s| {
         for _ in 0..width {
             s.spawn(|| {
+                let mut runner = Runner::new(Arc::clone(reg));
                 while let Some(job) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
-                    match make(&job.src, &job.out) {
-                        Ok(()) => done(job),
+                    match make(&mut runner, job) {
+                        Ok(Some(size)) => done(job, size),
+                        Ok(None) => {}
                         Err(e) => log::warn!("サムネイルを作れない: {e}"),
                     }
                 }

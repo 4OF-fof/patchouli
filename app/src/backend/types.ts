@@ -2,7 +2,8 @@
  * 画面からライブラリを読み書きする窓口。デスクトップ（Tauri）と web（同期サーバー）の違いはこの裏に隠し、
  * 画面はファイルの場所や形式を知らない。
  */
-import type { CoverPart, Item, Library, NoteBlock, Project, TagCoverPart } from '../model/library'
+import type { CoverPart, Item, Library, NoteBlock, Project, TagCoverPart, Thumbnail } from '../model/library'
+import type { ItemView, PluginActions, PluginReport } from '../plugins/types'
 
 /** ライブラリ全体にかかわる状態。 */
 export interface LibraryState {
@@ -80,5 +81,15 @@ export interface Backend {
   /** 最後に落としたものを取り込む。folder が null のときは、どこにも入れない。projects に key があるフォルダは、新しいプロジェクトにする。 */
   importDropped?(folder: string | null, projects: number[]): Promise<Imported>
   /** サムネイルができるたびに呼ぶ。開く前にできたものも、登録したときにまとめて渡す。返す関数で止める。 */
-  onThumbnail(cb: (id: string, url: string) => void): () => void
+  onThumbnail(cb: (id: string, thumb: Thumbnail) => void): () => void
+  /** プラグインの一覧と、それぞれの問題。 */
+  plugins(): Promise<PluginReport>
+  /** プラグインを入れる・外すなどの操作。できない環境にはない。使うプラグインが変わったら、open からやり直す。 */
+  pluginActions?: PluginActions
+  /** 素材の詳細に出すもの。受け持つプラグインが決める。決まらなければ null。 */
+  itemView?: (id: string) => Promise<ItemView | null>
+  /** 詳細の画面（iframe）から、素材の中身を offset から最大 length バイト読む。 */
+  readItem?: (id: string, offset: number, length: number) => Promise<ArrayBuffer>
+  /** 詳細の画面（iframe）から、詳細を受け持つプラグインの関数を呼ぶ。 */
+  callPlugin?: (id: string, method: string, args: string) => Promise<string>
 }

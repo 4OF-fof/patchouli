@@ -59,7 +59,7 @@ function ffmpegArgs(it: SpecItem, out: string): string[] {
   const [w, h] = it.size ?? [0, 0]
   const sec = String(it.sec ?? 4)
   const base = ['-v', 'error', '-y']
-  if (it.kind === 'image') {
+  if (it.media === 'image') {
     const codec =
       it.ext === 'jpg' ? ['-q:v', '3'] : it.ext === 'webp' ? ['-c:v', 'libwebp', '-quality', '80'] : ['-pix_fmt', 'rgb24']
     const vf = label(it, h)
@@ -71,7 +71,7 @@ function ffmpegArgs(it: SpecItem, out: string): string[] {
     ]
   }
   const tone = /rain|noise/.test(it.name) ? `anoisesrc=c=pink:a=0.15:d=${sec}` : `sine=f=${220 + it.hue}:d=${sec}`
-  if (it.kind === 'audio') {
+  if (it.media === 'audio') {
     const codec = it.ext === 'm4a' ? ['-c:a', 'aac'] : it.ext === 'mp3' ? ['-c:a', 'libmp3lame'] : []
     return [...base, '-f', 'lavfi', '-i', tone, ...codec, out]
   }
@@ -148,7 +148,7 @@ const jobs: (() => Promise<void>)[] = []
 const touched: { file: string; moved: number }[] = []
 for (const it of spec.items) {
   const dir = it.folder ? path.join(root, it.folder) : root
-  if (it.kind === 'note') {
+  if (it.media === 'note') {
     const file = path.join(dir, `${it.name}.md`)
     fs.writeFileSync(file, markdown(it))
     touched.push({ file, moved: it.moved })
@@ -182,7 +182,7 @@ for (const { file, moved } of touched) {
 }
 fs.rmSync(tmp, { recursive: true, force: true })
 
-const count = (k: string) => spec.items.filter((i) => i.kind === k).length
+const count = (k: string) => spec.items.filter((i) => i.media === k).length
 console.log(
   `${path.relative(process.cwd(), root) || root} を作った（見本の今日 ${TODAY.toLocaleDateString('ja-JP')}）: ` +
     `プロジェクト ${spec.projects.length}、ノート ${count('note')}、画像 ${count('image')}、動画 ${count('video')}、音声 ${count('audio')}`,

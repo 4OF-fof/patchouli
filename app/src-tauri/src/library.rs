@@ -11,28 +11,24 @@ use std::collections::HashMap;
 use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use crate::note::{self, Block};
+use crate::plugin::{FormatInfo, Registry};
 
 pub const ID_KEY: &str = "patchouli-id";
 const STATE_DIR: &str = ".patchouli";
 const STATE_FILE: &str = "library.json";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Kind {
-    Image,
-    Video,
-    Audio,
-    Note,
-}
+/// ノートの拡張子。ノートはアプリが特別に扱う（本文とリンクを読み、frontmatter に属性を置く）。
+pub const NOTE_EXT: &str = "md";
 
 /// 画像の見た目の大きさ。写真の向き（EXIF）が 90 度回す指定なら、縦と横を入れ替える。
-fn image_size(path: &Path) -> Option<(u32, u32)> {
+pub(crate) fn image_size(path: &Path) -> Option<(u32, u32)> {
     let s = imagesize::size(path).ok()?;
     let (w, h) = (s.width as u32, s.height as u32);
     let turned = File::open(path)
@@ -51,21 +47,11 @@ fn image_size(path: &Path) -> Option<(u32, u32)> {
     Some(if turned { (h, w) } else { (w, h) })
 }
 
-pub(crate) fn kind_of(ext: &str) -> Option<Kind> {
-    Some(match ext {
-        "jpg" | "jpeg" | "png" | "webp" | "gif" | "avif" | "bmp" => Kind::Image,
-        "mp4" | "webm" | "mov" | "m4v" => Kind::Video,
-        "m4a" | "mp3" | "wav" | "ogg" | "flac" | "opus" => Kind::Audio,
-        "md" => Kind::Note,
-        _ => return None,
-    })
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoredItem {
     pub id: String,
-    pub kind: Kind,
+    pub note: bool,
     pub name: String,
     pub ext: String,
     pub folder: Option<String>,
@@ -114,6 +100,8 @@ pub struct Opened {
     pub items: Vec<StoredItem>,
     pub projects: Vec<StoredProject>,
     pub state: LibraryState,
+    /// 扱える形式。
+    pub formats: Vec<FormatInfo>,
     /// 読めなかったもの（「パス: 理由」）。
     pub problems: Vec<String>,
 }
@@ -139,6 +127,7 @@ struct Entry {
 pub struct Library {
     root: PathBuf,
     entries: HashMap<String, Entry>,
+    plugins: Arc<Registry>,
 }
 
 fn new_id() -> String {
@@ -220,12 +209,17 @@ impl Library {
         &self.root
     }
 
-    pub fn open(root: &Path) -> Result<(Library, Opened), String> {
+    pub fn plugins(&self) -> Arc<Registry> {
+        Arc::clone(&self.plugins)
+    }
+
+    pub fn open(root: &Path, plugins: Arc<Registry>) -> Result<(Library, Opened), String> {
         let root = fs::canonicalize(root).map_err(|e| format!("{}: {e}", root.display()))?;
         let root = dunce(root);
         let mut lib = Library {
             root: root.clone(),
             entries: HashMap::new(),
+            plugins,
         };
         let mut items = Vec::new();
         let mut projects = Vec::new();
@@ -272,6 +266,7 @@ impl Library {
                 LibraryState::default()
             }
         };
+        let formats = lib.plugins.formats();
         Ok((
             lib,
             Opened {
@@ -279,6 +274,7 @@ impl Library {
                 items,
                 projects,
                 state,
+                formats,
                 problems,
             },
         ))
@@ -312,13 +308,16 @@ impl Library {
             .and_then(|e| e.to_str())
             .unwrap_or_default()
             .to_lowercase();
-        let Some(kind) = kind_of(&ext) else { return };
+        if !self.plugins.knows(&ext) {
+            return;
+        }
+        let note = ext == NOTE_EXT;
         let name = path
             .file_stem()
             .and_then(|n| n.to_str())
             .unwrap_or_default()
             .to_owned();
-        let read = if kind == Kind::Note {
+        let read = if note {
             read_note(path)
         } else {
             read_asset(path)
@@ -337,21 +336,17 @@ impl Library {
         } else {
             new_id()
         };
-        let (width, height) = match kind {
-            Kind::Image => image_size(path).map_or((None, None), |(w, h)| (Some(w), Some(h))),
-            _ => (None, None),
-        };
         self.entries.insert(
             id.clone(),
             Entry {
                 path: path.to_owned(),
-                note: kind == Kind::Note,
+                note,
                 saved,
             },
         );
         items.push(StoredItem {
             id,
-            kind,
+            note,
             name,
             ext,
             folder: folder.map(str::to_owned),
@@ -361,8 +356,8 @@ impl Library {
             aliases: r.aliases,
             blocks: r.blocks,
             mtime: mtime_of(path),
-            width,
-            height,
+            width: None,
+            height: None,
             file: path.to_owned(),
             thumb: None,
         });
@@ -372,6 +367,21 @@ impl Library {
         self.entries
             .get(id)
             .ok_or_else(|| format!("ID {id} の項目がない"))
+    }
+
+    /// 素材のファイルと、拡張子（小文字）。
+    pub fn asset(&self, id: &str) -> Result<(&Path, String), String> {
+        let e = self.entry(id)?;
+        if e.note {
+            return Err(format!("ID {id} はノート"));
+        }
+        let ext = e
+            .path
+            .extension()
+            .and_then(|x| x.to_str())
+            .unwrap_or_default()
+            .to_lowercase();
+        Ok((&e.path, ext))
     }
 
     pub fn save_item(&mut self, id: &str, patch: &ItemPatch) -> Result<(), String> {
@@ -418,7 +428,7 @@ impl Library {
             Some(f) => self.project_dir(f)?,
             None => self.root.clone(),
         };
-        let path = dir.join(format!("{name}.md"));
+        let path = dir.join(format!("{name}.{NOTE_EXT}"));
         if path.exists() {
             return Err(format!("{} はもうある", path.display()));
         }
@@ -442,9 +452,9 @@ impl Library {
         );
         Ok(StoredItem {
             id,
-            kind: Kind::Note,
+            note: true,
             name: name.to_owned(),
-            ext: "md".into(),
+            ext: NOTE_EXT.into(),
             folder: folder.map(str::to_owned),
             tags: vec![],
             rating: 0,

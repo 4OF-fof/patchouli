@@ -14,9 +14,11 @@ import {
   withItem,
   withProject,
   withRenamedTag,
+  type Thumbnail,
   withThumbs,
   withToggledPin,
 } from './model/library'
+import { FormatsProvider } from './plugins/formats'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import { AppDock, type Place } from './screens/AppDock'
 import { AssetScreen } from './screens/Asset/AssetScreen'
@@ -91,11 +93,11 @@ export function App(props: AppProps) {
   const openItem = (id: string, list?: string[]) => {
     const it = lib().byId.get(id)
     if (!it) return
-    if (it.kind === 'note') {
+    if (it.note) {
       go({ s: 'note', id })
       return
     }
-    const l = (list ?? [id]).filter((x) => lib().byId.get(x)?.kind !== 'note')
+    const l = (list ?? [id]).filter((x) => lib().byId.get(x)?.note === false)
     go({ s: 'asset', list: l, index: Math.max(0, l.indexOf(id)) })
   }
   const openRef = (name: string) => {
@@ -165,6 +167,11 @@ export function App(props: AppProps) {
         setNotice(`ライブラリを選べませんでした: ${e instanceof Error ? e.message : String(e)}`)
       }
     })
+  const viewHost = backend.itemView && {
+    view: backend.itemView,
+    read: backend.readItem,
+    call: backend.callPlugin,
+  }
   const togglePin = (id: string) => {
     setLib(withToggledPin(lib(), id))
     saveState()
@@ -194,10 +201,10 @@ export function App(props: AppProps) {
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
   // サムネイルは 1 枚ずつ届くので、少し溜めてからまとめて付ける
-  let thumbs = new Map<string, string>()
+  let thumbs = new Map<string, Thumbnail>()
   let flush = 0
-  const stopThumbs = backend.onThumbnail((id, url) => {
-    thumbs.set(id, url)
+  const stopThumbs = backend.onThumbnail((id, t) => {
+    thumbs.set(id, t)
     flush ||= window.setTimeout(() => {
       setLib(withThumbs(lib(), thumbs))
       thumbs = new Map()
@@ -246,145 +253,151 @@ export function App(props: AppProps) {
   }
 
   return (
-    <ScreenFrame toast={notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}>
-      <Switch>
-        <Match when={view().s === 'edition'}>
-          <EditionScreen
-            lib={lib()}
-            pinnedProjects={pinnedProjects()}
-            pinnedTags={pinnedTags()}
-            onTogglePin={togglePin}
-            onOpenItem={(id) => openItem(id)}
-            onOpenProject={(name) => go({ s: 'project', name })}
-            onOpenTag={(tag) => go({ s: 'tag', tag })}
-            onTidy={(id) => go({ s: 'tidy', id })}
-          />
-        </Match>
-        <Match when={view().s === 'project' && view()} keyed>
-          {(v) =>
-            v.s === 'project' && (
-              <ProjectScreen
-                lib={lib()}
-                name={v.name}
-                editing={v.editing}
-                backLabel={back()}
-                onBack={goBack}
-                onTogglePin={togglePin}
-                onOpenItem={openItem}
-              />
-            )
-          }
-        </Match>
-        <Match when={view().s === 'plist'}>
-          <ProjectListScreen
-            lib={lib()}
-            pinned={pinnedProjects()}
-            onOpenProject={(name) => go({ s: 'project', name })}
-            onTogglePin={toggleProjectPin}
-            onCreate={createProject}
-          />
-        </Match>
-        <Match when={view().s === 'tlist'}>
-          <TagListScreen
-            lib={lib()}
-            pinned={pinnedTags()}
-            onOpenTag={(tag) => go({ s: 'tag', tag })}
-            onTogglePin={toggleTagPin}
-          />
-        </Match>
-        <Match when={view().s === 'tag' && view()} keyed>
-          {(v) =>
-            v.s === 'tag' && (
-              <TagScreen
-                lib={lib()}
-                tag={v.tag}
-                pinned={pinnedTags().includes(v.tag)}
-                backLabel={back()}
-                onBack={goBack}
-                onOpenItem={openItem}
-                onOpenTag={(tag) => go({ s: 'tag', tag })}
-                onTogglePin={togglePin}
-                onToggleTagPin={() => toggleTagPin(v.tag)}
-                onRename={(to) => renameTag(v.tag, to)}
-              />
-            )
-          }
-        </Match>
-        <Match when={view().s === 'note' && view()} keyed>
-          {(v) =>
-            v.s === 'note' && (
-              <NoteScreen lib={lib()} noteId={v.id} backLabel={back()} onBack={goBack} onOpenRef={openRef} />
-            )
-          }
-        </Match>
-        <Match when={view().s === 'asset' && view()} keyed>
-          {(v) =>
-            v.s === 'asset' && (
-              <AssetScreen
-                lib={lib()}
-                list={v.list}
-                index={v.index}
-                backLabel={back()}
-                onBack={goBack}
-                onOpenNote={(id) => openItem(id)}
-              />
-            )
-          }
-        </Match>
-        <Match when={view().s === 'tidy' && view()} keyed>
-          {(v) =>
-            v.s === 'tidy' && (
-              <TidyScreen
-                lib={lib()}
-                currentId={v.id}
-                backLabel={back()}
-                onBack={goBack}
-                onOpenItem={(id) => openItem(id)}
-              />
-            )
-          }
-        </Match>
-      </Switch>
-      <Show when={drag()}>
-        {(d) => (
-          <DropZone
-            title={d().files ? `${d().files} 個を取り込む` : '取り込めるファイルがありません'}
-            sub={
-              !d().files
-                ? '画像・動画・音声・Markdown を取り込めます'
-                : d().folders.length
-                  ? '離すと、フォルダごとの入れ方を選べます'
-                  : flatSub()
+    <FormatsProvider value={lib().formats}>
+      <ScreenFrame toast={notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}>
+        <Switch>
+          <Match when={view().s === 'edition'}>
+            <EditionScreen
+              lib={lib()}
+              pinnedProjects={pinnedProjects()}
+              pinnedTags={pinnedTags()}
+              onTogglePin={togglePin}
+              onOpenItem={(id) => openItem(id)}
+              onOpenProject={(name) => go({ s: 'project', name })}
+              onOpenTag={(tag) => go({ s: 'tag', tag })}
+              onTidy={(id) => go({ s: 'tidy', id })}
+            />
+          </Match>
+          <Match when={view().s === 'project' && view()} keyed>
+            {(v) =>
+              v.s === 'project' && (
+                <ProjectScreen
+                  lib={lib()}
+                  name={v.name}
+                  editing={v.editing}
+                  backLabel={back()}
+                  onBack={goBack}
+                  onTogglePin={togglePin}
+                  onOpenItem={openItem}
+                />
+              )
             }
-          />
-        )}
-      </Show>
-      <Show when={asking()}>
-        {(d) => (
-          <ImportDialog
-            files={d().files}
-            folders={d().folders}
-            loose={d().loose}
-            into={dropFolder() ?? undefined}
-            onImport={(projects) => {
-              setAsking(undefined)
-              void importDropped(projects)
-            }}
-            onClose={() => setAsking(undefined)}
-          />
-        )}
-      </Show>
-      <AppDock
-        hidden={!hasDock()}
-        lib={lib()}
-        here={here()}
-        onGo={onGo}
-        onOpenProject={(name) => go({ s: 'project', name })}
-        onOpenItem={(id) => openItem(id)}
-        onCreate={createNote}
-        library={props.location}
-        onChooseLibrary={chooseLibrary}
-      />
-    </ScreenFrame>
+          </Match>
+          <Match when={view().s === 'plist'}>
+            <ProjectListScreen
+              lib={lib()}
+              pinned={pinnedProjects()}
+              onOpenProject={(name) => go({ s: 'project', name })}
+              onTogglePin={toggleProjectPin}
+              onCreate={createProject}
+            />
+          </Match>
+          <Match when={view().s === 'tlist'}>
+            <TagListScreen
+              lib={lib()}
+              pinned={pinnedTags()}
+              onOpenTag={(tag) => go({ s: 'tag', tag })}
+              onTogglePin={toggleTagPin}
+            />
+          </Match>
+          <Match when={view().s === 'tag' && view()} keyed>
+            {(v) =>
+              v.s === 'tag' && (
+                <TagScreen
+                  lib={lib()}
+                  tag={v.tag}
+                  pinned={pinnedTags().includes(v.tag)}
+                  backLabel={back()}
+                  onBack={goBack}
+                  onOpenItem={openItem}
+                  onOpenTag={(tag) => go({ s: 'tag', tag })}
+                  onTogglePin={togglePin}
+                  onToggleTagPin={() => toggleTagPin(v.tag)}
+                  onRename={(to) => renameTag(v.tag, to)}
+                />
+              )
+            }
+          </Match>
+          <Match when={view().s === 'note' && view()} keyed>
+            {(v) =>
+              v.s === 'note' && (
+                <NoteScreen lib={lib()} noteId={v.id} backLabel={back()} onBack={goBack} onOpenRef={openRef} />
+              )
+            }
+          </Match>
+          <Match when={view().s === 'asset' && view()} keyed>
+            {(v) =>
+              v.s === 'asset' && (
+                <AssetScreen
+                  lib={lib()}
+                  list={v.list}
+                  index={v.index}
+                  backLabel={back()}
+                  onBack={goBack}
+                  onOpenNote={(id) => openItem(id)}
+                  host={viewHost}
+                />
+              )
+            }
+          </Match>
+          <Match when={view().s === 'tidy' && view()} keyed>
+            {(v) =>
+              v.s === 'tidy' && (
+                <TidyScreen
+                  lib={lib()}
+                  currentId={v.id}
+                  backLabel={back()}
+                  onBack={goBack}
+                  onOpenItem={(id) => openItem(id)}
+                />
+              )
+            }
+          </Match>
+        </Switch>
+        <Show when={drag()}>
+          {(d) => (
+            <DropZone
+              title={d().files ? `${d().files} 個を取り込む` : '取り込めるファイルがありません'}
+              sub={
+                !d().files
+                  ? '画像・動画・音声・Markdown を取り込めます'
+                  : d().folders.length
+                    ? '離すと、フォルダごとの入れ方を選べます'
+                    : flatSub()
+              }
+            />
+          )}
+        </Show>
+        <Show when={asking()}>
+          {(d) => (
+            <ImportDialog
+              files={d().files}
+              folders={d().folders}
+              loose={d().loose}
+              into={dropFolder() ?? undefined}
+              onImport={(projects) => {
+                setAsking(undefined)
+                void importDropped(projects)
+              }}
+              onClose={() => setAsking(undefined)}
+            />
+          )}
+        </Show>
+        <AppDock
+          hidden={!hasDock()}
+          lib={lib()}
+          here={here()}
+          onGo={onGo}
+          onOpenProject={(name) => go({ s: 'project', name })}
+          onOpenItem={(id) => openItem(id)}
+          onCreate={createNote}
+          library={props.location}
+          onChooseLibrary={chooseLibrary}
+          loadPlugins={() => backend.plugins()}
+          pluginActions={backend.pluginActions}
+          onPluginsChanged={() => window.location.reload()}
+        />
+      </ScreenFrame>
+    </FormatsProvider>
   )
 }

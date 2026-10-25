@@ -1,5 +1,8 @@
 .root {
   --w: calc(var(--thumb-h) * 4 / 3);
+  --note-pad: 6px 8px;
+  --note-font: 11px;
+  --note-ink: var(--ink-2);
   height: var(--thumb-h);
   overflow: hidden;
   display: grid;
@@ -23,9 +26,4 @@
   border-radius: 4px;
   background: none;
   cursor: pointer;
-}
-.root [data-kind='note'] {
-  padding: 6px 8px;
-  font-size: 11px;
-  color: var(--ink-2);
 }
