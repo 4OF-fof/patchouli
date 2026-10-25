@@ -4,7 +4,7 @@ import { type CoverPart, type Library, dueLabel } from '../../model/library'
 import { DetailPart } from '../Detail/DetailPart'
 import styles from './CoverPart.module.css'
 
-/** 表紙に足せる部品の名前と説明。 */
+/** プロジェクトの表紙に足せる部品の名前と説明。 */
 export const PARTS: Record<CoverPart['type'], { label: string; note: string }> = {
   desc: { label: '説明', note: '短い文' },
   todo: { label: 'やること', note: 'チェックと期日' },
@@ -19,7 +19,7 @@ export interface CoverPartViewProps {
   editing?: boolean
 }
 
-/** プロジェクトの表紙の部品 1 つ。編集中は入力欄と並べ替えのボタンを出す。 */
+/** プロジェクトの表紙の部品 1 つ。編集中は入力欄を出す。 */
 export function CoverPartView(props: CoverPartViewProps) {
   const lib = () => props.lib
   const body = (): JSX.Element => {
@@ -108,50 +108,8 @@ export function CoverPartView(props: CoverPartViewProps) {
       : PARTS[c.type].label
   }
   return (
-    <DetailPart
-      class={styles.root}
-      label={label()}
-      editing={props.editing}
-      controls={
-        props.editing && (
-          <span class={styles.ctl}>
-            <button type="button" aria-label="上へ">
-              ↑
-            </button>
-            <button type="button" aria-label="下へ">
-              ↓
-            </button>
-            <button type="button" class={styles.del} aria-label="外す">
-              ✕
-            </button>
-          </span>
-        )
-      }
-    >
+    <DetailPart class={styles.root} label={label()} editing={props.editing}>
       {body()}
     </DetailPart>
-  )
-}
-
-/** 編集中に出す「＋ 部品を足す」と、その一覧。 */
-export function AddPart(props: { open?: boolean; onToggle?: () => void }) {
-  return (
-    <>
-      <button type="button" class={styles.add} aria-expanded={!!props.open} onClick={() => props.onToggle?.()}>
-        ＋ 部品を足す
-      </button>
-      <Show when={props.open}>
-        <div class={styles.menu}>
-          <For each={Object.values(PARTS)}>
-            {(p) => (
-              <button type="button">
-                <span>{p.label}</span>
-                <small>{p.note}</small>
-              </button>
-            )}
-          </For>
-        </div>
-      </Show>
-    </>
   )
 }

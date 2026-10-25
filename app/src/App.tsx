@@ -1,5 +1,5 @@
 import { Match, Switch, createSignal, onCleanup, onMount } from 'solid-js'
-import { type Library, withEmptyNote, withEmptyProject } from './model/library'
+import { type Library, retag, withEmptyNote, withEmptyProject, withRenamedTag } from './model/library'
 import { PINNED_ITEMS, PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import { AppDock, type Place } from './screens/AppDock'
 import { AssetScreen } from './screens/Asset/AssetScreen'
@@ -20,7 +20,7 @@ type View =
   | { s: 'tag'; tag: string }
   | { s: 'note'; id: string }
   | { s: 'asset'; list: string[]; index: number }
-  | { s: 'tidy' }
+  | { s: 'tidy'; id?: string }
 
 const LABEL: Record<View['s'], string> = {
   edition: 'ホーム',
@@ -37,6 +37,7 @@ const LABEL: Record<View['s'], string> = {
 export function App(props: { lib: Library }) {
   const [lib, setLib] = createSignal(props.lib)
   const [stack, setStack] = createSignal<View[]>([{ s: 'edition' }])
+  const [pinnedTags, setPinnedTags] = createSignal(PINNED_TAGS)
   const view = () => stack().at(-1) ?? { s: 'edition' }
   const back = () => {
     const prev = stack().at(-2)
@@ -74,6 +75,12 @@ export function App(props: { lib: Library }) {
     setLib(r.lib)
     go({ s: 'note', id: r.id })
   }
+  const renameTag = (from: string, to: string) => {
+    const re = retag(from, to)
+    setLib(withRenamedTag(lib(), from, to))
+    setPinnedTags([...new Set(pinnedTags().map(re))])
+    setStack(stack().map((v) => (v.s === 'tag' ? { ...v, tag: re(v.tag) } : v)))
+  }
   const here = (): Place | undefined =>
     view().s === 'edition' ? 'home' : view().s === 'tlist' ? 'tags' : view().s === 'plist' ? 'projects' : undefined
   const hasDock = () => ['edition', 'project', 'plist', 'tlist', 'tag'].includes(view().s)
@@ -97,11 +104,12 @@ export function App(props: { lib: Library }) {
           <EditionScreen
             lib={lib()}
             pinnedProjects={PINNED_PROJECTS}
-            pinnedTags={PINNED_TAGS}
+            pinnedTags={pinnedTags()}
             pinnedItems={PINNED_ITEMS}
             onOpenItem={(id) => openItem(id)}
             onOpenProject={(name) => go({ s: 'project', name })}
             onOpenTag={(tag) => go({ s: 'tag', tag })}
+            onTidy={(id) => go({ s: 'tidy', id })}
           />
         </Match>
         <Match when={view().s === 'project' && view()} keyed>
@@ -127,7 +135,7 @@ export function App(props: { lib: Library }) {
           />
         </Match>
         <Match when={view().s === 'tlist'}>
-          <TagListScreen lib={lib()} pinned={PINNED_TAGS} onOpenTag={(tag) => go({ s: 'tag', tag })} />
+          <TagListScreen lib={lib()} pinned={pinnedTags()} onOpenTag={(tag) => go({ s: 'tag', tag })} />
         </Match>
         <Match when={view().s === 'tag' && view()} keyed>
           {(v) =>
@@ -135,12 +143,12 @@ export function App(props: { lib: Library }) {
               <TagScreen
                 lib={lib()}
                 tag={v.tag}
-                pinned={PINNED_TAGS.includes(v.tag)}
+                pinned={pinnedTags().includes(v.tag)}
                 backLabel={back()}
                 onBack={goBack}
                 onOpenItem={openItem}
                 onOpenTag={(tag) => go({ s: 'tag', tag })}
-                onOpenProject={(name) => go({ s: 'project', name })}
+                onRename={(to) => renameTag(v.tag, to)}
               />
             )
           }
@@ -166,8 +174,18 @@ export function App(props: { lib: Library }) {
             )
           }
         </Match>
-        <Match when={view().s === 'tidy'}>
-          <TidyScreen lib={lib()} backLabel={back()} onBack={goBack} onOpenItem={(id) => openItem(id)} />
+        <Match when={view().s === 'tidy' && view()} keyed>
+          {(v) =>
+            v.s === 'tidy' && (
+              <TidyScreen
+                lib={lib()}
+                currentId={v.id}
+                backLabel={back()}
+                onBack={goBack}
+                onOpenItem={(id) => openItem(id)}
+              />
+            )
+          }
         </Match>
       </Switch>
       {hasDock() && (

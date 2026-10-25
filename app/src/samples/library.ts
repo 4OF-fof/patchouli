@@ -7,7 +7,19 @@ import {
   type NoteBlock,
   type Project,
   type Suggestion,
+  type TagCoverPart,
 } from '../model/library'
+
+/** タグの表紙。ここにないタグは表紙が空。 */
+const TAG_COVERS: Record<string, TagCoverPart[]> = {
+  写真: [
+    { type: 'desc', text: 'カメラで撮ったもの。旅行や街は下の階層に分ける。' },
+    { type: 'kids' },
+    { type: 'exts' },
+    { type: 'together' },
+  ],
+  UI: [{ type: 'kids' }, { type: 'exts' }],
+}
 
 /** 見本の「今日」。 */
 export const TODAY = new Date(2026, 9, 22, 12)
@@ -342,6 +354,10 @@ const AR = [1.5, 1.33, 1, 0.75, 0.67, 1.5, 1.33, 1.6]
 const ratioOf = (kind: ItemKind, name: string) =>
   kind === 'note' ? 0.8 : kind === 'video' ? 1.78 : kind === 'audio' ? 1.6 : (AR[charSum(name) % AR.length] ?? 1)
 
+const PNG = /^(screenshot|wireframe|ui-|icon-|button-|card-|modal-|logo-)/
+const extOf = (kind: ItemKind, name: string) =>
+  kind === 'image' && PNG.test(name) ? 'png' : kind === 'image' && name.startsWith('IMG_') ? 'heic' : undefined
+
 const blocks = (raw: RawBlock[]): NoteBlock[] => raw.map(([type, text]) => ({ type, text }))
 
 /** 見本のライブラリを作る。呼ぶたびに同じ中身の新しいものを返す。 */
@@ -356,6 +372,7 @@ export function sampleLibrary(): Library {
       ...it,
       id: `i${items.length + 1}`,
       ratio: ratioOf(it.kind, it.name),
+      ext: extOf(it.kind, it.name),
       rating: it.rating ?? 0,
       memo: '',
     }
@@ -408,7 +425,7 @@ export function sampleLibrary(): Library {
     for (const tag of (like && TAG_POOL[like]) || ['参考', '写真', '配色'])
       if (tags.length < 4 && !tags.some((x) => x.tag === tag))
         tags.push({ tag, conf: tags.length < 3 ? 'やや似ている' : '少し似ている', on: false })
-    return { tags, key: `# ${main[0]}`, order: order++ }
+    return { tags, order: order++ }
   }
   for (const [name, moved, like, main] of LOOSE) {
     const kind: ItemKind = name.startsWith('voice') ? 'audio' : name.startsWith('clip') ? 'video' : 'image'
@@ -426,7 +443,7 @@ export function sampleLibrary(): Library {
     cover: structuredClone(cover),
     pins: pinNames.flatMap((n) => byName.get(n)?.id ?? []),
   }))
-  return buildLibrary(items, projects, TODAY)
+  return buildLibrary(items, projects, TODAY, new Map(Object.entries(structuredClone(TAG_COVERS))))
 }
 
 /** ホームにピン留めしているプロジェクトとタグ。 */

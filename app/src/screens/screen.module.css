@@ -36,6 +36,21 @@
   font-weight: 700;
   line-height: 1.2;
 }
+/* 編集中の名前の入力欄 */
+.nameEdit {
+  width: min(100%, 520px);
+  padding: 0 8px;
+  margin-left: -9px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius-md);
+  background: none;
+  font: inherit;
+}
+.nameEdit:focus-visible {
+  border-style: solid;
+  border-color: var(--sage);
+  outline: none;
+}
 .meta {
   padding-bottom: 3px;
   font-size: 12px;

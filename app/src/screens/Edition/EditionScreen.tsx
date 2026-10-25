@@ -4,6 +4,7 @@ import { JustifiedRow } from '../../components/JustifiedRow/JustifiedRow'
 import { Kbd } from '../../components/Kbd/Kbd'
 import { PinnedCard } from '../../components/PinnedCard/PinnedCard'
 import { SectionLabel } from '../../components/SectionLabel/SectionLabel'
+import { Thumb } from '../../components/Thumb/Thumb'
 import { type CardSize, type Item, type Library, coverOf, hasTag, scoreOf, thumbOf } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './EditionScreen.module.css'
@@ -34,13 +35,16 @@ export interface EditionScreenProps {
   onOpenItem?: (id: string) => void
   onOpenProject?: (name: string) => void
   onOpenTag?: (tag: string) => void
+  /** 整理を開く。id を渡すと、その項目から見る。 */
+  onTidy?: (id?: string) => void
 }
 
-/** 00 ホーム。ピン留めと、動いた日で分けた段。 */
+/** 00 ホーム。承認待ちの最近追加したもの、ピン留め、動いた日で分けた段。 */
 export function EditionScreen(props: EditionScreenProps) {
   let scroll!: HTMLDivElement
   let more: HTMLDivElement | undefined
   const lib = () => props.lib
+  const recent = createMemo(() => lib().pending())
   const pins = createMemo<Pin[]>(() => [
     ...(props.pinnedProjects ?? []).flatMap((n) => {
       const p = lib().projectBy.get(n)
@@ -154,6 +158,26 @@ export function EditionScreen(props: EditionScreenProps) {
           }
         >
           <div class={styles.ed}>
+            <Show when={recent().length}>
+              <section class={styles.recent} aria-label="最近追加したもの">
+                <div class={styles.recentHead}>
+                  <b>最近追加したもの</b>
+                  <span>{recent().length} 件がタグの承認待ち</span>
+                  <button type="button" class={styles.tidy} onClick={() => props.onTidy?.()}>
+                    分類結果を確認 ›
+                  </button>
+                </div>
+                <div class={styles.strip}>
+                  <For each={recent()}>
+                    {(it) => (
+                      <button type="button" title={it.name} aria-label={it.name} onClick={() => props.onTidy?.(it.id)}>
+                        <Thumb {...thumbOf(it, 'X')} />
+                      </button>
+                    )}
+                  </For>
+                </div>
+              </section>
+            </Show>
             <Show when={pins().length}>
               <section>
                 <SectionLabel label="ピン留め" count={pins().length} />

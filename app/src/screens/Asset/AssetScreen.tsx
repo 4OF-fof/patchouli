@@ -4,11 +4,10 @@ import { FloatingCard } from '../../components/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
 import { LinkNone, LinkRow } from '../../components/LinkRow/LinkRow'
 import { Thumb } from '../../components/Thumb/Thumb'
-import { type Library, relDay, thumbOf } from '../../model/library'
+import { type Library, extOf, relDay, thumbOf } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './AssetScreen.module.css'
 
-const EXT = { image: 'jpg', audio: 'm4a', video: 'mp4', note: 'md' }
 const KIND_LABEL = { image: '画像', audio: '音声', video: '動画', note: 'ノート' }
 
 export interface AssetScreenProps {
@@ -104,15 +103,15 @@ export function AssetScreen(props: AssetScreenProps) {
                     <div class={styles.fi}>
                       <span>種類</span>
                       <span>
-                        {KIND_LABEL[a().kind]} · {EXT[a().kind]}
+                        {KIND_LABEL[a().kind]} · {extOf(a())}
                       </span>
                       <span>場所</span>
                       <span>
-                        {a().folder ?? '（直下）'}/{a().name}.{EXT[a().kind]}
+                        {a().folder ?? '（直下）'}/{a().name}.{extOf(a())}
                       </span>
                       <span>属性</span>
                       <span>
-                        {a().name}.{EXT[a().kind]}.meta
+                        {a().name}.{extOf(a())}.meta
                       </span>
                       <span>動いた</span>
                       <span>{relDay(lib(), a().moved)}</span>

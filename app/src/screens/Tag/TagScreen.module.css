@@ -4,6 +4,19 @@ button.more {
   justify-content: center;
   padding: 0;
 }
+.title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* 入力欄の幅は、名前の前の # と並べて決める */
+.title input {
+  width: 440px;
+  max-width: 100%;
+}
+.none {
+  color: var(--faint);
+}
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -14,32 +27,15 @@ button.more {
   flex-direction: column;
   gap: 2px;
 }
-.pr {
+.row {
   display: grid;
-  grid-template-columns: minmax(0, 7em) minmax(0, 1fr) 2.5em;
+  grid-template-columns: 4em minmax(0, 1fr) 2.5em;
   align-items: center;
   gap: 8px;
   padding: 3px 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font-size: 12.5px;
-  text-align: left;
-  cursor: pointer;
 }
-.pr:disabled {
-  cursor: default;
-}
-.pr:not(:disabled):hover .pn {
-  text-decoration: underline;
-}
-.pn {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.pr:disabled .pn {
-  color: var(--muted);
+.ext {
+  font: 12px var(--f-mono);
 }
 .track {
   height: 4px;
@@ -52,7 +48,7 @@ button.more {
   height: 4px;
   background: var(--sage);
 }
-.pc {
+.n {
   font: 12px var(--f-mono);
   color: var(--muted);
   text-align: right;

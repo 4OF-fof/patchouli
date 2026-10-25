@@ -1,46 +1,5 @@
-/* .root は DetailPart の箱に付け、中の入力欄をそろえる */
 .none {
   color: var(--faint);
-}
-.root textarea,
-.root input[type='text'],
-.root input[type='date'],
-.root input[type='url'] {
-  width: 100%;
-  padding: 5px 8px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
-  background: var(--paper);
-  font-size: 13px;
-}
-.root textarea {
-  min-height: 64px;
-  resize: vertical;
-}
-.ctl {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  display: flex;
-  gap: 2px;
-}
-.ctl button {
-  width: 24px;
-  height: 24px;
-  border: 0;
-  border-radius: 5px;
-  background: var(--side);
-  color: var(--muted);
-  font-size: 12px;
-  cursor: pointer;
-}
-.ctl button:hover {
-  background: var(--sage-soft);
-  color: var(--sage-ink);
-}
-.ctl .del:hover {
-  background: var(--warm);
-  color: var(--danger);
 }
 .bar {
   height: 4px;
@@ -80,6 +39,7 @@
 .due[data-late='true'] {
   color: var(--danger);
 }
+/* .root は DetailPart の箱に付け、DetailPart の入力欄の決まりより強くする */
 .root .todo input.due {
   width: auto;
   padding: 1px 6px;
@@ -100,51 +60,4 @@
   background: none;
   color: var(--faint);
   cursor: pointer;
-}
-.add {
-  flex: 0 0 130px;
-  min-height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px dashed var(--line-2);
-  border-radius: 10px;
-  background: none;
-  color: var(--sage);
-  font-weight: 700;
-  cursor: pointer;
-}
-.add:hover {
-  border-color: var(--sage);
-}
-.menu {
-  flex: 0 0 300px;
-  display: flex;
-  flex-direction: column;
-  padding: 6px;
-  border: 1px solid var(--line-2);
-  border-radius: 10px;
-  background: var(--card);
-  box-shadow: var(--shadow);
-}
-.menu button {
-  display: flex;
-  gap: 8px;
-  padding: 7px 10px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-}
-.menu button:hover,
-.menu button:focus-visible {
-  background: var(--sage-soft);
-}
-.menu small {
-  margin-left: auto;
-  font-size: 11px;
-  color: var(--faint);
 }

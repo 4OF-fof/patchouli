@@ -18,8 +18,6 @@ export interface TagCandidate {
 
 export interface Suggestion {
   tags: TagCandidate[]
-  /** 同じ候補をまとめて承認するときの鍵（例「# 写真」）。 */
-  key: string
   /** 取り込んだ順。 */
   order: number
 }
@@ -38,6 +36,8 @@ export interface Item {
   sat: number
   /** 縦横比（幅 / 高さ）。 */
   ratio: number
+  /** 拡張子。なければ種類から決める（extOf）。 */
+  ext?: string
   rating: number
   memo: string
   blocks?: NoteBlock[]
@@ -50,6 +50,9 @@ export type CoverPart =
   /** due は「2026-11-15」の形の期日。 */
   | { type: 'todo'; items: { t: string; ref?: string; done: boolean; due?: string }[] }
   | { type: 'links'; items: { t: string; u: string }[] }
+
+/** タグの表紙の部品。説明のほかは、中身をタグの付いた項目から数える。 */
+export type TagCoverPart = { type: 'desc'; text: string } | { type: 'kids' } | { type: 'exts' } | { type: 'together' }
 
 export interface Project {
   name: string
@@ -92,6 +95,9 @@ export function splitLinks(text: string): ({ text: string } | { ref: string })[]
   return out
 }
 
+const EXT = { image: 'jpg', audio: 'm4a', video: 'mp4', note: 'md' }
+export const extOf = (it: Item) => it.ext ?? EXT[it.kind]
+
 export const hasTag = (it: Item, t: string) => it.tags.some((x) => x === t || x.startsWith(t + '/'))
 
 export interface Library {
@@ -101,6 +107,8 @@ export interface Library {
   byId: Map<string, Item>
   byName: Map<string, Item>
   projectBy: Map<string, Project>
+  /** タグごとの表紙。ないタグは表紙が空。 */
+  tagCovers: Map<string, TagCoverPart[]>
   /** このノートからリンクしている、あるもの。 */
   linksOf: (note: Item) => Item[]
   /** この項目へリンクしているノート。 */
@@ -113,7 +121,12 @@ export interface Library {
   pending: () => Item[]
 }
 
-export function buildLibrary(items: Item[], projects: Project[], today: Date): Library {
+export function buildLibrary(
+  items: Item[],
+  projects: Project[],
+  today: Date,
+  tagCovers = new Map<string, TagCoverPart[]>(),
+): Library {
   const byId = new Map(items.map((i) => [i.id, i]))
   const byName = new Map(items.map((i) => [i.name, i]))
   const projectBy = new Map(projects.map((p) => [p.name, p]))
@@ -136,6 +149,7 @@ export function buildLibrary(items: Item[], projects: Project[], today: Date): L
     byId,
     byName,
     projectBy,
+    tagCovers,
     linksOf,
     backOf,
     linkCount: (it) => (it.kind === 'note' ? linksOf(it).length : 0) + backOf(it).length,
@@ -159,7 +173,23 @@ export function withEmptyProject(lib: Library, now = new Date()): { lib: Library
   for (let n = 2; lib.projectBy.has(name); n++) name = `${base} ${n}`
   const hm = `${now.getHours()}`.padStart(2, '0') + ':' + `${now.getMinutes()}`.padStart(2, '0')
   const p: Project = { name, hue: 210, touched: `今日 ${hm}`, cover: [], pins: [] }
-  return { lib: buildLibrary(lib.items, [...lib.projects, p], lib.today), name }
+  return { lib: buildLibrary(lib.items, [...lib.projects, p], lib.today, lib.tagCovers), name }
+}
+
+/** タグ from を to に変えたときの、タグ t の新しい名前。下の階層も付け替える。 */
+export const retag = (from: string, to: string) => (t: string) =>
+  t === from ? to : t.startsWith(from + '/') ? to + t.slice(from.length) : t
+
+/** タグの名前を変えたライブラリ。下の階層（「写真/旅行」など）も付け替え、同じ名前のタグがすでにあればまとめる。 */
+export function withRenamedTag(lib: Library, from: string, to: string): Library {
+  const re = retag(from, to)
+  const items = lib.items.map((i) => ({
+    ...i,
+    tags: [...new Set(i.tags.map(re))],
+    suggestion: i.suggestion && { ...i.suggestion, tags: i.suggestion.tags.map((c) => ({ ...c, tag: re(c.tag) })) },
+  }))
+  const covers = new Map([...lib.tagCovers].map(([t, c]) => [re(t), c]))
+  return buildLibrary(items, lib.projects, lib.today, covers)
 }
 
 /** 空のノートを足したライブラリと、その id。名前がなければ「新しいノート」にし、重なるときは番号を付ける。 */
@@ -182,7 +212,7 @@ export function withEmptyNote(lib: Library, name = '新しいノート'): { lib:
     blocks: [],
     aliases: [],
   }
-  return { lib: buildLibrary([...lib.items, note], lib.projects, lib.today), id }
+  return { lib: buildLibrary([...lib.items, note], lib.projects, lib.today, lib.tagCovers), id }
 }
 
 /* ---------- 表示の文字 ---------- */

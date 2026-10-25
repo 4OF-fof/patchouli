@@ -1,4 +1,4 @@
-import { For, type JSX, Show, createMemo, createSignal } from 'solid-js'
+import { For, type JSX, Show, children, createMemo, createSignal } from 'solid-js'
 import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
 import { ItemCard } from '../../components/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/JustifiedRow/JustifiedRow'
@@ -19,7 +19,7 @@ export interface DetailScreenProps {
   onBack?: () => void
   /** 右上に置く操作。 */
   actions?: JSX.Element
-  /** 左の列に積む部品。 */
+  /** 左の列に積む部品。何もなければ右の列が全幅になる。 */
   side?: JSX.Element
   sideLabel?: string
   /** 右の列で「すべて」より前に出すもの（ピン留めなど）。見出しに data-first を付けておく。 */
@@ -35,6 +35,9 @@ export interface DetailScreenProps {
 /** プロジェクトやタグの中身を見る画面の枠。上に名前、その下を左右 1:2 に分け、右にすべての項目を並べる。 */
 export function DetailScreen(props: DetailScreenProps) {
   const [sort, setSort] = createSignal<Sort>('moved')
+  const side = children(() => props.side)
+  const top = children(() => props.top)
+  const has = (c: typeof side) => c.toArray().some((x) => x != null)
   const all = createMemo(() =>
     props.items.toSorted(
       sort() === 'name'
@@ -72,13 +75,15 @@ export function DetailScreen(props: DetailScreenProps) {
               <span class={shared.right}>{props.actions}</span>
             </Show>
           </header>
-          <div class={styles.body}>
-            <div class={styles.side} aria-label={props.sideLabel}>
-              {props.side}
-            </div>
+          <div class={styles.body} data-wide={!has(side) || undefined}>
+            <Show when={has(side)}>
+              <div class={styles.side} aria-label={props.sideLabel}>
+                {side()}
+              </div>
+            </Show>
             <div>
-              {props.top}
-              <div class={shared.head} data-first={!props.top || undefined}>
+              {top()}
+              <div class={shared.head} data-first={!has(top) || undefined}>
                 <h2>すべて</h2>
                 <span>{props.items.length} 件</span>
                 <Tabs

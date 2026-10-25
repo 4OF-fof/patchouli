@@ -5,6 +5,9 @@
   gap: 22px 28px;
   padding-top: 16px;
 }
+.body[data-wide] {
+  grid-template-columns: minmax(0, 1fr);
+}
 .body [data-first] {
   padding-top: 0;
 }

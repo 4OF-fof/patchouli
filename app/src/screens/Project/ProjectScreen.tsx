@@ -4,9 +4,10 @@ import { ItemCard } from '../../components/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/JustifiedRow/JustifiedRow'
 import { PinToggle } from '../../components/PinToggle/PinToggle'
 import { type CardSize, type Item, type Library, thumbOf } from '../../model/library'
+import { AddPart } from '../Detail/AddPart'
 import { DetailScreen } from '../Detail/DetailScreen'
 import shared from '../screen.module.css'
-import { AddPart, CoverPartView } from './CoverPart'
+import { CoverPartView, PARTS } from './CoverPart'
 import styles from './ProjectScreen.module.css'
 
 export interface ProjectScreenProps {
@@ -58,7 +59,7 @@ export function ProjectScreen(props: ProjectScreenProps) {
               <h1>
                 <input
                   ref={(el) => props.editing && queueMicrotask(() => el.select())}
-                  class={styles.name}
+                  class={shared.nameEdit}
                   type="text"
                   aria-label="プロジェクトの名前"
                   value={pr().name}
@@ -79,7 +80,7 @@ export function ProjectScreen(props: ProjectScreenProps) {
             <>
               <For each={pr().cover}>{(c) => <CoverPartView lib={lib()} part={c} editing={editing()} />}</For>
               <Show when={editing()}>
-                <AddPart open={addOpen()} onToggle={() => setAddOpen(!addOpen())} />
+                <AddPart parts={Object.values(PARTS)} open={addOpen()} onToggle={() => setAddOpen(!addOpen())} />
               </Show>
             </>
           }

@@ -58,14 +58,6 @@ export function TidyScreen(props: TidyScreenProps) {
     setDecided([...decided(), it.id])
     setCur(next)
   }
-  const bulk = (it: Item) => {
-    const key = it.suggestion?.key
-    const same = pending().filter((x) => x.suggestion?.key === key)
-    for (const x of same)
-      setDraft(x.id, { tags: structuredClone(draft[it.id]?.tags ?? []), project: draft[it.id]?.project ?? '' })
-    setDecided([...decided(), ...same.map((x) => x.id)])
-    setCur(undefined)
-  }
   const putOff = (it: Item) => {
     const next = nextAfter(it.id)
     setLater([...later(), it.id])
@@ -88,8 +80,7 @@ export function TidyScreen(props: TidyScreenProps) {
     if (!it || (e.target instanceof HTMLElement && e.target.closest('input, select, textarea'))) return
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (e.shiftKey) bulk(it)
-      else approve(it)
+      approve(it)
     } else if (e.key === 'ArrowRight') putOff(it)
     else if (e.key === 'ArrowLeft') prev(it)
     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') undo()
@@ -159,7 +150,6 @@ export function TidyScreen(props: TidyScreenProps) {
           {(it) => {
             const d = () => draft[it().id]
             const pos = () => pending().indexOf(it()) + 1
-            const same = () => pending().filter((x) => x.suggestion?.key === it().suggestion?.key).length - 1
             const near = () =>
               lib()
                 .items.filter((x) => x.kind !== 'note' && x.id !== it().id && x.tags.includes(firstTag(it())))
@@ -220,16 +210,6 @@ export function TidyScreen(props: TidyScreenProps) {
                       </select>
                     </div>
                   </div>
-                  <Show when={same() > 0}>
-                    <div class={styles.bulk}>
-                      <span>
-                        この内容を、同じ候補の残り <b>{same()}</b> 件にも
-                      </span>
-                      <button type="button" disabled={nothing(it())} onClick={() => bulk(it())}>
-                        まとめて承認 <Kbd>Shift Enter</Kbd>
-                      </button>
-                    </div>
-                  </Show>
                   <div class={styles.fl}>
                     <span class={styles.sub}># {firstTag(it())} の付いたものの中で近いもの</span>
                     <div class={styles.near}>

@@ -43,6 +43,7 @@ export const Other: Story = {
   render: () => <ScreenFrame>{project({}, 'UI 改善')}</ScreenFrame>,
 }
 export const NoPins: Story = { name: 'ピン留めなし', render: () => <ScreenFrame>{project({}, '資料')}</ScreenFrame> }
+export const NoCover: Story = { name: '表紙なし', render: () => <ScreenFrame>{project({}, '日記')}</ScreenFrame> }
 export const Created: Story = {
   name: '新しく作った',
   render: () => {
