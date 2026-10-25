@@ -15,7 +15,9 @@ export default meta
 type Story = StoryObj
 
 /** ホームに検索バーを重ねた、アプリを開いたときの見た目。 */
-const edition = (o: { dock?: DockState; query?: string; scrollTop?: number; readOnly?: boolean } = {}) => {
+const edition = (
+  o: { dock?: DockState; query?: string; scrollTop?: number; readOnly?: boolean; pinsOpen?: boolean } = {},
+) => {
   const lib = sampleLibrary()
   return (
     <>
@@ -24,6 +26,7 @@ const edition = (o: { dock?: DockState; query?: string; scrollTop?: number; read
         pinnedProjects={PINNED_PROJECTS}
         pinnedTags={PINNED_TAGS}
         pinnedItems={PINNED_ITEMS}
+        pinsOpen={o.pinsOpen}
         scrollTop={o.scrollTop}
       />
       <AppDock lib={lib} here="home" initial={o.dock} query={o.query} readOnly={o.readOnly} />
@@ -32,6 +35,10 @@ const edition = (o: { dock?: DockState; query?: string; scrollTop?: number; read
 }
 
 export const Default: Story = { render: () => <ScreenFrame>{edition()}</ScreenFrame> }
+export const PinsOpen: Story = {
+  name: 'ピン留めを全件表示',
+  render: () => <ScreenFrame>{edition({ pinsOpen: true })}</ScreenFrame>,
+}
 export const Scrolled: Story = {
   name: 'スクロール後',
   render: () => <ScreenFrame>{edition({ scrollTop: 1100 })}</ScreenFrame>,

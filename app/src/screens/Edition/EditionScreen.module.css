@@ -5,8 +5,27 @@
   margin-bottom: 14px;
 }
 .pins {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 16px 12px;
+}
+.pinsMore {
   display: flex;
-  gap: 12px;
+  justify-content: center;
+  padding-top: 10px;
+}
+.pinsMore button {
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.pinsMore button:hover {
+  color: var(--ink);
 }
 .more {
   display: flex;

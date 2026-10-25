@@ -12,6 +12,10 @@
   white-space: nowrap;
   cursor: pointer;
 }
+.root[aria-pressed='false'] {
+  background: var(--side);
+  color: var(--ink-2);
+}
 .root[data-dashed='true'] {
   background: transparent;
   border: 1px dashed var(--sage);

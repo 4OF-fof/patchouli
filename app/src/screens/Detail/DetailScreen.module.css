@@ -1,0 +1,19 @@
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: start;
+  gap: 22px 28px;
+  padding-top: 16px;
+}
+.body [data-first] {
+  padding-top: 0;
+}
+.side {
+  display: grid;
+  gap: 10px;
+}
+@media (max-width: 760px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

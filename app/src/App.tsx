@@ -8,6 +8,7 @@ import { NoteScreen } from './screens/Note/NoteScreen'
 import { ProjectScreen } from './screens/Project/ProjectScreen'
 import { ProjectListScreen } from './screens/ProjectList/ProjectListScreen'
 import { ScreenFrame } from './screens/ScreenFrame'
+import { TagScreen } from './screens/Tag/TagScreen'
 import { TagListScreen } from './screens/TagList/TagListScreen'
 import { TidyScreen } from './screens/Tidy/TidyScreen'
 
@@ -16,6 +17,7 @@ type View =
   | { s: 'project'; name: string; editing?: boolean }
   | { s: 'plist' }
   | { s: 'tlist' }
+  | { s: 'tag'; tag: string }
   | { s: 'note'; id: string }
   | { s: 'asset'; list: string[]; index: number }
   | { s: 'tidy' }
@@ -25,6 +27,7 @@ const LABEL: Record<View['s'], string> = {
   project: 'プロジェクト',
   plist: 'プロジェクト一覧',
   tlist: 'タグ一覧',
+  tag: 'タグ',
   note: 'ノート',
   asset: '素材',
   tidy: '整理',
@@ -38,7 +41,7 @@ export function App(props: { lib: Library }) {
   const back = () => {
     const prev = stack().at(-2)
     if (!prev) return 'ホーム'
-    return prev.s === 'project' ? prev.name : LABEL[prev.s]
+    return prev.s === 'project' ? prev.name : prev.s === 'tag' ? `# ${prev.tag}` : LABEL[prev.s]
   }
   const go = (v: View) => setStack([...stack(), v])
   const goBack = () => setStack(stack().length > 1 ? stack().slice(0, -1) : stack())
@@ -73,7 +76,7 @@ export function App(props: { lib: Library }) {
   }
   const here = (): Place | undefined =>
     view().s === 'edition' ? 'home' : view().s === 'tlist' ? 'tags' : view().s === 'plist' ? 'projects' : undefined
-  const hasDock = () => ['edition', 'project', 'plist', 'tlist'].includes(view().s)
+  const hasDock = () => ['edition', 'project', 'plist', 'tlist', 'tag'].includes(view().s)
 
   const onKey = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [role="dialog"], [role="menu"]'))
@@ -98,7 +101,7 @@ export function App(props: { lib: Library }) {
             pinnedItems={PINNED_ITEMS}
             onOpenItem={(id) => openItem(id)}
             onOpenProject={(name) => go({ s: 'project', name })}
-            onOpenTag={() => go({ s: 'tlist' })}
+            onOpenTag={(tag) => go({ s: 'tag', tag })}
           />
         </Match>
         <Match when={view().s === 'project' && view()} keyed>
@@ -124,7 +127,23 @@ export function App(props: { lib: Library }) {
           />
         </Match>
         <Match when={view().s === 'tlist'}>
-          <TagListScreen lib={lib()} pinned={PINNED_TAGS} />
+          <TagListScreen lib={lib()} pinned={PINNED_TAGS} onOpenTag={(tag) => go({ s: 'tag', tag })} />
+        </Match>
+        <Match when={view().s === 'tag' && view()} keyed>
+          {(v) =>
+            v.s === 'tag' && (
+              <TagScreen
+                lib={lib()}
+                tag={v.tag}
+                pinned={PINNED_TAGS.includes(v.tag)}
+                backLabel={back()}
+                onBack={goBack}
+                onOpenItem={openItem}
+                onOpenTag={(tag) => go({ s: 'tag', tag })}
+                onOpenProject={(name) => go({ s: 'project', name })}
+              />
+            )
+          }
         </Match>
         <Match when={view().s === 'note' && view()} keyed>
           {(v) =>

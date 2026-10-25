@@ -27,6 +27,8 @@ export interface EditionScreenProps {
   pinnedTags?: string[]
   /** ピン留めした素材の名前。プロジェクトに入っているものは出さない。 */
   pinnedItems?: string[]
+  /** ピン留めを 2 行で切らず、全件を出している。 */
+  pinsOpen?: boolean
   /** 開いたときのスクロール位置（スクロール後の見た目を確かめる）。 */
   scrollTop?: number
   onOpenItem?: (id: string) => void
@@ -94,6 +96,17 @@ export function EditionScreen(props: EditionScreenProps) {
       return list.map((it) => ({ tier, it, n: list.length }))
     }),
   )
+  // ピン留めは 2 行までにし、残りは「全件を表示」で出す
+  const [cols, setCols] = createSignal(3)
+  const [pinsOpen, setPinsOpen] = createSignal(!!props.pinsOpen)
+  const pinLimit = () => cols() * 2
+  const shownPins = () => (pinsOpen() ? pins() : pins().slice(0, pinLimit()))
+  const watchCols = (el: HTMLDivElement) => {
+    const ro = new ResizeObserver(() => setCols(getComputedStyle(el).gridTemplateColumns.split(' ').length))
+    ro.observe(el)
+    onCleanup(() => ro.disconnect())
+  }
+
   const [shown, setShown] = createSignal(FIRST)
   const tiers = createMemo(() => {
     const out: { tier: (typeof TIERS)[number]; n: number; items: Item[] }[] = []
@@ -144,8 +157,8 @@ export function EditionScreen(props: EditionScreenProps) {
             <Show when={pins().length}>
               <section>
                 <SectionLabel label="ピン留め" count={pins().length} />
-                <div class={styles.pins}>
-                  <For each={pins()}>
+                <div class={styles.pins} ref={watchCols}>
+                  <For each={shownPins()}>
                     {(p) => (
                       <PinnedCard
                         name={p.name}
@@ -157,6 +170,13 @@ export function EditionScreen(props: EditionScreenProps) {
                     )}
                   </For>
                 </div>
+                <Show when={pins().length > pinLimit()}>
+                  <div class={styles.pinsMore}>
+                    <button type="button" aria-expanded={pinsOpen()} onClick={() => setPinsOpen(!pinsOpen())}>
+                      {pinsOpen() ? 'たたむ' : `全件を表示（${pins().length} 件）`}
+                    </button>
+                  </div>
+                </Show>
               </section>
             </Show>
             <For each={tiers()}>

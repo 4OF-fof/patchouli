@@ -10,16 +10,22 @@ export interface MosaicTile {
 }
 
 export interface MosaicProps {
-  /** 先頭が左の大きな枠、残り 4 つが右の小さな枠になる。5 つより多い分は使わない。 */
+  /** 先頭が左の大きな枠、残りが右の小さな枠になる。count より多い分は使わない。 */
   tiles: MosaicTile[]
+  /** 枠の数。5 は右に 2×2、3 は右に縦 2 つ。どちらも枠は 4:3 になる。 */
+  count?: 3 | 5
   height?: number
 }
 
 /** プロジェクトやタグの表紙。中身の素材を 5 つまで並べる。 */
 export function Mosaic(props: MosaicProps) {
   return (
-    <span class={styles.root} style={{ '--mosaic-h': props.height ? `${props.height}px` : undefined }}>
-      <For each={props.tiles.slice(0, 5)}>
+    <span
+      class={styles.root}
+      data-count={props.count ?? 5}
+      style={{ '--mosaic-h': props.height ? `${props.height}px` : undefined }}
+    >
+      <For each={props.tiles.slice(0, props.count ?? 5)}>
         {(t) => (
           <span
             style={{

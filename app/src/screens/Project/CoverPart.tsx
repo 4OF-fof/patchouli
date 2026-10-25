@@ -1,6 +1,7 @@
 import { For, type JSX, Show } from 'solid-js'
 import { Button } from '../../components/Button/Button'
 import { type CoverPart, type Library, dueLabel } from '../../model/library'
+import { DetailPart } from '../Detail/DetailPart'
 import styles from './CoverPart.module.css'
 
 /** 表紙に足せる部品の名前と説明。 */
@@ -107,23 +108,28 @@ export function CoverPartView(props: CoverPartViewProps) {
       : PARTS[c.type].label
   }
   return (
-    <div class={styles.root} data-editing={props.editing}>
-      {props.editing && (
-        <span class={styles.ctl}>
-          <button type="button" aria-label="上へ">
-            ↑
-          </button>
-          <button type="button" aria-label="下へ">
-            ↓
-          </button>
-          <button type="button" class={styles.del} aria-label="外す">
-            ✕
-          </button>
-        </span>
-      )}
-      <span class={styles.k}>{label()}</span>
+    <DetailPart
+      class={styles.root}
+      label={label()}
+      editing={props.editing}
+      controls={
+        props.editing && (
+          <span class={styles.ctl}>
+            <button type="button" aria-label="上へ">
+              ↑
+            </button>
+            <button type="button" aria-label="下へ">
+              ↓
+            </button>
+            <button type="button" class={styles.del} aria-label="外す">
+              ✕
+            </button>
+          </span>
+        )
+      }
+    >
       {body()}
-    </div>
+    </DetailPart>
   )
 }
 

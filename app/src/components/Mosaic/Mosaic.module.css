@@ -11,6 +11,10 @@
   overflow: hidden;
   border-radius: 4px;
 }
+.root[data-count='3'] {
+  grid-template-columns: 2fr 1fr;
+  aspect-ratio: 2 / 1;
+}
 .root > span {
   display: block;
   background: linear-gradient(
