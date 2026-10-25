@@ -5,8 +5,9 @@
   grid-template-rows: 1fr 1fr;
   gap: 2px;
   width: 100%;
-  /* 置き場所の側が --mosaic-h で高さを決めてもよい */
-  height: var(--mosaic-h, 160px);
+  /* 幅に合わせて、枠がどれも 4:3 になる高さを取る。置き場所の側が --mosaic-h で高さを決めてもよい */
+  height: var(--mosaic-h, auto);
+  aspect-ratio: 8 / 3;
   overflow: hidden;
   border-radius: 4px;
 }

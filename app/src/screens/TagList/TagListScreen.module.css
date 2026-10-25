@@ -77,8 +77,13 @@ button.tw:hover {
   flex: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 6px;
+  /* 4:3 の枠を入るだけ並べ、入りきらない分は 2 行目に回して隠す */
+  grid-template-columns: repeat(auto-fill, calc(var(--thumb-h) * 4 / 3));
+  grid-template-rows: var(--thumb-h);
+  grid-auto-rows: 0;
+  gap: 0 6px;
+  height: var(--thumb-h);
+  overflow: hidden;
 }
 .all {
   padding: 0;
