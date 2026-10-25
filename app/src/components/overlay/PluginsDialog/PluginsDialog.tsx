@@ -18,7 +18,7 @@ export interface PluginsDialogProps {
 
 const NEED: Record<Need, string> = { none: '使わない', optional: 'あれば使う', required: '必須' }
 
-const sourceLabel = (s: PluginSource) => ('github' in s ? `GitHub ${s.github}` : s.local)
+const sourceLabel = (s: PluginSource) => s.local
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
@@ -30,7 +30,6 @@ export function PluginsDialog(props: PluginsDialogProps) {
   let el!: HTMLDivElement
   const [busy, setBusy] = createSignal<string>()
   const [error, setError] = createSignal<string>()
-  const [repo, setRepo] = createSignal('')
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && !(e.target instanceof HTMLInputElement)) props.onClose?.()
   }
@@ -216,26 +215,6 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 {(install) => (
                   <section class={styles.add}>
                     <h3>プラグインを入れる</h3>
-                    <form
-                      class={styles.repo}
-                      onSubmit={(e) => {
-                        e.preventDefault()
-                        const github = repo().trim()
-                        if (github) void run(`${github} を入れています`, () => install()({ github }))
-                      }}
-                    >
-                      <input
-                        type="text"
-                        placeholder="owner/name"
-                        aria-label="GitHub のリポジトリ"
-                        value={repo()}
-                        disabled={!!busy()}
-                        onInput={(e) => setRepo(e.currentTarget.value)}
-                      />
-                      <Button type="submit" size="sm" disabled={!!busy() || !repo().trim()}>
-                        GitHub から入れる
-                      </Button>
-                    </form>
                     <div class={styles.actions}>
                       <Button
                         size="sm"

@@ -41,8 +41,8 @@ export interface Problem {
   text: string
 }
 
-/** プラグインの取得先。github は owner/name、local は手元のフォルダか zip。 */
-export type PluginSource = { github: string } | { local: string }
+/** プラグインの取得先。local は手元のフォルダか zip。 */
+export type PluginSource = { local: string }
 
 export type SettingValue = boolean | number | string
 
@@ -92,8 +92,8 @@ export type ItemView = { kind: 'image' } | { kind: 'video' } | { kind: 'audio' }
 
 /** プラグインを入れたり外したりする操作。ない操作のボタンは出さない。 */
 export interface PluginActions {
-  /** 取得先から入れて、ライブラリに記録する。folder と zip は選ぶ窓を出す。選ばなかったときは false。 */
-  install?: (from: PluginSource | 'folder' | 'zip') => Promise<boolean>
+  /** 選ぶ窓を出して手元のフォルダか zip から入れ、ライブラリに記録する。選ばなかったときは false。 */
+  install?: (from: 'folder' | 'zip') => Promise<boolean>
   /** 記録してある取得先から入れ直す。 */
   update?: (id: string) => Promise<void>
   /** アプリに入っているものを、このライブラリでも使う。 */

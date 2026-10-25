@@ -105,12 +105,9 @@ export function tauriBackend(): Backend {
     plugins: () => invoke<PluginReport>('plugins'),
     pluginActions: {
       async install(from) {
-        let source: PluginSource
-        if (from === 'folder' || from === 'zip') {
-          const local = await invoke<string | null>('pick_plugin', { zip: from === 'zip' })
-          if (!local) return false
-          source = { local }
-        } else source = from
+        const local = await invoke<string | null>('pick_plugin', { zip: from === 'zip' })
+        if (!local) return false
+        const source: PluginSource = { local }
         await invoke('install_plugin', { source })
         return true
       },

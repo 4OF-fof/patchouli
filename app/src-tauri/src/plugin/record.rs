@@ -13,8 +13,6 @@ use crate::library::{read_json, write_json};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Source {
-    /// GitHub のリポジトリ（owner/name）。最新のリリースの zip を落とす。
-    Github(String),
     /// 手元のフォルダか zip。
     Local(PathBuf),
 }

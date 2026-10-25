@@ -195,25 +195,6 @@
 .add {
   margin-top: 6px;
 }
-.repo {
-  display: flex;
-  gap: 6px;
-}
-.repo input {
-  flex: 1;
-  min-width: 0;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-  color: var(--ink);
-  font: 12.5px var(--f-mono);
-}
-.repo input:focus-visible {
-  outline: 2px solid var(--sage);
-  outline-offset: -1px;
-}
 .note {
   margin: 8px 0 0;
   font-size: 12px;

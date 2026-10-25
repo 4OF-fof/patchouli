@@ -1,21 +1,17 @@
-//! 外のプラグインを取得先から落とし、アプリのデータフォルダ（`<dir>/<id>/`）に入れる。
+//! 外のプラグインを取得先から取り込み、アプリのデータフォルダ（`<dir>/<id>/`）に入れる。
 //! どこから入れたかは `<dir>/sources.json` に残し、ほかのライブラリで使うときにも記録できるようにする。
 
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
 use serde_json::{Map, Value};
-use ureq::tls::{RootCerts, TlsConfig, TlsProvider};
 
 use super::record::Source;
 use super::{MANIFEST, Manifest};
 use crate::library::{read_json, write_json};
 
 const SOURCES: &str = "sources.json";
-/// 落とす zip の大きさの上限。
-const ZIP_MAX: u64 = 256 << 20;
 
 /// アプリに入っているプラグイン（id と plugin.json）。
 pub fn installed(dir: &Path) -> Vec<(String, Manifest)> {
@@ -59,7 +55,7 @@ fn check_id(id: &str) -> Result<(), String> {
     }
 }
 
-/// 取得先から落として、dir に入れる。builtin は組み込みのプラグインの id（同じ id では入れられない）。
+/// 取得先から取り込んで、dir に入れる。builtin は組み込みのプラグインの id（同じ id では入れられない）。
 pub fn install(source: &Source, dir: &Path, builtin: &[String]) -> Result<Manifest, String> {
     let work = dir.join(format!(".install-{}", uuid::Uuid::new_v4().simple()));
     fs::create_dir_all(&work).map_err(|e| format!("{}: {e}", work.display()))?;
@@ -72,7 +68,6 @@ pub fn install(source: &Source, dir: &Path, builtin: &[String]) -> Result<Manife
 fn fetch(source: &Source, work: &Path) -> Result<PathBuf, String> {
     let out = work.join("x");
     match source {
-        Source::Github(repo) => unzip(&download(repo)?, &out)?,
         Source::Local(p) if p.is_dir() => copy_dir(p, &out)?,
         Source::Local(p) => {
             let bytes = fs::read(p).map_err(|e| format!("{}: {e}", p.display()))?;
@@ -91,66 +86,6 @@ fn fetch(source: &Source, work: &Path) -> Result<PathBuf, String> {
         (Some(d), None) if d.path().join(MANIFEST).is_file() => Ok(d.path()),
         _ => Err(format!("{MANIFEST} が見つからない")),
     }
-}
-
-#[derive(Deserialize)]
-struct Release {
-    tag_name: String,
-    assets: Vec<Asset>,
-}
-
-#[derive(Deserialize)]
-struct Asset {
-    name: String,
-    browser_download_url: String,
-}
-
-/// GitHub のリポジトリ（owner/name）の最新のリリースから、zip を落とす。
-fn download(repo: &str) -> Result<Vec<u8>, String> {
-    let ok = repo.split('/').count() == 2
-        && repo.split('/').all(|s| {
-            !s.is_empty()
-                && s.bytes()
-                    .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
-        });
-    if !ok {
-        return Err(format!(
-            "「{repo}」は GitHub のリポジトリ（owner/name）でない"
-        ));
-    }
-    let err = |e: ureq::Error| format!("{repo}: {e}");
-    // 証明書は OS のものを使う
-    let tls = TlsConfig::builder()
-        .provider(TlsProvider::NativeTls)
-        .root_certs(RootCerts::PlatformVerifier)
-        .build();
-    let agent: ureq::Agent = ureq::Agent::config_builder().tls_config(tls).build().into();
-    let release: Release = agent
-        .get(format!(
-            "https://api.github.com/repos/{repo}/releases/latest"
-        ))
-        .header("User-Agent", "Patchouli")
-        .header("Accept", "application/vnd.github+json")
-        .call()
-        .map_err(err)?
-        .body_mut()
-        .read_json()
-        .map_err(err)?;
-    let asset = release
-        .assets
-        .iter()
-        .find(|a| a.name.to_lowercase().ends_with(".zip"))
-        .ok_or_else(|| format!("{repo} の {} に zip がない", release.tag_name))?;
-    agent
-        .get(&asset.browser_download_url)
-        .header("User-Agent", "Patchouli")
-        .call()
-        .map_err(err)?
-        .body_mut()
-        .with_config()
-        .limit(ZIP_MAX)
-        .read_to_vec()
-        .map_err(err)
 }
 
 fn unzip(bytes: &[u8], out: &Path) -> Result<(), String> {
