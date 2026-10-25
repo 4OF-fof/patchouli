@@ -1,1 +1,4 @@
 .claude/
+
+# 動作確認用のライブラリ（scripts/dev-library.ts で作る）
+/dev-library/
