@@ -8,7 +8,8 @@
 //! 読むときは何も書かない。ID のない素材やノートには仮の ID を渡し、最初に保存するときに書く。
 
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
@@ -28,6 +29,26 @@ pub enum Kind {
     Video,
     Audio,
     Note,
+}
+
+/// 画像の見た目の大きさ。写真の向き（EXIF）が 90 度回す指定なら、縦と横を入れ替える。
+fn image_size(path: &Path) -> Option<(u32, u32)> {
+    let s = imagesize::size(path).ok()?;
+    let (w, h) = (s.width as u32, s.height as u32);
+    let turned = File::open(path)
+        .ok()
+        .and_then(|f| {
+            exif::Reader::new()
+                .read_from_container(&mut BufReader::new(f))
+                .ok()
+        })
+        .and_then(|e| {
+            e.get_field(exif::Tag::Orientation, exif::In::PRIMARY)?
+                .value
+                .get_uint(0)
+        })
+        .is_some_and(|o| (5..=8).contains(&o));
+    Some(if turned { (h, w) } else { (w, h) })
 }
 
 pub(crate) fn kind_of(ext: &str) -> Option<Kind> {
@@ -317,9 +338,7 @@ impl Library {
             new_id()
         };
         let (width, height) = match kind {
-            Kind::Image => imagesize::size(path).map_or((None, None), |s| {
-                (Some(s.width as u32), Some(s.height as u32))
-            }),
+            Kind::Image => image_size(path).map_or((None, None), |(w, h)| (Some(w), Some(h))),
             _ => (None, None),
         };
         self.entries.insert(

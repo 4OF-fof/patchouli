@@ -1,6 +1,9 @@
-/* 中のカードの絵の高さをそろえ、名前の下の一言は出さない */
+/*
+ * 段ごとに、カードを縦横比どおりの形のまま幅いっぱいに広げる。
+ * 余った幅を縦横比に応じて分けるので、同じ段のカードは同じ高さになる。名前の下の一言は出さない
+ */
 .root {
-  --thumb-h: var(--hh);
+  --thumb-h: auto;
   --card-why: none;
   display: flex;
   flex-wrap: wrap;
@@ -19,6 +22,7 @@
   display: none;
 }
 .root > * {
+  --thumb-ar: var(--ar, 1);
   flex: var(--ar, 1) var(--ar, 1) calc(var(--ar, 1) * var(--hh));
   min-width: 0;
 }

@@ -2,7 +2,7 @@ import type { JSX } from 'solid-js'
 import styles from './JustifiedRow.module.css'
 
 export interface JustifiedRowProps {
-  /** 段の高さ（px）。中のカードは ratio に合わせて幅を分け合う。 */
+  /** 段の高さの目安（px）。幅に揃えるため、最後の段のほかは少し高くなる。 */
   height: number
   gap?: number
   /** 折り返さず 1 段に収める（はみ出した分は隠す）。 */

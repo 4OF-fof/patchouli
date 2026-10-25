@@ -4,8 +4,9 @@
   position: relative;
   overflow: hidden;
   width: 100%;
-  /* 並べる側（JustifiedRow など）が --thumb-h で高さを決める */
+  /* 並べる側（JustifiedRow など）が --thumb-h で高さを、高さを auto にしたときは --thumb-ar で縦横比を決める */
   height: var(--thumb-h, 104px);
+  aspect-ratio: var(--thumb-ar, auto);
   border-radius: var(--radius-thumb);
   background: linear-gradient(
     155deg,
