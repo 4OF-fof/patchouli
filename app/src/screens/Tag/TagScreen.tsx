@@ -165,7 +165,7 @@ export function TagScreen(props: TagScreenProps) {
       onBack={props.onBack}
       actions={
         <>
-          <PinToggle where="ホームに" pressed={pinned()} onClick={() => setPinned(!pinned())} />
+          <PinToggle where="ホームに" look="float" pressed={pinned()} onClick={() => setPinned(!pinned())} />
           <FloatingPill aria-pressed={editing()} onClick={toggleEdit}>
             {editing() ? '編集を終える' : '表紙を編集'}
           </FloatingPill>

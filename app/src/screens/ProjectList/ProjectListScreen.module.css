@@ -19,6 +19,9 @@
   min-width: 0;
   display: flex;
 }
+.wrap:hover {
+  --pin-show: 1;
+}
 .card {
   flex: 1;
   min-width: 0;

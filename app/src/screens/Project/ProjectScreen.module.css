@@ -4,15 +4,11 @@
   display: flex;
   flex-direction: column;
 }
+.pc:hover {
+  --pin-show: 1;
+}
 .pin {
   position: absolute;
   right: 8px;
   top: 8px;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-.pc:hover .pin,
-.pin:focus-visible,
-.pin[aria-pressed='true'] {
-  opacity: 1;
 }

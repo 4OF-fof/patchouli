@@ -58,6 +58,8 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
         </button>
         <PinToggle
           class={styles.pin}
+          look="float"
+          reveal
           pressed={pins().includes(p.name)}
           onClick={() => setPins(toggled(pins(), p.name))}
         />

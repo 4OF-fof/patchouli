@@ -48,6 +48,7 @@ export function ProjectScreen(props: ProjectScreenProps) {
       <PinToggle
         class={styles.pin}
         look="float"
+        reveal
         pressed={pins().includes(it.id)}
         onClick={() => setPins(toggled(pins(), it.id))}
       />

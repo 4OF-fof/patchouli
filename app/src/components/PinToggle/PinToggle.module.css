@@ -1,0 +1,9 @@
+/* 置き場所の側が、ホバーしている間 --pin-show を 1 にする */
+.reveal {
+  opacity: var(--pin-show, 0);
+  transition: opacity 0.15s ease;
+}
+.reveal[aria-pressed='true'],
+.reveal:focus-visible {
+  opacity: 1;
+}

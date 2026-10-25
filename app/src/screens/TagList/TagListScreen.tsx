@@ -1,6 +1,5 @@
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { Icon } from '../../components/Icon/Icon'
-import { IconButton } from '../../components/IconButton/IconButton'
 import { PinToggle } from '../../components/PinToggle/PinToggle'
 import { Tabs } from '../../components/Tabs/Tabs'
 import { ThumbStrip } from '../../components/ThumbStrip/ThumbStrip'
@@ -61,35 +60,38 @@ export function TagListScreen(props: TagListScreenProps) {
               class={styles.tw}
               aria-expanded={isOpen()}
               aria-label={isOpen() ? '下の階層を閉じる' : '下の階層を開く'}
+              title={isOpen() ? '下の階層を閉じる' : '下の階層を開く'}
               onClick={() => setOpen(toggled(open(), r.tag))}
             >
               <Icon name="chevron" class={styles.twi} />
             </button>
           </Show>
-          <button type="button" class={styles.tn} onClick={() => props.onOpenTag?.(r.tag)}>
-            <b>
-              {sub ? (
-                <>
-                  <i># {head}/</i>
-                  {rest.join('/')}
-                </>
-              ) : (
-                `# ${r.tag}`
-              )}
-            </b>
-            <span>
-              {r.items.length} 件 · {projects} プロジェクト
+          <button type="button" class={styles.link} title="タグを開く" onClick={() => props.onOpenTag?.(r.tag)}>
+            <span class={styles.tn}>
+              <b>
+                {sub ? (
+                  <>
+                    <i># {head}/</i>
+                    {rest.join('/')}
+                  </>
+                ) : (
+                  `# ${r.tag}`
+                )}
+              </b>
+              <span>
+                {r.items.length} 件 · {projects} プロジェクト
+              </span>
             </span>
+            <ThumbStrip class={styles.strip} items={r.items.toSorted((a, b) => a.moved - b.moved).slice(0, 8)} />
+            <Icon name="chevron" class={styles.go} />
           </button>
-          <ThumbStrip class={styles.strip} items={r.items.toSorted((a, b) => a.moved - b.moved).slice(0, 8)} />
           <PinToggle
             where="ホームに"
+            look="float"
+            reveal
             pressed={pins().includes(r.tag)}
             onClick={() => setPins(toggled(pins(), r.tag))}
           />
-          <IconButton label={`# ${r.tag} をすべて見る`} onClick={() => props.onOpenTag?.(r.tag)}>
-            <Icon name="chevron" />
-          </IconButton>
         </div>
         <Show when={!sub && isOpen()}>
           <For each={r.kids}>{(k) => row(k, true)}</For>

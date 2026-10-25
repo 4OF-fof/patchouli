@@ -6,6 +6,9 @@
   padding: 12px 0;
   border-bottom: 1px solid var(--line);
 }
+.row:hover {
+  --pin-show: 1;
+}
 .row[data-sub='true'] {
   --thumb-h: 44px;
   padding: 8px 0 8px 36px;
@@ -26,8 +29,11 @@
 button.tw {
   cursor: pointer;
 }
+/* 開閉は丸い地で、詳細へ行く .link の帯とは別の見た目にする */
 button.tw:hover {
-  background: var(--side);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--ink);
 }
 .twi {
   width: 14px;
@@ -37,18 +43,41 @@ button.tw:hover {
 .tw[aria-expanded='true'] .twi {
   transform: rotate(90deg);
 }
+/* 名前・サムネイル・› をまとめて押すと詳細へ */
+.link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: -6px 0;
+  padding: 6px 4px 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.link:hover {
+  background: var(--side);
+}
+.go {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  margin: 0 6px;
+  color: var(--faint);
+}
+.link:hover .go {
+  color: var(--ink-2);
+}
 .tn {
   width: 180px;
   flex: none;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  text-align: left;
-  cursor: pointer;
 }
 .row[data-sub='true'] .tn {
   width: 144px;
@@ -68,10 +97,6 @@ button.tw:hover {
 .tn span {
   font-size: 11px;
   color: var(--muted);
-}
-.tn:focus-visible {
-  border-radius: 4px;
-  outline-offset: 3px;
 }
 .strip {
   flex: 1;
