@@ -1,16 +1,21 @@
 .body {
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: start;
+  gap: 22px 28px;
   padding-top: 16px;
 }
 .body [data-first] {
   padding-top: 0;
 }
 .cover {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
   gap: 10px;
+}
+@media (max-width: 760px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 /* カードとピンを重ねる枠。JustifiedRow の中で --ar の幅を取る */
 .pc {
