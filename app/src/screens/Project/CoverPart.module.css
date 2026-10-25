@@ -1,17 +1,3 @@
-.none {
-  color: var(--faint);
-}
-.bar {
-  height: 4px;
-  overflow: hidden;
-  border-radius: 2px;
-  background: var(--line);
-}
-.bar span {
-  display: block;
-  height: 4px;
-  background: var(--sage);
-}
 .todo {
   display: flex;
   align-items: flex-start;

@@ -95,8 +95,14 @@ export function splitLinks(text: string): ({ text: string } | { ref: string })[]
   return out
 }
 
+/** 種類の呼び名。 */
+export const KIND_LABEL: Record<ItemKind, string> = { image: '画像', audio: '音声', video: '動画', note: 'ノート' }
+
 const EXT = { image: 'jpg', audio: 'm4a', video: 'mp4', note: 'md' }
 export const extOf = (it: Item) => it.ext ?? EXT[it.kind]
+
+/** v が入っていれば外し、なければ後ろに足した新しいリスト。 */
+export const toggled = <T>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
 
 export const hasTag = (it: Item, t: string) => it.tags.some((x) => x === t || x.startsWith(t + '/'))
 

@@ -1,11 +1,11 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { createStore } from 'solid-js/store'
-import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
-import { Kbd } from '../../components/Kbd/Kbd'
+import { FloatingLabel, FloatingPill } from '../../components/FloatingPill/FloatingPill'
 import { Thumb } from '../../components/Thumb/Thumb'
-import { type Item, type Library, type TagCandidate, monthDay, thumbOf } from '../../model/library'
+import { type Item, type Library, type TagCandidate, thumbOf } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './TidyScreen.module.css'
+import { TidyPanel } from './TidyPanel'
 
 export interface TidyScreenProps {
   lib: Library
@@ -124,9 +124,9 @@ export function TidyScreen(props: TidyScreenProps) {
     <section class={shared.screen} aria-label="整理">
       <div class={styles.head}>
         <FloatingPill onClick={() => props.onBack?.()}>‹ {props.backLabel ?? 'ホーム'}</FloatingPill>
-        <span class={styles.mid}>
+        <FloatingLabel class={styles.mid}>
           <b>整理</b>タグの候補を承認する · 残り {pending().length}
-        </span>
+        </FloatingLabel>
         <span class={styles.sp} />
         <FloatingPill kbd="←" onClick={undo}>
           取り消す
@@ -156,17 +156,7 @@ export function TidyScreen(props: TidyScreenProps) {
           }
         >
           {(it) => {
-            const d = () => draft[it().id]
-            const pos = () => pending().indexOf(it()) + 1
-            const near = () =>
-              lib()
-                .items.filter((x) => x.kind !== 'note' && x.id !== it().id && x.tags.includes(firstTag(it())))
-                .toSorted((a, b) => Math.abs(a.hue - it().hue) - Math.abs(b.hue - it().hue))
-                .slice(0, 6)
             const batch = () => (it().moved === 19 ? queue().filter((x) => x.moved === 19) : [])
-            const batchOk = () =>
-              batch().filter((x) => decided().includes(x.id) && onTags(x).some((t) => t.tag === firstTag(it()))).length
-            const reason = () => (onTags(it()).length ? onTags(it()).map((t) => t.tag) : [firstTag(it())])
             return (
               <>
                 <div class={styles.view}>
@@ -175,84 +165,30 @@ export function TidyScreen(props: TidyScreenProps) {
                   </div>
                   {strip()}
                 </div>
-                <div class={styles.panel} aria-label="候補と理由">
-                  <div class={styles.nmh}>
-                    <b>{it().name}</b>
-                    <small>
-                      {pos()} / {pending().length} · {monthDay(lib(), it().moved)} 取り込み
-                      {later().includes(it().id) && ' · あとでにしたもの'}
-                      {decided().length > 0 && ` · 承認 ${decided().length}`}
-                    </small>
-                  </div>
-                  <div class={styles.fl}>
-                    <span class={styles.sub}>タグ</span>
-                    <div class={styles.cands}>
-                      <For each={d()?.tags}>
-                        {(t, k) => (
-                          <label class={styles.cand} data-on={t.on}>
-                            <input
-                              type="checkbox"
-                              checked={t.on}
-                              onChange={(e) => setDraft(it().id, 'tags', k(), 'on', e.currentTarget.checked)}
-                            />
-                            <span>
-                              <i class={styles.mark}>{t.on ? '✓' : '#'}</i>
-                              {t.tag}
-                            </span>
-                            <small>{t.conf}</small>
-                          </label>
-                        )}
-                      </For>
-                      <input class={styles.tagin} type="text" placeholder="＋ タグを入力" aria-label="タグを足す" />
-                    </div>
-                  </div>
-                  <div class={styles.fl}>
-                    <span class={styles.sub}>プロジェクト</span>
-                    <div class={styles.pselect}>
-                      <select
-                        aria-label="プロジェクトに入れる"
-                        value={d()?.project ?? ''}
-                        onChange={(e) => setDraft(it().id, 'project', e.currentTarget.value)}
-                      >
-                        <option value="">入れない</option>
-                        <For each={lib().projects.filter((p) => p.name !== '日記')}>
-                          {(p) => <option>{p.name}</option>}
-                        </For>
-                      </select>
-                    </div>
-                  </div>
-                  <div class={styles.fl}>
-                    <span class={styles.sub}># {firstTag(it())} の付いたものの中で近いもの</span>
-                    <div class={styles.near}>
-                      <For each={near()} fallback={<span class={styles.hint}>まだありません</span>}>
-                        {(x) => <Thumb {...thumbOf(x)} />}
-                      </For>
-                    </div>
-                  </div>
-                  <div class={styles.why}>
-                    <span class={styles.sub}>候補になった理由</span>
-                    <Show when={batchOk()}>
-                      <span>
-                        {monthDay(lib(), 19)} に一緒に取り込んだ {batch().length} 件のうち、{batchOk()} 件に #{' '}
-                        {firstTag(it())} を承認済み。
-                      </span>
-                    </Show>
-                    <span>
-                      {reason()
-                        .map((t) => `# ${t}`)
-                        .join(' と ')}{' '}
-                      の付いたものと近い。
-                    </span>
-                  </div>
-                  <div class={styles.dec}>
-                    <button type="button" onClick={() => putOff(it())}>
-                      あとで <Kbd>→</Kbd>
-                    </button>
-                    <button type="button" class={styles.ok2} disabled={nothing(it())} onClick={() => approve(it())}>
-                      ✓ 承認する <Kbd>Enter</Kbd>
-                    </button>
-                  </div>
-                </div>
+                <TidyPanel
+                  lib={lib()}
+                  it={it()}
+                  tags={draft[it().id]?.tags ?? []}
+                  project={draft[it().id]?.project ?? ''}
+                  pos={pending().indexOf(it()) + 1}
+                  total={pending().length}
+                  later={later().includes(it().id)}
+                  approved={decided().length}
+                  batch={
+                    batch().length
+                      ? {
+                          size: batch().length,
+                          ok: batch().filter(
+                            (x) => decided().includes(x.id) && onTags(x).some((t) => t.tag === firstTag(it())),
+                          ).length,
+                        }
+                      : undefined
+                  }
+                  onTag={(k, on) => setDraft(it().id, 'tags', k, 'on', on)}
+                  onProject={(name) => setDraft(it().id, 'project', name)}
+                  onPutOff={() => putOff(it())}
+                  onApprove={() => approve(it())}
+                />
               </>
             )
           }}

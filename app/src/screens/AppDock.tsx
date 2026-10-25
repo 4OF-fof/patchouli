@@ -1,10 +1,11 @@
-import { For, type JSX, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { HelpDialog } from '../components/HelpDialog/HelpDialog'
 import { NavMenu, type NavMenuEntry } from '../components/NavMenu/NavMenu'
-import { ResultHeading, ResultRow } from '../components/ResultRow/ResultRow'
 import { SearchDock } from '../components/SearchDock/SearchDock'
-import { type Item, type Library, type Project, plainText, thumbOf } from '../model/library'
+import type { Library } from '../model/library'
+import { findItems, searchTerms } from '../model/search'
 import styles from './AppDock.module.css'
+import { type Row, SearchResults } from './SearchResults'
 
 /** 行き先。 */
 export type Place = 'home' | 'tags' | 'projects' | 'tidy'
@@ -27,30 +28,6 @@ export interface AppDockProps {
   onOpenItem?: (id: string) => void
   /** 新しいノート。名前を入れていればその名前で。 */
   onCreate?: (name?: string) => void
-}
-
-type Row =
-  | { type: 'cmd'; label: string; key: string; run: () => void }
-  | { type: 'proj'; p: Project }
-  | { type: 'item'; it: Item; where: string }
-  | { type: 'create'; q: string }
-
-/** 見つかった語を <mark> で囲む。 */
-function marked(text: string, terms: string[]): JSX.Element {
-  const low = text.toLowerCase()
-  const on = Array.from({ length: text.length }, () => false)
-  for (const t of terms.filter(Boolean)) {
-    for (let i = low.indexOf(t); i >= 0; i = low.indexOf(t, i + t.length)) on.fill(true, i, i + t.length)
-  }
-  const out: JSX.Element[] = []
-  let i = 0
-  while (i < text.length) {
-    let j = i
-    while (j < text.length && on[j] === on[i]) j++
-    out.push(on[i] ? <mark>{text.slice(i, j)}</mark> : text.slice(i, j))
-    i = j
-  }
-  return out
 }
 
 const toggleTheme = () => {
@@ -80,7 +57,7 @@ export function AppDock(props: AppDockProps) {
     { type: 'cmd', label: 'ショートカットの一覧', key: '?', run: () => setState('help') },
     { type: 'cmd', label: 'テーマを切り替える', key: '', run: toggleTheme },
   ]
-  const terms = () => query().trim().toLowerCase().replace(/#\s*/g, '').split(/\s+/).filter(Boolean)
+  const terms = () => searchTerms(query())
   const rows = createMemo<Row[]>(() => {
     if (state() !== 'search') return []
     const ts = terms()
@@ -101,32 +78,7 @@ export function AppDock(props: AppDockProps) {
         .items.toSorted((a, b) => a.moved - b.moved)
         .slice(0, 7))
         out.push({ type: 'item', it, where: `最近 · ${it.folder ?? 'プロジェクトなし'}` })
-    } else {
-      const found: { it: Item; sc: number; where: string }[] = []
-      for (const it of lib().items) {
-        const text = it.kind === 'note' ? plainText(it.blocks ?? []) : ''
-        let sc = 0
-        const where: string[] = []
-        const ok = ts.every((t) => {
-          if (it.name.toLowerCase().includes(t)) sc += 3
-          else if (it.tags.some((x) => x.toLowerCase().includes(t))) {
-            sc += 2
-            where.push(`タグ # ${it.tags.find((x) => x.toLowerCase().includes(t))}`)
-          } else if (it.folder?.toLowerCase().includes(t)) {
-            sc += 1
-            where.push(`プロジェクト ${it.folder}`)
-          } else if (text.toLowerCase().includes(t)) {
-            sc += 1
-            const p = text.toLowerCase().indexOf(t)
-            where.push(`本文 …${text.slice(Math.max(0, p - 8), p + 16)}…`)
-          } else return false
-          return true
-        })
-        if (ok) found.push({ it, sc, where: where.join(' · ') || (it.folder ?? 'プロジェクトなし') })
-      }
-      for (const f of found.toSorted((a, b) => b.sc - a.sc || a.it.moved - b.it.moved).slice(0, 8))
-        out.push({ type: 'item', ...f })
-    }
+    } else for (const f of findItems(lib(), ts).slice(0, 8)) out.push({ type: 'item', ...f })
     if (query().trim()) out.push({ type: 'create', q: query().trim() })
     return out
   })
@@ -149,55 +101,7 @@ export function AppDock(props: AppDockProps) {
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
-  const SEC = { cmd: '操作', proj: 'プロジェクト', item: '項目', create: '' }
-  const results = () => (
-    <Show when={rows().length} fallback={<ResultHeading>見つかりません</ResultHeading>}>
-      <For each={rows()}>
-        {(r, i) => {
-          const prev = () => rows()[i() - 1]
-          const sel = () => i() === idx()
-          return (
-            <>
-              {r.type !== 'create' && prev()?.type !== r.type && <ResultHeading>{SEC[r.type]}</ResultHeading>}
-              {r.type === 'cmd' ? (
-                <ResultRow
-                  kind="command"
-                  title={marked(r.label, terms())}
-                  kbd={r.key}
-                  selected={sel()}
-                  onClick={() => run(r)}
-                />
-              ) : r.type === 'proj' ? (
-                <ResultRow
-                  kind="project"
-                  title={marked(r.p.name, terms())}
-                  sub={`${lib().inProject(r.p.name).length} 件 · 最後に扱った ${r.p.touched}`}
-                  selected={sel()}
-                  onClick={() => run(r)}
-                />
-              ) : r.type === 'item' ? (
-                <ResultRow
-                  kind={r.it.kind === 'note' ? 'note' : 'asset'}
-                  title={marked(r.it.name, terms())}
-                  sub={marked(r.where, terms())}
-                  thumb={thumbOf(r.it)}
-                  selected={sel()}
-                  onClick={() => run(r)}
-                />
-              ) : (
-                <ResultRow
-                  kind="create"
-                  title={`「${r.q}」という名前でノートを作る`}
-                  selected={sel()}
-                  onClick={() => run(r)}
-                />
-              )}
-            </>
-          )
-        }}
-      </For>
-    </Show>
-  )
+  const results = () => <SearchResults lib={lib()} rows={rows()} selected={idx()} terms={terms()} onRun={run} />
 
   const menuItems = (): NavMenuEntry[] =>
     state() === 'settings'

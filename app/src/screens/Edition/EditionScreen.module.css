@@ -28,19 +28,6 @@
 }
 .strip {
   --thumb-h: 72px;
-  display: flex;
-  gap: 6px;
-  overflow: hidden;
-}
-/* 4:3 の枠を右端まで並べ、はみ出た分は切る */
-.strip button {
-  flex: none;
-  width: calc(var(--thumb-h) * 4 / 3);
-  padding: 0;
-  border: 0;
-  border-radius: 4px;
-  background: none;
-  cursor: pointer;
 }
 .tidy {
   margin-left: auto;

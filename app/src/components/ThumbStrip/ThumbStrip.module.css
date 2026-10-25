@@ -1,0 +1,31 @@
+.root {
+  --w: calc(var(--thumb-h) * 4 / 3);
+  height: var(--thumb-h);
+  overflow: hidden;
+  display: grid;
+  /* 入りきらない枠は 2 行目に回して隠す */
+  grid-template-columns: repeat(auto-fill, var(--w));
+  grid-template-rows: var(--thumb-h);
+  grid-auto-rows: 0;
+  gap: 0 6px;
+}
+.root[data-overflow='clip'] {
+  display: flex;
+  gap: 6px;
+}
+.root[data-overflow='clip'] > * {
+  flex: none;
+  width: var(--w);
+}
+.cell {
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+.root [data-kind='note'] {
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--ink-2);
+}

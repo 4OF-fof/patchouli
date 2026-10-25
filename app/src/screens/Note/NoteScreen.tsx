@@ -2,6 +2,7 @@ import { For, type JSX, Show, createSignal } from 'solid-js'
 import { FloatingCard } from '../../components/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
 import { LinkCaption, LinkNone, LinkRow } from '../../components/LinkRow/LinkRow'
+import { TopBar } from '../../components/TopBar/TopBar'
 import { type Library, type NoteBlock, refsOfBlocks, relDay, splitLinks } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './NoteScreen.module.css'
@@ -116,13 +117,7 @@ export function NoteScreen(props: NoteScreenProps) {
             </article>
           </div>
 
-          <div class={styles.bar}>
-            <FloatingPill onClick={() => props.onBack?.()}>‹ {props.backLabel ?? 'ホーム'}</FloatingPill>
-            <span class={styles.sp} />
-            <FloatingPill class={styles.more} aria-label="その他">
-              ⋯
-            </FloatingPill>
-          </div>
+          <TopBar class={styles.bar} backLabel={props.backLabel} onBack={props.onBack} />
 
           <Show
             when={heads()}

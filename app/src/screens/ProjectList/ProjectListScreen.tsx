@@ -2,7 +2,8 @@ import { For, Show, createSignal } from 'solid-js'
 import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
 import { Mosaic } from '../../components/Mosaic/Mosaic'
 import { PinToggle } from '../../components/PinToggle/PinToggle'
-import { type Library, type Project, coverOf, dueLabel, nextDue } from '../../model/library'
+import { ProgressBar } from '../../components/ProgressBar/ProgressBar'
+import { type Library, type Project, coverOf, dueLabel, nextDue, toggled } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './ProjectListScreen.module.css'
 
@@ -24,7 +25,6 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
     return l.length ? Math.min(...l.map((i) => i.moved)) : 999
   }
   const sorted = () => lib().projects.toSorted((a, b) => recency(a) - recency(b))
-  const togglePin = (n: string) => setPins(pins().includes(n) ? pins().filter((x) => x !== n) : [...pins(), n])
 
   const card = (p: Project, big: boolean) => {
     const list = () => lib().inProject(p.name)
@@ -52,13 +52,15 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
           {big && todo?.type === 'todo' && todo.items.length > 0 && (
             <span class={styles.pm}>
               <span>やること</span>
-              <span class={styles.bar}>
-                <span style={{ width: `${(done / todo.items.length) * 100}%` }} />
-              </span>
+              <ProgressBar class={styles.bar} value={done / todo.items.length} />
             </span>
           )}
         </button>
-        <PinToggle class={styles.pin} pressed={pins().includes(p.name)} onClick={() => togglePin(p.name)} />
+        <PinToggle
+          class={styles.pin}
+          pressed={pins().includes(p.name)}
+          onClick={() => setPins(toggled(pins(), p.name))}
+        />
       </div>
     )
   }

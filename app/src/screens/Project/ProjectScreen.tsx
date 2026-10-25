@@ -3,7 +3,7 @@ import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
 import { ItemCard } from '../../components/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/JustifiedRow/JustifiedRow'
 import { PinToggle } from '../../components/PinToggle/PinToggle'
-import { type CardSize, type Item, type Library, thumbOf } from '../../model/library'
+import { type CardSize, type Item, type Library, thumbOf, toggled } from '../../model/library'
 import { AddPart } from '../Detail/AddPart'
 import { DetailScreen } from '../Detail/DetailScreen'
 import shared from '../screen.module.css'
@@ -32,7 +32,6 @@ export function ProjectScreen(props: ProjectScreenProps) {
   const [pins, setPins] = createSignal(p()?.pins ?? [])
   const list = () => lib().inProject(props.name)
   const pinned = () => pins().flatMap((id) => lib().byId.get(id) ?? [])
-  const togglePin = (id: string) => setPins(pins().includes(id) ? pins().filter((x) => x !== id) : [...pins(), id])
   const card = (it: Item, size: CardSize, from: () => Item[]) => (
     <div class={styles.pc} style={{ '--ar': it.ratio }}>
       <ItemCard
@@ -46,7 +45,12 @@ export function ProjectScreen(props: ProjectScreenProps) {
           )
         }
       />
-      <PinToggle class={styles.pin} look="float" pressed={pins().includes(it.id)} onClick={() => togglePin(it.id)} />
+      <PinToggle
+        class={styles.pin}
+        look="float"
+        pressed={pins().includes(it.id)}
+        onClick={() => setPins(toggled(pins(), it.id))}
+      />
     </div>
   )
   return (

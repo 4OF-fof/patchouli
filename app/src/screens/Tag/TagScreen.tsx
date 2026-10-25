@@ -1,7 +1,9 @@
 import { For, type JSX, Show, createMemo, createSignal } from 'solid-js'
+import { NoneText } from '../../components/NoneText/NoneText'
 import { Chip } from '../../components/Chip/Chip'
 import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/PinToggle/PinToggle'
+import { ProgressBar } from '../../components/ProgressBar/ProgressBar'
 import { type Library, type TagCoverPart, extOf, hasTag } from '../../model/library'
 import { AddPart } from '../Detail/AddPart'
 import { DetailPart } from '../Detail/DetailPart'
@@ -26,8 +28,6 @@ const count = (xs: string[]) => {
   for (const x of xs) m.set(x, (m.get(x) ?? 0) + 1)
   return [...m].toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ja'))
 }
-
-const none = (s: string) => <span class={styles.none}>{s}</span>
 
 export interface TagScreenProps {
   lib: Library
@@ -90,11 +90,11 @@ export function TagScreen(props: TagScreenProps) {
       return editing() ? (
         <textarea aria-label="説明" value={c.text} />
       ) : (
-        <span>{c.text || none('（説明はまだありません）')}</span>
+        <span>{c.text || <NoneText>（説明はまだありません）</NoneText>}</span>
       )
     if (c.type === 'kids')
       return (
-        <Show when={kids().length} fallback={none('（下の階層のタグはありません）')}>
+        <Show when={kids().length} fallback={<NoneText>（下の階層のタグはありません）</NoneText>}>
           <div class={styles.chips}>
             <Chip aria-pressed={!sub()} onClick={() => setSub('')}>
               すべて {all().length}
@@ -116,9 +116,7 @@ export function TagScreen(props: TagScreenProps) {
             {([ext, n]) => (
               <div class={styles.row}>
                 <span class={styles.ext}>.{ext}</span>
-                <span class={styles.track}>
-                  <span style={{ width: `${(n / most()) * 100}%` }} />
-                </span>
+                <ProgressBar value={n / most()} />
                 <span class={styles.n}>{n}</span>
               </div>
             )}
@@ -126,7 +124,7 @@ export function TagScreen(props: TagScreenProps) {
         </div>
       )
     return (
-      <Show when={together().length} fallback={none('（一緒に付くタグはありません）')}>
+      <Show when={together().length} fallback={<NoneText>（一緒に付くタグはありません）</NoneText>}>
         <div class={styles.chips}>
           <For each={together()}>
             {([t, n]) => (
@@ -171,7 +169,7 @@ export function TagScreen(props: TagScreenProps) {
           <FloatingPill aria-pressed={editing()} onClick={toggleEdit}>
             {editing() ? '編集を終える' : '表紙を編集'}
           </FloatingPill>
-          <FloatingPill class={styles.more} aria-label="その他">
+          <FloatingPill icon aria-label="その他">
             ⋯
           </FloatingPill>
         </>

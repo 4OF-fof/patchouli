@@ -4,8 +4,17 @@ import { JustifiedRow } from '../../components/JustifiedRow/JustifiedRow'
 import { Kbd } from '../../components/Kbd/Kbd'
 import { PinnedCard } from '../../components/PinnedCard/PinnedCard'
 import { SectionLabel } from '../../components/SectionLabel/SectionLabel'
-import { Thumb } from '../../components/Thumb/Thumb'
-import { type CardSize, type Item, type Library, coverOf, hasTag, scoreOf, thumbOf } from '../../model/library'
+import { ThumbStrip } from '../../components/ThumbStrip/ThumbStrip'
+import {
+  type CardSize,
+  type Item,
+  KIND_LABEL,
+  type Library,
+  coverOf,
+  hasTag,
+  scoreOf,
+  thumbOf,
+} from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './EditionScreen.module.css'
 
@@ -15,7 +24,6 @@ const TIERS: { name: string; until: number; size: CardSize; h: number; gap: numb
   { name: '今月', until: 30, size: 'S', h: 76, gap: 5 },
   { name: '静かなもの', until: Infinity, size: 'X', h: 56, gap: 4 },
 ]
-const KIND_LABEL = { image: '画像', audio: '音声', video: '動画' }
 
 /** ピン留めの 1 枚。素材のときは thumb にその素材が入る。 */
 type Pin = { key: string; name: string; meta: string; tiles: Item[]; thumb?: Item; open: () => void }
@@ -167,15 +175,12 @@ export function EditionScreen(props: EditionScreenProps) {
                     分類結果を確認 ›
                   </button>
                 </div>
-                <div class={styles.strip}>
-                  <For each={recent()}>
-                    {(it) => (
-                      <button type="button" title={it.name} aria-label={it.name} onClick={() => props.onTidy?.(it.id)}>
-                        <Thumb {...thumbOf(it, 'X')} />
-                      </button>
-                    )}
-                  </For>
-                </div>
+                <ThumbStrip
+                  class={styles.strip}
+                  items={recent()}
+                  overflow="clip"
+                  onOpen={(it) => props.onTidy?.(it.id)}
+                />
               </section>
             </Show>
             <Show when={pins().length}>

@@ -4,11 +4,10 @@ import { FloatingCard } from '../../components/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/FloatingPill/FloatingPill'
 import { LinkNone, LinkRow } from '../../components/LinkRow/LinkRow'
 import { Thumb } from '../../components/Thumb/Thumb'
-import { type Library, extOf, relDay, thumbOf } from '../../model/library'
+import { TopBar } from '../../components/TopBar/TopBar'
+import { KIND_LABEL, type Library, extOf, relDay, thumbOf } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './AssetScreen.module.css'
-
-const KIND_LABEL = { image: '画像', audio: '音声', video: '動画', note: 'ノート' }
 
 export interface AssetScreenProps {
   lib: Library
@@ -40,18 +39,13 @@ export function AssetScreen(props: AssetScreenProps) {
             <div class={styles.stage}>
               <Thumb {...thumbOf(a(), 'L')} class={styles.view} />
             </div>
-            <div class={styles.bar}>
-              <FloatingPill onClick={() => props.onBack?.()}>‹ {props.backLabel ?? 'ホーム'}</FloatingPill>
+            <TopBar class={styles.bar} backLabel={props.backLabel} onBack={props.onBack}>
               <b>{a().name}</b>
               <span class={styles.meta}>
                 {a().folder ?? 'プロジェクトなし'}
                 {props.list.length > 1 && ` · ${i() + 1} / ${props.list.length}`}
               </span>
-              <span class={styles.sp} />
-              <FloatingPill class={styles.more} aria-label="その他">
-                ⋯
-              </FloatingPill>
-            </div>
+            </TopBar>
             <Show when={props.list.length > 1}>
               <button type="button" class={`${styles.arw} ${styles.l}`} aria-label="前へ" onClick={() => step(-1)}>
                 ‹

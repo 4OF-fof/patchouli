@@ -68,15 +68,6 @@
 }
 .bar {
   flex: 1;
-  height: 4px;
-  overflow: hidden;
-  border-radius: 2px;
-  background: var(--line);
-}
-.bar span {
-  display: block;
-  height: 4px;
-  background: var(--sage);
 }
 .pin {
   position: absolute;

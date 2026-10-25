@@ -1,5 +1,7 @@
 import { For, type JSX, Show } from 'solid-js'
+import { NoneText } from '../../components/NoneText/NoneText'
 import { Button } from '../../components/Button/Button'
+import { ProgressBar } from '../../components/ProgressBar/ProgressBar'
 import { type CoverPart, type Library, dueLabel } from '../../model/library'
 import { DetailPart } from '../Detail/DetailPart'
 import styles from './CoverPart.module.css'
@@ -10,8 +12,6 @@ export const PARTS: Record<CoverPart['type'], { label: string; note: string }> =
   todo: { label: 'やること', note: 'チェックと期日' },
   links: { label: 'リンク', note: '外のページ' },
 }
-
-const none = (s: string) => <span class={styles.none}>{s}</span>
 
 export interface CoverPartViewProps {
   lib: Library
@@ -29,12 +29,12 @@ export function CoverPartView(props: CoverPartViewProps) {
       return ed ? (
         <textarea aria-label="説明" value={c.text} />
       ) : (
-        <span>{c.text || none('（説明はまだありません）')}</span>
+        <span>{c.text || <NoneText>（説明はまだありません）</NoneText>}</span>
       )
     if (c.type === 'links')
       return (
         <>
-          <Show when={c.items.length} fallback={none('（リンクはまだありません）')}>
+          <Show when={c.items.length} fallback={<NoneText>（リンクはまだありません）</NoneText>}>
             <For each={c.items}>
               {(x) => (
                 <span class={styles.link}>
@@ -60,9 +60,7 @@ export function CoverPartView(props: CoverPartViewProps) {
     const done = c.items.filter((x) => x.done).length
     return (
       <>
-        <div class={styles.bar}>
-          <span style={{ width: `${c.items.length ? (done / c.items.length) * 100 : 0}%` }} />
-        </div>
+        <ProgressBar value={done / c.items.length} />
         <For each={c.items}>
           {(x) => {
             const due = x.due ? dueLabel(lib(), x.due) : null

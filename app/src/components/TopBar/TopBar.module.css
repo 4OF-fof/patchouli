@@ -1,0 +1,15 @@
+.root {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: var(--top-bar-z, 4);
+  height: 66px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+}
+.sp {
+  flex: 1;
+}

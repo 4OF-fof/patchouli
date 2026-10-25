@@ -29,12 +29,12 @@ button.tw {
 button.tw:hover {
   background: var(--side);
 }
-.tw svg {
+.twi {
   width: 14px;
   height: 14px;
   transition: transform 0.15s ease;
 }
-.tw[aria-expanded='true'] svg {
+.tw[aria-expanded='true'] .twi {
   transform: rotate(90deg);
 }
 .tn {
@@ -76,39 +76,4 @@ button.tw:hover {
 .strip {
   flex: 1;
   min-width: 0;
-  display: grid;
-  /* 4:3 の枠を入るだけ並べ、入りきらない分は 2 行目に回して隠す */
-  grid-template-columns: repeat(auto-fill, calc(var(--thumb-h) * 4 / 3));
-  grid-template-rows: var(--thumb-h);
-  grid-auto-rows: 0;
-  gap: 0 6px;
-  height: var(--thumb-h);
-  overflow: hidden;
-}
-/* PinToggle と同じ大きさの丸に合わせる */
-.all {
-  width: 28px;
-  height: 28px;
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 0;
-  border-radius: 14px;
-  background: none;
-  color: var(--faint);
-  cursor: pointer;
-}
-.all svg {
-  width: 14px;
-  height: 14px;
-}
-.all:hover {
-  color: var(--ink-2);
-}
-.row .strip > [data-kind='note'] {
-  padding: 6px 8px;
-  font-size: 11px;
-  color: var(--ink-2);
 }

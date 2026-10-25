@@ -1,9 +1,3 @@
-/* FloatingPill の余白より強くする */
-button.more {
-  width: 34px;
-  justify-content: center;
-  padding: 0;
-}
 .title {
   display: flex;
   align-items: center;
@@ -13,9 +7,6 @@ button.more {
 .title input {
   width: 440px;
   max-width: 100%;
-}
-.none {
-  color: var(--faint);
 }
 .chips {
   display: flex;
@@ -36,17 +27,6 @@ button.more {
 }
 .ext {
   font: 12px var(--f-mono);
-}
-.track {
-  height: 4px;
-  overflow: hidden;
-  border-radius: 2px;
-  background: var(--line);
-}
-.track span {
-  display: block;
-  height: 4px;
-  background: var(--sage);
 }
 .n {
   font: 12px var(--f-mono);

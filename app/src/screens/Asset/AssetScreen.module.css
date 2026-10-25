@@ -18,34 +18,15 @@
   aspect-ratio: 4 / 3;
   border-radius: 2px;
 }
+/* 暗い舞台の上なので、浮いたボタンの地と文字を舞台の色にする */
 .bar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  z-index: 4;
-  height: 66px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 16px;
-}
-.bar > button {
-  background: var(--stage-bar);
-  color: var(--stage-ink);
-}
-.bar .more {
-  width: 34px;
-  justify-content: center;
-  padding: 0;
+  --float: var(--stage-bar);
+  --muted: var(--stage-ink);
 }
 .meta {
   font-size: 12px;
   opacity: 0.72;
   white-space: nowrap;
-}
-.sp {
-  flex: 1;
 }
 .arw {
   position: absolute;

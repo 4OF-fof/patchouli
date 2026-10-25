@@ -1,8 +1,10 @@
 import { For, Show, createMemo, createSignal } from 'solid-js'
+import { Icon } from '../../components/Icon/Icon'
+import { IconButton } from '../../components/IconButton/IconButton'
 import { PinToggle } from '../../components/PinToggle/PinToggle'
 import { Tabs } from '../../components/Tabs/Tabs'
-import { Thumb } from '../../components/Thumb/Thumb'
-import { type Item, type Library, thumbOf } from '../../model/library'
+import { ThumbStrip } from '../../components/ThumbStrip/ThumbStrip'
+import { type Item, type Library, toggled } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './TagListScreen.module.css'
 
@@ -12,8 +14,6 @@ interface Row {
   items: Item[]
   kids: Row[]
 }
-
-const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
 
 export interface TagListScreenProps {
   lib: Library
@@ -61,18 +61,9 @@ export function TagListScreen(props: TagListScreenProps) {
               class={styles.tw}
               aria-expanded={isOpen()}
               aria-label={isOpen() ? '下の階層を閉じる' : '下の階層を開く'}
-              onClick={() => setOpen(toggle(open(), r.tag))}
+              onClick={() => setOpen(toggled(open(), r.tag))}
             >
-              <svg viewBox="0 0 16 16" aria-hidden="true">
-                <path
-                  d="M6 3.5 10.5 8 6 12.5"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="1.8"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
+              <Icon name="chevron" class={styles.twi} />
             </button>
           </Show>
           <button type="button" class={styles.tn} onClick={() => props.onOpenTag?.(r.tag)}>
@@ -90,30 +81,15 @@ export function TagListScreen(props: TagListScreenProps) {
               {r.items.length} 件 · {projects} プロジェクト
             </span>
           </button>
-          <div class={styles.strip}>
-            <For each={r.items.toSorted((a, b) => a.moved - b.moved).slice(0, 8)}>
-              {(i) => <Thumb {...thumbOf(i, 'X')} />}
-            </For>
-          </div>
-          <PinToggle where="ホームに" pressed={pins().includes(r.tag)} onClick={() => setPins(toggle(pins(), r.tag))} />
-          <button
-            type="button"
-            class={styles.all}
-            aria-label={`# ${r.tag} をすべて見る`}
-            title="すべて見る"
-            onClick={() => props.onOpenTag?.(r.tag)}
-          >
-            <svg viewBox="0 0 16 16" aria-hidden="true">
-              <path
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.6"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M6 3.5 10.5 8 6 12.5"
-              />
-            </svg>
-          </button>
+          <ThumbStrip class={styles.strip} items={r.items.toSorted((a, b) => a.moved - b.moved).slice(0, 8)} />
+          <PinToggle
+            where="ホームに"
+            pressed={pins().includes(r.tag)}
+            onClick={() => setPins(toggled(pins(), r.tag))}
+          />
+          <IconButton label={`# ${r.tag} をすべて見る`} onClick={() => props.onOpenTag?.(r.tag)}>
+            <Icon name="chevron" />
+          </IconButton>
         </div>
         <Show when={!sub && isOpen()}>
           <For each={r.kids}>{(k) => row(k, true)}</For>
