@@ -6,19 +6,27 @@ import styles from './NoticesDialog.module.css'
 export interface NoticeEntry {
   name: string
   version: string
-  license: string
-  /** 文面が見つからないときに見に行く先。 */
+  /** 標準の文面に付く著作権の行。 */
+  copyright: string[]
+  /** 標準の文面と形が違うか、文面が見つからないときの、見に行く先。 */
   url?: string
-  /** Notices.texts の中の位置。 */
-  texts: number[]
+}
+
+/** ライセンスが同じものの集まり。 */
+export interface NoticeGroup {
+  /** 「MIT」や「Apache-2.0 AND MIT」。 */
+  license: string
+  /** 名前順。 */
+  entries: NoticeEntry[]
 }
 
 /** scripts/licenses.ts が作る権利表示。 */
 export interface Notices {
   self: { name: string; license: string; text: string }
-  /** 名前順。 */
-  entries: NoticeEntry[]
-  texts: string[]
+  /** ライセンスごとの標準の文面。 */
+  texts: Record<string, string>
+  /** 件数の多い順。 */
+  groups: NoticeGroup[]
 }
 
 export interface NoticesDialogProps {
@@ -27,10 +35,46 @@ export interface NoticesDialogProps {
   onClose?: () => void
 }
 
+function Group(props: { group: NoticeGroup; texts: Record<string, string> }) {
+  const ids = () => props.group.license.split(' AND ').filter((id) => props.texts[id])
+  return (
+    <>
+      <For each={ids()}>
+        {(id) => (
+          <div class={styles.text}>
+            <Show when={ids().length > 1}>
+              <h4>{id}</h4>
+            </Show>
+            <pre>{props.texts[id]}</pre>
+          </div>
+        )}
+      </For>
+      <ul>
+        <For each={props.group.entries}>
+          {(e) => (
+            <li>
+              <b>{e.name}</b>
+              <span>{e.version}</span>
+              <div>
+                <Show when={e.copyright.length}>
+                  <small>{e.copyright.join('\n')}</small>
+                </Show>
+                <Show when={e.url}>
+                  <small class={styles.url}>{e.url}</small>
+                </Show>
+              </div>
+            </li>
+          )}
+        </For>
+      </ul>
+    </>
+  )
+}
+
 /** 権利表示。アプリと、同梱しているもののライセンスを並べる。置き場所の要素に position: relative を付けておく。 */
 export function NoticesDialog(props: NoticesDialogProps) {
   let el!: HTMLDivElement
-  // 文面は長いので、開いた行だけ描く
+  // 一覧は長いので、開いたグループだけ描く
   const [open, setOpen] = createSignal<string[]>([])
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') props.onClose?.()
@@ -62,38 +106,29 @@ export function NoticesDialog(props: NoticesDialogProps) {
               </section>
               <section>
                 <h3>
-                  使っているもの <small>{n().entries.length} 件</small>
+                  3rd Party <small>{n().groups.reduce((c, g) => c + g.entries.length, 0)} 件</small>
                 </h3>
-                <ul>
-                  <For each={n().entries}>
-                    {(e) => {
-                      const key = `${e.name}@${e.version}`
-                      return (
-                        <li>
-                          <details
-                            onToggle={(ev) =>
-                              setOpen(ev.currentTarget.open ? [...open(), key] : open().filter((k) => k !== key))
-                            }
-                          >
-                            <summary>
-                              <b>{e.name}</b>
-                              <span>{e.version}</span>
-                              <small>{e.license}</small>
-                            </summary>
-                            <Show when={open().includes(key)}>
-                              <Show
-                                when={e.texts.length}
-                                fallback={<p class={styles.none}>文面が同梱されていません。{e.url}</p>}
-                              >
-                                <For each={e.texts}>{(i) => <pre>{n().texts[i]}</pre>}</For>
-                              </Show>
-                            </Show>
-                          </details>
-                        </li>
-                      )
-                    }}
+                <div class={styles.groups}>
+                  <For each={n().groups}>
+                    {(g) => (
+                      <details
+                        onToggle={(ev) =>
+                          setOpen(
+                            ev.currentTarget.open ? [...open(), g.license] : open().filter((k) => k !== g.license),
+                          )
+                        }
+                      >
+                        <summary>
+                          <b>{g.license}</b>
+                          <small>{g.entries.length} 件</small>
+                        </summary>
+                        <Show when={open().includes(g.license)}>
+                          <Group group={g} texts={n().texts} />
+                        </Show>
+                      </details>
+                    )}
                   </For>
-                </ul>
+                </div>
               </section>
             </>
           )}

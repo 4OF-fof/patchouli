@@ -1,18 +1,31 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { type Notices, NoticesDialog } from './NoticesDialog'
 
-const MIT = (who: string) =>
-  `MIT License\n\nCopyright (c) ${who}\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of this software…`
+const MIT =
+  'Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction…'
 
 const notices: Notices = {
-  self: { name: 'Patchouli', license: 'MIT', text: MIT('2026 4OF') },
-  entries: [
-    { name: 'selectors', version: '0.38.0', license: 'MPL-2.0', url: 'https://github.com/servo/stylo', texts: [] },
-    { name: 'serde', version: '1.0.228', license: 'MIT', texts: [1] },
-    { name: 'solid-js', version: '1.9.10', license: 'MIT', texts: [0] },
-    { name: 'tauri', version: '2.9.5', license: 'MIT', texts: [2] },
+  self: { name: 'Patchouli', license: 'MIT', text: `MIT License\n\nCopyright (c) 2026 4OF\n\n${MIT}` },
+  texts: { MIT },
+  groups: [
+    {
+      license: 'MIT',
+      entries: [
+        { name: 'chrono', version: '0.4.45', copyright: [], url: 'https://github.com/chronotope/chrono' },
+        { name: 'serde', version: '1.0.228', copyright: [] },
+        { name: 'solid-js', version: '1.9.10', copyright: ['Copyright (c) 2016-2025 Ryan Carniato'] },
+        {
+          name: 'tauri',
+          version: '2.9.5',
+          copyright: ['Copyright (c) 2017 - Present Tauri Apps Contributors'],
+        },
+      ],
+    },
+    {
+      license: 'MPL-2.0',
+      entries: [{ name: 'selectors', version: '0.38.0', copyright: [], url: 'https://github.com/servo/stylo' }],
+    },
   ],
-  texts: [MIT('2016-2025 Ryan Carniato'), MIT('2014 The Rust Project Developers'), MIT('2017 - Present Tauri Apps')],
 }
 
 const meta = {
