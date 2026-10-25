@@ -1,5 +1,7 @@
-import { Match, Switch, createSignal, onCleanup, onMount } from 'solid-js'
-import { type Backend, type LibraryState, sampleBackend } from './backend'
+import { Match, Show, Switch, createSignal, onCleanup, onMount } from 'solid-js'
+import { type Backend, type Dropped, type Imported, type LibraryState, sampleBackend } from './backend'
+import { DropZone } from './components/overlay/DropZone/DropZone'
+import { ImportDialog } from './components/overlay/ImportDialog/ImportDialog'
 import { Toast } from './components/overlay/Toast/Toast'
 import {
   type Library,
@@ -8,6 +10,7 @@ import {
   retag,
   retaggedItems,
   toggled,
+  withAdded,
   withItem,
   withProject,
   withRenamedTag,
@@ -57,6 +60,16 @@ export interface AppProps {
   location?: string
   /** 開いたときに出す知らせ。 */
   notice?: string
+}
+
+/** 取り込んだあとに出す知らせ。 */
+const importedNotice = (r: Imported) => {
+  const n = r.items.length
+  const parts = [n ? `${n} 個を取り込みました` : '取り込めるものがありませんでした']
+  if (r.projects.length) parts.push(`プロジェクト ${r.projects.length} 個`)
+  if (r.skipped) parts.push(`${r.skipped} 個は取り込めない形式かライブラリの中のファイル`)
+  if (r.failed.length) parts.push(`${r.failed.length} 個はコピーできませんでした`)
+  return parts.join('、')
 }
 
 /** 画面をつないで行き来できるようにしたもの。変更は backend に書き込む。 */
@@ -196,6 +209,42 @@ export function App(props: AppProps) {
     clearTimeout(flush)
   })
 
+  // ファイルを持ってきたら受け口を出す。フォルダを含むものは、落としたあとにフォルダごとの入れ方を選ぶ
+  const [drag, setDrag] = createSignal<Dropped>()
+  const [asking, setAsking] = createSignal<Dropped>()
+  /** 落とした先のプロジェクト。プロジェクトの画面ならそこ、ほかはどこにも入れない。 */
+  const dropFolder = () => {
+    const v = view()
+    return v.s === 'project' ? v.name : null
+  }
+  const importDropped = async (projects: number[]) => {
+    if (!backend.importDropped) return
+    try {
+      const r = await backend.importDropped(dropFolder(), projects)
+      if (r.failed.length) console.warn('取り込めなかったもの', r.failed)
+      setLib(withAdded(lib(), r.items, r.projects))
+      setNotice(importedNotice(r))
+    } catch (e) {
+      setNotice(`取り込めませんでした: ${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+  const stopDrag =
+    backend.onFileDrag?.((e) => {
+      if (e.type === 'enter') setDrag(e.dropped)
+      else if (e.type === 'drop') {
+        const d = drag()
+        setDrag(undefined)
+        if (!d?.files) return
+        if (d.folders.length) setAsking(d)
+        else void importDropped([])
+      } else if (e.type === 'leave') setDrag(undefined)
+    }) ?? (() => {})
+  onCleanup(stopDrag)
+  const flatSub = () => {
+    const f = dropFolder()
+    return f ? `離すと「${f}」に入ります` : '離すと、どのプロジェクトにも入れずに取り込みます'
+  }
+
   return (
     <ScreenFrame toast={notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}>
       <Switch>
@@ -296,6 +345,35 @@ export function App(props: AppProps) {
           }
         </Match>
       </Switch>
+      <Show when={drag()}>
+        {(d) => (
+          <DropZone
+            title={d().files ? `${d().files} 個を取り込む` : '取り込めるファイルがありません'}
+            sub={
+              !d().files
+                ? '画像・動画・音声・Markdown を取り込めます'
+                : d().folders.length
+                  ? '離すと、フォルダごとの入れ方を選べます'
+                  : flatSub()
+            }
+          />
+        )}
+      </Show>
+      <Show when={asking()}>
+        {(d) => (
+          <ImportDialog
+            files={d().files}
+            folders={d().folders}
+            loose={d().loose}
+            into={dropFolder() ?? undefined}
+            onImport={(projects) => {
+              setAsking(undefined)
+              void importDropped(projects)
+            }}
+            onClose={() => setAsking(undefined)}
+          />
+        )}
+      </Show>
       <AppDock
         hidden={!hasDock()}
         lib={lib()}

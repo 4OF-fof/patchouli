@@ -1,4 +1,5 @@
 import { For, Show, createMemo, createSignal } from 'solid-js'
+import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Icon } from '../../components/base/Icon/Icon'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
@@ -105,7 +106,7 @@ export function TagListScreen(props: TagListScreenProps) {
 
   return (
     <section class={shared.screen} aria-label="タグ一覧">
-      <div class={shared.scroll}>
+      <ScrollArea class={shared.scroll}>
         <div class={`${shared.page} ${shared.top}`}>
           <header class={shared.mast}>
             <h1>タグ</h1>
@@ -128,7 +129,7 @@ export function TagListScreen(props: TagListScreenProps) {
             <For each={rows()}>{(r) => row(r, false)}</For>
           </div>
         </div>
-      </div>
+      </ScrollArea>
     </section>
   )
 }

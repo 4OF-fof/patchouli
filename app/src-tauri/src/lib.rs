@@ -1,9 +1,10 @@
+pub mod import;
 pub mod library;
 pub mod note;
 mod settings;
 pub mod thumb;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use library::{ItemPatch, Kind, Library, LibraryState, Opened, StoredItem, StoredProject};
@@ -11,9 +12,14 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-/// 開いているライブラリ。開く前は None。
+/// 開いているライブラリと、そのサムネイルの置き場所。開く前は None。
 #[derive(Default)]
-struct Current(Mutex<Option<Library>>);
+struct Current(Mutex<Option<Session>>);
+
+struct Session {
+    lib: Library,
+    thumbs: PathBuf,
+}
 
 /// 開くライブラリの場所。設定で選んだ場所か、まだ選んでいなければ、開発中は動作確認用のライブラリを開く。
 fn library_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -30,9 +36,55 @@ fn with<T>(
     cur: &State<Current>,
     f: impl FnOnce(&mut Library) -> Result<T, String>,
 ) -> Result<T, String> {
+    with_session(cur, |s| f(&mut s.lib))
+}
+
+fn with_session<T>(
+    cur: &State<Current>,
+    f: impl FnOnce(&mut Session) -> Result<T, String>,
+) -> Result<T, String> {
     let mut g = cur.0.lock().map_err(|e| e.to_string())?;
-    let lib = g.as_mut().ok_or("ライブラリを開いていない")?;
-    f(lib)
+    let s = g.as_mut().ok_or("ライブラリを開いていない")?;
+    f(s)
+}
+
+/// 画像のサムネイルのうち、できているものは thumb に入れ、まだのものは作る仕事にする。
+/// 返すのは、作る仕事、いまの画像すべてのサムネイルの場所、すべての画像の場所を決められたか。
+fn plan_thumbs(thumbs: &Path, items: &mut [StoredItem]) -> (Vec<thumb::Job>, Vec<PathBuf>, bool) {
+    let mut jobs = Vec::new();
+    let mut current = Vec::new();
+    let mut all = true;
+    for it in items.iter_mut().filter(|i| i.kind == Kind::Image) {
+        let Some(out) = thumb::path_for(thumbs, &it.file) else {
+            all = false;
+            continue;
+        };
+        current.push(out.clone());
+        if out.exists() {
+            it.thumb = Some(out);
+        } else {
+            jobs.push(thumb::Job {
+                id: it.id.clone(),
+                src: it.file.clone(),
+                out,
+                mtime: it.mtime,
+            });
+        }
+    }
+    (jobs, current, all)
+}
+
+/// 裏でサムネイルを作り、できたものから画面へ知らせる。
+fn make_thumbs(app: &tauri::AppHandle, jobs: Vec<thumb::Job>) {
+    thumb::make_all(jobs, |j| {
+        let _ = app.emit(
+            "thumbnail",
+            ThumbReady {
+                id: &j.id,
+                file: &j.out,
+            },
+        );
+    })
 }
 
 #[tauri::command]
@@ -48,49 +100,54 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
             .map_err(|e| e.to_string())?;
     }
     // サムネイルは取り込んだときに作る。アプリの外で足された画像は、開いたときに見つけた時点で取り込んだものとみなす
-    let mut jobs = Vec::new();
-    let mut current = Vec::new();
-    let mut all_found = opened.problems.is_empty();
-    for it in opened.items.iter_mut().filter(|i| i.kind == Kind::Image) {
-        let Some(out) = thumb::path_for(&thumbs, &it.file) else {
-            all_found = false;
-            continue;
-        };
-        current.push(out.clone());
-        if out.exists() {
-            it.thumb = Some(out);
-        } else {
-            jobs.push(thumb::Job {
-                id: it.id.clone(),
-                src: it.file.clone(),
-                out,
-                mtime: it.mtime,
-            });
-        }
-    }
+    let (jobs, current, all) = plan_thumbs(&thumbs, &mut opened.items);
+    let all_found = all && opened.problems.is_empty();
+    let dir = thumbs.clone();
     std::thread::spawn(move || {
-        thumb::prune(&thumbs, &current, all_found);
-        if !jobs.is_empty() {
-            thumb::make_all(jobs, |j| {
-                let _ = app.emit(
-                    "thumbnail",
-                    ThumbReady {
-                        id: &j.id,
-                        file: &j.out,
-                    },
-                );
-            })
-        }
+        thumb::prune(&dir, &current, all_found);
+        make_thumbs(&app, jobs);
     });
-    *cur.0.lock().map_err(|e| e.to_string())? = Some(lib);
+    *cur.0.lock().map_err(|e| e.to_string())? = Some(Session { lib, thumbs });
     Ok(opened)
+}
+
+/// 落とそうとしているものの中身を数える。
+#[tauri::command]
+async fn inspect_drop(
+    cur: State<'_, Current>,
+    paths: Vec<PathBuf>,
+) -> Result<import::DropInfo, String> {
+    let g = cur.0.lock().map_err(|e| e.to_string())?;
+    Ok(import::inspect(&paths, g.as_ref().map(|s| s.lib.root())))
+}
+
+/// paths を取り込み、取り込んだ画像のサムネイルを裏で作る。projects は、プロジェクトにするフォルダの paths の中での位置。
+#[tauri::command]
+async fn import_files(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    paths: Vec<PathBuf>,
+    folder: Option<String>,
+    projects: Vec<usize>,
+) -> Result<import::Imported, String> {
+    let (mut out, thumbs) = with_session(&cur, |s| {
+        Ok((
+            s.lib.import(&paths, folder.as_deref(), &projects)?,
+            s.thumbs.clone(),
+        ))
+    })?;
+    let (jobs, _, _) = plan_thumbs(&thumbs, &mut out.items);
+    if !jobs.is_empty() {
+        std::thread::spawn(move || make_thumbs(&app, jobs));
+    }
+    Ok(out)
 }
 
 /// サムネイルができたときに画面へ送る知らせ。
 #[derive(Clone, Serialize)]
 struct ThumbReady<'a> {
     id: &'a str,
-    file: &'a std::path::Path,
+    file: &'a Path,
 }
 
 /// フォルダを選ぶ窓を出し、選んだフォルダを次から開くライブラリにする。選ばなければ false。
@@ -153,6 +210,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_library,
             choose_library,
+            inspect_drop,
+            import_files,
             save_item,
             save_state,
             create_note,

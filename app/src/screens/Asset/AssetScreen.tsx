@@ -1,4 +1,5 @@
 import { For, Show, createSignal } from 'solid-js'
+import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
@@ -63,55 +64,57 @@ export function AssetScreen(props: AssetScreenProps) {
               }
             >
               <aside class={styles.info} aria-label="情報">
-                <FloatingCard title="ⓘ 情報" onClose={() => setInfo(false)}>
-                  <label class={styles.fl}>
-                    <span class={styles.k}>プロジェクト</span>
-                    <select>
-                      <option value="">プロジェクトなし</option>
-                      <For each={lib().projects}>
-                        {(p) => <option selected={p.name === a().folder}>{p.name}</option>}
-                      </For>
-                    </select>
-                  </label>
-                  <div class={styles.fl}>
-                    <span class={styles.k}>タグ</span>
-                    <div class={styles.tags}>
-                      <For each={a().tags}>{(t) => <Chip aria-label={`# ${t} を外す`}># {t} ✕</Chip>}</For>
-                      <input type="text" placeholder="＋ タグ" aria-label="タグを足す" />
+                <ScrollArea viewClass={styles.infoView}>
+                  <FloatingCard title="ⓘ 情報" onClose={() => setInfo(false)}>
+                    <label class={styles.fl}>
+                      <span class={styles.k}>プロジェクト</span>
+                      <select>
+                        <option value="">プロジェクトなし</option>
+                        <For each={lib().projects}>
+                          {(p) => <option selected={p.name === a().folder}>{p.name}</option>}
+                        </For>
+                      </select>
+                    </label>
+                    <div class={styles.fl}>
+                      <span class={styles.k}>タグ</span>
+                      <div class={styles.tags}>
+                        <For each={a().tags}>{(t) => <Chip aria-label={`# ${t} を外す`}># {t} ✕</Chip>}</For>
+                        <input type="text" placeholder="＋ タグ" aria-label="タグを足す" />
+                      </div>
                     </div>
-                  </div>
-                  <label class={styles.fl}>
-                    <span class={styles.k}>メモ</span>
-                    <textarea placeholder="メモ" value={a().memo} />
-                  </label>
-                  <div class={styles.fl}>
-                    <span class={styles.k}>この素材を使っているノート {lib().backOf(a()).length}</span>
-                    <Show when={lib().backOf(a()).length} fallback={<LinkNone>まだありません</LinkNone>}>
-                      <For each={lib().backOf(a())}>
-                        {(n) => <LinkRow mark="←" label={n.name} onClick={() => props.onOpenNote?.(n.id)} />}
-                      </For>
-                    </Show>
-                  </div>
-                  <details>
-                    <summary class={styles.sum}>ファイルの詳細</summary>
-                    <div class={styles.fi}>
-                      <span>種類</span>
-                      <span>
-                        {KIND_LABEL[a().kind]} · {extOf(a())}
-                      </span>
-                      <span>場所</span>
-                      <span>
-                        {a().folder ?? '（直下）'}/{a().name}.{extOf(a())}
-                      </span>
-                      <span>属性</span>
-                      <span>
-                        {a().name}.{extOf(a())}.meta
-                      </span>
-                      <span>動いた</span>
-                      <span>{relDay(lib(), a().moved)}</span>
+                    <label class={styles.fl}>
+                      <span class={styles.k}>メモ</span>
+                      <textarea placeholder="メモ" value={a().memo} />
+                    </label>
+                    <div class={styles.fl}>
+                      <span class={styles.k}>この素材を使っているノート {lib().backOf(a()).length}</span>
+                      <Show when={lib().backOf(a()).length} fallback={<LinkNone>まだありません</LinkNone>}>
+                        <For each={lib().backOf(a())}>
+                          {(n) => <LinkRow mark="←" label={n.name} onClick={() => props.onOpenNote?.(n.id)} />}
+                        </For>
+                      </Show>
                     </div>
-                  </details>
-                </FloatingCard>
+                    <details>
+                      <summary class={styles.sum}>ファイルの詳細</summary>
+                      <div class={styles.fi}>
+                        <span>種類</span>
+                        <span>
+                          {KIND_LABEL[a().kind]} · {extOf(a())}
+                        </span>
+                        <span>場所</span>
+                        <span>
+                          {a().folder ?? '（直下）'}/{a().name}.{extOf(a())}
+                        </span>
+                        <span>属性</span>
+                        <span>
+                          {a().name}.{extOf(a())}.meta
+                        </span>
+                        <span>動いた</span>
+                        <span>{relDay(lib(), a().moved)}</span>
+                      </div>
+                    </details>
+                  </FloatingCard>
+                </ScrollArea>
               </aside>
             </Show>
           </>

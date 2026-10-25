@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { createStore } from 'solid-js/store'
 import { FloatingLabel, FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { Thumb } from '../../components/media/Thumb/Thumb'
@@ -68,7 +69,7 @@ export function TidyScreen(props: TidyScreenProps) {
 
   const onKey = (e: KeyboardEvent) => {
     const it = current()
-    if (!it || (e.target instanceof HTMLElement && e.target.closest('input, select, textarea'))) return
+    if (!it || (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, [role="dialog"]'))) return
     if (e.key === 'Enter') {
       e.preventDefault()
       approve(it)
@@ -79,8 +80,10 @@ export function TidyScreen(props: TidyScreenProps) {
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
   const strip = () => (
-    <div
-      class={styles.strip}
+    <ScrollArea
+      axis="x"
+      class={styles.stripBox}
+      viewClass={styles.strip}
       aria-label="確認の列"
       onWheel={(e) => {
         if (!e.deltaY || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
@@ -117,7 +120,7 @@ export function TidyScreen(props: TidyScreenProps) {
           </button>
         )}
       </For>
-    </div>
+    </ScrollArea>
   )
 
   return (

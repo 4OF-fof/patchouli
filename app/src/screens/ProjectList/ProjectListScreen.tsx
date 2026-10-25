@@ -1,4 +1,5 @@
 import { For, Show, createSignal } from 'solid-js'
+import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { Mosaic } from '../../components/media/Mosaic/Mosaic'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
@@ -74,7 +75,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
 
   return (
     <section class={shared.screen} aria-label="プロジェクト一覧">
-      <div class={shared.scroll}>
+      <ScrollArea class={shared.scroll}>
         <div class={`${shared.page} ${shared.top}`}>
           <header class={shared.mast}>
             <h1>プロジェクト</h1>
@@ -105,7 +106,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
             </div>
           </Show>
         </div>
-      </div>
+      </ScrollArea>
     </section>
   )
 }

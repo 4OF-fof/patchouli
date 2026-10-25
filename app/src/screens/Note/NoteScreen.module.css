@@ -1,7 +1,6 @@
 .scroll {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
 }
 .doc {
   max-width: 760px;
@@ -142,9 +141,10 @@
   width: min(300px, calc(50% - 380px));
   min-width: 220px;
   max-height: calc(100% - 90px);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
-.card > section {
+.cardView > section {
   width: 100%;
 }
 .connect {

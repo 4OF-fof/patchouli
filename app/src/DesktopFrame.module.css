@@ -1,0 +1,6 @@
+.root {
+  --frame-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}

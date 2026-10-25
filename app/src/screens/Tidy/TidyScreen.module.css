@@ -48,15 +48,15 @@
 .big > * {
   border-radius: 6px;
 }
+.stripBox {
+  flex: none;
+}
 .strip {
   --thumb-h: 52px;
-  flex: none;
   display: flex;
   align-items: flex-end;
   gap: 6px;
   padding: 4px;
-  overflow-x: auto;
-  scrollbar-width: thin;
 }
 .q {
   position: relative;

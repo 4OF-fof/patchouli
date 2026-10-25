@@ -1,7 +1,6 @@
 .root {
   position: relative;
-  height: 100vh;
-  min-height: 600px;
+  height: var(--frame-height, 100vh);
   overflow: hidden;
   background: var(--paper);
   color: var(--ink);

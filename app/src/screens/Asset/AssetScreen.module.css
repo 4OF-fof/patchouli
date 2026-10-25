@@ -72,11 +72,12 @@
   z-index: 5;
   width: 320px;
   max-height: calc(100% - 100px);
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   border-radius: var(--radius-lg);
   color: var(--ink);
 }
-.info > section {
+.infoView > section {
   width: 100%;
   gap: 14px;
 }

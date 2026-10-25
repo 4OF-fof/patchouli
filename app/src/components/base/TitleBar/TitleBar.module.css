@@ -1,0 +1,45 @@
+.root {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  flex: none;
+  padding-left: 10px;
+  background: var(--desk);
+  user-select: none;
+}
+.icon {
+  width: 16px;
+  height: 16px;
+}
+.buttons {
+  display: flex;
+  align-self: stretch;
+  margin-left: auto;
+}
+.buttons button {
+  width: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: default;
+}
+.buttons button:hover {
+  background: var(--card);
+}
+.buttons button:focus-visible {
+  outline-offset: -2px;
+}
+.buttons svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+.buttons .close:hover {
+  background: #c42b1c;
+  color: #fff;
+}

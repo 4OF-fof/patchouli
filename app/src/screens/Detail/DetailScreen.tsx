@@ -1,4 +1,5 @@
 import { For, type JSX, Show, children, createMemo, createSignal } from 'solid-js'
+import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
@@ -71,7 +72,7 @@ export function DetailScreen(props: DetailScreenProps) {
   )
   return (
     <section class={shared.screen} aria-label={props.label}>
-      <div class={shared.scroll}>
+      <ScrollArea class={shared.scroll}>
         <div class={shared.page}>
           <header class={shared.mast}>
             <FloatingPill class={shared.back} onClick={() => props.onBack?.()}>
@@ -121,7 +122,7 @@ export function DetailScreen(props: DetailScreenProps) {
             </div>
           </div>
         </div>
-      </div>
+      </ScrollArea>
     </section>
   )
 }

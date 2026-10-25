@@ -84,6 +84,9 @@
 *::after {
   box-sizing: border-box;
 }
+* {
+  scrollbar-width: thin;
+}
 body {
   margin: 0;
   background: var(--paper);

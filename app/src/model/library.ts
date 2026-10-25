@@ -260,8 +260,11 @@ export const emptyNote = (id: string, name: string, folder: string | null = null
 })
 
 /** 項目を足したライブラリ。 */
-export const withItem = (lib: Library, it: Item) =>
-  buildLibrary([...lib.items, it], lib.projects, lib.today, lib.tagCovers, lib.pins)
+export const withItem = (lib: Library, it: Item) => withAdded(lib, [it])
+
+/** 項目とプロジェクトを足したライブラリ。 */
+export const withAdded = (lib: Library, items: Item[], projects: Project[] = []) =>
+  buildLibrary([...lib.items, ...items], [...projects, ...lib.projects], lib.today, lib.tagCovers, lib.pins)
 
 /** タグの名前を変えたとき、タグが変わった項目。 */
 export const retaggedItems = (before: Library, after: Library) =>

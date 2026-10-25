@@ -1,4 +1,5 @@
 import { For, onCleanup, onMount } from 'solid-js'
+import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import styles from './HelpDialog.module.css'
 
 /** キーと、そのキーでできること。 */
@@ -33,7 +34,14 @@ export function HelpDialog(props: HelpDialogProps) {
   onCleanup(() => window.removeEventListener('keydown', onKey))
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
-      <div class={styles.root} role="dialog" aria-label="ショートカット" tabIndex={-1} ref={el}>
+      <ScrollArea
+        class={styles.root}
+        viewClass={styles.body}
+        role="dialog"
+        aria-label="ショートカット"
+        tabIndex={-1}
+        ref={el}
+      >
         <h2>ショートカット</h2>
         <dl>
           <For each={SHORTCUTS}>
@@ -45,7 +53,7 @@ export function HelpDialog(props: HelpDialogProps) {
             )}
           </For>
         </dl>
-      </div>
+      </ScrollArea>
     </div>
   )
 }

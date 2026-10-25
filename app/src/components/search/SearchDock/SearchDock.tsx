@@ -1,4 +1,5 @@
 import { type JSX, For, Show, createEffect, onCleanup } from 'solid-js'
+import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Kbd } from '../../base/Kbd/Kbd'
 import styles from './SearchDock.module.css'
 
@@ -79,9 +80,9 @@ export function SearchDock(props: SearchDockProps) {
       </Show>
       <div class={styles.root} ref={root} data-open={!!props.open} role="search">
         <Show when={props.open && props.results}>
-          <div class={styles.res} role="listbox">
+          <ScrollArea class={styles.res} viewClass={styles.resView} role="listbox">
             {props.results}
-          </div>
+          </ScrollArea>
         </Show>
         <div class={styles.in}>
           <Show

@@ -1,4 +1,5 @@
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { Kbd } from '../../components/base/Kbd/Kbd'
@@ -146,6 +147,11 @@ export function EditionScreen(props: EditionScreenProps) {
         timer = window.setTimeout(() => {
           timer = 0
           setShown(shown() + MORE)
+          // 足したあとも見えたままだと次の知らせが来ないので、見張り直して確かめる
+          if (more) {
+            io.unobserve(more)
+            io.observe(more)
+          }
         }, 380)
       },
       { root: scroll, rootMargin: '0px 0px 240px 0px' },
@@ -159,7 +165,7 @@ export function EditionScreen(props: EditionScreenProps) {
 
   return (
     <section class={shared.screen} aria-label="ホーム">
-      <div class={shared.scroll} ref={scroll}>
+      <ScrollArea class={shared.scroll} ref={scroll}>
         <Show
           when={lib().items.length}
           fallback={
@@ -237,14 +243,7 @@ export function EditionScreen(props: EditionScreenProps) {
               )}
             </For>
             <div class={styles.more} ref={more}>
-              <Show
-                when={shown() < feed().length}
-                fallback={
-                  <>
-                    ここで全件です（<span class={styles.mono}>{feed().length}</span> 件）
-                  </>
-                }
-              >
+              <Show when={shown() < feed().length}>
                 <span class={styles.spin} aria-hidden="true" />
                 続きを読み込み中（<span class={styles.mono}>{feed().length}</span> 件中{' '}
                 <span class={styles.mono}>{Math.min(shown(), feed().length)}</span> 件を表示）
@@ -252,7 +251,7 @@ export function EditionScreen(props: EditionScreenProps) {
             </div>
           </div>
         </Show>
-      </div>
+      </ScrollArea>
     </section>
   )
 }

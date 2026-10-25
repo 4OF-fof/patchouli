@@ -1,0 +1,73 @@
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.view {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.view::-webkit-scrollbar {
+  display: none;
+}
+.root[data-axis='x'] > .view {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.track {
+  position: absolute;
+  z-index: 6;
+  top: 3px;
+  right: 2px;
+  bottom: 3px;
+  width: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+.root[data-axis='x'] > .track {
+  top: auto;
+  left: 3px;
+  width: auto;
+  height: 10px;
+}
+.track[data-shown='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+.thumb {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  width: 4px;
+  border-radius: 3px;
+  background: var(--faint);
+  transition:
+    width 0.15s,
+    background 0.15s;
+}
+.root[data-axis='x'] .thumb {
+  left: 0;
+  right: auto;
+  top: auto;
+  bottom: 2px;
+  width: auto;
+  height: 4px;
+  transition:
+    height 0.15s,
+    background 0.15s;
+}
+.track[data-active='true'] .thumb {
+  width: 7px;
+  background: var(--muted);
+}
+.root[data-axis='x'] .track[data-active='true'] .thumb {
+  width: auto;
+  height: 7px;
+}

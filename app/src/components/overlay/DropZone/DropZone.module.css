@@ -4,6 +4,7 @@
   z-index: 8;
   display: flex;
   padding: 10px;
+  background: color-mix(in srgb, color-mix(in srgb, var(--sage) 12%, var(--paper)) 95%, transparent);
 }
 .box {
   flex: 1;
@@ -15,7 +16,6 @@
   padding: 16px;
   border: 2px dashed var(--sage);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--sage-soft) 92%, transparent);
   color: var(--sage-ink);
   text-align: center;
 }

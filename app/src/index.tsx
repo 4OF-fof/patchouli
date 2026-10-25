@@ -1,6 +1,8 @@
 /* @refresh reload */
+import { isTauri } from '@tauri-apps/api/core'
 import { render } from 'solid-js/web'
 import { App } from './App'
+import { DesktopFrame } from './DesktopFrame'
 import { type Opened, pickBackend } from './backend'
 import { buildLibrary } from './model/library'
 import './index.css'
@@ -22,4 +24,9 @@ void backend
       notice: `ライブラリを開けませんでした: ${e instanceof Error ? e.message : String(e)}`,
     }),
   )
-  .then((o) => render(() => <App {...o} backend={backend} />, root))
+  .then((o) =>
+    render(() => {
+      const app = <App {...o} backend={backend} />
+      return isTauri() ? <DesktopFrame>{app}</DesktopFrame> : app
+    }, root),
+  )

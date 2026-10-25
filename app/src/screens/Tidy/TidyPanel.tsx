@@ -1,4 +1,5 @@
 import { For, Show } from 'solid-js'
+import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Kbd } from '../../components/base/Kbd/Kbd'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { type Item, type Library, type TagCandidate, monthDay, thumbOf } from '../../model/library'
@@ -38,7 +39,7 @@ export function TidyPanel(props: TidyPanelProps) {
       .slice(0, 6)
   const reason = () => (onTags().length ? onTags().map((t) => t.tag) : [firstTag()])
   return (
-    <div class={styles.root} aria-label="候補と理由">
+    <ScrollArea class={styles.root} viewClass={styles.body} aria-label="候補と理由">
       <div class={styles.nmh}>
         <b>{props.it.name}</b>
         <small>
@@ -109,6 +110,6 @@ export function TidyPanel(props: TidyPanelProps) {
           ✓ 承認する <Kbd>Enter</Kbd>
         </button>
       </div>
-    </div>
+    </ScrollArea>
   )
 }

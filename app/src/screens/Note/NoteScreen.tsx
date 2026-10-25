@@ -1,4 +1,5 @@
 import { For, type JSX, Show, createSignal } from 'solid-js'
+import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { LinkCaption, LinkNone, LinkRow } from '../../components/overlay/LinkRow/LinkRow'
@@ -72,7 +73,7 @@ export function NoteScreen(props: NoteScreenProps) {
     <Show when={note()}>
       {(n) => (
         <section class={shared.screen} data-idle={!!props.idle} data-heads={heads()} aria-label="ノート">
-          <div class={styles.scroll}>
+          <ScrollArea class={styles.scroll}>
             <article class={styles.doc}>
               <h1>{n().name}</h1>
               <button type="button" class={styles.props} onClick={() => setPropsOpen(!propsOpen())}>
@@ -115,7 +116,7 @@ export function NoteScreen(props: NoteScreenProps) {
                 </For>
               </div>
             </article>
-          </div>
+          </ScrollArea>
 
           <TopBar class={styles.bar} backLabel={props.backLabel} onBack={props.onBack} />
 
@@ -128,12 +129,14 @@ export function NoteScreen(props: NoteScreenProps) {
             }
           >
             <aside class={`${styles.card} ${styles.l}`} aria-label="見出し">
-              <FloatingCard title={`≡ 見出し ${h2s().length}`} onClose={() => setHeads(false)}>
-                <div>
-                  <LinkRow label={n().name} current />
-                  <For each={h2s()}>{(h) => <LinkRow label={h.text} indent />}</For>
-                </div>
-              </FloatingCard>
+              <ScrollArea viewClass={styles.cardView}>
+                <FloatingCard title={`≡ 見出し ${h2s().length}`} onClose={() => setHeads(false)}>
+                  <div>
+                    <LinkRow label={n().name} current />
+                    <For each={h2s()}>{(h) => <LinkRow label={h.text} indent />}</For>
+                  </div>
+                </FloatingCard>
+              </ScrollArea>
             </aside>
           </Show>
 
@@ -150,40 +153,42 @@ export function NoteScreen(props: NoteScreenProps) {
             }
           >
             <aside class={`${styles.card} ${styles.r}`} aria-label="つながり">
-              <FloatingCard title={`つながり ${into().length + from().length} ⇄`} onClose={() => setLinks(false)}>
-                <div>
-                  <LinkCaption>このノートへ</LinkCaption>
-                  <Show when={into().length} fallback={<LinkNone>まだありません</LinkNone>}>
-                    <For each={into()}>
-                      {(x) => (
-                        <LinkRow mark="←" label={x.name} sub="ノート" onClick={() => props.onOpenRef?.(x.name)} />
-                      )}
-                    </For>
-                  </Show>
-                </div>
-                <div>
-                  <LinkCaption>このノートから</LinkCaption>
-                  <Show when={from().length} fallback={<LinkNone>まだありません</LinkNone>}>
-                    <For each={from()}>
-                      {(name) => {
-                        const it = lib().byName.get(name)
-                        return (
-                          <LinkRow
-                            mark="→"
-                            label={name}
-                            sub={!it ? '未作成' : it.kind === 'note' ? 'ノート' : '素材'}
-                            missing={!it}
-                            onClick={() => props.onOpenRef?.(name)}
-                          />
-                        )
-                      }}
-                    </For>
-                  </Show>
-                </div>
-                <button type="button" class={styles.connect}>
-                  ＋ つなぐ
-                </button>
-              </FloatingCard>
+              <ScrollArea viewClass={styles.cardView}>
+                <FloatingCard title={`つながり ${into().length + from().length} ⇄`} onClose={() => setLinks(false)}>
+                  <div>
+                    <LinkCaption>このノートへ</LinkCaption>
+                    <Show when={into().length} fallback={<LinkNone>まだありません</LinkNone>}>
+                      <For each={into()}>
+                        {(x) => (
+                          <LinkRow mark="←" label={x.name} sub="ノート" onClick={() => props.onOpenRef?.(x.name)} />
+                        )}
+                      </For>
+                    </Show>
+                  </div>
+                  <div>
+                    <LinkCaption>このノートから</LinkCaption>
+                    <Show when={from().length} fallback={<LinkNone>まだありません</LinkNone>}>
+                      <For each={from()}>
+                        {(name) => {
+                          const it = lib().byName.get(name)
+                          return (
+                            <LinkRow
+                              mark="→"
+                              label={name}
+                              sub={!it ? '未作成' : it.kind === 'note' ? 'ノート' : '素材'}
+                              missing={!it}
+                              onClick={() => props.onOpenRef?.(name)}
+                            />
+                          )
+                        }}
+                      </For>
+                    </Show>
+                  </div>
+                  <button type="button" class={styles.connect}>
+                    ＋ つなぐ
+                  </button>
+                </FloatingCard>
+              </ScrollArea>
             </aside>
           </Show>
         </section>

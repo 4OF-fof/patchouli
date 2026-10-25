@@ -30,7 +30,7 @@ pub enum Kind {
     Note,
 }
 
-fn kind_of(ext: &str) -> Option<Kind> {
+pub(crate) fn kind_of(ext: &str) -> Option<Kind> {
     Some(match ext {
         "jpg" | "jpeg" | "png" | "webp" | "gif" | "avif" | "bmp" => Kind::Image,
         "mp4" | "webm" | "mov" | "m4v" => Kind::Video,
@@ -124,7 +124,7 @@ fn new_id() -> String {
     uuid::Uuid::new_v4().simple().to_string()
 }
 
-fn mtime_of(path: &Path) -> f64 {
+pub(crate) fn mtime_of(path: &Path) -> f64 {
     fs::metadata(path)
         .and_then(|m| m.modified())
         .ok()
@@ -163,7 +163,7 @@ pub(crate) fn write_json(path: &Path, v: &Map<String, Value>) -> Result<(), Stri
     write_file(path, &text)
 }
 
-fn meta_path(path: &Path) -> PathBuf {
+pub(crate) fn meta_path(path: &Path) -> PathBuf {
     let mut s = path.as_os_str().to_owned();
     s.push(".meta");
     PathBuf::from(s)
@@ -279,7 +279,7 @@ impl Library {
         }
     }
 
-    fn read_item(
+    pub(crate) fn read_item(
         &mut self,
         path: &Path,
         folder: Option<&str>,
@@ -474,7 +474,7 @@ impl Library {
 }
 
 /// Windows の canonicalize が付ける `\\?\` を外す。
-fn dunce(p: PathBuf) -> PathBuf {
+pub(crate) fn dunce(p: PathBuf) -> PathBuf {
     match p.to_str().and_then(|s| s.strip_prefix(r"\\?\")) {
         Some(s) if !s.starts_with("UNC\\") => PathBuf::from(s),
         _ => p,

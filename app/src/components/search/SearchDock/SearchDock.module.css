@@ -128,7 +128,8 @@
 }
 .res {
   max-height: min(52vh, 420px);
-  overflow-y: auto;
+}
+.resView {
   padding: 2px 0;
 }
 .ht {
