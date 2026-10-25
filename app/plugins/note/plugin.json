@@ -3,7 +3,6 @@
   "name": "ノート",
   "version": "0.1.0",
   "description": "Markdown のノート",
-  "ffmpeg": "none",
   "formats": {
     "md": { "label": "ノート", "ratio": 0.8 }
   }

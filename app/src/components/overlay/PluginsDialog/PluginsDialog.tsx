@@ -1,5 +1,15 @@
-import { For, Show, createSignal, onCleanup, onMount } from 'solid-js'
-import type { Need, Part, PluginActions, PluginReport, PluginSource, PluginStatus } from '../../../plugins/types'
+import { For, Index, type JSX, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import type {
+  CommandStatus,
+  Deps,
+  Part,
+  PluginActions,
+  PluginReport,
+  PluginSource,
+  PluginStatus,
+  SettingValue,
+} from '../../../plugins/types'
+import { Icon } from '../../base/Icon/Icon'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
@@ -9,29 +19,72 @@ export interface PluginsDialogProps {
   /** ないあいだは読み込み中と出す。 */
   report?: PluginReport
   actions?: PluginActions
-  /** 使うプラグインが変わったとき（入れた・外したなど）。ライブラリを開き直す。 */
+  /** 使うプラグインが変わったとき（入れた・アンインストールしたなど）。ライブラリを開き直す。 */
   onChanged?: () => void
   /** 設定を変えたとき。一覧を読み直す。 */
   onRefresh?: () => void
   onClose?: () => void
 }
 
-const NEED: Record<Need, string> = { none: '使わない', optional: 'あれば使う', required: '必須' }
-
 const PART: Record<Part, string> = { thumbnail: 'サムネイル', view: '詳細の表示' }
+
+/** 左の一覧の段。プラグインは、提供するものの種類ごとに分ける。 */
+const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [
+  { label: 'ファイル', has: (p) => p.formats.length > 0 },
+  { label: 'そのほか', has: (p) => p.formats.length === 0 },
+]
+
+const TOOLS = '外部ツール'
+
+/** 左の一覧で外部ツールを選んだときの、選んだものの頭に付ける印。 */
+const CMD = ':command:'
 
 const sourceLabel = (s: PluginSource) => s.local
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
+const errors = (p: PluginStatus) => p.problems.filter((x) => x.level === 'error').length
+
+/** p が k に書いたもの。必須のものを先に並べる。 */
+const needs = (p: PluginStatus, k: keyof Deps) => [
+  ...(p.required[k] ?? []).map((name) => ({ name, need: '必須' })),
+  ...(p.optional[k] ?? []).map((name) => ({ name, need: '任意' })),
+]
+
+/** p ができること。full は、本体の画面で隔離されずに動くもの。 */
+const perms = (p: PluginStatus) => [
+  ...(p.formats.length ? [{ label: 'ファイルを読む', text: '受け持つ形式のファイルだけ', full: false }] : []),
+  ...(needs(p, 'commands').length
+    ? [
+        {
+          label: '外部ツールを動かす',
+          text: needs(p, 'commands')
+            .map((n) => n.name)
+            .join(', '),
+          full: false,
+        },
+      ]
+    : []),
+  ...(p.caps.some((c) => c.by === 'ui')
+    ? [{ label: 'フルアクセス', text: '本体の画面で隔離されずに動き、本体と同じことができる', full: true }]
+    : []),
+]
+
+/** f のいまの値。なくなったら、最後にあった値のままにする。 */
+const latest = <T,>(f: () => T | undefined) => createMemo<T>((prev) => f() ?? prev, f()!)
+
 /**
- * プラグインの一覧。受け持つ形式、エラーと警告、設定を出し、入れる・更新する・外すの操作を受け付ける。
+ * プラグインの一覧。左でプラグインか外部ツールを選び、右に詳細を出す。
+ * プラグインの詳細には、扱うファイルと対象、求めるアプリとプラグイン、権限、エラーと警告、設定を出し、更新する・アンインストールするの操作を受け付ける。
  * 置き場所の要素に position: relative を付けておく。
  */
 export function PluginsDialog(props: PluginsDialogProps) {
   let el!: HTMLDivElement
   const [busy, setBusy] = createSignal<string>()
   const [error, setError] = createSignal<string>()
+  const [picked, setPicked] = createSignal<string>()
+  const [closed, setClosed] = createSignal<string[]>([])
+  const [query, setQuery] = createSignal('')
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && !(e.target instanceof HTMLInputElement)) props.onClose?.()
   }
@@ -41,7 +94,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
   })
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
-  /** label を出しているあいだに job を動かす。changed なら、終わったあとライブラリを開き直す。 */
+  /** label を出しているあいだに job を動かす（空なら出さない）。changed なら、終わったあとライブラリを開き直す。 */
   const run = async (label: string, job: () => Promise<boolean | void>, changed = true) => {
     setBusy(label)
     setError(undefined)
@@ -56,65 +109,133 @@ export function PluginsDialog(props: PluginsDialogProps) {
     }
   }
   const a = () => props.actions ?? {}
-  const inLibrary = () => props.report?.plugins.filter((p) => p.state !== 'unused') ?? []
-  const unused = () => props.report?.plugins.filter((p) => p.state === 'unused') ?? []
+  const plugins = () => props.report?.plugins ?? []
+  const commands = () => props.report?.commands ?? []
+  const byId = (id: string) => plugins().find((p) => p.id === id)
+  const byName = (name: string) => commands().find((c) => c.name === name)
+  /** 選んでいるもの。選んだものがなくなったら、最初のものにする。 */
+  const current = createMemo(() => {
+    const id = picked()
+    if (id?.startsWith(CMD)) return byName(id.slice(CMD.length)) ?? plugins()[0]
+    return (id && byId(id)) || plugins()[0] || commands()[0]
+  })
+  /** 検索欄の言葉をどれも含むもの。 */
+  const hit = (...texts: string[]) => {
+    const t = texts.join(' ').toLowerCase()
+    return query()
+      .toLowerCase()
+      .split(/\s+/)
+      .every((w) => t.includes(w))
+  }
+  const shown = (g: (typeof GROUPS)[number]) =>
+    plugins().filter((p) => g.has(p) && hit(p.name, p.id, ...p.formats.map((f) => `.${f}`)))
+  const shownCommands = () => commands().filter((c) => hit(c.name))
+  const pickedPlugin = () => {
+    const v = current()
+    return v && 'formats' in v ? v : undefined
+  }
+  const pickedCommand = () => {
+    const v = current()
+    return v && !('formats' in v) ? v : undefined
+  }
+  /** 選んでいるものの印。一覧を読み直しても、これが変わらないあいだは詳細を描き直さない。 */
+  const key = createMemo(() => pickedPlugin()?.id ?? (pickedCommand() && CMD + pickedCommand()!.name))
+  /** name を求めるプラグイン。 */
+  const users = (name: string) =>
+    plugins().flatMap((p) => needs(p, 'commands').flatMap((n) => (n.name === name ? [{ p, need: n.need }] : [])))
 
-  const row = (p: PluginStatus) => {
-    const outdated = () => p.state === 'active' && !!p.recorded && p.recorded !== p.version
+  /** 設定を保存する。入力中の欄を止めないよう、ほかの操作は止めない。 */
+  const save = async (id: string, name: string, v: SettingValue) => {
+    setError(undefined)
+    try {
+      await a().setSetting!(id, name, v)
+      props.onRefresh?.()
+    } catch (e) {
+      setError(message(e))
+    }
+  }
+
+  const install = () => void run('', () => a().install!())
+
+  /** 左の一覧の、開け閉めできる段。 */
+  const group = (label: string, count: number, body: () => JSX.Element) => {
+    const open = () => !closed().includes(label)
     return (
-      <li data-state={p.state}>
-        <div class={styles.head}>
-          <b>{p.name}</b>
-          <Show when={p.version}>
-            <span class={styles.mono}>{p.version}</span>
-          </Show>
-          <Show when={p.builtin}>
-            <span class={styles.badge}>組み込み</span>
-          </Show>
-          <Show when={p.state === 'missing'}>
-            <span class={styles.badge} data-tone="danger">
-              入っていない
-            </span>
-          </Show>
-          <span class={styles.id}>{p.id}</span>
-        </div>
-        <Show when={p.description}>
-          <p class={styles.desc}>{p.description}</p>
-        </Show>
-        <Show when={p.caps.length}>
-          <div class={styles.caps}>
-            <For each={p.caps}>
-              {(c) => (
-                <span
-                  class={styles.cap}
-                  data-by={c.by}
-                  title={c.by === 'ui' ? '隔離されずに、本体の画面で動く' : 'WASM が受け持ち、本体が描く'}
-                >
-                  {PART[c.part]}
-                  {c.by === 'ui' && '（隔離しない UI）'}
-                </span>
-              )}
-            </For>
+      <section class={styles.group}>
+        <button
+          type="button"
+          class={styles.groupHead}
+          aria-expanded={open()}
+          onClick={() => setClosed(open() ? [...closed(), label] : closed().filter((k) => k !== label))}
+        >
+          <Icon name="chevron" class={styles.chev} />
+          <span>{label}</span>
+          <em>{count}</em>
+        </button>
+        <Show when={open()}>{body()}</Show>
+      </section>
+    )
+  }
+
+  const detail = (p: () => PluginStatus) => {
+    const outdated = () => p().state === 'active' && !!p().recorded && p().recorded !== p().version
+    return (
+      <>
+        <header class={styles.head}>
+          <div>
+            <h3>{p().name}</h3>
+            <Show when={p().version}>
+              <span class={styles.mono}>{p().version}</span>
+            </Show>
+            <Show when={p().builtin}>
+              <span class={styles.badge}>組み込み</span>
+            </Show>
+            <Show when={p().state === 'missing'}>
+              <span class={styles.badge} data-tone="danger">
+                入っていない
+              </span>
+            </Show>
           </div>
+          <div class={styles.actions}>
+            <Show when={outdated() && a().update && p().source}>
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={busy() !== undefined}
+                onClick={() => void run(`${p().name} を更新しています`, () => a().update!(p().id))}
+              >
+                {p().recorded} に更新
+              </Button>
+            </Show>
+            <Show when={p().state === 'missing' && a().update && p().source}>
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={busy() !== undefined}
+                onClick={() => void run(`${p().name} を入れています`, () => a().update!(p().id))}
+              >
+                取得先から入れる
+              </Button>
+            </Show>
+            <Show when={!p().builtin && a().remove}>
+              <Button
+                size="sm"
+                variant="danger"
+                disabled={busy() !== undefined}
+                onClick={() => void run(`${p().name} をアンインストールしています`, () => a().remove!(p().id))}
+              >
+                アンインストール
+              </Button>
+            </Show>
+          </div>
+        </header>
+        <p class={styles.id}>{p().id}</p>
+        <Show when={p().description}>
+          <p class={styles.desc}>{p().description}</p>
         </Show>
-        <div class={styles.meta}>
-          <span class={styles.formats}>
-            <For each={p.formats} fallback={<span>受け持つ形式なし</span>}>
-              {(f) => <span class={styles.ext}>.{f}</span>}
-            </For>
-          </span>
-          <span>FFmpeg: {NEED[p.ffmpeg]}</span>
-        </div>
-        <Show when={p.source}>
-          {(s) => (
-            <p class={styles.source} title={sourceLabel(s())}>
-              取得先: {sourceLabel(s())}
-            </p>
-          )}
-        </Show>
-        <Show when={p.problems.length}>
+        <Show when={p().problems.length}>
           <ul class={styles.problems}>
-            <For each={p.problems}>
+            <For each={p().problems}>
               {(x) => (
                 <li data-level={x.level}>
                   <b>{x.level === 'error' ? 'エラー' : '警告'}</b>
@@ -124,141 +245,267 @@ export function PluginsDialog(props: PluginsDialogProps) {
             </For>
           </ul>
         </Show>
-        <Show when={p.state === 'active' && p.settings.length}>
-          <div class={styles.settings}>
-            <For each={p.settings}>
-              {(s) => (
-                <SettingField
-                  setting={s}
-                  disabled={!a().setSetting || !!busy()}
-                  onChange={(v) => void run('設定を保存しています', () => a().setSetting!(p.id, s.key, v), false)}
-                />
-              )}
-            </For>
-          </div>
+        <Show when={p().state === 'active'}>
+          <Show when={p().formats.length}>
+            <section>
+              <h4>ファイル</h4>
+              <span class={styles.chips}>
+                <For each={p().formats}>{(f) => <span class={styles.ext}>.{f}</span>}</For>
+              </span>
+            </section>
+          </Show>
+          <Show when={p().caps.length}>
+            <section>
+              <h4>対象</h4>
+              <span class={styles.chips}>
+                <For each={p().caps}>{(c) => <span class={styles.cap}>{PART[c.part]}</span>}</For>
+              </span>
+            </section>
+          </Show>
+          <Show when={needs(p(), 'plugins').length}>
+            <section>
+              <h4>プラグイン</h4>
+              <ul class={styles.deps}>
+                <For each={needs(p(), 'plugins')}>
+                  {(d) => {
+                    const q = () => byId(d.name)
+                    const ok = () => q()?.state === 'active'
+                    return (
+                      <li>
+                        <Show when={q()} fallback={<b>{d.name}</b>}>
+                          {(dep) => (
+                            <button type="button" class={styles.link} onClick={() => setPicked(dep().id)}>
+                              {dep().name}
+                            </button>
+                          )}
+                        </Show>
+                        <span class={styles.need}>{d.need}</span>
+                        <span class={styles.state} data-ok={ok()}>
+                          {ok() ? '使っている' : '使っていない'}
+                        </span>
+                      </li>
+                    )
+                  }}
+                </For>
+              </ul>
+            </section>
+          </Show>
+          <Show when={perms(p()).length}>
+            <section>
+              <h4>権限</h4>
+              <ul class={styles.perms}>
+                <For each={perms(p())}>
+                  {(x) => (
+                    <li data-full={x.full}>
+                      <b>{x.label}</b>
+                      <span>{x.text}</span>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </section>
+          </Show>
+          <Show when={needs(p(), 'commands').length}>
+            <section>
+              <h4>{TOOLS}</h4>
+              <ul class={styles.deps}>
+                <For each={needs(p(), 'commands')}>
+                  {(d) => {
+                    const c = () => byName(d.name)
+                    return (
+                      <li>
+                        <Show when={c()} fallback={<b>{d.name}</b>}>
+                          <button type="button" class={styles.link} onClick={() => setPicked(CMD + d.name)}>
+                            {d.name}
+                          </button>
+                        </Show>
+                        <span class={styles.need}>{d.need}</span>
+                        <Show when={props.report?.commands} fallback={<span class={styles.state}>探さない</span>}>
+                          <Show
+                            when={c()?.path}
+                            fallback={
+                              <span class={styles.state} data-ok="false">
+                                未検出
+                              </span>
+                            }
+                          >
+                            {(path) => (
+                              <span class={styles.path} title={path()}>
+                                {path()}
+                              </span>
+                            )}
+                          </Show>
+                        </Show>
+                      </li>
+                    )
+                  }}
+                </For>
+              </ul>
+            </section>
+          </Show>
         </Show>
-        <div class={styles.actions}>
-          <Show when={outdated() && a().update && p.source}>
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={!!busy()}
-              onClick={() => void run(`${p.name} を更新しています`, () => a().update!(p.id))}
-            >
-              {p.recorded} に更新
-            </Button>
-          </Show>
-          <Show when={p.state === 'missing' && a().update && p.source}>
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={!!busy()}
-              onClick={() => void run(`${p.name} を入れています`, () => a().update!(p.id))}
-            >
-              取得先から入れる
-            </Button>
-          </Show>
-          <Show when={p.state === 'unused' && a().use}>
-            <Button
-              size="sm"
-              disabled={!!busy()}
-              onClick={() => void run(`${p.name} を使えるようにしています`, () => a().use!(p.id))}
-            >
-              このライブラリで使う
-            </Button>
-          </Show>
-          <Show when={p.state !== 'unused' && !p.builtin && a().remove}>
-            <Button
-              size="sm"
-              variant="ghost"
-              disabled={!!busy()}
-              onClick={() => void run(`${p.name} を外しています`, () => a().remove!(p.id))}
-            >
-              このライブラリから外す
-            </Button>
-          </Show>
-        </div>
-      </li>
+        <Show when={p().source}>
+          {(s) => (
+            <section>
+              <h4>取得先</h4>
+              <p class={styles.source} title={sourceLabel(s())}>
+                {sourceLabel(s())}
+              </p>
+            </section>
+          )}
+        </Show>
+        <Show when={p().state === 'active' && p().settings.length}>
+          <section>
+            <h4>設定</h4>
+            <div class={styles.settings}>
+              <Index each={p().settings}>
+                {(s) => (
+                  <SettingField
+                    setting={s()}
+                    disabled={!a().setSetting}
+                    onChange={(v) => void save(p().id, s().key, v)}
+                  />
+                )}
+              </Index>
+            </div>
+          </section>
+        </Show>
+      </>
     )
   }
 
+  const command = (c: () => CommandStatus) => (
+    <>
+      <header class={styles.head}>
+        <div>
+          <h3>{c().name}</h3>
+          <span class={styles.badge}>{TOOLS}</span>
+        </div>
+      </header>
+      <p class={styles.where} data-ok={!!c().path} title={c().path}>
+        {c().path ?? '未検出'}
+      </p>
+      <For
+        each={[
+          { label: '必須とするプラグイン', need: '必須' },
+          { label: '任意で使うプラグイン', need: '任意' },
+        ]}
+      >
+        {(g) => {
+          const ps = () => users(c().name).filter((u) => u.need === g.need)
+          return (
+            <section>
+              <h4>{g.label}</h4>
+              <Show when={ps().length} fallback={<p class={styles.none}>なし</p>}>
+                <span class={styles.chips}>
+                  <For each={ps()}>
+                    {(u) => (
+                      <button type="button" class={styles.user} title={u.p.id} onClick={() => setPicked(u.p.id)}>
+                        {u.p.name}
+                      </button>
+                    )}
+                  </For>
+                </span>
+              </Show>
+            </section>
+          )
+        }}
+      </For>
+    </>
+  )
+
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
-      <ScrollArea
-        class={styles.root}
-        viewClass={styles.body}
-        role="dialog"
-        aria-label="プラグイン"
-        tabIndex={-1}
-        ref={el}
-      >
-        <h2>プラグイン</h2>
-        <Show when={props.report} fallback={<p class={styles.note}>読み込み中…</p>}>
-          {(r) => (
-            <>
-              <div class={styles.ffmpeg}>
-                <b>FFmpeg</b>
-                <Show
-                  when={r().ffmpeg}
-                  fallback={
-                    <span>
-                      {r().ffmpeg === null
-                        ? '見つかりません。FFmpeg を使う処理は、OS の機能で代わりにします'
-                        : 'この環境では使いません'}
-                    </span>
-                  }
-                >
-                  {(f) => (
-                    <span>
-                      {f().version} <small title={f().path}>{f().path}</small>
-                    </span>
-                  )}
-                </Show>
-              </div>
-              <Show when={busy() || error()}>
-                <p class={styles.status} data-error={!!error()} role="status">
-                  {error() ?? `${busy()}…`}
-                </p>
-              </Show>
-              <ul class={styles.list}>
-                <For each={inLibrary()}>{row}</For>
-              </ul>
-              <Show when={unused().length}>
-                <h3>アプリに入っているが、このライブラリでは使っていないもの</h3>
-                <ul class={styles.list}>
-                  <For each={unused()}>{row}</For>
-                </ul>
-              </Show>
-              <Show when={a().install}>
-                {(install) => (
-                  <section class={styles.add}>
-                    <h3>プラグインを入れる</h3>
-                    <div class={styles.actions}>
-                      <Button
-                        size="sm"
-                        disabled={!!busy()}
-                        onClick={() => void run('フォルダから入れています', () => install()('folder'))}
-                      >
-                        フォルダから入れる
-                      </Button>
-                      <Button
-                        size="sm"
-                        disabled={!!busy()}
-                        onClick={() => void run('zip から入れています', () => install()('zip'))}
-                      >
-                        zip から入れる
-                      </Button>
-                    </div>
-                    <p class={styles.note}>
-                      入れたプラグインは、このライブラリに記録します。記録のないライブラリでは使いません。
-                    </p>
-                  </section>
+      <div class={styles.root} role="dialog" aria-label="プラグイン" tabIndex={-1} ref={el}>
+        <nav class={styles.side}>
+          <h2>プラグイン</h2>
+          <label class={styles.search}>
+            <span aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              placeholder="検索"
+              aria-label="プラグインと外部ツールを探す"
+              value={query()}
+              onInput={(e) => setQuery(e.currentTarget.value)}
+            />
+          </label>
+          <ScrollArea class={styles.list} viewClass={styles.listView}>
+            <Show when={props.report} fallback={<p class={styles.none}>読み込み中…</p>}>
+              <For each={GROUPS}>
+                {(g) => (
+                  <Show when={shown(g).length}>
+                    {(n) =>
+                      group(g.label, n(), () => (
+                        <For each={shown(g)}>
+                          {(p) => (
+                            <button
+                              type="button"
+                              class={styles.item}
+                              aria-current={current() === p}
+                              data-missing={p.state === 'missing'}
+                              onClick={() => setPicked(p.id)}
+                            >
+                              <span>{p.name}</span>
+                              <Show when={p.problems.length}>
+                                <i data-level={errors(p) ? 'error' : 'warning'}>{p.problems.length}</i>
+                              </Show>
+                            </button>
+                          )}
+                        </For>
+                      ))
+                    }
+                  </Show>
                 )}
+              </For>
+              <Show when={shownCommands().length}>
+                {group(TOOLS, shownCommands().length, () => (
+                  <For each={shownCommands()}>
+                    {(c) => (
+                      <button
+                        type="button"
+                        class={styles.item}
+                        aria-current={current() === c}
+                        data-missing={!c.path}
+                        onClick={() => setPicked(CMD + c.name)}
+                      >
+                        <span>{c.name}</span>
+                        <Show when={!c.path}>
+                          <i data-level={users(c.name).some((u) => u.need === '必須') ? 'error' : 'warning'}>未検出</i>
+                        </Show>
+                      </button>
+                    )}
+                  </For>
+                ))}
               </Show>
-            </>
-          )}
-        </Show>
-      </ScrollArea>
+              <Show when={!GROUPS.some((g) => shown(g).length) && !shownCommands().length}>
+                <p class={styles.none}>見つかりません</p>
+              </Show>
+            </Show>
+          </ScrollArea>
+          <Show when={a().install}>
+            <div class={styles.foot}>
+              <Button class={styles.addButton} variant="primary" disabled={busy() !== undefined} onClick={install}>
+                <span class={styles.plus} aria-hidden="true">
+                  ＋
+                </span>
+                プラグインを追加
+              </Button>
+            </div>
+          </Show>
+        </nav>
+        <ScrollArea class={styles.main} viewClass={styles.mainView}>
+          <Show when={busy() || error()}>
+            <p class={styles.status} data-error={!!error()} role="status">
+              {error() ?? `${busy()}…`}
+            </p>
+          </Show>
+          <Show when={props.report}>
+            <Show when={key()} keyed>
+              {(k) => (k.startsWith(CMD) ? command(latest(pickedCommand)) : detail(latest(pickedPlugin)))}
+            </Show>
+          </Show>
+        </ScrollArea>
+      </div>
     </div>
   )
 }

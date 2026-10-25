@@ -12,8 +12,13 @@ export interface Cap {
   by: By
 }
 
-/** FFmpeg をどれだけ要るか。 */
-export type Need = 'none' | 'optional' | 'required'
+/** 求めるもの。 */
+export interface Deps {
+  /** 手元のコマンドの名前（PATH から探す）。 */
+  commands?: string[]
+  /** ほかのプラグインの id。 */
+  plugins?: string[]
+}
 
 export interface FormatDecl {
   /** 引き継ぐ形式。自分で受け持たないものと、書いていない呼び名などはそちらのものを使う。 */
@@ -33,7 +38,10 @@ export interface Manifest {
   name: string
   version: string
   description?: string
-  ffmpeg?: Need
+  /** ないと動かないもの。 */
+  required?: Deps
+  /** あれば使うもの。 */
+  optional?: Deps
   /** 組み込み UI の ES モジュール（plugin.json からの相対パス）。中身は ui.ts の UiModule。 */
   ui?: string
   formats: Record<string, FormatDecl>
@@ -63,7 +71,7 @@ export interface Problem {
   text: string
 }
 
-/** プラグインの取得先。local は手元のフォルダか zip。 */
+/** プラグインの取得先。local は手元の zip。 */
 export type PluginSource = { local: string }
 
 export type SettingValue = boolean | number | string
@@ -82,8 +90,8 @@ export type Setting = {
   | { kind: 'choice'; choices: { value: string; label: string }[] }
 )
 
-/** active 使っている / missing ライブラリに記録してあるがアプリに入っていない / unused アプリに入っているがこのライブラリでは使っていない */
-export type PluginState = 'active' | 'missing' | 'unused'
+/** active 使っている / missing ライブラリに記録してあるがアプリに入っていない */
+export type PluginState = 'active' | 'missing'
 
 export interface PluginStatus {
   id: string
@@ -96,7 +104,8 @@ export interface PluginStatus {
   description: string
   builtin: boolean
   state: PluginState
-  ffmpeg: Need
+  required: Deps
+  optional: Deps
   /** 受け持つもの。 */
   caps: Cap[]
   /** 受け持っている形式。 */
@@ -107,8 +116,15 @@ export interface PluginStatus {
 
 export interface PluginReport {
   plugins: PluginStatus[]
-  /** 見つけた FFmpeg。null は見つからない、ないときは FFmpeg を探さない環境。 */
-  ffmpeg?: { path: string; version: string } | null
+  /** 使っているプラグインが求めるコマンド。名前順。ないときはコマンドを探さない環境。 */
+  commands?: CommandStatus[]
+}
+
+/** 求められたコマンド。 */
+export interface CommandStatus {
+  name: string
+  /** 見つけた場所。見つからなければない。 */
+  path?: string
 }
 
 /**
@@ -123,13 +139,11 @@ export type ItemView =
 
 /** プラグインを入れたり外したりする操作。ない操作のボタンは出さない。 */
 export interface PluginActions {
-  /** 選ぶ窓を出して手元のフォルダか zip から入れ、ライブラリに記録する。選ばなかったときは false。 */
-  install?: (from: 'folder' | 'zip') => Promise<boolean>
+  /** 選ぶ窓を出して手元の zip から入れ、ライブラリに記録する。選ばなかったときは false。 */
+  install?: () => Promise<boolean>
   /** 記録してある取得先から入れ直す。 */
   update?: (id: string) => Promise<void>
-  /** アプリに入っているものを、このライブラリでも使う。 */
-  use?: (id: string) => Promise<void>
-  /** ライブラリの記録から外す。 */
+  /** アンインストールする（ライブラリの記録から外す）。 */
   remove?: (id: string) => Promise<void>
   setSetting?: (id: string, key: string, value: SettingValue) => Promise<void>
 }

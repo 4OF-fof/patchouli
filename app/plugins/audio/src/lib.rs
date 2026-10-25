@@ -2,13 +2,14 @@
 
 wit_bindgen::generate!({ world: "plugin", path: "../wit" });
 
-use patchouli::plugin::host;
+#[path = "../../shared/frame.rs"]
+mod frame;
 
 struct Audio;
 
 impl Guest for Audio {
     fn thumbnail(_format: String, f: File, edge: u32) -> Result<Option<Thumbnail>, String> {
-        Ok(host::frame(&f, 0.0, edge)
+        Ok(frame::frame(&f, 0.0, edge)
             .ok()
             .map(|png| Thumbnail { png, size: None }))
     }

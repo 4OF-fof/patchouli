@@ -12,11 +12,12 @@ use wasmtime::component::{Component, Linker, ResourceTable};
 use wasmtime::{Engine, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
-use super::{By, Choice, Part, Registry, SettingDecl, SettingKind, UiRef, ffmpeg, os};
+use super::{By, Choice, Part, Registry, SettingDecl, SettingKind, UiRef, commands, os};
 use crate::{library, thumb};
 
 wasmtime::component::bindgen!({ world: "plugin", path: "../plugins/wit" });
 
+use patchouli::plugin::host::{CommandArg, CommandOutput};
 use patchouli::plugin::types;
 
 /// 一度に読ませる量の上限。
@@ -52,6 +53,17 @@ impl HostState {
         }
     }
 
+    /// いま動いているプラグインが plugin.json に書いたコマンドの場所。
+    fn command(&self, name: &str) -> Result<PathBuf, String> {
+        let reg = self.reg.as_ref().ok_or("いまはコマンドを使えない")?;
+        if !reg.plugins[self.index].manifest.declares(name) {
+            return Err(format!(
+                "{name} は plugin.json の required / optional に書いていない"
+            ));
+        }
+        commands::find(name).ok_or_else(|| format!("{name} が見つからない"))
+    }
+
     fn path(&self, f: &File) -> Result<&Path, String> {
         self.files
             .get(f.handle as usize)
@@ -72,8 +84,29 @@ impl WasiView for HostState {
 impl types::Host for HostState {}
 
 impl patchouli::plugin::host::Host for HostState {
-    fn ffmpeg_available(&mut self) -> bool {
-        ffmpeg::find().is_some()
+    fn command_available(&mut self, name: String) -> bool {
+        self.command(&name).is_ok()
+    }
+
+    fn run_command(
+        &mut self,
+        name: String,
+        args: Vec<CommandArg>,
+    ) -> Result<CommandOutput, String> {
+        let path = self.command(&name)?;
+        let args = args
+            .into_iter()
+            .map(|a| match a {
+                CommandArg::Text(s) => Ok(s.into()),
+                CommandArg::File(f) => Ok(self.path(&f)?.as_os_str().to_owned()),
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        let out = commands::run(&path, &args)?;
+        Ok(CommandOutput {
+            code: out.code,
+            stdout: out.stdout,
+            stderr: out.stderr,
+        })
     }
 
     fn read(&mut self, f: File, offset: u64, len: u32) -> Result<Vec<u8>, String> {
@@ -89,13 +122,8 @@ impl patchouli::plugin::host::Host for HostState {
         thumb::shrink(self.path(&f)?, edge)
     }
 
-    fn frame(&mut self, f: File, at: f64, edge: u32) -> Result<Vec<u8>, String> {
-        let path = self.path(&f)?;
-        match ffmpeg::find() {
-            Some(ff) => ffmpeg::frame(ff, path, at, edge)
-                .or_else(|e| os::thumbnail(path, edge).map_err(|e2| format!("{e} / {e2}"))),
-            None => os::thumbnail(path, edge),
-        }
+    fn os_thumbnail(&mut self, f: File, edge: u32) -> Result<Vec<u8>, String> {
+        os::thumbnail(self.path(&f)?, edge)
     }
 
     fn setting(&mut self, key: String) -> Option<types::SettingValue> {

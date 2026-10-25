@@ -4,6 +4,9 @@ wit_bindgen::generate!({ world: "plugin", path: "../wit" });
 
 use patchouli::plugin::host;
 
+#[path = "../../shared/frame.rs"]
+mod frame;
+
 struct Image;
 
 impl Guest for Image {
@@ -11,7 +14,7 @@ impl Guest for Image {
         let png = match host::image_thumbnail(&f, edge) {
             Ok(png) => png,
             // アプリが読めない形式（avif など）は、FFmpeg か OS の機能で読む
-            Err(e) => host::frame(&f, 0.0, edge).map_err(|e2| format!("{e} / {e2}"))?,
+            Err(e) => frame::frame(&f, 0.0, edge).map_err(|e2| format!("{e} / {e2}"))?,
         };
         Ok(Some(Thumbnail {
             png,

@@ -9,7 +9,7 @@ const WASM_PLUGINS: [&str; 3] = ["image", "video", "audio"];
 fn build_plugins() {
     let here = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let plugins = here.join("../plugins");
-    for p in ["wit", "Cargo.toml", "Cargo.lock"] {
+    for p in ["wit", "shared", "Cargo.toml", "Cargo.lock"] {
         println!("cargo:rerun-if-changed={}", plugins.join(p).display());
     }
     for p in WASM_PLUGINS {

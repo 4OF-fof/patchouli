@@ -3,6 +3,7 @@
 # 動作確認用のライブラリと、例のプラグインを入れた置き場（scripts/dev-library.ts で作る）
 /example/dev-library/
 /example/dev-plugins/
+/example/dev-zips/
 # 例のプラグインのビルド
 /example/target/
 /example/*/plugin.wasm

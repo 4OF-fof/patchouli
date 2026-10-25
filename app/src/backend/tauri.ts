@@ -146,15 +146,14 @@ export function tauriBackend(): Backend {
     },
     plugins: () => invoke<PluginReport>('plugins'),
     pluginActions: {
-      async install(from) {
-        const local = await invoke<string | null>('pick_plugin', { zip: from === 'zip' })
+      async install() {
+        const local = await invoke<string | null>('pick_plugin')
         if (!local) return false
         const source: PluginSource = { local }
         await invoke('install_plugin', { source })
         return true
       },
       update: (id) => invoke('update_plugin', { id }),
-      use: (id) => invoke('use_plugin', { id }),
       remove: (id) => invoke('remove_plugin', { id }),
       setSetting: (id, key, value) => invoke('set_plugin_setting', { id, key, value }),
     },

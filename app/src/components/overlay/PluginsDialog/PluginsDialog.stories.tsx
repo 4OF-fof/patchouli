@@ -1,12 +1,14 @@
+import { createSignal } from 'solid-js'
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { builtinReport } from '../../../plugins/builtin'
-import type { PluginReport, PluginStatus } from '../../../plugins/types'
+import type { CommandStatus, PluginReport, PluginStatus, SettingValue } from '../../../plugins/types'
 import { sampleReport } from '../../../samples/plugins'
 import { PluginsDialog } from './PluginsDialog'
 
-const ffmpeg = { path: 'C:\\Users\\me\\scoop\\shims\\ffmpeg.exe', version: '7.1' }
+const ffmpeg: CommandStatus = { name: 'ffmpeg', path: 'C:\\Users\\me\\scoop\\shims\\ffmpeg.exe' }
+const none = { commands: [], plugins: [] }
 
-/** 外から入れたプラグイン。組み込み UI と設定を持つ。 */
+/** 外から入れたプラグイン。組み込み UI と設定を持ち、あれば pandoc を使う。 */
 const text: PluginStatus = {
   id: 'example.text',
   name: 'テキスト',
@@ -16,7 +18,8 @@ const text: PluginStatus = {
   description: 'テキストファイルを詳細で読む',
   builtin: false,
   state: 'active',
-  ffmpeg: 'none',
+  required: none,
+  optional: { commands: ['pandoc'], plugins: [] },
   caps: [
     { part: 'thumbnail', by: 'ui' },
     { part: 'view', by: 'ui' },
@@ -38,17 +41,21 @@ const text: PluginStatus = {
       value: 'mono',
     },
   ],
-  problems: [],
+  problems: [{ level: 'warning', text: 'pandoc が見つからないので、pandoc を使わずに動かす。できないことがある' }],
 }
 
-const found: PluginReport = { plugins: [...builtinReport().plugins, text], ffmpeg }
+const found: PluginReport = {
+  plugins: [...builtinReport().plugins, text],
+  commands: [ffmpeg, { name: 'pandoc' }],
+}
 
 const external: PluginReport = {
-  ffmpeg,
+  commands: [ffmpeg],
   plugins: [
     ...builtinReport().plugins,
     {
       ...text,
+      optional: none,
       version: '0.1.0',
       recorded: '0.2.0',
       problems: [{ level: 'warning', text: 'ライブラリには 0.2.0 が記録されているが、アプリに入っているのは 0.1.0' }],
@@ -61,56 +68,36 @@ const external: PluginReport = {
       description: '',
       builtin: false,
       state: 'missing',
-      ffmpeg: 'none',
+      required: none,
+      optional: none,
       caps: [],
       formats: [],
       settings: [],
       problems: [{ level: 'error', text: 'アプリに入っていない。取得先から入れるまで使えない' }],
     },
-    {
-      id: 'example.model',
-      name: '3D モデル',
-      version: '0.3.1',
-      source: { local: 'D:\\plugins\\model.zip' },
-      description: 'glTF をくるくる回して見る',
-      builtin: false,
-      state: 'unused',
-      ffmpeg: 'none',
-      caps: [
-        { part: 'thumbnail', by: 'wasm' },
-        { part: 'view', by: 'ui' },
-      ],
-      formats: ['glb', 'gltf'],
-      settings: [],
-      problems: [],
-    },
   ],
 }
 
-/** FFmpeg がなく、形式を取り合っているとき。 */
+/** コマンドとプラグインが足りず、形式を取り合っているとき。 */
 const troubled: PluginReport = {
-  ffmpeg: null,
+  commands: [{ name: 'ffmpeg' }, { name: 'magick' }],
   plugins: [
-    ...builtinReport().plugins.map((p) =>
-      p.ffmpeg === 'optional'
-        ? {
-            ...p,
-            problems: [
+    ...builtinReport().plugins.map((p) => ({
+      ...p,
+      problems: [
+        ...(p.optional.commands?.includes('ffmpeg')
+          ? [
               {
                 level: 'warning' as const,
-                text: 'FFmpeg が見つからないので、OS の機能で代わりにする。読めない形式がある',
+                text: 'ffmpeg が見つからないので、ffmpeg を使わずに動かす。できないことがある',
               },
-            ],
-          }
-        : p.id === 'patchouli.image'
-          ? {
-              ...p,
-              problems: [
-                { level: 'error' as const, text: '「psd」を「Photoshop」も受け持とうとしている。こちらを使う' },
-              ],
-            }
-          : p,
-    ),
+            ]
+          : []),
+        ...(p.id === 'patchouli.image'
+          ? [{ level: 'error' as const, text: '「psd」を「Photoshop」も受け持とうとしている。こちらを使う' }]
+          : []),
+      ],
+    })),
     {
       id: 'example.photoshop',
       name: 'Photoshop',
@@ -120,13 +107,18 @@ const troubled: PluginReport = {
       description: 'PSD のレイヤーを重ねたサムネイル',
       builtin: false,
       state: 'active',
-      ffmpeg: 'required',
+      required: { commands: ['magick'], plugins: ['patchouli.image', 'example.layers'] },
+      optional: none,
       caps: [{ part: 'thumbnail', by: 'wasm' }],
       formats: [],
       settings: [],
       problems: [
         { level: 'error', text: '「psd」はもう「画像」が受け持っているので、受け持てない' },
-        { level: 'error', text: 'FFmpeg が見つからない。FFmpeg を入れるまで、このプラグインは動かない' },
+        { level: 'error', text: 'magick が見つからない。magick を入れるまで、このプラグインは動かない' },
+        {
+          level: 'error',
+          text: 'プラグイン example.layers を使っていない。このライブラリで使うまで、このプラグインは動かない',
+        },
       ],
     },
   ],
@@ -139,7 +131,6 @@ const actions = {
     return true
   },
   update: wait,
-  use: wait,
   remove: wait,
   setSetting: wait,
 }
@@ -161,7 +152,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
-export const External: Story = { name: '更新・未導入・未使用', args: { report: external } }
+export const External: Story = { name: '更新・未導入', args: { report: external } }
 export const Problems: Story = { name: 'エラーと警告', args: { report: troubled } }
 export const Failed: Story = {
   name: '入れられなかった',
@@ -170,9 +161,38 @@ export const Failed: Story = {
       ...actions,
       install: async () => {
         await wait()
-        throw new Error('someone/patchouli-text: 最新のリリースに zip がない')
+        throw new Error('plugin.json が見つからない')
       },
     },
+  },
+}
+/** 設定を変えると、アプリと同じように一覧を読み直す（中身は同じでも、別のものになる）。 */
+export const Refresh: Story = {
+  name: '設定を変えて読み直す',
+  render: (args) => {
+    const values = new Map<string, SettingValue>()
+    const load = (): PluginReport => ({
+      ...found,
+      plugins: found.plugins.map((p) => ({
+        ...p,
+        settings: p.settings.map((x) => ({ ...x, value: values.get(`${p.id}/${x.key}`) ?? x.value })),
+      })),
+    })
+    const [report, setReport] = createSignal(load())
+    return (
+      <PluginsDialog
+        {...args}
+        report={report()}
+        actions={{
+          ...actions,
+          setSetting: async (id, key, value) => {
+            await wait()
+            values.set(`${id}/${key}`, value)
+          },
+        }}
+        onRefresh={() => setReport(load())}
+      />
+    )
   },
 }
 export const Sample: Story = { name: '見本（例のプラグインも）', args: { report: sampleReport(), actions: {} } }

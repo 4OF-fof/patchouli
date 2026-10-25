@@ -18,14 +18,14 @@ const resolved = resolveFormats([...BUILTIN_MANIFESTS, ...EXAMPLES.map((e) => e.
 /** 見本のライブラリで扱える形式。 */
 export const SAMPLE_FORMATS: ReadonlyMap<string, FormatInfo> = resolved.formats
 
-/** 見本のプラグインの一覧。例のプラグインは、ライブラリに記録してあり、example/ の下から入れたものとする。 */
+/** 見本のプラグインの一覧。例のプラグインは、ライブラリに記録してあり、example/dev-zips/ の zip から入れたものとする。 */
 export const sampleReport = (): PluginReport => ({
   plugins: [
     ...BUILTIN_MANIFESTS.map((m) => statusOf(m, resolved, true)),
     ...EXAMPLES.map(({ dir, manifest }) => ({
       ...statusOf(manifest, resolved, false),
       recorded: manifest.version,
-      source: { local: `example/${dir}` },
+      source: { local: `example/dev-zips/${dir}.zip` },
     })),
   ],
 })

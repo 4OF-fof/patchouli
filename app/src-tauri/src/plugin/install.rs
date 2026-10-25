@@ -13,33 +13,11 @@ use crate::library::{read_json, write_json};
 
 const SOURCES: &str = "sources.json";
 
-/// アプリに入っているプラグイン（id と plugin.json）。
-pub fn installed(dir: &Path) -> Vec<(String, Manifest)> {
-    let Ok(rd) = fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    let mut out: Vec<(String, Manifest)> = rd
-        .filter_map(Result::ok)
-        .filter(|e| e.path().is_dir() && !e.file_name().to_string_lossy().starts_with('.'))
-        .filter_map(|e| {
-            let id = e.file_name().to_str()?.to_owned();
-            Manifest::read(&e.path()).ok().map(|m| (id, m))
-        })
-        .collect();
-    out.sort_by(|a, b| a.0.cmp(&b.0));
-    out
-}
-
 fn sources(dir: &Path) -> Map<String, Value> {
     read_json(&dir.join(SOURCES))
         .ok()
         .flatten()
         .unwrap_or_default()
-}
-
-/// 入れたときの取得先。
-pub fn source_of(dir: &Path, id: &str) -> Option<Source> {
-    serde_json::from_value(sources(dir).remove(id)?).ok()
 }
 
 /// id に使えるのは、英小文字・数字と「. _ -」だけ。
@@ -64,16 +42,18 @@ pub fn install(source: &Source, dir: &Path, builtin: &[String]) -> Result<Manife
     r
 }
 
-/// 取得先の中身を work に広げ、plugin.json のあるフォルダを返す。
+/// 取得先の zip を work に広げ、plugin.json のあるフォルダを返す。
 fn fetch(source: &Source, work: &Path) -> Result<PathBuf, String> {
     let out = work.join("x");
-    match source {
-        Source::Local(p) if p.is_dir() => copy_dir(p, &out)?,
-        Source::Local(p) => {
-            let bytes = fs::read(p).map_err(|e| format!("{}: {e}", p.display()))?;
-            unzip(&bytes, &out)?
-        }
+    let Source::Local(p) = source;
+    if p.is_dir() {
+        return Err(format!(
+            "{}: プラグインは zip からだけ入れられる",
+            p.display()
+        ));
     }
+    let bytes = fs::read(p).map_err(|e| format!("{}: {e}", p.display()))?;
+    unzip(&bytes, &out)?;
     if out.join(MANIFEST).is_file() {
         return Ok(out);
     }
@@ -91,21 +71,6 @@ fn fetch(source: &Source, work: &Path) -> Result<PathBuf, String> {
 fn unzip(bytes: &[u8], out: &Path) -> Result<(), String> {
     let mut z = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
     z.extract(out).map_err(|e| e.to_string())
-}
-
-fn copy_dir(from: &Path, to: &Path) -> Result<(), String> {
-    fs::create_dir_all(to).map_err(|e| format!("{}: {e}", to.display()))?;
-    for e in fs::read_dir(from).map_err(|e| format!("{}: {e}", from.display()))? {
-        let e = e.map_err(|e| e.to_string())?;
-        let (src, dst) = (e.path(), to.join(e.file_name()));
-        let ty = e.file_type().map_err(|e| e.to_string())?;
-        if ty.is_dir() {
-            copy_dir(&src, &dst)?;
-        } else if ty.is_file() {
-            fs::copy(&src, &dst).map_err(|e| format!("{}: {e}", src.display()))?;
-        }
-    }
-    Ok(())
 }
 
 /// 広げたものを確かめて dir/<id> に置き、取得先を残す。

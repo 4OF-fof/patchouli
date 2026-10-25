@@ -1,12 +1,14 @@
 // 動作確認用のライブラリ（example/dev-library/）を作り直す。中身は app/src/samples/spec.ts で、画面の見本と同じ。
 // 例のプラグイン（example/ の下）もビルドして example/dev-plugins/ に入れ、ライブラリに記録する。
+// 取得先には、同じ中身を zip にしたもの（example/dev-zips/）を記録する。
 // 開発中のアプリは、どちらも既定で使う。自動分類の候補は置き場所が決まっていないので書かない。
 // 使い方: node scripts/dev-library.ts（Node 24 以上と ffmpeg、cargo と wasm32-wasip2 が要る。
-// example/dev-library/ と example/dev-plugins/ は消してから作る）
+// example/dev-library/ と example/dev-plugins/、example/dev-zips/ は消してから作る）
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import zlib from 'node:zlib'
 import {
   EXAMPLE_PLUGINS,
   PINNED_PROJECTS,
@@ -22,6 +24,7 @@ const DAY = 864e5
 const example = path.resolve(import.meta.dirname, '..', 'example')
 const root = path.join(example, 'dev-library')
 const pluginDir = path.join(example, 'dev-plugins')
+const zipDir = path.join(example, 'dev-zips')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'patchouli-dev-library-'))
 
 const FONTS = [
@@ -112,9 +115,58 @@ function run(args: string[], cmd = 'ffmpeg', cwd = tmp) {
   })
 }
 
+/** dir の中身を zip にする。Node は zip を書けないので、ここで組む。作り直しても同じものになるよう、日時は 1980/1/1 にする。 */
+function zip(dir: string, out: string) {
+  const files = fs
+    .readdirSync(dir, { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile())
+    .map((e) => path.relative(dir, path.join(e.parentPath, e.name)).split(path.sep).join('/'))
+    .sort()
+  const locals: Buffer[] = []
+  const centrals: Buffer[] = []
+  let offset = 0
+  for (const name of files) {
+    const data = fs.readFileSync(path.join(dir, name))
+    const body = zlib.deflateRawSync(data)
+    const n = Buffer.from(name)
+    // 版 2.0・名前は UTF-8・deflate・日時・CRC・大きさ・名前の長さ・拡張なし
+    const common = (b: Buffer, at: number) => {
+      b.writeUInt16LE(20, at)
+      b.writeUInt16LE(0x0800, at + 2)
+      b.writeUInt16LE(8, at + 4)
+      b.writeUInt16LE(0, at + 6)
+      b.writeUInt16LE(0x21, at + 8)
+      b.writeUInt32LE(zlib.crc32(data), at + 10)
+      b.writeUInt32LE(body.length, at + 14)
+      b.writeUInt32LE(data.length, at + 18)
+      b.writeUInt16LE(n.length, at + 22)
+    }
+    const local = Buffer.alloc(30)
+    local.writeUInt32LE(0x04034b50, 0)
+    common(local, 4)
+    const central = Buffer.alloc(46)
+    central.writeUInt32LE(0x02014b50, 0)
+    central.writeUInt16LE(20, 4)
+    common(central, 6)
+    central.writeUInt32LE(offset, 42)
+    locals.push(local, n, body)
+    centrals.push(central, n)
+    offset += local.length + n.length + body.length
+  }
+  const cd = Buffer.concat(centrals)
+  const end = Buffer.alloc(22)
+  end.writeUInt32LE(0x06054b50, 0)
+  end.writeUInt16LE(files.length, 8)
+  end.writeUInt16LE(files.length, 10)
+  end.writeUInt32LE(cd.length, 12)
+  end.writeUInt32LE(offset, 16)
+  fs.writeFileSync(out, Buffer.concat([...locals, cd, end]))
+}
+
 /**
  * 例のプラグインをビルドし、それぞれのフォルダに plugin.wasm を置いてから、アプリのプラグインの置き場と同じ形で
- * pluginDir に入れる（<id>/ と、取得先を書いた sources.json）。返すのはライブラリに残す記録。
+ * pluginDir に入れる（<id>/ と、取得先を書いた sources.json）。取得先は、同じ中身を zipDir に zip にしたもの。
+ * 返すのはライブラリに残す記録。
  */
 async function installExamples() {
   await run(
@@ -123,8 +175,10 @@ async function installExamples() {
     // example/.cargo/config.toml を効かせる
     example,
   )
-  fs.rmSync(pluginDir, { recursive: true, force: true })
-  fs.mkdirSync(pluginDir)
+  for (const d of [pluginDir, zipDir]) {
+    fs.rmSync(d, { recursive: true, force: true })
+    fs.mkdirSync(d)
+  }
   const sources: Record<string, unknown> = {}
   const record: Record<string, unknown> = {}
   for (const dir of EXAMPLE_PLUGINS) {
@@ -135,8 +189,10 @@ async function installExamples() {
     const wasm = path.join(example, 'target', 'wasm32-wasip2', 'release', `${crate.replaceAll('-', '_')}.wasm`)
     fs.copyFileSync(wasm, path.join(src, 'plugin.wasm'))
     fs.cpSync(src, path.join(pluginDir, m.id), { recursive: true })
-    sources[m.id] = { local: src }
-    record[m.id] = { version: m.version, source: { local: src } }
+    const local = path.join(zipDir, `${dir}.zip`)
+    zip(src, local)
+    sources[m.id] = { local }
+    record[m.id] = { version: m.version, source: { local } }
   }
   fs.writeFileSync(path.join(pluginDir, 'sources.json'), json(sources))
   return record

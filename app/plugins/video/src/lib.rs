@@ -2,14 +2,15 @@
 
 wit_bindgen::generate!({ world: "plugin", path: "../wit" });
 
-use patchouli::plugin::host;
+#[path = "../../shared/frame.rs"]
+mod frame;
 
 struct Video;
 
 impl Guest for Video {
     fn thumbnail(_format: String, f: File, edge: u32) -> Result<Option<Thumbnail>, String> {
         // 最初のコマは黒いことが多いので 1 秒目から取る。それより短ければ最初のコマ
-        let png = host::frame(&f, 1.0, edge).or_else(|_| host::frame(&f, 0.0, edge))?;
+        let png = frame::frame(&f, 1.0, edge).or_else(|_| frame::frame(&f, 0.0, edge))?;
         Ok(Some(Thumbnail { png, size: None }))
     }
 

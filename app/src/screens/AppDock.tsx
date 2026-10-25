@@ -115,7 +115,7 @@ export function AppDock(props: AppDockProps) {
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
-  // 開くたびに読み直す（FFmpeg を入れたあとなど）
+  // 開くたびに読み直す（コマンドを入れたあとなど）
   const [plugins, { refetch: reloadPlugins }] = createResource(
     () => state() === 'plugins' || undefined,
     () => (props.loadPlugins ?? (async () => builtinReport()))(),

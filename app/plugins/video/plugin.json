@@ -3,7 +3,7 @@
   "name": "動画",
   "version": "0.1.0",
   "description": "動画のサムネイルと再生",
-  "ffmpeg": "optional",
+  "optional": { "commands": ["ffmpeg"] },
   "formats": {
     "mp4": { "label": "動画", "ratio": 1.7778, "parts": ["thumbnail", "view"] },
     "webm": { "extends": "mp4" },

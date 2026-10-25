@@ -1,4 +1,4 @@
-//! FFmpeg がないときに使う、OS のサムネイル。
+//! OS のサムネイル。プラグインが、FFmpeg などのコマンドがないときに代わりに使う。
 
 use std::path::Path;
 
@@ -86,7 +86,7 @@ pub fn thumbnail(src: &Path, edge: u32) -> Result<Vec<u8>, String> {
 #[cfg(not(windows))]
 pub fn thumbnail(src: &Path, _edge: u32) -> Result<Vec<u8>, String> {
     Err(format!(
-        "{}: この OS では、FFmpeg がないとサムネイルを作れない",
+        "{}: この OS では、OS の機能でサムネイルを作れない",
         src.display()
     ))
 }

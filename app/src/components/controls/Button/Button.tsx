@@ -2,7 +2,7 @@ import { type JSX, splitProps } from 'solid-js'
 import styles from './Button.module.css'
 
 export interface ButtonProps extends JSX.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'primary' | 'ghost'
+  variant?: 'default' | 'primary' | 'ghost' | 'danger'
   size?: 'md' | 'sm'
   pressed?: boolean
 }

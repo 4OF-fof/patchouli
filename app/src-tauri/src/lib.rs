@@ -260,24 +260,6 @@ async fn update_plugin(
     install_plugin(app, cur, source).await
 }
 
-/// アプリに入っているプラグインを、開いているライブラリでも使う。
-#[tauri::command]
-async fn use_plugin(
-    app: tauri::AppHandle,
-    cur: State<'_, Current>,
-    id: String,
-) -> Result<(), String> {
-    let root = root_of(&cur)?;
-    let dir = plugin_dir(&app)?;
-    let m = plugin::Manifest::read(&dir.join(&id))?;
-    let source = plugin::install::source_of(&dir, &id);
-    record::update(&root, |r| {
-        let e = r.plugins.entry(id).or_default();
-        e.version = Some(m.version);
-        e.source = source;
-    })
-}
-
 /// 開いているライブラリの記録から外す。アプリからは消さない。
 #[tauri::command]
 async fn remove_plugin(cur: State<'_, Current>, id: String) -> Result<(), String> {
@@ -289,17 +271,12 @@ async fn remove_plugin(cur: State<'_, Current>, id: String) -> Result<(), String
 
 /// プラグインを入れるフォルダか zip を選ぶ窓を出す。選ばなければ None。
 #[tauri::command]
-async fn pick_plugin(app: tauri::AppHandle, zip: bool) -> Result<Option<PathBuf>, String> {
-    let d = app.dialog().file();
-    let picked = if zip {
-        d.set_title("プラグインの zip を選ぶ")
-            .add_filter("zip", &["zip"])
-            .blocking_pick_file()
-    } else {
-        d.set_title("プラグインのフォルダを選ぶ")
-            .blocking_pick_folder()
-    };
-    picked
+async fn pick_plugin(app: tauri::AppHandle) -> Result<Option<PathBuf>, String> {
+    app.dialog()
+        .file()
+        .set_title("プラグインの zip を選ぶ")
+        .add_filter("zip", &["zip"])
+        .blocking_pick_file()
         .map(|p| p.into_path().map_err(|e| e.to_string()))
         .transpose()
 }
@@ -494,7 +471,6 @@ pub fn run() {
             plugins,
             install_plugin,
             update_plugin,
-            use_plugin,
             remove_plugin,
             pick_plugin,
             set_plugin_setting,

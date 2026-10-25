@@ -6,23 +6,20 @@ import audio from '../../plugins/audio/plugin.json'
 import image from '../../plugins/image/plugin.json'
 import note from '../../plugins/note/plugin.json'
 import video from '../../plugins/video/plugin.json'
-import type { Cap, FormatInfo, Manifest, Need, Part, PluginReport, PluginStatus, Problem } from './types'
+import type { Cap, Deps, FormatInfo, Manifest, Part, PluginReport, PluginStatus, Problem } from './types'
 
 /** JSON のままの plugin.json。 */
-export interface RawManifest extends Omit<Manifest, 'ffmpeg' | 'formats'> {
-  ffmpeg?: string
+export interface RawManifest extends Omit<Manifest, 'formats'> {
   formats: Record<string, { extends?: string; label?: string; ratio?: number; parts?: string[]; ui?: string[] }>
 }
 
 const PARTS: readonly Part[] = ['thumbnail', 'view']
-const NEEDS: readonly Need[] = ['none', 'optional', 'required']
 
 const partsOf = (raw?: string[]) => (raw ?? []).flatMap((p) => PARTS.find((x) => x === p) ?? [])
 
 /** 知らない値は捨てる。 */
 export const readManifest = (raw: RawManifest): Manifest => ({
   ...raw,
-  ffmpeg: NEEDS.find((n) => n === raw.ffmpeg) ?? 'none',
   formats: Object.fromEntries(
     Object.entries(raw.formats).map(([ext, d]) => [ext, { ...d, parts: partsOf(d.parts), ui: partsOf(d.ui) }]),
   ),
@@ -106,6 +103,8 @@ const capsOf = (m: Manifest): Cap[] => {
   ]
 }
 
+const depsOf = (d?: Deps): Deps => ({ commands: d?.commands ?? [], plugins: d?.plugins ?? [] })
+
 /** 使っているプラグインの状態。設定の項目は WASM が返すので、ここでは空にする。 */
 export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStatus => ({
   id: m.id,
@@ -114,7 +113,8 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
   description: m.description ?? '',
   builtin,
   state: 'active',
-  ffmpeg: m.ffmpeg ?? 'none',
+  required: depsOf(m.required),
+  optional: depsOf(m.optional),
   caps: capsOf(m),
   formats: [...r.formats.values()]
     .filter((f) => f.plugin === m.id)
@@ -127,7 +127,7 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
 /** 組み込みのプラグインだけのときの形式。 */
 export const BUILTIN_FORMATS: ReadonlyMap<string, FormatInfo> = resolvedBuiltin.formats
 
-/** FFmpeg を探さない環境での、組み込みのプラグインの一覧。 */
+/** コマンドを探さない環境での、組み込みのプラグインの一覧。 */
 export const builtinReport = (): PluginReport => ({
   plugins: BUILTIN_MANIFESTS.map((m) => statusOf(m, resolvedBuiltin, true)),
 })

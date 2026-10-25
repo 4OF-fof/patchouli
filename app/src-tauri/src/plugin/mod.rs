@@ -5,9 +5,10 @@
 //! - 形式はほかの形式を引き継いで（extends）、一部（parts）だけを自分で受け持てる
 //! - 同じ形式を 2 つのプラグインが受け持つときは、先に読んだほうを使い、両方にエラーを付ける
 //! - 外のプラグインの本体はアプリのデータフォルダに置き、ライブラリに記録したものだけを使う（record.rs）
+//! - 手元のコマンドとほかのプラグインを、必須（required）か、あれば使う（optional）として求められる
 
 mod builtin;
-pub mod ffmpeg;
+pub mod commands;
 pub mod files;
 pub mod install;
 mod os;
@@ -25,14 +26,15 @@ use serde_json::Value;
 use record::{Record, Source};
 pub use runtime::{Runner, ViewOut, read};
 
-/// FFmpeg をどれだけ要るか。
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Need {
-    #[default]
-    None,
-    Optional,
-    Required,
+/// 求めるもの。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Deps {
+    /// 手元のコマンドの名前（PATH から探す）。
+    #[serde(default)]
+    pub commands: Vec<String>,
+    /// ほかのプラグインの id。
+    #[serde(default)]
+    pub plugins: Vec<String>,
 }
 
 /// 形式ごとに受け持つもの。
@@ -79,8 +81,12 @@ pub struct Manifest {
     pub version: String,
     #[serde(default)]
     pub description: String,
+    /// ないと動かないもの。
     #[serde(default)]
-    pub ffmpeg: Need,
+    pub required: Deps,
+    /// あれば使うもの。
+    #[serde(default)]
+    pub optional: Deps,
     /// 組み込み UI の ES モジュール（plugin.json からの相対パス）。外のプラグインだけが持てる。
     pub ui: Option<String>,
     pub formats: BTreeMap<String, FormatDecl>,
@@ -94,6 +100,15 @@ impl Manifest {
         let p = dir.join(MANIFEST);
         let text = fs::read_to_string(&p).map_err(|e| format!("{}: {e}", p.display()))?;
         serde_json::from_str(&text).map_err(|e| format!("{}: {e}", p.display()))
+    }
+
+    /// required か optional に書いたコマンドか。
+    pub fn declares(&self, command: &str) -> bool {
+        self.required
+            .commands
+            .iter()
+            .chain(&self.optional.commands)
+            .any(|c| c == command)
     }
 
     fn wants_wasm(&self) -> bool {
@@ -276,13 +291,12 @@ pub struct FormatInfo {
     pub ui_thumbnail: Option<UiRef>,
 }
 
-/// active 使っている / missing ライブラリに記録してあるがアプリに入っていない / unused アプリに入っているがこのライブラリでは使っていない
+/// active 使っている / missing ライブラリに記録してあるがアプリに入っていない
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum State {
     Active,
     Missing,
-    Unused,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -301,7 +315,8 @@ pub struct PluginStatus {
     pub description: String,
     pub builtin: bool,
     pub state: State,
-    pub ffmpeg: Need,
+    pub required: Deps,
+    pub optional: Deps,
     /// 受け持つもの。
     pub caps: Vec<Cap>,
     /// 受け持っている形式。
@@ -310,18 +325,27 @@ pub struct PluginStatus {
     pub problems: Vec<Problem>,
 }
 
+/// 使っているプラグインが求めるコマンド。
+#[derive(Debug, Clone, Serialize)]
+pub struct CommandStatus {
+    pub name: String,
+    /// 見つけた場所。見つからなければない。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<PathBuf>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginReport {
     pub plugins: Vec<PluginStatus>,
-    /// 見つけた FFmpeg。見つからなければない。
-    pub ffmpeg: Option<ffmpeg::Found>,
+    /// 名前順。
+    pub commands: Vec<CommandStatus>,
 }
 
 pub struct Registry {
     plugins: Vec<Loaded>,
     formats: HashMap<String, Resolved>,
-    /// 記録してあるのに入っていないもの、入っているのに記録していないもの。
+    /// 記録してあるのに入っていないもの。
     others: Vec<PluginStatus>,
     /// ライブラリの記録。設定を変えると書き直す。
     record: RwLock<Record>,
@@ -378,7 +402,8 @@ impl Registry {
                     description: String::new(),
                     builtin: false,
                     state: State::Missing,
-                    ffmpeg: Need::None,
+                    required: Deps::default(),
+                    optional: Deps::default(),
                     caps: Vec::new(),
                     formats: Vec::new(),
                     settings: Vec::new(),
@@ -387,27 +412,6 @@ impl Registry {
                     )],
                 }),
             }
-        }
-        for (id, m) in install::installed(dir) {
-            if record.plugins.contains_key(&id) || builtin_ids.contains(&id) {
-                continue;
-            }
-            let caps = m.caps();
-            others.push(PluginStatus {
-                id,
-                name: m.name,
-                version: Some(m.version),
-                recorded: None,
-                source: install::source_of(dir, &m.id),
-                description: m.description,
-                builtin: false,
-                state: State::Unused,
-                ffmpeg: m.ffmpeg,
-                caps,
-                formats: m.formats.into_keys().collect(),
-                settings: Vec::new(),
-                problems: Vec::new(),
-            });
         }
         let mut r = Registry {
             plugins,
@@ -647,7 +651,29 @@ impl Registry {
     }
 
     pub fn report(&self) -> PluginReport {
-        let found = ffmpeg::find();
+        let mut names: Vec<&String> = self
+            .plugins
+            .iter()
+            .flat_map(|p| {
+                p.manifest
+                    .required
+                    .commands
+                    .iter()
+                    .chain(&p.manifest.optional.commands)
+            })
+            .filter(|c| commands::valid(c))
+            .collect();
+        names.sort();
+        names.dedup();
+        let commands: Vec<CommandStatus> = names
+            .into_iter()
+            .map(|name| CommandStatus {
+                name: name.clone(),
+                path: commands::find(name),
+            })
+            .collect();
+        let found = |c: &str| commands.iter().any(|s| s.name == c && s.path.is_some());
+        let active = |id: &str| self.plugins.iter().any(|p| p.manifest.id == id);
         let mut plugins: Vec<PluginStatus> = self
             .plugins
             .iter()
@@ -655,18 +681,36 @@ impl Registry {
             .map(|(i, p)| {
                 let m = &p.manifest;
                 let mut problems = p.problems.clone();
-                match (m.ffmpeg, found) {
-                    (Need::Required, None) => problems.push(error(
-                        "FFmpeg が見つからない。FFmpeg を入れるまで、このプラグインは動かない"
-                            .into(),
-                    )),
-                    (Need::Optional, None) => problems.push(Problem {
-                        level: Level::Warning,
-                        text:
-                            "FFmpeg が見つからないので、OS の機能で代わりにする。読めない形式がある"
-                                .into(),
-                    }),
-                    _ => {}
+                for (deps, required) in [(&m.required, true), (&m.optional, false)] {
+                    for c in &deps.commands {
+                        let text = if !commands::valid(c) {
+                            format!("「{c}」はコマンドの名前に使えない")
+                        } else if found(c) {
+                            continue;
+                        } else if required {
+                            format!("{c} が見つからない。{c} を入れるまで、このプラグインは動かない")
+                        } else {
+                            format!("{c} が見つからないので、{c} を使わずに動かす。できないことがある")
+                        };
+                        problems.push(Problem {
+                            level: if required { Level::Error } else { Level::Warning },
+                            text,
+                        });
+                    }
+                    for id in deps.plugins.iter().filter(|id| !active(id)) {
+                        problems.push(if required {
+                            error(format!(
+                                "プラグイン {id} を使っていない。このライブラリで使うまで、このプラグインは動かない"
+                            ))
+                        } else {
+                            Problem {
+                                level: Level::Warning,
+                                text: format!(
+                                    "プラグイン {id} を使っていないので、それを使う働きは動かない"
+                                ),
+                            }
+                        });
+                    }
                 }
                 if let Some(r) = p.recorded.as_ref().filter(|r| **r != m.version) {
                     problems.push(Problem {
@@ -701,7 +745,8 @@ impl Registry {
                     description: m.description.clone(),
                     builtin: p.builtin,
                     state: State::Active,
-                    ffmpeg: m.ffmpeg,
+                    required: m.required.clone(),
+                    optional: m.optional.clone(),
                     caps: m.caps(),
                     formats,
                     settings,
@@ -710,10 +755,7 @@ impl Registry {
             })
             .collect();
         plugins.extend(self.others.iter().cloned());
-        PluginReport {
-            plugins,
-            ffmpeg: found.cloned(),
-        }
+        PluginReport { plugins, commands }
     }
 }
 

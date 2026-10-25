@@ -3,7 +3,7 @@
   "name": "画像",
   "version": "0.1.0",
   "description": "写真やイラストのサムネイルと表示",
-  "ffmpeg": "none",
+  "optional": { "commands": ["ffmpeg"] },
   "formats": {
     "jpg": { "label": "画像", "ratio": 1.6, "parts": ["thumbnail", "view"] },
     "jpeg": { "extends": "jpg" },
