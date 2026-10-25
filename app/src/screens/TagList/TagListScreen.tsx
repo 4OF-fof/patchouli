@@ -18,12 +18,13 @@ const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x
 
 export interface TagListScreenProps {
   lib: Library
-  /** 紙面にピン留めしているタグ。 */
+  /** ホームにピン留めしているタグ。 */
   pinned?: string[]
   /** 下の階層を開いているタグ。 */
   expanded?: string[]
   sort?: Sort
   backLabel?: string
+  /** 渡さないと戻るボタンを出さない（メニューから開いたとき）。 */
   onBack?: () => void
   onOpenTag?: (tag: string) => void
 }
@@ -98,7 +99,7 @@ export function TagListScreen(props: TagListScreenProps) {
               {(i) => <Thumb {...thumbOf(i, 'X')} />}
             </For>
           </div>
-          <PinToggle where="紙面に" pressed={pins().includes(r.tag)} onClick={() => setPins(toggle(pins(), r.tag))} />
+          <PinToggle where="ホームに" pressed={pins().includes(r.tag)} onClick={() => setPins(toggle(pins(), r.tag))} />
           <button type="button" class={styles.all} onClick={() => props.onOpenTag?.(r.tag)}>
             すべて ›
           </button>
@@ -115,14 +116,16 @@ export function TagListScreen(props: TagListScreenProps) {
       <div class={shared.scroll}>
         <div class={shared.page}>
           <header class={shared.mast}>
-            <FloatingPill class={shared.back} onClick={() => props.onBack?.()}>
-              ‹ {props.backLabel ?? '紙面'}
-            </FloatingPill>
+            <Show when={props.onBack}>
+              <FloatingPill class={shared.back} onClick={() => props.onBack?.()}>
+                ‹ {props.backLabel ?? 'ホーム'}
+              </FloatingPill>
+            </Show>
             <h1>タグ</h1>
             <span class={shared.meta}>
               {flat().size} 件 · {sort() === 'name' ? '五十音順' : '件数の多い順'}
             </span>
-            <span class={shared.right}>
+            <span class={shared.end}>
               <Tabs
                 label="並べ方"
                 value={sort()}

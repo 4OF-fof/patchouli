@@ -8,6 +8,20 @@
 .body [data-first] {
   padding-top: 0;
 }
+.name {
+  width: min(100%, 520px);
+  padding: 0 8px;
+  margin-left: -9px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius-md);
+  background: none;
+  font: inherit;
+}
+.name:focus-visible {
+  border-style: solid;
+  border-color: var(--sage);
+  outline: none;
+}
 .cover {
   display: grid;
   gap: 10px;

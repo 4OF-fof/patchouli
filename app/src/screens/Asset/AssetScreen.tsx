@@ -42,7 +42,7 @@ export function AssetScreen(props: AssetScreenProps) {
               <Thumb {...thumbOf(a(), 'L')} class={styles.view} />
             </div>
             <div class={styles.bar}>
-              <FloatingPill onClick={() => props.onBack?.()}>‹ {props.backLabel ?? '紙面'}</FloatingPill>
+              <FloatingPill onClick={() => props.onBack?.()}>‹ {props.backLabel ?? 'ホーム'}</FloatingPill>
               <b>{a().name}</b>
               <span class={styles.meta}>
                 {a().folder ?? 'プロジェクトなし'}

@@ -9,18 +9,18 @@ import styles from './ProjectListScreen.module.css'
 export interface ProjectListScreenProps {
   lib: Library
   pinned?: string[]
-  /** 新しいプロジェクトの名前を入れている。 */
-  creating?: boolean
   backLabel?: string
+  /** 渡さないと戻るボタンを出さない（メニューから開いたとき）。 */
   onBack?: () => void
   onOpenProject?: (name: string) => void
+  /** 空のプロジェクトを作る。 */
+  onCreate?: () => void
 }
 
 /** 11 プロジェクト一覧。ピン留め、最近のもの、しばらく触っていないもの。 */
 export function ProjectListScreen(props: ProjectListScreenProps) {
   const lib = () => props.lib
   const [pins, setPins] = createSignal(props.pinned ?? [])
-  const [creating, setCreating] = createSignal(!!props.creating)
   const recency = (p: Project) => {
     if (p.touched.startsWith('今日')) return 0
     const l = lib().inProject(p.name)
@@ -71,24 +71,15 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
       <div class={shared.scroll}>
         <div class={shared.page}>
           <header class={shared.mast}>
-            <FloatingPill class={shared.back} onClick={() => props.onBack?.()}>
-              ‹ {props.backLabel ?? '紙面'}
-            </FloatingPill>
+            <Show when={props.onBack}>
+              <FloatingPill class={shared.back} onClick={() => props.onBack?.()}>
+                ‹ {props.backLabel ?? 'ホーム'}
+              </FloatingPill>
+            </Show>
             <h1>プロジェクト</h1>
             <span class={shared.meta}>{lib().projects.length} 件 · 最近開いた順</span>
-            <span class={shared.right}>
-              <Show
-                when={creating()}
-                fallback={<FloatingPill onClick={() => setCreating(true)}>＋ 新しいプロジェクト</FloatingPill>}
-              >
-                <input
-                  class={styles.new}
-                  type="text"
-                  placeholder="新しいプロジェクトの名前（Enter）"
-                  aria-label="新しいプロジェクトの名前"
-                  onKeyDown={(e) => e.key === 'Escape' && setCreating(false)}
-                />
-              </Show>
+            <span class={shared.end}>
+              <FloatingPill onClick={() => props.onCreate?.()}>＋ 新しいプロジェクト</FloatingPill>
             </span>
           </header>
           <Show when={pins().length}>

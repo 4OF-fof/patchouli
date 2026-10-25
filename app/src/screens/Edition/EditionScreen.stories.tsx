@@ -8,13 +8,13 @@ import { ScreenFrame } from '../ScreenFrame'
 import { EditionScreen } from './EditionScreen'
 
 const meta = {
-  title: '画面/00 紙面',
+  title: '画面/00 ホーム',
   parameters: { layout: 'fullscreen' },
 } satisfies Meta
 export default meta
 type Story = StoryObj
 
-/** 紙面に検索バーを重ねた、アプリを開いたときの見た目。 */
+/** ホームに検索バーを重ねた、アプリを開いたときの見た目。 */
 const edition = (o: { dock?: DockState; query?: string; scrollTop?: number; readOnly?: boolean } = {}) => {
   const lib = sampleLibrary()
   return (

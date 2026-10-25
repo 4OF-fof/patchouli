@@ -10,18 +10,18 @@ const MODES: Record<DockMode, { label: string; placeholder: string; hints: [stri
     label: '検索',
     placeholder: '名前・プロジェクト・タグ・本文で探す',
     hints: [
+      ['Tab', 'AI に頼む'],
       ['Enter', '開く'],
       ['Ctrl Enter', 'ノートを作る'],
-      ['Tab', 'プロンプトにする'],
       ['Esc', '閉じる'],
     ],
   },
   prompt: {
-    label: 'プロンプト',
+    label: 'AI',
     placeholder: 'AI に頼む（例：秋の企画の素材から、配色の候補を 3 つ出して）',
     hints: [
+      ['Tab', '検索に戻る'],
       ['Enter', '送る'],
-      ['Tab', '検索にする'],
       ['Esc', '閉じる'],
     ],
   },

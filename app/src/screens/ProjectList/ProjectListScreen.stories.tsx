@@ -11,15 +11,14 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-const list = (creating = false) => {
+const list = () => {
   const lib = sampleLibrary()
   return (
     <ScreenFrame>
-      <ProjectListScreen lib={lib} pinned={PINNED_PROJECTS} creating={creating} />
+      <ProjectListScreen lib={lib} pinned={PINNED_PROJECTS} />
       <AppDock lib={lib} here="projects" />
     </ScreenFrame>
   )
 }
 
 export const Default: Story = { render: () => list() }
-export const Create: Story = { name: '新しいプロジェクト', render: () => list(true) }

@@ -11,7 +11,7 @@ export interface PinnedCardProps {
   onClick?: () => void
 }
 
-/** 紙面のいちばん上に並べる、ピン留めしたプロジェクトやタグ。 */
+/** ホームのいちばん上に並べる、ピン留めしたプロジェクトやタグ。 */
 export function PinnedCard(props: PinnedCardProps) {
   return (
     <button

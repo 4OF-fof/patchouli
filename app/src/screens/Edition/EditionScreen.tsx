@@ -28,7 +28,7 @@ export interface EditionScreenProps {
   onOpenTag?: (tag: string) => void
 }
 
-/** 00 紙面。ピン留めと、動いた日で分けた段。 */
+/** 00 ホーム。ピン留めと、動いた日で分けた段。 */
 export function EditionScreen(props: EditionScreenProps) {
   let scroll!: HTMLDivElement
   let more: HTMLDivElement | undefined
@@ -107,13 +107,13 @@ export function EditionScreen(props: EditionScreenProps) {
   })
 
   return (
-    <section class={shared.screen} aria-label="紙面">
+    <section class={shared.screen} aria-label="ホーム">
       <div class={shared.scroll} ref={scroll}>
         <Show
           when={lib().items.length}
           fallback={
             <div class={styles.empty}>
-              <div class={styles.emptyDrop}>ここに素材を落とすと、最初の紙面ができる</div>
+              <div class={styles.emptyDrop}>ここに素材を落とすと、ホームに並ぶ</div>
               <div class={styles.emptyHint}>
                 ノートから始めるなら<Kbd>Ctrl N</Kbd>
               </div>

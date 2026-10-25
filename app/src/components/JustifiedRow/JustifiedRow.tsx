@@ -10,7 +10,7 @@ export interface JustifiedRowProps {
   children?: JSX.Element
 }
 
-/** 高さをそろえて横に詰める段。紙面の「今週」「今月」「静かなもの」などに使う。 */
+/** 高さをそろえて横に詰める段。ホームの「今週」「今月」「静かなもの」などに使う。 */
 export function JustifiedRow(props: JustifiedRowProps) {
   return (
     <div

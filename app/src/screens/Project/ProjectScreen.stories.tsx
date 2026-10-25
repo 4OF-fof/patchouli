@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { DropZone } from '../../components/DropZone/DropZone'
+import { withEmptyProject } from '../../model/library'
 import { sampleLibrary } from '../../samples/library'
 import { AppDock } from '../AppDock'
 import { ScreenFrame } from '../ScreenFrame'
@@ -42,3 +43,15 @@ export const Other: Story = {
   render: () => <ScreenFrame>{project({}, 'UI 改善')}</ScreenFrame>,
 }
 export const NoPins: Story = { name: 'ピン留めなし', render: () => <ScreenFrame>{project({}, '資料')}</ScreenFrame> }
+export const Created: Story = {
+  name: '新しく作った',
+  render: () => {
+    const { lib, name } = withEmptyProject(sampleLibrary())
+    return (
+      <ScreenFrame>
+        <ProjectScreen lib={lib} name={name} editing />
+        <AppDock lib={lib} />
+      </ScreenFrame>
+    )
+  },
+}

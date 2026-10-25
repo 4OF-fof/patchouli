@@ -1,5 +1,5 @@
 import { Match, Switch, createSignal, onCleanup, onMount } from 'solid-js'
-import type { Library } from './model/library'
+import { type Library, withEmptyNote, withEmptyProject } from './model/library'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import { AppDock, type Place } from './screens/AppDock'
 import { AssetScreen } from './screens/Asset/AssetScreen'
@@ -13,7 +13,7 @@ import { TidyScreen } from './screens/Tidy/TidyScreen'
 
 type View =
   | { s: 'edition' }
-  | { s: 'project'; name: string }
+  | { s: 'project'; name: string; editing?: boolean }
   | { s: 'plist' }
   | { s: 'tlist' }
   | { s: 'note'; id: string }
@@ -21,7 +21,7 @@ type View =
   | { s: 'tidy' }
 
 const LABEL: Record<View['s'], string> = {
-  edition: '紙面',
+  edition: 'ホーム',
   project: 'プロジェクト',
   plist: 'プロジェクト一覧',
   tlist: 'タグ一覧',
@@ -32,12 +32,12 @@ const LABEL: Record<View['s'], string> = {
 
 /** 画面をつないで行き来できるようにしたもの。保存や読み込みはまだなく、中身は渡したライブラリだけ。 */
 export function App(props: { lib: Library }) {
-  const lib = () => props.lib
+  const [lib, setLib] = createSignal(props.lib)
   const [stack, setStack] = createSignal<View[]>([{ s: 'edition' }])
   const view = () => stack().at(-1) ?? { s: 'edition' }
   const back = () => {
     const prev = stack().at(-2)
-    if (!prev) return '紙面'
+    if (!prev) return 'ホーム'
     return prev.s === 'project' ? prev.name : LABEL[prev.s]
   }
   const go = (v: View) => setStack([...stack(), v])
@@ -56,9 +56,20 @@ export function App(props: { lib: Library }) {
     const it = lib().byName.get(name)
     if (it) openItem(it.id)
   }
+  // メニューから行く所は一番上の画面として開き、戻る先を持たない
   const onGo = (to: Place) => {
-    if (to === 'home') setStack([{ s: 'edition' }])
-    else go({ s: to === 'tags' ? 'tlist' : to === 'projects' ? 'plist' : 'tidy' })
+    if (to === 'tidy') go({ s: 'tidy' })
+    else setStack([{ s: to === 'tags' ? 'tlist' : to === 'projects' ? 'plist' : 'edition' }])
+  }
+  const createProject = () => {
+    const r = withEmptyProject(lib())
+    setLib(r.lib)
+    go({ s: 'project', name: r.name, editing: true })
+  }
+  const createNote = (name?: string) => {
+    const r = withEmptyNote(lib(), name)
+    setLib(r.lib)
+    go({ s: 'note', id: r.id })
   }
   const here = (): Place | undefined =>
     view().s === 'edition' ? 'home' : view().s === 'tlist' ? 'tags' : view().s === 'plist' ? 'projects' : undefined
@@ -92,7 +103,14 @@ export function App(props: { lib: Library }) {
         <Match when={view().s === 'project' && view()} keyed>
           {(v) =>
             v.s === 'project' && (
-              <ProjectScreen lib={lib()} name={v.name} backLabel={back()} onBack={goBack} onOpenItem={openItem} />
+              <ProjectScreen
+                lib={lib()}
+                name={v.name}
+                editing={v.editing}
+                backLabel={back()}
+                onBack={goBack}
+                onOpenItem={openItem}
+              />
             )
           }
         </Match>
@@ -101,12 +119,18 @@ export function App(props: { lib: Library }) {
             lib={lib()}
             pinned={PINNED_PROJECTS}
             backLabel={back()}
-            onBack={goBack}
+            onBack={stack().length > 1 ? goBack : undefined}
             onOpenProject={(name) => go({ s: 'project', name })}
+            onCreate={createProject}
           />
         </Match>
         <Match when={view().s === 'tlist'}>
-          <TagListScreen lib={lib()} pinned={PINNED_TAGS} backLabel={back()} onBack={goBack} />
+          <TagListScreen
+            lib={lib()}
+            pinned={PINNED_TAGS}
+            backLabel={back()}
+            onBack={stack().length > 1 ? goBack : undefined}
+          />
         </Match>
         <Match when={view().s === 'note' && view()} keyed>
           {(v) =>
@@ -140,6 +164,7 @@ export function App(props: { lib: Library }) {
           onGo={onGo}
           onOpenProject={(name) => go({ s: 'project', name })}
           onOpenItem={(id) => openItem(id)}
+          onCreate={createNote}
         />
       )}
     </ScreenFrame>

@@ -74,7 +74,7 @@ export function AppDock(props: AppDockProps) {
     { type: 'cmd', label: 'プロジェクト一覧', key: '', run: () => props.onGo?.('projects') },
     { type: 'cmd', label: 'タグ一覧', key: '', run: () => props.onGo?.('tags') },
     { type: 'cmd', label: '新しいノート', key: 'Ctrl N', run: () => props.onCreate?.() },
-    { type: 'cmd', label: '紙面に戻る', key: '', run: () => props.onGo?.('home') },
+    { type: 'cmd', label: 'ホームに戻る', key: '', run: () => props.onGo?.('home') },
     { type: 'cmd', label: 'ショートカットの一覧', key: '?', run: () => setState('help') },
     { type: 'cmd', label: 'テーマを切り替える', key: '', run: toggleTheme },
   ]

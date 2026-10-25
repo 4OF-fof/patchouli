@@ -42,6 +42,10 @@
   left: 16px;
   top: 16px;
 }
+.end {
+  margin-left: auto;
+  align-self: center;
+}
 .right {
   position: absolute;
   right: 16px;

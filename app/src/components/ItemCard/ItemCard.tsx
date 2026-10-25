@@ -6,7 +6,7 @@ export interface ItemCardProps extends Omit<ThumbProps, 'title' | 'class'> {
   name: string
   /** 名前の下の一言（例「つながり 3 · 2 日前」）。JustifiedRow の中では出さない。 */
   why?: string
-  /** false で名前を隠す（紙面）。隠しても title と読み上げには名前が入る。 */
+  /** false で名前を隠す（ホーム）。隠しても title と読み上げには名前が入る。 */
   showName?: boolean
   /** 縦横比（幅 / 高さ）。JustifiedRow の中で幅を決める。 */
   ratio?: number

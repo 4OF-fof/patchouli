@@ -69,9 +69,19 @@ export function ProjectScreen(props: ProjectScreenProps) {
             <div class={shared.page}>
               <header class={shared.mast}>
                 <FloatingPill class={shared.back} onClick={() => props.onBack?.()}>
-                  ‹ {props.backLabel ?? '紙面'}
+                  ‹ {props.backLabel ?? 'ホーム'}
                 </FloatingPill>
-                <h1>{pr().name}</h1>
+                <Show when={editing()} fallback={<h1>{pr().name}</h1>}>
+                  <h1>
+                    <input
+                      ref={(el) => props.editing && queueMicrotask(() => el.select())}
+                      class={styles.name}
+                      type="text"
+                      aria-label="プロジェクトの名前"
+                      value={pr().name}
+                    />
+                  </h1>
+                </Show>
                 <span class={shared.meta}>
                   プロジェクト · {list().length} 件 · 最後に扱った {pr().touched}
                 </span>

@@ -83,11 +83,3 @@
   right: 8px;
   top: 8px;
 }
-.new {
-  width: 280px;
-  height: 34px;
-  padding: 0 10px;
-  border: 1px solid var(--sage);
-  border-radius: var(--radius-md);
-  background: var(--card);
-}

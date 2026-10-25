@@ -4,7 +4,7 @@ import { FloatingPill } from './FloatingPill'
 const meta = {
   title: '部品/FloatingPill',
   component: FloatingPill,
-  args: { children: '‹ 紙面' },
+  args: { children: '‹ ホーム' },
 } satisfies Meta<typeof FloatingPill>
 export default meta
 type Story = StoryObj<typeof meta>

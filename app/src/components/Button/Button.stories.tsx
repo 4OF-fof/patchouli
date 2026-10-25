@@ -10,6 +10,6 @@ export const Primary: Story = { args: { variant: 'primary', children: '承認す
 export const PrimaryDisabled: Story = {
   args: { variant: 'primary', disabled: true, children: '承認する' },
 }
-export const Ghost: Story = { args: { variant: 'ghost', children: '‹ 紙面' } }
+export const Ghost: Story = { args: { variant: 'ghost', children: '‹ ホーム' } }
 export const Pressed: Story = { args: { pressed: true } }
 export const Small: Story = { args: { size: 'sm' } }

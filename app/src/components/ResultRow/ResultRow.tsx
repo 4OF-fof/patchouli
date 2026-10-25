@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import { type JSX, createEffect } from 'solid-js'
 import { Kbd } from '../Kbd/Kbd'
 import { Thumb, type ThumbProps } from '../Thumb/Thumb'
 import styles from './ResultRow.module.css'
@@ -27,10 +27,15 @@ const ICON: Record<Exclude<ResultKind, 'asset'>, string> = {
 
 /** 検索バーの結果の 1 行。 */
 export function ResultRow(props: ResultRowProps) {
+  let el!: HTMLDivElement
+  createEffect(() => {
+    if (props.selected) el.scrollIntoView({ block: 'nearest' })
+  })
   return (
     // キー操作は検索欄の ↑↓ Enter が受け持つ（combobox）ので、行はマウスで押せるだけにする
     // oxlint-disable-next-line jsx-a11y/click-events-have-key-events
     <div
+      ref={el}
       class={styles.root}
       role="option"
       tabIndex={-1}

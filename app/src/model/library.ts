@@ -155,6 +155,39 @@ export function buildLibrary(items: Item[], projects: Project[], today: Date): L
   }
 }
 
+/** 空のプロジェクトを足したライブラリと、その名前。名前は「新しいプロジェクト」「新しいプロジェクト 2」…と重ならないように付ける。 */
+export function withEmptyProject(lib: Library, now = new Date()): { lib: Library; name: string } {
+  const base = '新しいプロジェクト'
+  let name = base
+  for (let n = 2; lib.projectBy.has(name); n++) name = `${base} ${n}`
+  const hm = `${now.getHours()}`.padStart(2, '0') + ':' + `${now.getMinutes()}`.padStart(2, '0')
+  const p: Project = { name, hue: 210, touched: `今日 ${hm}`, cover: [], pins: [] }
+  return { lib: buildLibrary(lib.items, [...lib.projects, p], lib.today), name }
+}
+
+/** 空のノートを足したライブラリと、その id。名前がなければ「新しいノート」にし、重なるときは番号を付ける。 */
+export function withEmptyNote(lib: Library, name = '新しいノート'): { lib: Library; id: string } {
+  let n = name
+  for (let k = 2; lib.byName.has(n); k++) n = `${name} ${k}`
+  const id = `i${lib.items.length + 1}`
+  const note: Item = {
+    id,
+    kind: 'note',
+    name: n,
+    folder: null,
+    tags: [],
+    moved: 0,
+    hue: 210,
+    sat: 14,
+    ratio: 0.8,
+    rating: 0,
+    memo: '',
+    blocks: [],
+    aliases: [],
+  }
+  return { lib: buildLibrary([...lib.items, note], lib.projects, lib.today), id }
+}
+
 /* ---------- 表示の文字 ---------- */
 
 const DAY = 864e5
@@ -211,5 +244,5 @@ export function coverOf(lib: Library, p: Project, n: number) {
   return [...picked, ...rest].slice(0, n)
 }
 
-/** 紙面での重み。つながりと評価が多いほど前に出る。 */
+/** ホームでの重み。つながりと評価が多いほど前に出る。 */
 export const scoreOf = (lib: Library, it: Item) => lib.linkCount(it) * 2 + it.rating + (it.kind === 'note' ? 1 : 0)

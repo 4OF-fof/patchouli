@@ -31,7 +31,7 @@ export const Tag: Story = {
   decorators: [single],
 }
 
-/** 紙面の並び（5 枚） */
+/** ホームの並び（5 枚） */
 export const Row: Story = {
   decorators: [
     (Story) => (

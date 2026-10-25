@@ -430,6 +430,6 @@ export function sampleLibrary(): Library {
   return buildLibrary(items, projects, TODAY)
 }
 
-/** 紙面にピン留めしているプロジェクトとタグ。 */
+/** ホームにピン留めしているプロジェクトとタグ。 */
 export const PINNED_PROJECTS = ['秋の企画', '日記']
 export const PINNED_TAGS = ['写真', 'UI', '参考']

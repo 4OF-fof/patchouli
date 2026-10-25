@@ -2,7 +2,7 @@ import styles from './PinToggle.module.css'
 
 export interface PinToggleProps {
   pressed?: boolean
-  /** 何に留めるか（例「紙面に」）。読み上げと title に使う。 */
+  /** 何に留めるか（例「ホームに」）。読み上げと title に使う。 */
   where?: string
   /** plain 地なし（タグ一覧・プロジェクト一覧）/ float 浮かべる（カードの右上）。 */
   look?: 'plain' | 'float'
