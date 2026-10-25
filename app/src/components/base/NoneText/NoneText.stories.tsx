@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { NoneText } from './NoneText'
 
 const meta = {
-  title: '部品/基本/NoneText',
+  title: '部品/base/NoneText',
   component: NoneText,
   args: { children: '（説明はまだありません）' },
 } satisfies Meta<typeof NoneText>

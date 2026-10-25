@@ -3,7 +3,7 @@ import type { JSX } from 'solid-js'
 import { PinnedCard } from './PinnedCard'
 
 const meta = {
-  title: '部品/素材/PinnedCard',
+  title: '部品/media/PinnedCard',
   component: PinnedCard,
   args: {
     name: '秋の企画',

@@ -3,7 +3,7 @@ import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from './IconButton'
 
 const meta = {
-  title: '部品/操作/IconButton',
+  title: '部品/controls/IconButton',
   component: IconButton,
   args: { label: 'すべて見る', children: <Icon name="chevron" /> },
 } satisfies Meta<typeof IconButton>

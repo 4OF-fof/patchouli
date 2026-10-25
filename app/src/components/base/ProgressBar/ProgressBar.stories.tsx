@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { ProgressBar } from './ProgressBar'
 
 const meta = {
-  title: '部品/基本/ProgressBar',
+  title: '部品/base/ProgressBar',
   component: ProgressBar,
   args: { value: 0.4 },
   decorators: [(Story) => <div style={{ width: '240px' }}>{Story()}</div>],

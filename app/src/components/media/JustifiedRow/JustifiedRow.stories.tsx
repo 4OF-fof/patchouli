@@ -26,7 +26,7 @@ const ITEMS: { name: string; hue: number; ratio: number; kind?: ThumbKind; excer
 ]
 
 const meta = {
-  title: '部品/素材/JustifiedRow',
+  title: '部品/media/JustifiedRow',
   component: JustifiedRow,
   args: { height: 118, gap: 6 },
   decorators: [

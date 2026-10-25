@@ -37,3 +37,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* ピンを重ねるときの枠。JustifiedRow の中では --ar の幅を取る */
+.wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.wrap:hover {
+  --pin-show: 1;
+}
+.pin {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+}

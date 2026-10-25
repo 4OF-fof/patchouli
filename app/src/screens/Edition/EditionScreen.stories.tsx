@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { DropZone } from '../../components/overlay/DropZone/DropZone'
 import { Toast } from '../../components/overlay/Toast/Toast'
 import { buildLibrary } from '../../model/library'
-import { PINNED_ITEMS, PINNED_PROJECTS, PINNED_TAGS, TODAY, sampleLibrary } from '../../samples/library'
+import { PINNED_PROJECTS, PINNED_TAGS, TODAY, sampleLibrary } from '../../samples/library'
 import { AppDock, type DockState } from '../AppDock'
 import { ScreenFrame } from '../ScreenFrame'
 import { EditionScreen } from './EditionScreen'
@@ -25,7 +25,6 @@ const edition = (
         lib={lib}
         pinnedProjects={PINNED_PROJECTS}
         pinnedTags={PINNED_TAGS}
-        pinnedItems={PINNED_ITEMS}
         pinsOpen={o.pinsOpen}
         scrollTop={o.scrollTop}
       />

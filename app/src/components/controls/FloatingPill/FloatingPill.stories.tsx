@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { FloatingPill } from './FloatingPill'
 
 const meta = {
-  title: '部品/操作/FloatingPill',
+  title: '部品/controls/FloatingPill',
   component: FloatingPill,
   args: { children: '‹ ホーム' },
 } satisfies Meta<typeof FloatingPill>

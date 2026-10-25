@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { ItemCard } from './ItemCard'
 
 const meta = {
-  title: '部品/素材/ItemCard',
+  title: '部品/media/ItemCard',
   component: ItemCard,
   args: { name: '夕方の港', hue: 205, height: 160, onClick: () => {} },
   decorators: [
@@ -30,3 +30,5 @@ export const Unsaved: Story = {
   args: { kind: 'note', name: '配色のメモ', excerpt: '彩度を落とした青を基調に。', dirty: true },
 }
 export const NameHidden: Story = { args: { showName: false } }
+export const Pin: Story = { name: 'ピンを重ねる', args: { onPin: () => {} } }
+export const Pinned: Story = { name: 'ピン留めしている', args: { pinned: true, onPin: () => {} } }

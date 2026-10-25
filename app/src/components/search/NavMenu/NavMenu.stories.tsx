@@ -3,7 +3,7 @@ import { NavMenu } from './NavMenu'
 import { MAIN_ITEMS, SETTINGS_ITEMS } from './NavMenu.samples'
 
 const meta = {
-  title: '部品/検索とメニュー/NavMenu',
+  title: '部品/search/NavMenu',
   component: NavMenu,
   args: { items: MAIN_ITEMS, onSelect: () => {} },
 } satisfies Meta<typeof NavMenu>

@@ -1,6 +1,6 @@
 import { Match, Switch, createSignal, onCleanup, onMount } from 'solid-js'
-import { type Library, retag, withEmptyNote, withEmptyProject, withRenamedTag } from './model/library'
-import { PINNED_ITEMS, PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
+import { type Library, retag, withEmptyNote, withEmptyProject, withRenamedTag, withToggledPin } from './model/library'
+import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import { AppDock, type Place } from './screens/AppDock'
 import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
@@ -81,6 +81,7 @@ export function App(props: { lib: Library }) {
     setPinnedTags([...new Set(pinnedTags().map(re))])
     setStack(stack().map((v) => (v.s === 'tag' ? { ...v, tag: re(v.tag) } : v)))
   }
+  const togglePin = (id: string) => setLib(withToggledPin(lib(), id))
   const here = (): Place | undefined =>
     view().s === 'edition' ? 'home' : view().s === 'tlist' ? 'tags' : view().s === 'plist' ? 'projects' : undefined
   const hasDock = () => ['edition', 'project', 'plist', 'tlist', 'tag'].includes(view().s)
@@ -105,7 +106,7 @@ export function App(props: { lib: Library }) {
             lib={lib()}
             pinnedProjects={PINNED_PROJECTS}
             pinnedTags={pinnedTags()}
-            pinnedItems={PINNED_ITEMS}
+            onTogglePin={togglePin}
             onOpenItem={(id) => openItem(id)}
             onOpenProject={(name) => go({ s: 'project', name })}
             onOpenTag={(tag) => go({ s: 'tag', tag })}
@@ -121,6 +122,7 @@ export function App(props: { lib: Library }) {
                 editing={v.editing}
                 backLabel={back()}
                 onBack={goBack}
+                onTogglePin={togglePin}
                 onOpenItem={openItem}
               />
             )
@@ -148,6 +150,7 @@ export function App(props: { lib: Library }) {
                 onBack={goBack}
                 onOpenItem={openItem}
                 onOpenTag={(tag) => go({ s: 'tag', tag })}
+                onTogglePin={togglePin}
                 onRename={(to) => renameTag(v.tag, to)}
               />
             )

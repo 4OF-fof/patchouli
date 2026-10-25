@@ -60,8 +60,6 @@ export interface Project {
   /** 最後に扱った日（表示用の文字）。 */
   touched: string
   cover: CoverPart[]
-  /** ピン留めした項目の id（留めた順）。 */
-  pins: string[]
 }
 
 const LINK_RE = /\[\[([^\]]+)\]\]/g
@@ -115,6 +113,8 @@ export interface Library {
   projectBy: Map<string, Project>
   /** タグごとの表紙。ないタグは表紙が空。 */
   tagCovers: Map<string, TagCoverPart[]>
+  /** ピン留めした項目の id（留めた順）。プロジェクトやタグの詳細、ホームで同じものを使う。 */
+  pins: string[]
   /** このノートからリンクしている、あるもの。 */
   linksOf: (note: Item) => Item[]
   /** この項目へリンクしているノート。 */
@@ -132,6 +132,7 @@ export function buildLibrary(
   projects: Project[],
   today: Date,
   tagCovers = new Map<string, TagCoverPart[]>(),
+  pins: string[] = [],
 ): Library {
   const byId = new Map(items.map((i) => [i.id, i]))
   const byName = new Map(items.map((i) => [i.name, i]))
@@ -156,6 +157,7 @@ export function buildLibrary(
     byName,
     projectBy,
     tagCovers,
+    pins,
     linksOf,
     backOf,
     linkCount: (it) => (it.kind === 'note' ? linksOf(it).length : 0) + backOf(it).length,
@@ -178,9 +180,13 @@ export function withEmptyProject(lib: Library, now = new Date()): { lib: Library
   let name = base
   for (let n = 2; lib.projectBy.has(name); n++) name = `${base} ${n}`
   const hm = `${now.getHours()}`.padStart(2, '0') + ':' + `${now.getMinutes()}`.padStart(2, '0')
-  const p: Project = { name, hue: 210, touched: `今日 ${hm}`, cover: [], pins: [] }
-  return { lib: buildLibrary(lib.items, [...lib.projects, p], lib.today, lib.tagCovers), name }
+  const p: Project = { name, hue: 210, touched: `今日 ${hm}`, cover: [] }
+  return { lib: buildLibrary(lib.items, [...lib.projects, p], lib.today, lib.tagCovers, lib.pins), name }
 }
+
+/** 項目 id のピン留めを切り替えたライブラリ。 */
+export const withToggledPin = (lib: Library, id: string) =>
+  buildLibrary(lib.items, lib.projects, lib.today, lib.tagCovers, toggled(lib.pins, id))
 
 /** タグ from を to に変えたときの、タグ t の新しい名前。下の階層も付け替える。 */
 export const retag = (from: string, to: string) => (t: string) =>
@@ -195,7 +201,7 @@ export function withRenamedTag(lib: Library, from: string, to: string): Library 
     suggestion: i.suggestion && { ...i.suggestion, tags: i.suggestion.tags.map((c) => ({ ...c, tag: re(c.tag) })) },
   }))
   const covers = new Map([...lib.tagCovers].map(([t, c]) => [re(t), c]))
-  return buildLibrary(items, lib.projects, lib.today, covers)
+  return buildLibrary(items, lib.projects, lib.today, covers, lib.pins)
 }
 
 /** 空のノートを足したライブラリと、その id。名前がなければ「新しいノート」にし、重なるときは番号を付ける。 */
@@ -218,7 +224,7 @@ export function withEmptyNote(lib: Library, name = '新しいノート'): { lib:
     blocks: [],
     aliases: [],
   }
-  return { lib: buildLibrary([...lib.items, note], lib.projects, lib.today, lib.tagCovers), id }
+  return { lib: buildLibrary([...lib.items, note], lib.projects, lib.today, lib.tagCovers, lib.pins), id }
 }
 
 /* ---------- 表示の文字 ---------- */

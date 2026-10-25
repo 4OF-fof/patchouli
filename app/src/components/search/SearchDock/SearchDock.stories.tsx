@@ -35,7 +35,7 @@ const typed = () => (
 )
 
 const meta = {
-  title: '部品/検索とメニュー/SearchDock',
+  title: '部品/search/SearchDock',
   component: SearchDock,
   parameters: { layout: 'fullscreen' },
   decorators: [

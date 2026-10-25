@@ -5,7 +5,7 @@ import { ThumbStrip } from './ThumbStrip'
 const items = sampleLibrary().items.slice(0, 14)
 
 const meta = {
-  title: '部品/素材/ThumbStrip',
+  title: '部品/media/ThumbStrip',
   component: ThumbStrip,
   args: { items },
   decorators: [(Story) => <div style={{ width: '520px', '--thumb-h': '62px' }}>{Story()}</div>],

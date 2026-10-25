@@ -45,11 +45,12 @@ export interface TagScreenProps {
   onBack?: () => void
   onOpenItem?: (id: string, list: string[]) => void
   onOpenTag?: (tag: string) => void
+  onTogglePin?: (id: string) => void
   /** 編集を終えたとき、名前が変わっていれば呼ぶ。付いている項目と下の階層の付け替えは呼んだ側でする。 */
   onRename?: (to: string) => void
 }
 
-/** 13 タグ。左に表紙の部品、右にすべての項目。 */
+/** 13 タグ。左に表紙の部品、右にピン留めとすべての項目。 */
 export function TagScreen(props: TagScreenProps) {
   const lib = () => props.lib
   const [pinned, setPinned] = createSignal(!!props.pinned)
@@ -165,7 +166,7 @@ export function TagScreen(props: TagScreenProps) {
       onBack={props.onBack}
       actions={
         <>
-          <PinToggle where="ホームに" look="float" pressed={pinned()} onClick={() => setPinned(!pinned())} />
+          <PinToggle where="ホームに" pressed={pinned()} onClick={() => setPinned(!pinned())} />
           <FloatingPill aria-pressed={editing()} onClick={toggleEdit}>
             {editing() ? '編集を終える' : '表紙を編集'}
           </FloatingPill>
@@ -191,6 +192,8 @@ export function TagScreen(props: TagScreenProps) {
       }
       items={shown()}
       empty="このタグの付いたものはありません。"
+      pins={lib().pins}
+      onTogglePin={props.onTogglePin}
       onOpenItem={props.onOpenItem}
     />
   )

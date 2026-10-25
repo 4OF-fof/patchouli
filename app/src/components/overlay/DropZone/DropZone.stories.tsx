@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { DropZone } from './DropZone'
 
 const meta = {
-  title: '部品/浮かぶもの/DropZone',
+  title: '部品/overlay/DropZone',
   component: DropZone,
   parameters: { layout: 'fullscreen' },
   args: { title: '12 個を取り込む', sub: '離すと取り込み、自動分類の確認に回ります' },

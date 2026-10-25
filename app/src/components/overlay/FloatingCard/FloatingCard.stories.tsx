@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { FloatingCard } from './FloatingCard'
 
 const meta = {
-  title: '部品/浮かぶもの/FloatingCard',
+  title: '部品/overlay/FloatingCard',
   component: FloatingCard,
   args: { title: '見出し' },
 } satisfies Meta<typeof FloatingCard>

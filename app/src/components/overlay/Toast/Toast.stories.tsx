@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { Toast } from './Toast'
 
 const meta = {
-  title: '部品/浮かぶもの/Toast',
+  title: '部品/overlay/Toast',
   component: Toast,
   args: { message: '「配色のメモ」を作りました' },
 } satisfies Meta<typeof Toast>

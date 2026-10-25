@@ -6,9 +6,6 @@
   padding: 12px 0;
   border-bottom: 1px solid var(--line);
 }
-.row:hover {
-  --pin-show: 1;
-}
 .row[data-sub='true'] {
   --thumb-h: 44px;
   padding: 8px 0 8px 36px;

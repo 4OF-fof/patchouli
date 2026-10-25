@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { ResultHeading, ResultRow } from './ResultRow'
 
 const meta = {
-  title: '部品/検索とメニュー/ResultRow',
+  title: '部品/search/ResultRow',
   component: ResultRow,
   args: { kind: 'command', title: '整理を開く', kbd: 'Ctrl U' },
   decorators: [

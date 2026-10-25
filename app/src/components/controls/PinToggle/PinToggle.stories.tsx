@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { PinToggle } from './PinToggle'
 
 const meta = {
-  title: '部品/操作/PinToggle',
+  title: '部品/controls/PinToggle',
   component: PinToggle,
   args: { onClick: () => {} },
 } satisfies Meta<typeof PinToggle>

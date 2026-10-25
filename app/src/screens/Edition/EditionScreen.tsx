@@ -14,6 +14,7 @@ import {
   hasTag,
   scoreOf,
   thumbOf,
+  toggled,
 } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './EditionScreen.module.css'
@@ -34,8 +35,6 @@ export interface EditionScreenProps {
   lib: Library
   pinnedProjects?: string[]
   pinnedTags?: string[]
-  /** ピン留めした素材の名前。プロジェクトに入っているものは出さない。 */
-  pinnedItems?: string[]
   /** ピン留めを 2 行で切らず、全件を出している。 */
   pinsOpen?: boolean
   /** 開いたときのスクロール位置（スクロール後の見た目を確かめる）。 */
@@ -45,6 +44,7 @@ export interface EditionScreenProps {
   onOpenTag?: (tag: string) => void
   /** 整理を開く。id を渡すと、その項目から見る。 */
   onTidy?: (id?: string) => void
+  onTogglePin?: (id: string) => void
 }
 
 /** 00 ホーム。承認待ちの最近追加したもの、ピン留め、動いた日で分けた段。 */
@@ -53,6 +53,11 @@ export function EditionScreen(props: EditionScreenProps) {
   let more: HTMLDivElement | undefined
   const lib = () => props.lib
   const recent = createMemo(() => lib().pending())
+  const [itemPins, setItemPins] = createSignal(lib().pins)
+  const togglePin = (id: string) => {
+    setItemPins(toggled(itemPins(), id))
+    props.onTogglePin?.(id)
+  }
   const pins = createMemo<Pin[]>(() => [
     ...(props.pinnedProjects ?? []).flatMap((n) => {
       const p = lib().projectBy.get(n)
@@ -83,8 +88,9 @@ export function EditionScreen(props: EditionScreenProps) {
         },
       ]
     }),
-    ...(props.pinnedItems ?? []).flatMap((n) => {
-      const it = lib().byName.get(n)
+    // 素材はプロジェクトに入っていないものだけ出す
+    ...itemPins().flatMap((id) => {
+      const it = lib().byId.get(id)
       if (!it || it.kind === 'note' || it.folder) return []
       return [
         {
@@ -220,6 +226,8 @@ export function EditionScreen(props: EditionScreenProps) {
                           name={it.name}
                           ratio={it.ratio}
                           showName={false}
+                          pinned={itemPins().includes(it.id)}
+                          onPin={() => togglePin(it.id)}
                           onClick={() => props.onOpenItem?.(it.id)}
                         />
                       )}

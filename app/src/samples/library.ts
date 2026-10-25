@@ -28,7 +28,7 @@ type RawBlock = [NoteBlock['type'], string]
 type RawAsset = [name: string, kind: ItemKind, tags: string[], moved: number]
 type RawNote = [name: string, moved: number, tags: string[], blocks: RawBlock[]]
 
-const PROJECTS: (Omit<Project, 'pins'> & { pinNames: string[] })[] = [
+const PROJECTS: (Project & { pinNames: string[] })[] = [
   {
     name: '秋の企画',
     hue: 28,
@@ -361,6 +361,9 @@ const extOf = (kind: ItemKind, name: string) =>
 const blocks = (raw: RawBlock[]): NoteBlock[] => raw.map(([type, text]) => ({ type, text }))
 
 /** 見本のライブラリを作る。呼ぶたびに同じ中身の新しいものを返す。 */
+/** プロジェクトに入っていない、ピン留めした素材。 */
+const PINNED_ITEMS = ['ref-a', 'IMG_3316']
+
 export function sampleLibrary(): Library {
   let seed = 20261022
   const rnd = () => ((seed = (seed * 16807) % 2147483647), (seed - 1) / 2147483646)
@@ -438,16 +441,16 @@ export function sampleLibrary(): Library {
   add({ kind: 'image', name: 'ref-b', tags: ['参考'], folder: null, moved: 26, hue: 44, sat: 18 })
 
   const byName = new Map(items.map((i) => [i.name, i]))
-  const projects: Project[] = PROJECTS.map(({ pinNames, cover, ...p }) => ({
-    ...p,
+  const projects: Project[] = PROJECTS.map(({ name, hue, touched, cover }) => ({
+    name,
+    hue,
+    touched,
     cover: structuredClone(cover),
-    pins: pinNames.flatMap((n) => byName.get(n)?.id ?? []),
   }))
-  return buildLibrary(items, projects, TODAY, new Map(Object.entries(structuredClone(TAG_COVERS))))
+  const pins = [...PROJECTS.flatMap((p) => p.pinNames), ...PINNED_ITEMS].flatMap((n) => byName.get(n)?.id ?? [])
+  return buildLibrary(items, projects, TODAY, new Map(Object.entries(structuredClone(TAG_COVERS))), pins)
 }
 
 /** ホームにピン留めしているプロジェクトとタグ。 */
 export const PINNED_PROJECTS = ['秋の企画', '日記']
 export const PINNED_TAGS = ['写真', 'UI', '参考']
-/** ホームにピン留めしている素材（プロジェクトに入っていないもの）。 */
-export const PINNED_ITEMS = ['ref-a', 'IMG_3316']

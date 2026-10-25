@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { Icon } from './Icon'
 
 const meta = {
-  title: '部品/基本/Icon',
+  title: '部品/base/Icon',
   component: Icon,
   args: { name: 'chevron' },
   decorators: [(Story) => <div style={{ width: '32px', height: '32px' }}>{Story()}</div>],

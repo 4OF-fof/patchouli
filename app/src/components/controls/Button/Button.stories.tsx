@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { Button } from './Button'
 
-const meta = { title: '部品/操作/Button', component: Button, args: { children: '編集' } } satisfies Meta<typeof Button>
+const meta = { title: '部品/controls/Button', component: Button, args: { children: '編集' } } satisfies Meta<
+  typeof Button
+>
 export default meta
 type Story = StoryObj<typeof meta>
 

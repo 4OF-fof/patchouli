@@ -3,7 +3,7 @@ import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPil
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
-import { type CardSize, type Item, thumbOf } from '../../model/library'
+import { type CardSize, type Item, thumbOf, toggled } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './DetailScreen.module.css'
 
@@ -22,22 +22,29 @@ export interface DetailScreenProps {
   /** 左の列に積む部品。何もなければ右の列が全幅になる。 */
   side?: JSX.Element
   sideLabel?: string
-  /** 右の列で「すべて」より前に出すもの（ピン留めなど）。見出しに data-first を付けておく。 */
-  top?: JSX.Element
   items: Item[]
   /** items が空のときの一言。 */
   empty?: JSX.Element
-  /** カードを差し替えるとき（ピンを重ねるなど）。list はいまの並び。 */
-  card?: (it: Item, size: CardSize, list: () => Item[]) => JSX.Element
+  /** ピン留めした項目の id（ライブラリ全体）。items に入っているものを「すべて」より前に出す。 */
+  pins?: string[]
+  onTogglePin?: (id: string) => void
   onOpenItem?: (id: string, list: string[]) => void
 }
 
-/** プロジェクトやタグの中身を見る画面の枠。上に名前、その下を左右 1:2 に分け、右にすべての項目を並べる。 */
+/** プロジェクトやタグの中身を見る画面の枠。上に名前、その下を左右 1:2 に分け、右にピン留めとすべての項目を並べる。 */
 export function DetailScreen(props: DetailScreenProps) {
   const [sort, setSort] = createSignal<Sort>('moved')
   const side = children(() => props.side)
-  const top = children(() => props.top)
-  const has = (c: typeof side) => c.toArray().some((x) => x != null)
+  const hasSide = () => side.toArray().some((x) => x != null)
+  const [pins, setPins] = createSignal(props.pins ?? [])
+  const pinned = createMemo(() => {
+    const here = new Map(props.items.map((i) => [i.id, i]))
+    return pins().flatMap((id) => here.get(id) ?? [])
+  })
+  const togglePin = (id: string) => {
+    setPins(toggled(pins(), id))
+    props.onTogglePin?.(id)
+  }
   const all = createMemo(() =>
     props.items.toSorted(
       sort() === 'name'
@@ -47,20 +54,21 @@ export function DetailScreen(props: DetailScreenProps) {
           : (a, b) => a.moved - b.moved,
     ),
   )
-  const card = (it: Item, size: CardSize, list: () => Item[]) =>
-    props.card?.(it, size, list) ?? (
-      <ItemCard
-        {...thumbOf(it, size)}
-        name={it.name}
-        ratio={it.ratio}
-        onClick={() =>
-          props.onOpenItem?.(
-            it.id,
-            list().map((x) => x.id),
-          )
-        }
-      />
-    )
+  const card = (it: Item, size: CardSize, list: () => Item[]) => (
+    <ItemCard
+      {...thumbOf(it, size)}
+      name={it.name}
+      ratio={it.ratio}
+      pinned={pins().includes(it.id)}
+      onPin={() => togglePin(it.id)}
+      onClick={() =>
+        props.onOpenItem?.(
+          it.id,
+          list().map((x) => x.id),
+        )
+      }
+    />
+  )
   return (
     <section class={shared.screen} aria-label={props.label}>
       <div class={shared.scroll}>
@@ -75,15 +83,23 @@ export function DetailScreen(props: DetailScreenProps) {
               <span class={shared.right}>{props.actions}</span>
             </Show>
           </header>
-          <div class={styles.body} data-wide={!has(side) || undefined}>
-            <Show when={has(side)}>
+          <div class={styles.body} data-wide={!hasSide() || undefined}>
+            <Show when={hasSide()}>
               <div class={styles.side} aria-label={props.sideLabel}>
                 {side()}
               </div>
             </Show>
             <div>
-              {top()}
-              <div class={shared.head} data-first={!has(top) || undefined}>
+              <Show when={pinned().length}>
+                <div class={shared.head} data-first>
+                  <h2>ピン留め</h2>
+                  <span>{pinned().length} 件 · ピン留めした順</span>
+                </div>
+                <JustifiedRow height={196} gap={10}>
+                  <For each={pinned()}>{(it) => card(it, 'M', pinned)}</For>
+                </JustifiedRow>
+              </Show>
+              <div class={shared.head} data-first={!pinned().length || undefined}>
                 <h2>すべて</h2>
                 <span>{props.items.length} 件</span>
                 <Tabs

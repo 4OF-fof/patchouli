@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { Thumb } from './Thumb'
 
 const meta = {
-  title: '部品/素材/Thumb',
+  title: '部品/media/Thumb',
   component: Thumb,
   args: { hue: 210, height: 160 },
   decorators: [

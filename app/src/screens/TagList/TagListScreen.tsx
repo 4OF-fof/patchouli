@@ -87,8 +87,6 @@ export function TagListScreen(props: TagListScreenProps) {
           </button>
           <PinToggle
             where="ホームに"
-            look="float"
-            reveal
             pressed={pins().includes(r.tag)}
             onClick={() => setPins(toggled(pins(), r.tag))}
           />

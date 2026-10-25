@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { Kbd } from './Kbd'
 
-const meta = { title: '部品/基本/Kbd', component: Kbd, args: { children: 'Ctrl P' } } satisfies Meta<typeof Kbd>
+const meta = { title: '部品/base/Kbd', component: Kbd, args: { children: 'Ctrl P' } } satisfies Meta<typeof Kbd>
 export default meta
 type Story = StoryObj<typeof meta>
 

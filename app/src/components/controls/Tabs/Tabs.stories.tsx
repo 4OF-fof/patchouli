@@ -3,7 +3,7 @@ import { createSignal } from 'solid-js'
 import { Tabs } from './Tabs'
 
 const meta = {
-  title: '部品/操作/Tabs',
+  title: '部品/controls/Tabs',
   component: Tabs,
 } satisfies Meta<typeof Tabs>
 export default meta
