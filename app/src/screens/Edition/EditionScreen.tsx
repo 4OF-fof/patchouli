@@ -204,7 +204,7 @@ export function EditionScreen(props: EditionScreenProps) {
                       <PinnedCard
                         name={p.name}
                         meta={p.meta}
-                        tiles={p.tiles.map((i) => ({ hue: i.hue, sat: i.sat }))}
+                        tiles={p.tiles.map((i) => ({ hue: i.hue, sat: i.sat, src: i.thumb }))}
                         thumb={p.thumb && thumbOf(p.thumb, 'L')}
                         onClick={p.open}
                       />

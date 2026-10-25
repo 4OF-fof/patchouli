@@ -39,7 +39,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
     return (
       <div class={styles.wrap}>
         <button type="button" class={styles.card} data-big={big} onClick={() => props.onOpenProject?.(p.name)}>
-          <Mosaic tiles={coverOf(lib(), p, 5).map((i) => ({ hue: i.hue, sat: i.sat }))} />
+          <Mosaic tiles={coverOf(lib(), p, 5).map((i) => ({ hue: i.hue, sat: i.sat, src: i.thumb }))} />
           <span class={styles.nm}>{p.name}</span>
           {big && <span class={styles.ds}>{desc?.type === 'desc' ? desc.text : ' '}</span>}
           <span class={styles.pm}>
