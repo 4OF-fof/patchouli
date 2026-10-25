@@ -1,0 +1,98 @@
+.ov {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+  background: var(--scrim);
+}
+.root {
+  width: min(720px, 100%);
+  max-height: 100%;
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+.body {
+  padding: 20px 22px;
+}
+.body:focus {
+  outline: none;
+}
+.root h2 {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.root h3 {
+  margin: 0 0 8px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.root h3 small {
+  margin-left: 6px;
+  font: 500 11.5px var(--f-mono);
+  color: var(--faint);
+}
+.root section + section {
+  margin-top: 20px;
+}
+.root pre {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--side);
+  color: var(--muted);
+  font: 11px/1.55 var(--f-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.root pre + pre {
+  margin-top: 6px;
+}
+.root ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line);
+}
+.root li {
+  border-bottom: 1px solid var(--line);
+}
+.root summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 2px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.root summary b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.root summary span {
+  font: 500 11px var(--f-mono);
+  color: var(--faint);
+}
+.root summary small {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.root details[open] {
+  padding-bottom: 10px;
+}
+.wait,
+.none {
+  margin: 0;
+  font-size: 12px;
+  color: var(--faint);
+  overflow-wrap: anywhere;
+}

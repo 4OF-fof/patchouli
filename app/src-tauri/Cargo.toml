@@ -2,7 +2,7 @@
 name = "patchouli"
 version = "0.1.0"
 description = "Patchouli"
-license = ""
+license = "MIT"
 repository = ""
 edition = "2024"
 rust-version = "1.90"

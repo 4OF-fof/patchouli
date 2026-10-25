@@ -1,5 +1,6 @@
-import { Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import { HelpDialog } from '../components/overlay/HelpDialog/HelpDialog'
+import { type Notices, NoticesDialog } from '../components/overlay/NoticesDialog/NoticesDialog'
 import { NavMenu, type NavMenuEntry } from '../components/search/NavMenu/NavMenu'
 import { SearchDock } from '../components/search/SearchDock/SearchDock'
 import type { Library } from '../model/library'
@@ -9,8 +10,8 @@ import { type Row, SearchResults } from '../components/search/SearchResults/Sear
 
 /** 行き先。 */
 export type Place = 'home' | 'tags' | 'projects' | 'tidy'
-/** closed 閉じている / menu ☰ を開いた / settings その先の設定 / search 検索に入力中 / prompt プロンプト / help キー操作の一覧 */
-export type DockState = 'closed' | 'menu' | 'settings' | 'search' | 'prompt' | 'help'
+/** closed 閉じている / menu ☰ を開いた / settings その先の設定 / search 検索に入力中 / prompt プロンプト / help キー操作の一覧 / notices 権利表示 */
+export type DockState = 'closed' | 'menu' | 'settings' | 'search' | 'prompt' | 'help' | 'notices'
 
 export interface AppDockProps {
   lib: Library
@@ -105,6 +106,12 @@ export function AppDock(props: AppDockProps) {
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
+  // 一覧は大きいので、初めて開いたときに読む
+  const [notices] = createResource(
+    () => state() === 'notices' || undefined,
+    async () => (await import('../notices/third-party.json')).default as Notices,
+  )
+
   const results = () => <SearchResults lib={lib()} rows={rows()} selected={idx()} terms={terms()} onRun={run} />
 
   const menuItems = (): NavMenuEntry[] =>
@@ -125,6 +132,7 @@ export function AppDock(props: AppDockProps) {
             : []),
           { id: 'theme', icon: '◐', label: 'テーマを切り替える' },
           { id: 'keys', icon: '⌨', label: 'キー操作の一覧', kbd: '?' },
+          { id: 'notices', icon: '©', label: '権利表示' },
         ]
       : [
           { id: 'home', icon: '⌂', label: 'ホーム', current: props.here === 'home' },
@@ -144,6 +152,7 @@ export function AppDock(props: AppDockProps) {
     if (id === 'back') return setState('menu')
     if (id === 'theme') return toggleTheme()
     if (id === 'keys') return setState('help')
+    if (id === 'notices') return setState('notices')
     if (id === 'library') {
       close()
       return props.onChooseLibrary?.()
@@ -205,6 +214,9 @@ export function AppDock(props: AppDockProps) {
       </Show>
       <Show when={state() === 'help'}>
         <HelpDialog onClose={close} />
+      </Show>
+      <Show when={state() === 'notices'}>
+        <NoticesDialog notices={notices()} onClose={close} />
       </Show>
     </>
   )
