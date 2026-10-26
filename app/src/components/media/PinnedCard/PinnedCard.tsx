@@ -24,7 +24,11 @@ export function PinnedCard(props: PinnedCardProps) {
       style={{ '--mosaic-h': props.height ? `${props.height}px` : undefined }}
       onClick={() => props.onClick?.()}
     >
-      {props.thumb ? <Thumb {...props.thumb} class={styles.th} /> : <Mosaic tiles={props.tiles ?? []} count={3} />}
+      {props.thumb ? (
+        <Thumb {...props.thumb} class={`${styles.cover} ${styles.th}`} />
+      ) : (
+        <Mosaic tiles={props.tiles ?? []} count={3} class={styles.cover} />
+      )}
       <span class={styles.t}>
         <b>{props.name}</b>
         {props.meta && <span>{props.meta}</span>}

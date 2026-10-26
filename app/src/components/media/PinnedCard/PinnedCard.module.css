@@ -16,6 +16,12 @@
   --thumb-h: var(--mosaic-h, auto);
   aspect-ratio: 2 / 1;
 }
+.cover {
+  transition: transform 0.15s ease;
+}
+.root:hover .cover {
+  transform: translateY(-2px);
+}
 .root:focus-visible {
   border-radius: 4px;
   outline-offset: 3px;
@@ -43,7 +49,6 @@
   font-size: 11.5px;
   color: var(--faint);
 }
-.root:hover .t b,
 .root:focus-visible .t b {
   color: var(--sage-ink);
 }

@@ -11,13 +11,14 @@ export interface MosaicProps {
   /** 枠の数。5 は右に 2×2、3 は右に縦 2 つ。どちらも枠は 4:3 になる。 */
   count?: 3 | 5
   height?: number
+  class?: string
 }
 
 /** プロジェクトやタグの表紙。中身の素材を 5 つまで並べる。 */
 export function Mosaic(props: MosaicProps) {
   return (
     <span
-      class={styles.root}
+      class={`${styles.root} ${props.class ?? ''}`}
       data-count={props.count ?? 5}
       style={{ '--mosaic-h': props.height ? `${props.height}px` : undefined }}
     >
