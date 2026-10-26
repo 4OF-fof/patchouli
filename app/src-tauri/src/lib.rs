@@ -250,7 +250,10 @@ fn check(
             _ => return,
         }
     };
-    let _ = app.emit("library-changed", &changes);
+    // 何もないのに送ると、画面がライブラリを作り直してしまう
+    if !changes.is_empty() {
+        let _ = app.emit("library-changed", &changes);
+    }
     spawn_thumbs(app, plugins, cache, thumbs, job, all_found);
 }
 

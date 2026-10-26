@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, Index, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
@@ -127,29 +127,25 @@ export function EditionScreen(props: EditionScreenProps) {
     return out
   })
 
-  // 下まで来たら少し待って続きを足す
-  let timer = 0
+  // 下の端から 1 画面分先までを、待たずに埋める。足すと段の最後の行が組み直されるので、見える前に済ませる
+  const fill = () => {
+    const end = more
+    if (!end) return
+    const limit = scroll.getBoundingClientRect().bottom + scroll.clientHeight
+    while (shown() < feed().length && end.getBoundingClientRect().top < limit) setShown(shown() + MORE)
+  }
   onMount(() => {
     if (props.scrollTop) scroll.scrollTop = props.scrollTop
-    const io = new IntersectionObserver(
-      (es) => {
-        if (!es.some((e) => e.isIntersecting) || timer || shown() >= feed().length) return
-        timer = window.setTimeout(() => {
-          timer = 0
-          setShown(shown() + MORE)
-          // 足したあとも見えたままだと次の知らせが来ないので、見張り直して確かめる
-          if (more) {
-            io.unobserve(more)
-            io.observe(more)
-          }
-        }, 380)
-      },
-      { root: scroll, rootMargin: '0px 0px 240px 0px' },
-    )
-    if (more) io.observe(more)
+    // onMount の中で足しても描き直しが後回しになるので、描く前に走るマイクロタスクで埋める
+    queueMicrotask(fill)
+    // 見える・見えないの切り替わりで知らせる IntersectionObserver は、足し終えた位置が見張る範囲の端に重なると
+    // それきり知らせが来なくなるので、スクロールと大きさの変化のたびに確かめる
+    const ro = new ResizeObserver(fill)
+    ro.observe(scroll)
+    scroll.addEventListener('scroll', fill, { passive: true })
     onCleanup(() => {
-      io.disconnect()
-      clearTimeout(timer)
+      ro.disconnect()
+      scroll.removeEventListener('scroll', fill)
     })
   })
 
@@ -189,17 +185,17 @@ export function EditionScreen(props: EditionScreenProps) {
               <section>
                 <SectionLabel label="ピン留め" count={pins().length} />
                 <div class={styles.pins} ref={watchCols}>
-                  <For each={shownPins()}>
+                  <Index each={shownPins()}>
                     {(p) => (
                       <PinnedCard
-                        name={p.name}
-                        meta={p.meta}
-                        tiles={p.tiles.map((i) => ({ hue: i.hue, sat: i.sat, src: i.thumb }))}
-                        thumb={p.thumb && thumbOf(p.thumb, 'L')}
-                        onClick={p.open}
+                        name={p().name}
+                        meta={p().meta}
+                        tiles={p().tiles.map((i) => ({ hue: i.hue, sat: i.sat, src: i.thumb }))}
+                        thumb={p().thumb && thumbOf(p().thumb!, 'L')}
+                        onClick={() => p().open()}
                       />
                     )}
-                  </For>
+                  </Index>
                 </div>
                 <Show when={pins().length > pinLimit()}>
                   <div class={styles.pinsMore}>
@@ -210,15 +206,15 @@ export function EditionScreen(props: EditionScreenProps) {
                 </Show>
               </section>
             </Show>
-            <For each={tiers()}>
+            <Index each={tiers()}>
               {(t) => (
                 <section>
-                  <SectionLabel label={t.tier.name} count={t.n} />
-                  <JustifiedRow height={t.tier.h} gap={t.tier.gap}>
-                    <For each={t.items}>
+                  <SectionLabel label={t().tier.name} count={t().n} />
+                  <JustifiedRow height={t().tier.h} gap={t().tier.gap}>
+                    <For each={t().items}>
                       {(it) => (
                         <ItemCard
-                          {...thumbOf(it, t.tier.size)}
+                          {...thumbOf(it, t().tier.size)}
                           name={it.name}
                           ratio={it.ratio}
                           showName={false}
@@ -231,7 +227,7 @@ export function EditionScreen(props: EditionScreenProps) {
                   </JustifiedRow>
                 </section>
               )}
-            </For>
+            </Index>
             <div class={styles.more} ref={more}>
               <Show when={shown() < feed().length}>
                 <span class={styles.spin} aria-hidden="true" />

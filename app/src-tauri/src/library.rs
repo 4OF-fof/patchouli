@@ -134,6 +134,16 @@ pub struct Changes {
     pub problems: Vec<String>,
 }
 
+impl Changes {
+    pub fn is_empty(&self) -> bool {
+        self.items.is_empty()
+            && self.removed.is_empty()
+            && self.projects.is_none()
+            && self.state.is_none()
+            && self.problems.is_empty()
+    }
+}
+
 /// 保存する属性。書いたものだけを変える。
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
