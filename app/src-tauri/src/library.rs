@@ -5,8 +5,8 @@
 //! - ピン留めとタグの表紙は `.patchouli/library.json` に置く
 //! - `.` で始まるものは読まない（ほかのツールの設定や、書き込み途中のファイル）
 //!
-//! ID のない素材やノートは、読んだときに ID を書く（ノートの更新日時は変えない）。
-//! 書けなかったものと、コピーで ID が重なったものには仮の ID を渡し、最初に保存するときに書く。
+//! ID のない素材やノートと、コピーで ID が重なったもののあとから見つけたほうには、読んだときに新しい ID を書く。
+//! 書けなかったものには仮の ID を渡し、最初に保存するときに書く。
 //!
 //! 開いた結果は写し（`cache.rs`）に取っておき、次はまずそれを返してから、裏でファイルと突き合わせる。
 
@@ -169,6 +169,8 @@ pub struct Library {
     cache: Arc<Cache>,
     /// 裏で突き合わせているあいだに書いたファイル。突き合わせた結果より、こちらを残す。
     touched: Option<HashSet<PathBuf>>,
+    /// 写しで、その ID をファイルに書いてあったもの。コピーで ID が重なったとき、元のほうに ID を残すのに使う。
+    owners: HashMap<String, PathBuf>,
 }
 
 fn new_id() -> String {
@@ -261,6 +263,7 @@ impl Library {
             plugins,
             cache,
             touched: None,
+            owners: HashMap::new(),
         }
     }
 
@@ -315,6 +318,11 @@ impl Library {
     pub fn scan(root: &Path, plugins: Arc<Registry>, cache: Arc<Cache>) -> (Library, Scan) {
         let known = cache.rows();
         let mut lib = Library::new(root.to_owned(), plugins, cache);
+        lib.owners = known
+            .iter()
+            .filter(|(_, r)| r.saved)
+            .map(|(p, r)| (r.item.id.clone(), p.clone()))
+            .collect();
         let mut items = Vec::new();
         let mut projects = Vec::new();
         let mut problems = Vec::new();
@@ -529,9 +537,15 @@ impl Library {
                 return None;
             }
         };
-        let missing = r.id.is_none();
-        // コピーしたファイルは ID が重なる。あとから見つけたほうに仮の ID を渡す
-        let mut saved = matches!(&r.id, Some(id) if !self.entries.contains_key(id));
+        // コピーしたファイルは ID が重なる。元のほう（写しでその ID だったもの）に残し、ほかには新しい ID を書く
+        let owned = |id: &str| {
+            !self.entries.contains_key(id)
+                && self
+                    .owners
+                    .get(id)
+                    .is_none_or(|p| p == path || !p.exists())
+        };
+        let mut saved = r.id.as_deref().is_some_and(owned);
         let id = if saved {
             r.id.take().unwrap_or_default()
         } else if let Some(k) = known.filter(|k| !k.saved).filter(free) {
@@ -540,7 +554,7 @@ impl Library {
             new_id()
         };
         let mut sig = sig;
-        if missing {
+        if !saved {
             match write_id(path, note, &id) {
                 Ok(()) => {
                     saved = true;
@@ -779,19 +793,13 @@ pub fn canonical(root: &Path) -> Result<PathBuf, String> {
     Ok(dunce(p))
 }
 
-/// ID をファイルに書く。ノートは本文のファイルを書き直すので、更新日時を戻す（ID を足しただけで、最近動いたものにしない）。
+/// ID をファイルに書く。
 fn write_id(path: &Path, note: bool, id: &str) -> Result<(), String> {
-    if !note {
-        return save_asset(path, id, &ItemPatch::default());
+    if note {
+        save_note(path, id, &ItemPatch::default())
+    } else {
+        save_asset(path, id, &ItemPatch::default())
     }
-    let at = |e: std::io::Error| format!("{}: {e}", path.display());
-    let t = fs::metadata(path).and_then(|m| m.modified()).map_err(at)?;
-    save_note(path, id, &ItemPatch::default())?;
-    File::options()
-        .write(true)
-        .open(path)
-        .and_then(|f| f.set_modified(t))
-        .map_err(at)
 }
 
 /// Windows の canonicalize が付ける `\\?\` を外す。
