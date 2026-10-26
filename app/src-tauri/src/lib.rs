@@ -453,6 +453,16 @@ async fn set_plugin_setting(
         s.plugins.set_setting(&id, &key, &value)?;
         Ok((Arc::clone(&s.plugins), s.thumbs.clone(), s.lib.cache()))
     })?;
+    if let Some(format) = key.strip_prefix(&plugin::keep_decoded_key(""))
+        && value == Value::Bool(false)
+    {
+        let dir = thumb::decoded_dir(&thumbs, &id, format);
+        if let Err(e) = std::fs::remove_dir_all(&dir)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            log::warn!("詳細用の画像を消せない: {}: {e}", dir.display());
+        }
+    }
     let reads = cache.thumb_reads();
     if !reads.values().any(|r| r.contains_key(&key)) {
         return Ok(Vec::new());
@@ -499,7 +509,18 @@ async fn item_decoded(cur: State<'_, Current>, id: String) -> Result<tauri::ipc:
     let png = with_session(&cur, |s| {
         let (path, ext) = s.lib.asset(&id)?;
         let path = path.to_owned();
-        s.runner.decode(&ext, &path)
+        let keep = s.plugins.keeps_decoded(&ext).and_then(|(plugin, format)| {
+            let dir = thumb::decoded_dir(&s.thumbs, plugin, format);
+            thumb::path_for(&dir, &path, &Reads::new())
+        });
+        if let Some(png) = keep.as_ref().and_then(|p| std::fs::read(p).ok()) {
+            return Ok(png);
+        }
+        let png = s.runner.decode(&ext, &path)?;
+        if let Some(out) = keep {
+            thumb::keep_decoded(&out, &png);
+        }
+        Ok(png)
     })?;
     Ok(tauri::ipc::Response::new(png))
 }

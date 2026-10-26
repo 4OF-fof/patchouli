@@ -4,6 +4,6 @@
   "version": "0.1.0",
   "description": "PPM 画像（P6）の表示とサムネイル生成",
   "formats": {
-    "ppm": { "label": "PPM 画像", "ratio": 1.6, "parts": ["thumbnail", "view"] }
+    "ppm": { "label": "PPM 画像", "ratio": 1.6, "parts": ["thumbnail", "view"], "keepDecoded": true }
   }
 }

@@ -52,6 +52,8 @@ export interface FormatDecl {
   parts?: Part[]
   /** 組み込み UI で受け持つもの。 */
   ui?: Part[]
+  /** 詳細用に WASM が PNG にしたものを、取っておけるようにする。取っておくかは、本体が足す設定の項目で選ぶ。 */
+  keepDecoded?: boolean
 }
 
 /** plugin.json。 */

@@ -92,7 +92,7 @@ pub(super) fn load() -> Vec<Loaded> {
                 }
                 ok
             });
-            let settings = settings_of(wasm.as_deref(), &manifest.id, &mut problems);
+            let settings = settings_of(wasm.as_deref(), &manifest, &mut problems);
             Loaded {
                 manifest,
                 builtin: true,

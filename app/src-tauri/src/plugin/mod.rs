@@ -98,6 +98,29 @@ pub struct FormatDecl {
     /// 組み込み UI で受け持つもの。
     #[serde(default)]
     pub ui: Vec<Part>,
+    /// 詳細に出すために WASM が PNG にしたもの（decode）を、取っておけるようにする。
+    /// 取っておくかは、本体がこのプラグインの設定に足す項目で選ぶ（既定は取っておかない）。
+    #[serde(default)]
+    pub keep_decoded: bool,
+}
+
+/// 形式 format の、詳細用の画像を取っておくかの設定の key。
+pub fn keep_decoded_key(format: &str) -> String {
+    format!("@keepDecoded:{format}")
+}
+
+/// keepDecoded を書いた形式ごとに、本体が足す設定の項目。
+fn keep_decoded_settings(m: &Manifest) -> impl Iterator<Item = SettingDecl> + '_ {
+    m.formats
+        .iter()
+        .filter(|(_, d)| d.keep_decoded)
+        .map(|(f, _)| SettingDecl {
+            key: keep_decoded_key(f),
+            label: format!("「.{f}」の詳細表示用の画像を保存"),
+            help: Some("変換した画像をキャッシュに保存し、次回から速く表示します".into()),
+            kind: SettingKind::Toggle,
+            default: Value::Bool(false),
+        })
 }
 
 /// `plugin.json`。処理の部分は同じフォルダの `plugin.wasm`。
@@ -668,6 +691,13 @@ impl Registry {
             .unwrap_or(Value::Null)
     }
 
+    /// ext の詳細用の画像を取っておくなら、decode するプラグインの id と形式。
+    pub fn keeps_decoded(&self, ext: &str) -> Option<(&str, &str)> {
+        let (i, format) = self.part(ext, Part::View, By::Wasm)?;
+        let on = self.setting(i, &keep_decoded_key(format)) == Some(Value::Bool(true));
+        on.then(|| (self.plugins[i].manifest.id.as_str(), format))
+    }
+
     /// part を受け持つ組み込み UI。
     pub fn ui_of(&self, ext: &str, part: Part) -> Option<UiRef> {
         let (i, _) = self.part(ext, part, By::Ui)?;
@@ -1015,7 +1045,7 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
         }
         ok
     });
-    let settings = settings_of(wasm.as_deref(), &manifest.id, &mut problems);
+    let settings = settings_of(wasm.as_deref(), &manifest, &mut problems);
     Loaded {
         manifest,
         builtin: false,
@@ -1030,17 +1060,20 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
     }
 }
 
+/// WASM が返す設定の項目と、本体が足すもの。
 fn settings_of(
     wasm: Option<&runtime::Prepared>,
-    id: &str,
+    m: &Manifest,
     problems: &mut Vec<Problem>,
 ) -> Vec<SettingDecl> {
-    let Some(w) = wasm else { return Vec::new() };
-    match w.settings(id) {
-        Ok(s) => s,
-        Err(e) => {
+    let mut list = match wasm.map(|w| w.settings(&m.id)) {
+        None => Vec::new(),
+        Some(Ok(s)) => s,
+        Some(Err(e)) => {
             problems.push(error(format!("設定項目の読み込みに失敗しました：{e}")));
             Vec::new()
         }
-    }
+    };
+    list.extend(keep_decoded_settings(m));
+    list
 }

@@ -44,6 +44,46 @@ pub fn dir_for(cache: &Path, root: &Path) -> PathBuf {
     ))
 }
 
+/// 取っておく詳細用の画像の置き場所。プラグイン id の形式 format ごとに分ける。
+/// サムネイルの置き場所の中に置き、名前の形はサムネイルと同じ（読んだ設定はない）。
+pub fn decoded_dir(thumbs: &Path, id: &str, format: &str) -> PathBuf {
+    thumbs.join(DECODED).join(format!(
+        "{:016x}",
+        fnv(&[id.as_bytes(), b"\0", format.as_bytes()])
+    ))
+}
+
+const DECODED: &str = "decoded";
+
+/// 詳細用の画像 png を out に置き、同じ元の前の版を消す。
+pub fn keep_decoded(out: &Path, png: &[u8]) {
+    let (Some(dir), Some(name)) = (out.parent(), out.file_name().and_then(|n| n.to_str())) else {
+        return;
+    };
+    let tmp = out.with_extension("tmp");
+    let r = fs::create_dir_all(dir)
+        .and_then(|()| fs::write(&tmp, png))
+        .and_then(|()| fs::rename(&tmp, out));
+    if let Err(e) = r {
+        log::warn!("詳細用の画像を保存できない: {}: {e}", out.display());
+        let _ = fs::remove_file(&tmp);
+        return;
+    }
+    let place = place_of(name);
+    for e in fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+    {
+        let n = e.file_name();
+        if n.to_str()
+            .is_some_and(|n| n != name && place_of(n) == place)
+        {
+            let _ = fs::remove_file(e.path());
+        }
+    }
+}
+
 /// 「<元の場所のハッシュ>-<更新日時と大きさ、作るときに読んだ設定のハッシュ>.png」。
 /// 元か、読んだ設定の値が変わると後ろ半分が変わる。
 pub fn path_for(dir: &Path, src: &Path, reads: &Reads) -> Option<PathBuf> {
@@ -88,6 +128,12 @@ pub fn prune(dir: &Path, current: &[PathBuf], all_found: bool) {
     for e in rd.filter_map(Result::ok) {
         let name = e.file_name();
         let Some(name) = name.to_str() else { continue };
+        if e.file_type().is_ok_and(|t| t.is_dir()) {
+            if name == DECODED && all_found {
+                prune_decoded(&e.path(), &places);
+            }
+            continue;
+        }
         if names.contains(name) || name.ends_with(".tmp") {
             continue;
         }
@@ -97,6 +143,31 @@ pub fn prune(dir: &Path, current: &[PathBuf], all_found: bool) {
         };
         if stale && let Err(err) = fs::remove_file(e.path()) {
             log::warn!("古いサムネイルを消せない: {}: {err}", e.path().display());
+        }
+    }
+}
+
+/// 取っておいた詳細用の画像のうち、ライブラリにもう素材がないものを消す。
+/// places は、いまの素材のサムネイルの名前の前半。サムネイルを作らない素材のものも消える。
+fn prune_decoded(dir: &Path, places: &HashSet<&str>) {
+    for d in fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+    {
+        for e in fs::read_dir(d.path())
+            .into_iter()
+            .flatten()
+            .filter_map(Result::ok)
+        {
+            let name = e.file_name();
+            let Some(name) = name.to_str() else { continue };
+            if name.ends_with(".tmp") || place_of(name).is_some_and(|p| places.contains(p)) {
+                continue;
+            }
+            if let Err(err) = fs::remove_file(e.path()) {
+                log::warn!("古い詳細用の画像を消せない: {}: {err}", e.path().display());
+            }
         }
     }
 }

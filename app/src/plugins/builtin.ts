@@ -12,7 +12,15 @@ import type { Cap, Deps, Fit, FormatInfo, Manifest, Part, PluginReport, PluginSt
 export interface RawManifest extends Omit<Manifest, 'formats'> {
   formats: Record<
     string,
-    { extends?: string; label?: string; ratio?: number; fit?: string; parts?: string[]; ui?: string[] }
+    {
+      extends?: string
+      label?: string
+      ratio?: number
+      fit?: string
+      parts?: string[]
+      ui?: string[]
+      keepDecoded?: boolean
+    }
   >
 }
 
