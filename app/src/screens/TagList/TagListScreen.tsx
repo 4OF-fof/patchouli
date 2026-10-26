@@ -1,7 +1,6 @@
 import { For, Show, createMemo, createSignal } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Icon } from '../../components/base/Icon/Icon'
-import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
 import { ThumbStrip } from '../../components/media/ThumbStrip/ThumbStrip'
 import { type Item, type Library, toggled } from '../../model/library'
@@ -17,14 +16,10 @@ interface Row {
 
 export interface TagListScreenProps {
   lib: Library
-  /** ホームにピン留めしているタグ。 */
-  pinned?: string[]
   /** 下の階層を開いているタグ。 */
   expanded?: string[]
   sort?: Sort
   onOpenTag?: (tag: string) => void
-  /** ホームへのピン留めを切り替える。 */
-  onTogglePin?: (tag: string) => void
 }
 
 /** 12 タグ一覧。「写真/旅行」は「写真」の下に入り、親は下の分も数える。 */
@@ -32,7 +27,6 @@ export function TagListScreen(props: TagListScreenProps) {
   const lib = () => props.lib
   const [sort, setSort] = createSignal<Sort>(props.sort ?? 'count')
   const [open, setOpen] = createSignal(props.expanded ?? [])
-  const [pins, setPins] = createSignal(props.pinned ?? [])
   const flat = createMemo(() => lib().tagGroups())
   const rows = createMemo(() => {
     const sorter =
@@ -88,14 +82,6 @@ export function TagListScreen(props: TagListScreenProps) {
             <ThumbStrip class={styles.strip} items={r.items.toSorted((a, b) => a.moved - b.moved).slice(0, 8)} />
             <Icon name="chevron" class={styles.go} />
           </button>
-          <PinToggle
-            where="ホームに"
-            pressed={pins().includes(r.tag)}
-            onClick={() => {
-              setPins(toggled(pins(), r.tag))
-              props.onTogglePin?.(r.tag)
-            }}
-          />
         </div>
         <Show when={!sub && isOpen()}>
           <For each={r.kids}>{(k) => row(k, true)}</For>

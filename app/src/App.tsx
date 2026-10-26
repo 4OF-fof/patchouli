@@ -282,7 +282,6 @@ export function App(props: AppProps) {
               location={props.location}
               pinnedProjects={pinnedProjects()}
               pinnedTags={pinnedTags()}
-              onTogglePin={togglePin}
               onOpenItem={(id) => openItem(id)}
               onOpenProject={(name) => go({ s: 'project', name })}
               onOpenTag={(tag) => go({ s: 'tag', tag })}
@@ -296,9 +295,11 @@ export function App(props: AppProps) {
                   lib={lib()}
                   name={v.name}
                   editing={v.editing}
+                  pinned={pinnedProjects().includes(v.name)}
                   backLabel={back()}
                   onBack={goBack}
                   onTogglePin={togglePin}
+                  onToggleProjectPin={() => toggleProjectPin(v.name)}
                   onOpenItem={openItem}
                 />
               )
@@ -309,17 +310,11 @@ export function App(props: AppProps) {
               lib={lib()}
               pinned={pinnedProjects()}
               onOpenProject={(name) => go({ s: 'project', name })}
-              onTogglePin={toggleProjectPin}
               onCreate={createProject}
             />
           </Match>
           <Match when={view().s === 'tlist'}>
-            <TagListScreen
-              lib={lib()}
-              pinned={pinnedTags()}
-              onOpenTag={(tag) => go({ s: 'tag', tag })}
-              onTogglePin={toggleTagPin}
-            />
+            <TagListScreen lib={lib()} onOpenTag={(tag) => go({ s: 'tag', tag })} />
           </Match>
           <Match when={view().s === 'tag' && view()} keyed>
             {(v) =>
@@ -342,7 +337,14 @@ export function App(props: AppProps) {
           <Match when={view().s === 'note' && view()} keyed>
             {(v) =>
               v.s === 'note' && (
-                <NoteScreen lib={lib()} noteId={v.id} backLabel={back()} onBack={goBack} onOpenRef={openRef} />
+                <NoteScreen
+                  lib={lib()}
+                  noteId={v.id}
+                  backLabel={back()}
+                  onBack={goBack}
+                  onOpenRef={openRef}
+                  onTogglePin={togglePin}
+                />
               )
             }
           </Match>
@@ -356,6 +358,7 @@ export function App(props: AppProps) {
                   backLabel={back()}
                   onBack={goBack}
                   onOpenNote={(id) => openItem(id)}
+                  onTogglePin={togglePin}
                   host={viewHost}
                 />
               )

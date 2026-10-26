@@ -9,6 +9,8 @@ export interface TopBarProps {
   class?: string
   /** 戻るの右に並べるもの（名前など）。 */
   children?: JSX.Element
+  /** ⋯ の左に並べる操作。 */
+  actions?: JSX.Element
 }
 
 /** ノートや素材の上に浮かべる帯。左に戻る、右に ⋯。 */
@@ -18,6 +20,7 @@ export function TopBar(props: TopBarProps) {
       <FloatingPill onClick={() => props.onBack?.()}>‹ {props.backLabel ?? 'ホーム'}</FloatingPill>
       {props.children}
       <span class={styles.sp} />
+      {props.actions}
       <FloatingPill icon aria-label="その他">
         ⋯
       </FloatingPill>

@@ -3,6 +3,7 @@ import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
+import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { LinkNone, LinkRow } from '../../components/overlay/LinkRow/LinkRow'
 import { MediaView } from '../../components/media/MediaView/MediaView'
 import { PluginView } from '../../components/media/PluginView/PluginView'
@@ -33,6 +34,8 @@ export interface AssetScreenProps {
   backLabel?: string
   onBack?: () => void
   onOpenNote?: (id: string) => void
+  /** ピン留めを切り替える。プロジェクトに入っていればその上に、入っていなければホームに出る。 */
+  onTogglePin?: (id: string) => void
   /** 省略すると、サムネイルを大きく出す。 */
   host?: AssetViewHost
 }
@@ -87,7 +90,18 @@ export function AssetScreen(props: AssetScreenProps) {
                 </Match>
               </Switch>
             </div>
-            <TopBar class={styles.bar} backLabel={props.backLabel} onBack={props.onBack}>
+            <TopBar
+              class={styles.bar}
+              backLabel={props.backLabel}
+              onBack={props.onBack}
+              actions={
+                <PinToggle
+                  look="float"
+                  pressed={lib().pins.includes(a().id)}
+                  onClick={() => props.onTogglePin?.(a().id)}
+                />
+              }
+            >
               <b>{a().name}</b>
               <span class={styles.meta}>
                 {a().folder ?? 'プロジェクトなし'}

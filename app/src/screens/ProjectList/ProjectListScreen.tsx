@@ -1,19 +1,17 @@
-import { For, Show, createSignal } from 'solid-js'
+import { For, Show } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { Mosaic } from '../../components/media/Mosaic/Mosaic'
-import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
-import { type Library, type Project, coverOf, coverTile, dueLabel, nextDue, toggled } from '../../model/library'
+import { type Library, type Project, coverOf, coverTile, dueLabel, nextDue } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './ProjectListScreen.module.css'
 
 export interface ProjectListScreenProps {
   lib: Library
+  /** ホームにピン留めしているプロジェクト。先に並べる。 */
   pinned?: string[]
   onOpenProject?: (name: string) => void
-  /** ホームへのピン留めを切り替える。 */
-  onTogglePin?: (name: string) => void
   /** 空のプロジェクトを作る。 */
   onCreate?: () => void
 }
@@ -21,7 +19,7 @@ export interface ProjectListScreenProps {
 /** 11 プロジェクト一覧。ピン留め、最近のもの、しばらく触っていないもの。 */
 export function ProjectListScreen(props: ProjectListScreenProps) {
   const lib = () => props.lib
-  const [pins, setPins] = createSignal(props.pinned ?? [])
+  const pins = () => props.pinned ?? []
   const recency = (p: Project) => {
     if (p.touched.startsWith('今日')) return 0
     const l = lib().inProject(p.name)
@@ -37,39 +35,27 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
     const dl = due ? dueLabel(lib(), due) : null
     const done = todo?.type === 'todo' ? todo.items.filter((x) => x.done).length : 0
     return (
-      <div class={styles.wrap}>
-        <button type="button" class={styles.card} data-big={big} onClick={() => props.onOpenProject?.(p.name)}>
-          <Mosaic tiles={coverOf(lib(), p, 5).map(coverTile)} />
-          <span class={styles.nm}>{p.name}</span>
-          {big && <span class={styles.ds}>{desc?.type === 'desc' ? desc.text : ' '}</span>}
-          <span class={styles.pm}>
-            <span>{list().length} 件</span>
-            {big && <b>今週 +{list().filter((i) => i.moved <= 7).length}</b>}
-            {big && dl && (
-              <span>
-                {dl.date} · {dl.left}
-              </span>
-            )}
-            <span class={styles.r}>{p.touched}</span>
-          </span>
-          {big && todo?.type === 'todo' && todo.items.length > 0 && (
-            <span class={styles.pm}>
-              <span>やること</span>
-              <ProgressBar class={styles.bar} value={done / todo.items.length} />
+      <button type="button" class={styles.card} data-big={big} onClick={() => props.onOpenProject?.(p.name)}>
+        <Mosaic tiles={coverOf(lib(), p, 5).map(coverTile)} />
+        <span class={styles.nm}>{p.name}</span>
+        {big && <span class={styles.ds}>{desc?.type === 'desc' ? desc.text : ' '}</span>}
+        <span class={styles.pm}>
+          <span>{list().length} 件</span>
+          {big && <b>今週 +{list().filter((i) => i.moved <= 7).length}</b>}
+          {big && dl && (
+            <span>
+              {dl.date} · {dl.left}
             </span>
           )}
-        </button>
-        <PinToggle
-          class={styles.pin}
-          look="float"
-          reveal
-          pressed={pins().includes(p.name)}
-          onClick={() => {
-            setPins(toggled(pins(), p.name))
-            props.onTogglePin?.(p.name)
-          }}
-        />
-      </div>
+          <span class={styles.r}>{p.touched}</span>
+        </span>
+        {big && todo?.type === 'todo' && todo.items.length > 0 && (
+          <span class={styles.pm}>
+            <span>やること</span>
+            <ProgressBar class={styles.bar} value={done / todo.items.length} />
+          </span>
+        )}
+      </button>
     )
   }
 

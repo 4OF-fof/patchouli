@@ -2,6 +2,7 @@ import { For, type JSX, Show, createSignal } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
+import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { LinkCaption, LinkNone, LinkRow } from '../../components/overlay/LinkRow/LinkRow'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { type Library, type NoteBlock, refsOfBlocks, relDay, splitLinks } from '../../model/library'
@@ -23,6 +24,8 @@ export interface NoteScreenProps {
   onBack?: () => void
   /** [[名前]] のリンクや、つながりの行を押したとき。 */
   onOpenRef?: (name: string) => void
+  /** ピン留めを切り替える。プロジェクトに入っていればその上に出る。 */
+  onTogglePin?: (id: string) => void
 }
 
 /** 01 ノート。本文を真ん中に置き、見出しとつながりは端に浮かべる。 */
@@ -118,7 +121,18 @@ export function NoteScreen(props: NoteScreenProps) {
             </article>
           </ScrollArea>
 
-          <TopBar class={styles.bar} backLabel={props.backLabel} onBack={props.onBack} />
+          <TopBar
+            class={styles.bar}
+            backLabel={props.backLabel}
+            onBack={props.onBack}
+            actions={
+              <PinToggle
+                look="float"
+                pressed={lib().pins.includes(n().id)}
+                onClick={() => props.onTogglePin?.(n().id)}
+              />
+            }
+          />
 
           <Show
             when={heads()}

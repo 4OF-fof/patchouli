@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
-import { PINNED_TAGS, sampleLibrary } from '../../samples/library'
+import { sampleLibrary } from '../../samples/library'
 import { AppDock } from '../AppDock'
 import { ScreenFrame } from '../ScreenFrame'
 import { TagListScreen, type TagListScreenProps } from './TagListScreen'
@@ -15,7 +15,7 @@ const tags = (o: Partial<TagListScreenProps> = {}) => {
   const lib = sampleLibrary()
   return (
     <ScreenFrame>
-      <TagListScreen lib={lib} pinned={PINNED_TAGS} {...o} />
+      <TagListScreen lib={lib} {...o} />
       <AppDock lib={lib} here="tags" />
     </ScreenFrame>
   )

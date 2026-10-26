@@ -1,5 +1,6 @@
 import { For, Show, createSignal } from 'solid-js'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
+import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import type { Library } from '../../model/library'
 import { AddPart } from '../Detail/AddPart'
 import { DetailScreen } from '../Detail/DetailScreen'
@@ -9,6 +10,8 @@ import { CoverPartView, PARTS } from './CoverPart'
 export interface ProjectScreenProps {
   lib: Library
   name: string
+  /** ホームにピン留めしている。 */
+  pinned?: boolean
   /** 表紙を編集している。 */
   editing?: boolean
   /** 編集中に「＋ 部品を足す」の一覧を開いている。 */
@@ -17,6 +20,8 @@ export interface ProjectScreenProps {
   backLabel?: string
   onBack?: () => void
   onTogglePin?: (id: string) => void
+  /** このプロジェクトのホームへのピン留めを切り替える。 */
+  onToggleProjectPin?: () => void
   onOpenItem?: (id: string, list: string[]) => void
 }
 
@@ -24,6 +29,7 @@ export interface ProjectScreenProps {
 export function ProjectScreen(props: ProjectScreenProps) {
   const lib = () => props.lib
   const p = () => lib().projectBy.get(props.name)
+  const [pinned, setPinned] = createSignal(!!props.pinned)
   const [editing, setEditing] = createSignal(!!props.editing)
   const [addOpen, setAddOpen] = createSignal(!!props.addOpen)
   const list = () => lib().inProject(props.name)
@@ -49,9 +55,19 @@ export function ProjectScreen(props: ProjectScreenProps) {
           backLabel={props.backLabel}
           onBack={props.onBack}
           actions={
-            <FloatingPill aria-pressed={editing()} onClick={() => setEditing(!editing())}>
-              {editing() ? '編集を終える' : '表紙を編集'}
-            </FloatingPill>
+            <>
+              <PinToggle
+                where="ホームに"
+                pressed={pinned()}
+                onClick={() => {
+                  setPinned(!pinned())
+                  props.onToggleProjectPin?.()
+                }}
+              />
+              <FloatingPill aria-pressed={editing()} onClick={() => setEditing(!editing())}>
+                {editing() ? '編集を終える' : '表紙を編集'}
+              </FloatingPill>
+            </>
           }
           sideLabel="表紙"
           side={
