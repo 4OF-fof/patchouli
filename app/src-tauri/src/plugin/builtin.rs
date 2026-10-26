@@ -60,6 +60,7 @@ pub(super) fn load() -> Vec<Loaded> {
                 problems,
                 source: None,
                 recorded: None,
+                blocked: false,
             }
         })
         .collect()

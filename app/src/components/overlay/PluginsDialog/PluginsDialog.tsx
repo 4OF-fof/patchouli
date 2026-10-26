@@ -195,6 +195,11 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 入っていない
               </span>
             </Show>
+            <Show when={p().state === 'blocked'}>
+              <span class={styles.badge} data-tone="danger">
+                読み込んでいない
+              </span>
+            </Show>
           </div>
           <div class={styles.actions}>
             <Show when={outdated() && a().update && p().source}>
@@ -245,7 +250,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
             </For>
           </ul>
         </Show>
-        <Show when={p().state === 'active'}>
+        <Show when={p().state !== 'missing'}>
           <Show when={p().formats.length}>
             <section>
               <h4>ファイル</h4>
@@ -442,7 +447,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                               type="button"
                               class={styles.item}
                               aria-current={current() === p}
-                              data-missing={p.state === 'missing'}
+                              data-missing={p.state !== 'active'}
                               onClick={() => setPicked(p.id)}
                             >
                               <span>{p.name}</span>

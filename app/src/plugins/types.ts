@@ -96,8 +96,8 @@ export type Setting = {
   | { kind: 'choice'; choices: { value: string; label: string }[] }
 )
 
-/** active 使っている / missing ライブラリに記録してあるがアプリに入っていない */
-export type PluginState = 'active' | 'missing'
+/** active 使っている / missing ライブラリに記録してあるがアプリに入っていない / blocked 必須の依存が足りないので読み込んでいない */
+export type PluginState = 'active' | 'missing' | 'blocked'
 
 export interface PluginStatus {
   id: string

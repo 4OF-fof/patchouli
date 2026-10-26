@@ -78,25 +78,20 @@ const external: PluginReport = {
   ],
 }
 
-/** コマンドとプラグインが足りず、形式を取り合っているとき。 */
+/** コマンドとプラグインが足りないとき。必須のものが足りない Photoshop は読み込まない。 */
 const troubled: PluginReport = {
   commands: [{ name: 'ffmpeg' }, { name: 'magick' }],
   plugins: [
     ...builtinReport().plugins.map((p) => ({
       ...p,
-      problems: [
-        ...(p.optional.commands?.includes('ffmpeg')
-          ? [
-              {
-                level: 'warning' as const,
-                text: 'ffmpeg が見つからないので、ffmpeg を使わずに動かす。できないことがある',
-              },
-            ]
-          : []),
-        ...(p.id === 'patchouli.image'
-          ? [{ level: 'error' as const, text: '「psd」を「Photoshop」も受け持とうとしている。こちらを使う' }]
-          : []),
-      ],
+      problems: p.optional.commands?.includes('ffmpeg')
+        ? [
+            {
+              level: 'warning' as const,
+              text: 'ffmpeg が見つからないので、ffmpeg を使わずに動かす。できないことがある',
+            },
+          ]
+        : [],
     })),
     {
       id: 'example.photoshop',
@@ -106,14 +101,13 @@ const troubled: PluginReport = {
       source: { local: 'D:\\plugins\\psd' },
       description: 'PSD のレイヤーを重ねたサムネイル',
       builtin: false,
-      state: 'active',
+      state: 'blocked',
       required: { commands: ['magick'], plugins: ['patchouli.image', 'example.layers'] },
       optional: none,
       caps: [{ part: 'thumbnail', by: 'wasm' }],
       formats: [],
       settings: [],
       problems: [
-        { level: 'error', text: '「psd」はもう「画像」が受け持っているので、受け持てない' },
         { level: 'error', text: 'magick が見つからない。magick を入れるまで、このプラグインは動かない' },
         {
           level: 'error',

@@ -263,6 +263,34 @@ struct Loaded {
     source: Option<Source>,
     /// ライブラリに記録した版。
     recorded: Option<String>,
+    /// 必須の依存が足りないので、何も受け持たせない（読み込まないのと同じ）。
+    blocked: bool,
+}
+
+/// 必須の依存が足りないものを止める。止めたものを必須にしているものも止める。
+fn block_unmet(plugins: &mut [Loaded]) {
+    loop {
+        let active: HashSet<String> = plugins
+            .iter()
+            .filter(|p| !p.blocked)
+            .map(|p| p.manifest.id.clone())
+            .collect();
+        let mut changed = false;
+        for p in plugins.iter_mut().filter(|p| !p.blocked) {
+            let r = &p.manifest.required;
+            if r.commands
+                .iter()
+                .any(|c| !commands::valid(c) || commands::find(c).is_none())
+                || r.plugins.iter().any(|id| !active.contains(id))
+            {
+                p.blocked = true;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
 }
 
 /// 引き継ぎをたどったあとの形式。
@@ -313,12 +341,14 @@ pub struct FormatInfo {
     pub ui_thumbnail: Option<UiRef>,
 }
 
-/// active 使っている / missing ライブラリに記録してあるがアプリに入っていない
+/// active 使っている / missing ライブラリに記録してあるがアプリに入っていない /
+/// blocked 必須の依存が足りないので読み込んでいない
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum State {
     Active,
     Missing,
+    Blocked,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -435,6 +465,7 @@ impl Registry {
                 }),
             }
         }
+        block_unmet(&mut plugins);
         let mut r = Registry {
             plugins,
             formats: HashMap::new(),
@@ -450,7 +481,7 @@ impl Registry {
         // 形式ごとに、受け持つプラグインを決める
         let mut claim: HashMap<String, usize> = HashMap::new();
         let mut conflicts = Vec::new();
-        for (i, p) in self.plugins.iter().enumerate() {
+        for (i, p) in self.plugins.iter().enumerate().filter(|(_, p)| !p.blocked) {
             for ext in p.manifest.formats.keys() {
                 match claim.get(ext) {
                     Some(&first) => conflicts.push((first, i, ext.clone())),
@@ -717,7 +748,11 @@ impl Registry {
             })
             .collect();
         let found = |c: &str| commands.iter().any(|s| s.name == c && s.path.is_some());
-        let active = |id: &str| self.plugins.iter().any(|p| p.manifest.id == id);
+        let active = |id: &str| {
+            self.plugins
+                .iter()
+                .any(|p| p.manifest.id == id && !p.blocked)
+        };
         let mut plugins: Vec<PluginStatus> = self
             .plugins
             .iter()
@@ -788,7 +823,11 @@ impl Registry {
                     source: p.source.clone(),
                     description: m.description.clone(),
                     builtin: p.builtin,
-                    state: State::Active,
+                    state: if p.blocked {
+                        State::Blocked
+                    } else {
+                        State::Active
+                    },
                     required: m.required.clone(),
                     optional: m.optional.clone(),
                     caps: m.caps(),
@@ -841,6 +880,7 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
         problems,
         source: entry.source.clone(),
         recorded: entry.version.clone(),
+        blocked: false,
     }
 }
 
