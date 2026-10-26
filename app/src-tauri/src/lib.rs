@@ -34,22 +34,24 @@ struct Session {
     ui_reads: HashMap<String, Reads>,
 }
 
-/// 開発中に、動作確認のための場所を環境変数で替える。
-fn dev_path(var: &str) -> Option<PathBuf> {
-    cfg!(debug_assertions)
-        .then(|| std::env::var_os(var))
-        .flatten()
-        .map(PathBuf::from)
+/// 開発中に使う、動作確認のための場所。環境変数 var があればそこ、なければ example/ の下の dir。
+/// リリースビルドには入れない。
+#[cfg(debug_assertions)]
+fn dev_path(var: &str, dir: &str) -> PathBuf {
+    std::env::var_os(var).map_or_else(
+        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../example").join(dir),
+        PathBuf::from,
+    )
 }
 
 /// 外のプラグインの本体を置くところ。開発中は、例のプラグインを入れた置き場（scripts/dev-library.ts が作る）。
 fn plugin_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    if let Some(p) = dev_path("PATCHOULI_PLUGIN_DIR") {
-        return Ok(p);
+    #[cfg(debug_assertions)]
+    {
+        let _ = app;
+        Ok(dev_path("PATCHOULI_PLUGIN_DIR", "dev-plugins"))
     }
-    if cfg!(debug_assertions) {
-        return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../example/dev-plugins"));
-    }
+    #[cfg(not(debug_assertions))]
     Ok(app
         .path()
         .app_data_dir()
@@ -72,15 +74,16 @@ fn plugin_ids(root: &Path) -> Option<Vec<String>> {
 
 /// 開くライブラリの場所。設定で選んだ場所か、まだ選んでいなければ、開発中は動作確認用のライブラリを開く。
 fn library_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    if let Some(p) = dev_path("PATCHOULI_LIBRARY") {
-        return Ok(p);
+    #[cfg(debug_assertions)]
+    if let Some(p) = std::env::var_os("PATCHOULI_LIBRARY") {
+        return Ok(PathBuf::from(p));
     }
     if let Some(p) = settings::library(app)? {
         return Ok(p);
     }
-    if cfg!(debug_assertions) {
-        return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../example/dev-library"));
-    }
+    #[cfg(debug_assertions)]
+    return Ok(dev_path("PATCHOULI_LIBRARY", "dev-library"));
+    #[cfg(not(debug_assertions))]
     Err("ライブラリが選択されていません。設定から選択してください".into())
 }
 

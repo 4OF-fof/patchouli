@@ -28,9 +28,8 @@ pub fn find(name: &str) -> Option<PathBuf> {
         return None;
     }
     // 見つからないときの動きを確かめるとき（「ffmpeg,magick」のように並べる）
-    if cfg!(debug_assertions)
-        && std::env::var("PATCHOULI_NO_COMMANDS").is_ok_and(|v| v.split(',').any(|n| n == name))
-    {
+    #[cfg(debug_assertions)]
+    if std::env::var("PATCHOULI_NO_COMMANDS").is_ok_and(|v| v.split(',').any(|n| n == name)) {
         return None;
     }
     let files: Vec<String> = if cfg!(windows) {

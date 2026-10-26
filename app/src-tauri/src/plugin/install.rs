@@ -30,7 +30,7 @@ pub fn install(source: &Source, dir: &Path, builtin: &[String]) -> Result<Manife
     r
 }
 
-/// 取得先の zip を work に広げ、plugin.json のあるフォルダを返す。
+/// 取得先の zip を work に広げ、そのフォルダを返す。plugin.json は zip の根元に置く。
 fn fetch(source: &Source, work: &Path) -> Result<PathBuf, String> {
     let out = work.join("x");
     let Source::Local(p) = source;
@@ -40,16 +40,9 @@ fn fetch(source: &Source, work: &Path) -> Result<PathBuf, String> {
     let bytes = fs::read(p).map_err(|e| format!("{}: {e}", p.display()))?;
     unzip(&bytes, &out)?;
     if out.join(MANIFEST).is_file() {
-        return Ok(out);
-    }
-    // zip の中が 1 つのフォルダに入っているとき
-    let mut dirs = fs::read_dir(&out)
-        .map_err(|e| e.to_string())?
-        .filter_map(Result::ok)
-        .filter(|e| e.path().is_dir());
-    match (dirs.next(), dirs.next()) {
-        (Some(d), None) if d.path().join(MANIFEST).is_file() => Ok(d.path()),
-        _ => Err(format!("アーカイブ内に {MANIFEST} が見つかりません")),
+        Ok(out)
+    } else {
+        Err(format!("アーカイブの最上位に {MANIFEST} が見つかりません"))
     }
 }
 
