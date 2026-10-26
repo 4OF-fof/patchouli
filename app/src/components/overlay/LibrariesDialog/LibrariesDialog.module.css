@@ -1,0 +1,129 @@
+.ov {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 48px;
+  background: var(--scrim);
+}
+.root {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  max-height: min(640px, 100%);
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--paper);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+}
+.root:focus {
+  outline: none;
+}
+.root h2 {
+  margin: 0;
+  padding: 24px 28px 12px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.status {
+  margin: 0 28px 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--sage-soft);
+  color: var(--sage-ink);
+  font-size: 12.5px;
+}
+.status[data-error='true'] {
+  background: color-mix(in srgb, var(--danger) 10%, var(--paper));
+  color: var(--danger);
+}
+.list {
+  flex: 1;
+  min-height: 0;
+}
+.listView {
+  padding: 0 16px 12px;
+}
+.listView ul {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.listView li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 8px;
+  border-radius: var(--radius-md);
+}
+.listView li:hover {
+  background: var(--card);
+}
+.listView li[data-missing='true'] {
+  opacity: 0.5;
+}
+.open {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.open:disabled {
+  cursor: default;
+}
+.open b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.listView li[data-current='true'] .open b {
+  color: var(--sage-ink);
+}
+.path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 11px var(--f-mono);
+  color: var(--faint);
+}
+.when {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.forget {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--faint);
+  font-size: 11px;
+  cursor: pointer;
+}
+.forget:hover {
+  background: var(--line);
+  color: var(--ink);
+}
+.none {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  color: var(--faint);
+}
+.foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--line);
+}

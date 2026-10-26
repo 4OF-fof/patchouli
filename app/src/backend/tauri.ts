@@ -17,7 +17,7 @@ import type { Thumbnail } from '../model/library'
 import type { FormatInfo, Part, PluginReport, PluginSource, SettingValue, UiRef } from '../plugins/types'
 import { type UiApi, type UiItem, uiThumbnail } from '../plugins/ui'
 import errorThumb from './thumb-error.svg'
-import type { Backend, Changed, Dropped, FileDrag } from './types'
+import type { Backend, CacheUsage, Changed, Dropped, FileDrag, KnownLibrary, UnusedPlugin } from './types'
 
 /** Rust から届く項目。file はファイルの場所、thumb はできているサムネイルの場所。 */
 type TauriItem = StoredItem & { file: string; thumb?: string }
@@ -169,6 +169,17 @@ export function tauriBackend(): Backend {
     },
     saveProject: (name, cover) => invoke('save_project', { name, cover }),
     chooseLibrary: () => invoke<boolean>('choose_library'),
+    libraries: {
+      list: () => invoke<KnownLibrary[]>('libraries'),
+      switch: (path) => invoke('switch_library', { path }),
+      forget: (path) => invoke('forget_library', { path }),
+    },
+    tidy: {
+      usage: () => invoke<CacheUsage>('cache_usage'),
+      clear: (kind) => invoke('clear_cache', { kind }),
+      unusedPlugins: () => invoke<UnusedPlugin[]>('unused_plugins'),
+      removeUnusedPlugins: () => invoke('remove_unused_plugins'),
+    },
     onFileDrag(cb) {
       const send = (e: FileDrag) => cb(e)
       const off = getCurrentWebview().onDragDropEvent(async (e) => {

@@ -5,8 +5,9 @@ pub mod note;
 pub mod plugin;
 mod settings;
 pub mod thumb;
+mod tidy;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -54,6 +55,19 @@ fn plugin_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join("plugins"))
+}
+
+fn cache_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path().app_cache_dir().map_err(|e| e.to_string())
+}
+
+/// ライブラリ root に記録してあるプラグインの id。読めなければ None。
+fn plugin_ids(root: &Path) -> Option<Vec<String>> {
+    if !root.is_dir() {
+        return None;
+    }
+    let r = record::Record::read(&record::path(root)).ok()?;
+    Some(r.plugins.into_keys().collect())
 }
 
 /// 開くライブラリの場所。設定で選んだ場所か、まだ選んでいなければ、開発中は動作確認用のライブラリを開く。
@@ -183,7 +197,10 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
     let root = library::canonical(&library_root(&app)?)?;
     let (plugins, plugin_problems) = Registry::open(&root, &plugin_dir(&app)?);
     let plugins = Arc::new(plugins);
-    let cache_dir = app.path().app_cache_dir().map_err(|e| e.to_string())?;
+    if let Err(e) = settings::remember(&app, &root, plugin_ids(&root).unwrap_or_default()) {
+        log::warn!("開いたライブラリを覚えられない: {e}");
+    }
+    let cache_dir = cache_dir(&app)?;
     let cache_path = cache::path_for(&cache_dir, &root);
     cache::touch(&cache_path);
     let cache = Arc::new(Cache::open(&cache_path));
@@ -583,6 +600,109 @@ async fn choose_library(app: tauri::AppHandle) -> Result<bool, String> {
     Ok(true)
 }
 
+/// 開いたことのあるライブラリ。
+#[derive(Serialize)]
+struct KnownLibrary {
+    path: PathBuf,
+    name: String,
+    /// 最後に開いた日時（UNIX ミリ秒）。
+    opened: f64,
+    exists: bool,
+    current: bool,
+}
+
+/// 開いたことのあるライブラリ。最後に開いた順。
+#[tauri::command]
+async fn libraries(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+) -> Result<Vec<KnownLibrary>, String> {
+    let current = root_of(&cur).ok();
+    Ok(settings::recent(&app)?
+        .into_iter()
+        .map(|r| KnownLibrary {
+            name: r.path.file_name().map_or_else(
+                || r.path.to_string_lossy().into_owned(),
+                |n| n.to_string_lossy().into_owned(),
+            ),
+            exists: r.path.is_dir(),
+            current: current.as_deref() == Some(r.path.as_path()),
+            opened: r.opened,
+            path: r.path,
+        })
+        .collect())
+}
+
+/// path を次から開くライブラリにする。開き直すのは画面。
+#[tauri::command]
+async fn switch_library(app: tauri::AppHandle, path: PathBuf) -> Result<(), String> {
+    if !path.is_dir() {
+        return Err(format!("{} が見つからない", path.display()));
+    }
+    settings::set_library(&app, &path)
+}
+
+/// 開いたことのあるライブラリの一覧から外す。
+#[tauri::command]
+async fn forget_library(app: tauri::AppHandle, path: PathBuf) -> Result<(), String> {
+    settings::forget(&app, &path)
+}
+
+#[tauri::command]
+async fn cache_usage(app: tauri::AppHandle) -> Result<tidy::Usage, String> {
+    Ok(tidy::usage(&cache_dir(&app)?))
+}
+
+/// kind のキャッシュを、すべてのライブラリの分消す。開いているライブラリも閉じるので、画面は開き直す。
+#[tauri::command]
+async fn clear_cache(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    kind: tidy::Kind,
+) -> Result<(), String> {
+    drop(cur.0.lock().map_err(|e| e.to_string())?.take());
+    tidy::clear(&cache_dir(&app)?, kind)
+}
+
+/// どのライブラリでも使っていないプラグインと、その場所。
+/// 開いたことのあるライブラリの記録を読み、読めないものは最後に開いたときの記録で代える。
+fn unused_plugins_of(
+    app: &tauri::AppHandle,
+    cur: &State<Current>,
+) -> Result<Vec<(tidy::Unused, PathBuf)>, String> {
+    let mut used: HashSet<String> = HashSet::new();
+    if let Some(ids) = root_of(cur).ok().and_then(|r| plugin_ids(&r)) {
+        used.extend(ids);
+    }
+    for r in settings::recent(app)? {
+        used.extend(plugin_ids(&r.path).unwrap_or(r.plugins));
+    }
+    Ok(tidy::unused(&plugin_dir(app)?, &used))
+}
+
+#[tauri::command]
+async fn unused_plugins(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+) -> Result<Vec<tidy::Unused>, String> {
+    Ok(unused_plugins_of(&app, &cur)?
+        .into_iter()
+        .map(|(u, _)| u)
+        .collect())
+}
+
+/// どのライブラリでも使っていないプラグインを、アプリから消す。
+#[tauri::command]
+async fn remove_unused_plugins(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+) -> Result<(), String> {
+    for (u, path) in unused_plugins_of(&app, &cur)? {
+        std::fs::remove_dir_all(&path).map_err(|e| format!("{}: {e}", u.name))?;
+    }
+    Ok(())
+}
+
 #[tauri::command]
 async fn save_item(cur: State<'_, Current>, id: String, patch: ItemPatch) -> Result<(), String> {
     with(&cur, |l| l.save_item(&id, &patch))
@@ -643,7 +763,14 @@ pub fn run() {
             plugin_read,
             plugin_call,
             plugin_settings,
-            put_thumbnail
+            put_thumbnail,
+            libraries,
+            switch_library,
+            forget_library,
+            cache_usage,
+            clear_cache,
+            unused_plugins,
+            remove_unused_plugins
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

@@ -417,6 +417,9 @@ export function App(props: AppProps) {
           onCreate={createNote}
           library={props.location}
           onChooseLibrary={chooseLibrary}
+          libraries={backend.libraries}
+          tidy={backend.tidy}
+          onReopen={() => window.location.reload()}
           loadPlugins={() => backend.plugins()}
           pluginActions={backend.pluginActions}
           onPluginsChanged={() => window.location.reload()}

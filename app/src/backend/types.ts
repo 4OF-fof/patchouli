@@ -80,6 +80,55 @@ export interface Imported {
   failed: string[]
 }
 
+/** 開いたことのあるライブラリ。 */
+export interface KnownLibrary {
+  path: string
+  /** フォルダの名前。 */
+  name: string
+  /** 最後に開いた日時（UNIX ミリ秒）。 */
+  opened: number
+  /** いまその場所にある。 */
+  exists: boolean
+  /** いま開いている。 */
+  current: boolean
+}
+
+/** 開いたことのあるライブラリの操作。開くライブラリが変わったら、open からやり直す。 */
+export interface LibraryActions {
+  /** 最後に開いた順。 */
+  list(): Promise<KnownLibrary[]>
+  /** path を次から開くライブラリにする。 */
+  switch(path: string): Promise<void>
+  /** 一覧から外す。 */
+  forget(path: string): Promise<void>
+}
+
+/** キャッシュの種類。library はライブラリの写し。 */
+export type CacheKind = 'library' | 'thumbs' | 'all'
+
+/** キャッシュの使っている量（バイト）。 */
+export interface CacheUsage {
+  library: number
+  thumbs: number
+}
+
+/** どのライブラリでも使っていないプラグイン。 */
+export interface UnusedPlugin {
+  id: string
+  name: string
+  version?: string
+  bytes: number
+}
+
+/** キャッシュと使っていないプラグインの片付け。 */
+export interface TidyActions {
+  usage(): Promise<CacheUsage>
+  /** すべてのライブラリの分を消す。開いているライブラリも閉じるので、open からやり直す。 */
+  clear(kind: CacheKind): Promise<void>
+  unusedPlugins(): Promise<UnusedPlugin[]>
+  removeUnusedPlugins(): Promise<void>
+}
+
 export interface Backend {
   open(): Promise<Opened>
   saveItem(id: string, patch: ItemPatch): Promise<void>
@@ -90,6 +139,10 @@ export interface Backend {
   saveProject(name: string, cover: CoverPart[]): Promise<void>
   /** 次から開くライブラリを選ぶ。選べない環境にはない。選ばなかったときは false。 */
   chooseLibrary?(): Promise<boolean>
+  /** 開いたことのあるライブラリ。覚えない環境にはない。 */
+  libraries?: LibraryActions
+  /** キャッシュと使っていないプラグインの片付け。できない環境にはない。 */
+  tidy?: TidyActions
   /** ファイルを持ってきたときに呼ぶ。受け付けない環境にはない。返す関数で止める。 */
   onFileDrag?(cb: (e: FileDrag) => void): () => void
   /** 最後に落としたものを取り込む。folder が null のときは、どこにも入れない。projects に key があるフォルダは、新しいプロジェクトにする。 */

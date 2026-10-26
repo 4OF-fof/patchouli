@@ -1,6 +1,10 @@
 import { Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
+import { version } from '../../package.json'
+import type { LibraryActions, TidyActions } from '../backend/types'
 import { HelpDialog } from '../components/overlay/HelpDialog/HelpDialog'
+import { LibrariesDialog } from '../components/overlay/LibrariesDialog/LibrariesDialog'
 import { type Notices, NoticesDialog } from '../components/overlay/NoticesDialog/NoticesDialog'
+import { OtherDialog } from '../components/overlay/OtherDialog/OtherDialog'
 import { PluginsDialog } from '../components/overlay/PluginsDialog/PluginsDialog'
 import { NavMenu, type NavMenuEntry } from '../components/search/NavMenu/NavMenu'
 import { SearchDock } from '../components/search/SearchDock/SearchDock'
@@ -13,8 +17,21 @@ import { type Row, SearchResults } from '../components/search/SearchResults/Sear
 
 /** 行き先。 */
 export type Place = 'home' | 'tags' | 'projects' | 'tidy'
-/** closed 閉じている / menu ☰ を開いた / settings その先の設定 / search 検索に入力中 / prompt プロンプト / help キー操作の一覧 / plugins プラグイン / notices 権利表示 */
-export type DockState = 'closed' | 'menu' | 'settings' | 'search' | 'prompt' | 'help' | 'plugins' | 'notices'
+/**
+ * closed 閉じている / menu ☰ を開いた / settings その先の設定 / search 検索に入力中 / prompt プロンプト / help キー操作の一覧 /
+ * plugins プラグイン / notices 権利表示 / libraries ライブラリの切り替え / other その他
+ */
+export type DockState =
+  | 'closed'
+  | 'menu'
+  | 'settings'
+  | 'search'
+  | 'prompt'
+  | 'help'
+  | 'plugins'
+  | 'notices'
+  | 'libraries'
+  | 'other'
 
 export interface AppDockProps {
   lib: Library
@@ -35,7 +52,13 @@ export interface AppDockProps {
   /** 開いているライブラリの場所。設定に出す。 */
   library?: string
   /** 渡すと、設定にライブラリを選ぶ項目を出す。 */
-  onChooseLibrary?: () => void
+  onChooseLibrary?: () => void | Promise<void>
+  /** 開いたことのあるライブラリ。渡すと、ライブラリを選ぶ項目で履歴の窓を開く。 */
+  libraries?: LibraryActions
+  /** キャッシュと使っていないプラグインの片付け。渡すと「その他」に出す。 */
+  tidy?: TidyActions
+  /** 開くライブラリを替えたときや、キャッシュを消したとき。ライブラリを開き直す。 */
+  onReopen?: () => void
   /** プラグインの一覧を読む。省略すると組み込みのものだけを出す。 */
   loadPlugins?: () => Promise<PluginReport>
   /** プラグインを入れる・外すなどの操作。 */
@@ -120,6 +143,18 @@ export function AppDock(props: AppDockProps) {
     () => state() === 'plugins' || undefined,
     () => (props.loadPlugins ?? (async () => builtinReport()))(),
   )
+  const [known, { refetch: reloadKnown }] = createResource(
+    () => (state() === 'libraries' && props.libraries) || undefined,
+    (l) => l.list(),
+  )
+  const [usage, { refetch: reloadUsage }] = createResource(
+    () => (state() === 'other' && props.tidy) || undefined,
+    (t) => t.usage(),
+  )
+  const [unused, { refetch: reloadUnused }] = createResource(
+    () => (state() === 'other' && props.tidy) || undefined,
+    (t) => t.unusedPlugins(),
+  )
   // 一覧は大きいので、初めて開いたときに読む
   const [notices] = createResource(
     () => state() === 'notices' || undefined,
@@ -147,6 +182,7 @@ export function AppDock(props: AppDockProps) {
           { id: 'theme', icon: '◐', label: 'テーマを切り替える' },
           { id: 'keys', icon: '⌨', label: 'キー操作の一覧', kbd: '?' },
           { id: 'plugins', icon: '⧉', label: 'プラグイン' },
+          { id: 'other', icon: '⋯', label: 'その他' },
           { id: 'notices', icon: '©', label: '権利表示' },
         ]
       : [
@@ -169,6 +205,8 @@ export function AppDock(props: AppDockProps) {
     if (id === 'keys') return setState('help')
     if (id === 'plugins') return setState('plugins')
     if (id === 'notices') return setState('notices')
+    if (id === 'other') return setState('other')
+    if (id === 'library' && props.libraries) return setState('libraries')
     if (id === 'library') {
       close()
       return props.onChooseLibrary?.()
@@ -242,6 +280,49 @@ export function AppDock(props: AppDockProps) {
       </Show>
       <Show when={state() === 'notices'}>
         <NoticesDialog notices={notices()} onClose={close} />
+      </Show>
+      <Show when={state() === 'libraries'}>
+        <LibrariesDialog
+          libraries={known.latest}
+          onOpen={
+            props.libraries &&
+            (async (path) => {
+              await props.libraries!.switch(path)
+              props.onReopen?.()
+            })
+          }
+          onForget={
+            props.libraries &&
+            (async (path) => {
+              await props.libraries!.forget(path)
+              await reloadKnown()
+            })
+          }
+          onChoose={props.onChooseLibrary && (async () => props.onChooseLibrary!())}
+          onClose={close}
+        />
+      </Show>
+      <Show when={state() === 'other'}>
+        <OtherDialog
+          version={version}
+          usage={usage.latest}
+          unused={unused.latest}
+          onClear={
+            props.tidy &&
+            (async (kind) => {
+              await props.tidy!.clear(kind)
+              props.onReopen?.()
+            })
+          }
+          onRemoveUnused={
+            props.tidy &&
+            (async () => {
+              await props.tidy!.removeUnusedPlugins()
+              await Promise.all([reloadUnused(), reloadUsage()])
+            })
+          }
+          onClose={close}
+        />
       </Show>
     </>
   )
