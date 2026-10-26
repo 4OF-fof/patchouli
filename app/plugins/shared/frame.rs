@@ -36,7 +36,7 @@ fn ffmpeg(f: &File, at: f64, edge: u32) -> Result<Vec<u8>, String> {
         t("png"),
         t("-"),
     ];
-    let out = host::run_command("ffmpeg", &args)?;
+    let out = host::run_command("ffmpeg", &args, None)?;
     if out.code != Some(0) || out.stdout.is_empty() {
         return Err(format!(
             "FFmpeg でのフレームの取り出しに失敗しました：{}",

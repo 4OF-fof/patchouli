@@ -98,6 +98,7 @@ impl patchouli::plugin::host::Host for HostState {
         &mut self,
         name: String,
         args: Vec<CommandArg>,
+        timeout_ms: Option<u32>,
     ) -> Result<CommandOutput, String> {
         let path = self.command(&name)?;
         let args = args
@@ -107,7 +108,10 @@ impl patchouli::plugin::host::Host for HostState {
                 CommandArg::File(f) => Ok(self.path(&f)?.as_os_str().to_owned()),
             })
             .collect::<Result<Vec<_>, String>>()?;
-        let out = commands::run(&path, &args)?;
+        let timeout = timeout_ms.map_or(commands::TIMEOUT, |ms| {
+            std::time::Duration::from_millis(u64::from(ms))
+        });
+        let out = commands::run(&path, &args, timeout)?;
         Ok(CommandOutput {
             code: out.code,
             stdout: out.stdout,

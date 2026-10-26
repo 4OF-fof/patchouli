@@ -7,8 +7,8 @@ use std::process::{Command, Stdio};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-/// 1 回の呼び出しで待つ長さ。
-const TIMEOUT: Duration = Duration::from_secs(30);
+/// 1 回の呼び出しで待つ長さ。プラグインが指定しなかったときに使う。
+pub const TIMEOUT: Duration = Duration::from_secs(30);
 
 /// コマンドの名前に使えるのは、英数字と「. _ + -」だけ（パスは書けない）。
 pub fn valid(name: &str) -> bool {
@@ -60,8 +60,8 @@ fn drain(r: Option<impl Read + Send + 'static>) -> JoinHandle<Vec<u8>> {
     })
 }
 
-/// path を args で動かす。標準入力は空にし、TIMEOUT で終わらなければ止める。
-pub fn run(path: &Path, args: &[OsString]) -> Result<Output, String> {
+/// path を args で動かす。標準入力は空にし、timeout で終わらなければ止める。
+pub fn run(path: &Path, args: &[OsString], timeout: Duration) -> Result<Output, String> {
     let name = path
         .file_stem()
         .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
@@ -88,7 +88,7 @@ pub fn run(path: &Path, args: &[OsString]) -> Result<Output, String> {
         if let Some(s) = child.try_wait().map_err(|e| e.to_string())? {
             break Some(s);
         }
-        if start.elapsed() > TIMEOUT {
+        if start.elapsed() > timeout {
             let _ = child.kill();
             let _ = child.wait();
             break None;
@@ -104,7 +104,7 @@ pub fn run(path: &Path, args: &[OsString]) -> Result<Output, String> {
     if status.is_none() {
         return Err(format!(
             "外部ツール「{name}」が {} 秒以内に終了しませんでした",
-            TIMEOUT.as_secs()
+            timeout.as_secs_f64()
         ));
     }
     Ok(Output {

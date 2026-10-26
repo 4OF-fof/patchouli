@@ -40,6 +40,25 @@ export interface UiModule {
   mount?: (el: HTMLElement, api: UiApi) => void | (() => void)
   /** サムネイル。作らないときは null。 */
   thumbnail?: (api: UiApi & { edge: number }) => Promise<UiThumbnail | null>
+  /** サムネイルを作るのを待つ長さ（ms）。書かなければ 10 秒、長くても 30 秒まで。 */
+  thumbnailTimeout?: number
+}
+
+const THUMB_LIMIT = 10_000
+const THUMB_LIMIT_MAX = 30_000
+
+/** サムネイルが待つ長さのうちに作り終わらなかった。 */
+export class ThumbnailTimeout extends Error {
+  readonly ms: number
+  constructor(ms: number) {
+    super(`サムネイルの生成が ${ms / 1000} 秒以内に終わりませんでした`)
+    this.ms = ms
+  }
+}
+
+const limitOf = (mod: UiModule) => {
+  const t = mod.thumbnailTimeout
+  return typeof t === 'number' && t > 0 ? Math.min(t, THUMB_LIMIT_MAX) : THUMB_LIMIT
 }
 
 /** サムネイルの長いほうの辺の長さ（px）。src-tauri/src/thumb.rs と合わせる。 */
@@ -65,14 +84,19 @@ export const loadUi = (url: string): Promise<UiModule> => {
   return m
 }
 
-/** UI にサムネイルを作らせ、PNG の中身にする。 */
+/** UI にサムネイルを作らせ、PNG の中身にする。UI の決めた長さのうちに作り終わらなければ ThumbnailTimeout を投げる。 */
 export async function uiThumbnail(
   url: string,
   api: UiApi,
 ): Promise<{ png: Uint8Array; width?: number; height?: number } | null> {
   const mod = await loadUi(url)
   if (!mod.thumbnail) throw new Error('サムネイル生成の関数（thumbnail）が見つかりません')
-  const t = await mod.thumbnail({ ...api, edge: EDGE })
+  const limit = limitOf(mod)
+  let timer = 0
+  const late = new Promise<never>((_, reject) => {
+    timer = window.setTimeout(() => reject(new ThumbnailTimeout(limit)), limit)
+  })
+  const t = await Promise.race([mod.thumbnail({ ...api, edge: EDGE }), late]).finally(() => clearTimeout(timer))
   if (!t) return null
   const png =
     t.png instanceof Uint8Array ? t.png : new Uint8Array(t.png instanceof Blob ? await t.png.arrayBuffer() : t.png)

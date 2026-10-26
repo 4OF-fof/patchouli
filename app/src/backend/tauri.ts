@@ -15,7 +15,7 @@ import {
 } from './stored'
 import type { Thumbnail } from '../model/library'
 import type { FormatInfo, Part, PluginReport, PluginSource, SettingValue, UiRef } from '../plugins/types'
-import { type UiApi, type UiItem, uiThumbnail } from '../plugins/ui'
+import { ThumbnailTimeout, type UiApi, type UiItem, uiThumbnail } from '../plugins/ui'
 import errorThumb from './thumb-error.svg'
 import type { Backend, CacheUsage, Changed, Dropped, FileDrag, KnownLibrary, UnusedPlugin } from './types'
 
@@ -33,9 +33,6 @@ type TauriView = { kind: 'image' | 'video' | 'audio' | 'decoded' } | { kind: 'ui
 /** プラグインのフォルダの中のファイルの URL（src-tauri/src/plugin/files.rs が返す）。 */
 const pluginUrl = (plugin: string, path: string) =>
   convertFileSrc('', 'plugin') + [plugin, ...path.split('/')].map(encodeURIComponent).join('/')
-
-/** 組み込み UI がサムネイルを作るのを待つ長さ（ms）。過ぎたらエラー用のサムネイルを出し、次へ進む。 */
-const UI_THUMB_LIMIT = 10_000
 
 /** 読んだ key を read に足していく設定の値。 */
 const watched = (s: Record<string, SettingValue>, read: Set<string>) =>
@@ -110,18 +107,16 @@ export function tauriBackend(): Backend {
   const makeUiThumb = async (it: TauriItem, ui: UiRef) => {
     const read = new Set<string>()
     const api = uiApi(uiItemOf(it), 'thumbnail', ui.plugin)
-    const made = uiThumbnail(pluginUrl(ui.plugin, ui.module), {
+    const t = await uiThumbnail(pluginUrl(ui.plugin, ui.module), {
       ...api,
       settings: async () => watched(await api.settings(), read),
-    })
-    let timer = 0
-    const late = new Promise<'late'>((r) => (timer = window.setTimeout(() => r('late'), UI_THUMB_LIMIT)))
-    const t = await Promise.race([made, late]).finally(() => clearTimeout(timer))
-    if (t === 'late') {
-      console.warn(`サムネイルが ${UI_THUMB_LIMIT / 1000} 秒で作り終わらない: ${it.name}.${it.ext}`)
+    }).catch((e: unknown) => {
+      if (!(e instanceof ThumbnailTimeout)) throw e
+      // 過ぎたらエラー用のサムネイルを出し、次へ進む
+      console.warn(`サムネイルが ${e.ms / 1000} 秒で作り終わらない: ${it.name}.${it.ext}`)
       sendThumb(it.id, { url: errorThumb, ratio: formats.get(it.ext)?.ratio ?? 1 })
-      return
-    }
+      return null
+    })
     if (!t) return
     const headers: Record<string, string> = { id: it.id, settings: asciiJson([...read]) }
     if (t.width && t.height) Object.assign(headers, { width: `${t.width}`, height: `${t.height}` })

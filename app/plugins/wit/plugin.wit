@@ -1,4 +1,4 @@
-package patchouli:plugin@0.4.0;
+package patchouli:plugin@0.5.0;
 
 interface types {
   /// アプリが渡すファイル。中身はホストの関数を通して読む。
@@ -95,8 +95,8 @@ interface host {
   command-available: func(name: string) -> bool;
 
   /// コマンドを動かす。plugin.json の required / optional の commands に書いたものだけを動かせる。
-  /// 標準入力は空にし、30 秒で終わらなければ止める。
-  run-command: func(name: string, args: list<command-arg>) -> result<command-output, string>;
+  /// 標準入力は空にし、timeout-ms（none なら 30 秒）で終わらなければ止める。長さに上限はない。
+  run-command: func(name: string, args: list<command-arg>, timeout-ms: option<u32>) -> result<command-output, string>;
 
   /// 中身を offset から最大 len バイト読む。
   read: func(f: file, offset: u64, len: u32) -> result<list<u8>, string>;
