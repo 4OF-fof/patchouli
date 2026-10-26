@@ -79,11 +79,7 @@ export function LibrariesDialog(props: LibrariesDialogProps) {
                           <span class={styles.path}>{l.path}</span>
                         </button>
                         <span class={styles.when}>
-                          {l.current
-                            ? '開いている'
-                            : l.exists
-                              ? touchedLabel(today(), new Date(l.opened))
-                              : '見つからない'}
+                          {l.current ? '開いている' : l.exists ? touchedLabel(today(), new Date(l.opened)) : '未検出'}
                         </span>
                         <Show when={!l.current && props.onForget}>
                           <button

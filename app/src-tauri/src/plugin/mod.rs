@@ -460,7 +460,8 @@ impl Registry {
                     formats: Vec::new(),
                     settings: Vec::new(),
                     problems: vec![error(
-                        "アプリに入っていない。取得先から入れるまで使えない".into(),
+                        "アプリにインストールされていません。取得先からインストールすると使えます"
+                            .into(),
                     )],
                 }),
             }
@@ -494,10 +495,10 @@ impl Registry {
         for (first, second, ext) in conflicts {
             let (a, b) = (self.name(first).to_owned(), self.name(second).to_owned());
             self.plugins[first].problems.push(error(format!(
-                "「{ext}」を「{b}」も受け持とうとしている。こちらを使う"
+                "「{ext}」は「{b}」も受け持とうとしています。こちらが受け持ちます"
             )));
             self.plugins[second].problems.push(error(format!(
-                "「{ext}」はもう「{a}」が受け持っているので、受け持てない"
+                "「{ext}」はすでに「{a}」が受け持っているため、受け持てません"
             )));
         }
 
@@ -512,7 +513,7 @@ impl Registry {
             let (mut at, mut fmt) = (owner, ext.clone());
             loop {
                 if !seen.insert(fmt.clone()) {
-                    problems.push((owner, error(format!("「{ext}」の引き継ぎが輪になっている"))));
+                    problems.push((owner, error(format!("「{ext}」の引き継ぎが循環しています"))));
                     break;
                 }
                 let decl = &self.plugins[at].manifest.formats[&fmt];
@@ -534,7 +535,7 @@ impl Registry {
                     problems.push((
                         at,
                         error(format!(
-                            "「{fmt}」が引き継ぐ「{base}」を受け持つプラグインがない"
+                            "「{fmt}」が引き継ぐ「{base}」を受け持つプラグインがありません"
                         )),
                     ));
                     break;
@@ -560,13 +561,13 @@ impl Registry {
         for (i, p) in self.plugins.iter_mut().enumerate() {
             if p.manifest.wants_wasm() && p.wasm.is_none() && p.problems.is_empty() {
                 p.problems.push(error(
-                    "処理の部分（plugin.wasm）がないので、サムネイルと詳細の表示を受け持てない"
+                    "処理部分（plugin.wasm）がないため、サムネイルと詳細の表示を受け持てません"
                         .into(),
                 ));
             }
             if p.manifest.wants_ui() && p.ui.is_none() && p.problems.is_empty() {
                 p.problems.push(error(
-                    "組み込み UI（plugin.json の ui）がないので、UI で受け持つものを受け持てない"
+                    "組み込み UI（plugin.json の ui）がないため、UI で受け持つものを受け持てません"
                         .into(),
                 ));
             }
@@ -683,20 +684,20 @@ impl Registry {
         let path = self
             .record_path
             .as_ref()
-            .ok_or("ライブラリを開いていない")?;
+            .ok_or("ライブラリを開いていません")?;
         let p = self
             .plugins
             .iter()
             .find(|p| p.manifest.id == id)
-            .ok_or_else(|| format!("{id} を使っていない"))?;
+            .ok_or_else(|| format!("{id} は有効になっていません"))?;
         let decl = p
             .settings
             .iter()
             .find(|s| s.key == key)
-            .ok_or_else(|| format!("{id} に {key} という設定はない"))?;
+            .ok_or_else(|| format!("{id} に {key} という設定はありません"))?;
         let v = decl
             .accept(value)
-            .ok_or_else(|| format!("{key} に使えない値: {value}"))?;
+            .ok_or_else(|| format!("{key} に使えない値です: {value}"))?;
         let mut r = self.record.write().map_err(|e| e.to_string())?;
         r.plugins
             .entry(id.to_owned())
@@ -763,13 +764,13 @@ impl Registry {
                 for (deps, required) in [(&m.required, true), (&m.optional, false)] {
                     for c in &deps.commands {
                         let text = if !commands::valid(c) {
-                            format!("「{c}」はコマンドの名前に使えない")
+                            format!("「{c}」はコマンド名として使えません")
                         } else if found(c) {
                             continue;
                         } else if required {
-                            format!("{c} が見つからない。{c} を入れるまで、このプラグインは動かない")
+                            format!("{c} が見つかりません。{c} をインストールすると使えるようになります")
                         } else {
-                            format!("{c} が見つからないので、{c} を使わずに動かす。できないことがある")
+                            format!("{c} が見つかりません。{c} を使う機能は動きません")
                         };
                         problems.push(Problem {
                             level: if required { Level::Error } else { Level::Warning },
@@ -779,13 +780,13 @@ impl Registry {
                     for id in deps.plugins.iter().filter(|id| !active(id)) {
                         problems.push(if required {
                             error(format!(
-                                "プラグイン {id} を使っていない。このライブラリで使うまで、このプラグインは動かない"
+                                "プラグイン {id} が有効になっていません。{id} を有効にすると使えるようになります"
                             ))
                         } else {
                             Problem {
                                 level: Level::Warning,
                                 text: format!(
-                                    "プラグイン {id} を使っていないので、それを使う働きは動かない"
+                                    "プラグイン {id} が有効になっていません。{id} を使う機能は動きません"
                                 ),
                             }
                         });
@@ -795,7 +796,7 @@ impl Registry {
                     problems.push(Problem {
                         level: Level::Warning,
                         text: format!(
-                            "ライブラリには {r} が記録されているが、アプリに入っているのは {}",
+                            "ライブラリには {r} が記録されていますが、インストールされているのは {} です",
                             m.version
                         ),
                     });
@@ -853,7 +854,7 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
         {
             Ok(p) => Some(Arc::new(p)),
             Err(e) => {
-                problems.push(error(format!("処理の部分を読み込めない: {e}")));
+                problems.push(error(format!("処理部分を読み込めません: {e}")));
                 None
             }
         }
@@ -864,7 +865,7 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
         let ok = inside(m) && dir.join(m).is_file();
         if !ok {
             problems.push(error(format!(
-                "組み込み UI（{m}）がプラグインのフォルダの中にない"
+                "組み込み UI（{m}）がプラグインのフォルダの中にありません"
             )));
         }
         ok
@@ -893,7 +894,7 @@ fn settings_of(
     match w.settings(id) {
         Ok(s) => s,
         Err(e) => {
-            problems.push(error(format!("設定の項目を読めない: {e}")));
+            problems.push(error(format!("設定の項目を読み込めません: {e}")));
             Vec::new()
         }
     }

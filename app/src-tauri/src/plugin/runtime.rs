@@ -64,7 +64,7 @@ impl HostState {
                 "{name} は plugin.json の required / optional に書いていない"
             ));
         }
-        commands::find(name).ok_or_else(|| format!("{name} が見つからない"))
+        commands::find(name).ok_or_else(|| format!("{name} が見つかりません"))
     }
 
     fn path(&self, f: &File) -> Result<&Path, String> {

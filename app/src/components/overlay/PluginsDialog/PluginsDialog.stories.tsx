@@ -41,7 +41,7 @@ const text: PluginStatus = {
       value: 'mono',
     },
   ],
-  problems: [{ level: 'warning', text: 'pandoc が見つからないので、pandoc を使わずに動かす。できないことがある' }],
+  problems: [{ level: 'warning', text: 'pandoc が見つかりません。pandoc を使う機能は動きません' }],
 }
 
 const found: PluginReport = {
@@ -58,7 +58,9 @@ const external: PluginReport = {
       optional: none,
       version: '0.1.0',
       recorded: '0.2.0',
-      problems: [{ level: 'warning', text: 'ライブラリには 0.2.0 が記録されているが、アプリに入っているのは 0.1.0' }],
+      problems: [
+        { level: 'warning', text: 'ライブラリには 0.2.0 が記録されていますが、インストールされているのは 0.1.0 です' },
+      ],
     },
     {
       id: 'example.psd',
@@ -73,7 +75,7 @@ const external: PluginReport = {
       caps: [],
       formats: [],
       settings: [],
-      problems: [{ level: 'error', text: 'アプリに入っていない。取得先から入れるまで使えない' }],
+      problems: [{ level: 'error', text: 'アプリにインストールされていません。取得先からインストールすると使えます' }],
     },
   ],
 }
@@ -88,7 +90,7 @@ const troubled: PluginReport = {
         ? [
             {
               level: 'warning' as const,
-              text: 'ffmpeg が見つからないので、ffmpeg を使わずに動かす。できないことがある',
+              text: 'ffmpeg が見つかりません。ffmpeg を使う機能は動きません',
             },
           ]
         : [],
@@ -108,10 +110,10 @@ const troubled: PluginReport = {
       formats: [],
       settings: [],
       problems: [
-        { level: 'error', text: 'magick が見つからない。magick を入れるまで、このプラグインは動かない' },
+        { level: 'error', text: 'magick が見つかりません。magick をインストールすると使えるようになります' },
         {
           level: 'error',
-          text: 'プラグイン example.layers を使っていない。このライブラリで使うまで、このプラグインは動かない',
+          text: 'プラグイン example.layers が有効になっていません。example.layers を有効にすると使えるようになります',
         },
       ],
     },
@@ -155,7 +157,7 @@ export const Failed: Story = {
       ...actions,
       install: async () => {
         await wait()
-        throw new Error('plugin.json が見つからない')
+        throw new Error('plugin.json が見つかりません')
       },
     },
   },

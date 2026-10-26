@@ -81,7 +81,7 @@ fn library_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
         return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../example/dev-library"));
     }
-    Err("ライブラリが選ばれていない。設定から選んでください".into())
+    Err("ライブラリが選ばれていません。設定から選んでください".into())
 }
 
 fn with<T>(
@@ -96,7 +96,7 @@ fn with_session<T>(
     f: impl FnOnce(&mut Session) -> Result<T, String>,
 ) -> Result<T, String> {
     let mut g = cur.0.lock().map_err(|e| e.to_string())?;
-    let s = g.as_mut().ok_or("ライブラリを開いていない")?;
+    let s = g.as_mut().ok_or("ライブラリを開いていません")?;
     f(s)
 }
 
@@ -385,7 +385,7 @@ async fn update_plugin(
     id: String,
 ) -> Result<(), String> {
     let source = with_session(&cur, |s| Ok(s.plugins.source_of(&id)))?
-        .ok_or_else(|| format!("{id} の取得先が記録されていない"))?;
+        .ok_or_else(|| format!("{id} の取得先が記録されていません"))?;
     install_plugin(app, cur, source).await
 }
 
@@ -520,7 +520,7 @@ async fn plugin_settings(
     with_session(&cur, |s| {
         s.plugins
             .settings_of(&plugin)
-            .ok_or_else(|| format!("{plugin} を使っていない"))
+            .ok_or_else(|| format!("{plugin} は有効になっていません"))
     })
 }
 
@@ -594,7 +594,7 @@ async fn choose_library(app: tauri::AppHandle) -> Result<bool, String> {
     };
     let dir = picked.into_path().map_err(|e| e.to_string())?;
     if !dir.is_dir() {
-        return Err(format!("{} はフォルダでない", dir.display()));
+        return Err(format!("{} はフォルダではありません", dir.display()));
     }
     settings::set_library(&app, &dir)?;
     Ok(true)
@@ -637,7 +637,7 @@ async fn libraries(
 #[tauri::command]
 async fn switch_library(app: tauri::AppHandle, path: PathBuf) -> Result<(), String> {
     if !path.is_dir() {
-        return Err(format!("{} が見つからない", path.display()));
+        return Err(format!("{} が見つかりません", path.display()));
     }
     settings::set_library(&app, &path)
 }
@@ -653,15 +653,21 @@ async fn cache_usage(app: tauri::AppHandle) -> Result<tidy::Usage, String> {
     Ok(tidy::usage(&cache_dir(&app)?))
 }
 
-/// kind のキャッシュを、すべてのライブラリの分消す。開いているライブラリも閉じるので、画面は開き直す。
+/// kind のキャッシュを、すべてのライブラリの分消す。all は未使用のプラグインも消す。
+/// 開いているライブラリも閉じるので、画面は開き直す。
 #[tauri::command]
 async fn clear_cache(
     app: tauri::AppHandle,
     cur: State<'_, Current>,
     kind: tidy::Kind,
 ) -> Result<(), String> {
+    let unused = match kind {
+        tidy::Kind::All => unused_plugins_of(&app, &cur)?,
+        _ => Vec::new(),
+    };
     drop(cur.0.lock().map_err(|e| e.to_string())?.take());
-    tidy::clear(&cache_dir(&app)?, kind)
+    tidy::clear(&cache_dir(&app)?, kind)?;
+    remove_plugins(unused)
 }
 
 /// どのライブラリでも使っていないプラグインと、その場所。
@@ -697,7 +703,11 @@ async fn remove_unused_plugins(
     app: tauri::AppHandle,
     cur: State<'_, Current>,
 ) -> Result<(), String> {
-    for (u, path) in unused_plugins_of(&app, &cur)? {
+    remove_plugins(unused_plugins_of(&app, &cur)?)
+}
+
+fn remove_plugins(plugins: Vec<(tidy::Unused, PathBuf)>) -> Result<(), String> {
+    for (u, path) in plugins {
         std::fs::remove_dir_all(&path).map_err(|e| format!("{}: {e}", u.name))?;
     }
     Ok(())

@@ -55,7 +55,7 @@ export const Failed: Story = {
   args: {
     onOpen: async () => {
       await wait()
-      throw new Error('C:\\Users\\fof\\Documents\\仕事 が見つからない')
+      throw new Error('C:\\Users\\fof\\Documents\\仕事 が見つかりません')
     },
   },
 }

@@ -192,12 +192,12 @@ export function PluginsDialog(props: PluginsDialogProps) {
             </Show>
             <Show when={p().state === 'missing'}>
               <span class={styles.badge} data-tone="danger">
-                入っていない
+                未導入
               </span>
             </Show>
             <Show when={p().state === 'blocked'}>
               <span class={styles.badge} data-tone="danger">
-                読み込んでいない
+                無効
               </span>
             </Show>
           </div>
@@ -286,7 +286,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                         </Show>
                         <span class={styles.need}>{d.need}</span>
                         <span class={styles.state} data-ok={ok()}>
-                          {ok() ? '使っている' : '使っていない'}
+                          {ok() ? '有効' : q()?.state === 'blocked' ? '無効' : '未導入'}
                         </span>
                       </li>
                     )

@@ -17,7 +17,7 @@ fn check_id(id: &str) -> Result<(), String> {
     if ok {
         Ok(())
     } else {
-        Err(format!("「{id}」はプラグインの id に使えない"))
+        Err(format!("「{id}」はプラグインの id に使えません"))
     }
 }
 
@@ -36,7 +36,7 @@ fn fetch(source: &Source, work: &Path) -> Result<PathBuf, String> {
     let Source::Local(p) = source;
     if p.is_dir() {
         return Err(format!(
-            "{}: プラグインは zip からだけ入れられる",
+            "{}: プラグインは zip からしかインストールできません",
             p.display()
         ));
     }
@@ -52,7 +52,7 @@ fn fetch(source: &Source, work: &Path) -> Result<PathBuf, String> {
         .filter(|e| e.path().is_dir());
     match (dirs.next(), dirs.next()) {
         (Some(d), None) if d.path().join(MANIFEST).is_file() => Ok(d.path()),
-        _ => Err(format!("{MANIFEST} が見つからない")),
+        _ => Err(format!("{MANIFEST} が見つかりません")),
     }
 }
 
@@ -66,7 +66,7 @@ fn place(root: &Path, dir: &Path, builtin: &[String]) -> Result<Manifest, String
     let m = Manifest::read(root)?;
     check_id(&m.id)?;
     if builtin.contains(&m.id) {
-        return Err(format!("{} は組み込みのプラグインと同じ id", m.id));
+        return Err(format!("{} は組み込みのプラグインと同じ id です", m.id));
     }
     let dest = dir.join(&m.id);
     if dest.exists() {

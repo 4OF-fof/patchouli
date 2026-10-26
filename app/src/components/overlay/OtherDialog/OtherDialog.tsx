@@ -11,7 +11,7 @@ export interface OtherDialogProps {
   usage?: CacheUsage
   /** どのライブラリでも使っていないプラグイン。ないあいだは読み込み中と出す。 */
   unused?: UnusedPlugin[]
-  /** キャッシュを消す。ないときはキャッシュの行を出さない。 */
+  /** キャッシュを消す。all は未使用のプラグインも消す。ないときはキャッシュの行を出さない。 */
   onClear?: (kind: CacheKind) => Promise<void>
   /** 使っていないプラグインをまとめて消す。ないときはその行を出さない。 */
   onRemoveUnused?: () => Promise<void>
@@ -30,9 +30,6 @@ const bytesLabel = (n: number) => {
   }
   return `${i === 0 ? n : n.toFixed(1)} ${units[i]}`
 }
-
-const sizeOf = (u: CacheUsage, kind: CacheKind) =>
-  kind === 'library' ? u.library : kind === 'thumbs' ? u.thumbs : u.library + u.thumbs
 
 const CACHES: { kind: CacheKind; label: string }[] = [
   { kind: 'library', label: 'ライブラリの写し' },
@@ -66,6 +63,8 @@ export function OtherDialog(props: OtherDialogProps) {
     }
   }
   const unusedBytes = () => (props.unused ?? []).reduce((n, p) => n + p.bytes, 0)
+  const sizeOf = (u: CacheUsage, kind: CacheKind) =>
+    kind === 'library' ? u.library : kind === 'thumbs' ? u.thumbs : u.library + u.thumbs + unusedBytes()
 
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
