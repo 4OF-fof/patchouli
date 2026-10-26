@@ -4,7 +4,8 @@
 //! - 組み込み UI: `plugin.json` の `ui` の ES モジュールを、隔離せずに本体の画面で動かす（`src/plugins/ui.ts`）
 //! - 形式はほかの形式を引き継いで（extends）、一部（parts）だけを自分で受け持てる
 //! - 同じ形式を 2 つのプラグインが受け持つときは、先に読んだほうを使い、両方にエラーを付ける
-//! - 外のプラグインの本体はアプリのデータフォルダに置き、ライブラリに記録したものだけを使う（record.rs）
+//! - 外のプラグインの本体はアプリのデータフォルダに置き、ライブラリに記録したものだけを使う。
+//!   設定の値と、プラグインが自分で読み書きする値も、ライブラリに置く（record.rs）
 //! - 手元のコマンドとほかのプラグインを、必須（required）か、あれば使う（optional）として求められる
 
 mod builtin;
@@ -23,7 +24,7 @@ use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use record::{Record, Source};
+use record::{Record, Source, Stored};
 pub use runtime::{Runner, ViewOut, read};
 
 /// 求めるもの。
@@ -399,10 +400,12 @@ pub struct Registry {
     formats: HashMap<String, Resolved>,
     /// 記録してあるのに入っていないもの。
     others: Vec<PluginStatus>,
-    /// ライブラリの記録。設定を変えると書き直す。
-    record: RwLock<Record>,
-    /// 記録の置き場所。組み込みだけのときはない。
-    record_path: Option<PathBuf>,
+    /// ライブラリの記録。
+    record: Record,
+    /// プラグインごとの設定の値と、プラグインが読み書きする値（id → 値）。変えるとライブラリに書く。
+    stored: RwLock<HashMap<String, Stored>>,
+    /// 開いているライブラリ。組み込みだけのときはない。
+    root: Option<PathBuf>,
 }
 
 const DEFAULT_RATIO: f64 = 1.6;
@@ -419,8 +422,9 @@ impl Registry {
             plugins: builtin::load(),
             formats: HashMap::new(),
             others: Vec::new(),
-            record: RwLock::new(Record::default()),
-            record_path: None,
+            record: Record::default(),
+            stored: RwLock::new(HashMap::new()),
+            root: None,
         };
         r.resolve();
         r
@@ -430,8 +434,7 @@ impl Registry {
     /// 記録を読めなかったときは、組み込みのものだけにして、その理由を返す。
     pub fn open(root: &Path, dir: &Path) -> (Registry, Vec<String>) {
         let mut problems = Vec::new();
-        let record_path = record::path(root);
-        let record = Record::read(&record_path).unwrap_or_else(|e| {
+        let record = Record::read(&record::path(root)).unwrap_or_else(|e| {
             problems.push(e);
             Record::default()
         });
@@ -464,12 +467,24 @@ impl Registry {
             }
         }
         block_unmet(&mut plugins);
+        let stored = plugins
+            .iter()
+            .map(|p| {
+                let id = p.manifest.id.clone();
+                let s = Stored::read(&record::stored_path(root, &id)).unwrap_or_else(|e| {
+                    problems.push(e);
+                    Stored::default()
+                });
+                (id, s)
+            })
+            .collect();
         let mut r = Registry {
             plugins,
             formats: HashMap::new(),
             others,
-            record: RwLock::new(record),
-            record_path: Some(record_path),
+            record,
+            stored: RwLock::new(stored),
+            root: Some(root.to_owned()),
         };
         r.resolve();
         (r, problems)
@@ -644,10 +659,10 @@ impl Registry {
             .as_deref()
     }
 
-    /// 記録してある取得先。
-    pub fn source_of(&self, id: &str) -> Option<Source> {
-        let r = self.record.read().ok()?;
-        r.plugins.get(id)?.source.clone()
+    /// 記録してある取得先と、取得元の検証値。
+    pub fn source_of(&self, id: &str) -> Option<(Source, Option<String>)> {
+        let e = self.record.plugins.get(id)?;
+        Some((e.source.clone()?, e.hash.clone()))
     }
 
     /// i 番目のプラグインの設定 key のいまの値。変えていなければ既定の値。
@@ -655,15 +670,42 @@ impl Registry {
         let p = &self.plugins[i];
         let decl = p.settings.iter().find(|s| s.key == key)?;
         let stored = self
-            .record
+            .stored
             .read()
             .ok()?
-            .plugins
-            .get(&p.manifest.id)?
-            .settings
-            .get(key)
+            .get(&p.manifest.id)
+            .and_then(|s| s.settings.get(key))
             .and_then(|v| decl.accept(v));
         Some(stored.unwrap_or_else(|| decl.default.clone()))
+    }
+
+    /// i 番目のプラグインの残す値を f で変えて、ライブラリに書く。
+    fn store(&self, i: usize, f: impl FnOnce(&mut Stored)) -> Result<(), String> {
+        let root = self.root.as_ref().ok_or("ライブラリが開かれていません")?;
+        let id = &self.plugins[i].manifest.id;
+        let mut all = self.stored.write().map_err(|e| e.to_string())?;
+        let s = all.entry(id.clone()).or_default();
+        f(s);
+        s.write(&record::stored_path(root, id))
+    }
+
+    /// i 番目のプラグインが自分で残した値。
+    fn data(&self, i: usize, key: &str) -> Option<String> {
+        let all = self.stored.read().ok()?;
+        let v = all.get(&self.plugins[i].manifest.id)?.data.get(key)?;
+        v.as_str().map(str::to_owned)
+    }
+
+    /// i 番目のプラグインが値を残す。None なら消す。
+    fn set_data(&self, i: usize, key: &str, value: Option<String>) -> Result<(), String> {
+        self.store(i, |s| match value {
+            Some(v) => {
+                s.data.insert(key.to_owned(), Value::String(v));
+            }
+            None => {
+                s.data.remove(key);
+            }
+        })
     }
 
     /// 使っているプラグインの、設定のいまの値すべて。
@@ -678,18 +720,27 @@ impl Registry {
         )
     }
 
-    /// 設定を変えて、ライブラリの記録に書く。
-    pub fn set_setting(&self, id: &str, key: &str, value: &Value) -> Result<(), String> {
-        let path = self
-            .record_path
-            .as_ref()
-            .ok_or("ライブラリが開かれていません")?;
-        let p = self
-            .plugins
+    fn index_of(&self, id: &str) -> Result<usize, String> {
+        self.plugins
             .iter()
-            .find(|p| p.manifest.id == id)
-            .ok_or_else(|| format!("プラグイン「{id}」は有効ではありません"))?;
-        let decl = p
+            .position(|p| p.manifest.id == id)
+            .ok_or_else(|| format!("プラグイン「{id}」は有効ではありません"))
+    }
+
+    /// 使っているプラグインが自分で残した値。
+    pub fn data_of(&self, id: &str, key: &str) -> Result<Option<String>, String> {
+        Ok(self.data(self.index_of(id)?, key))
+    }
+
+    /// 使っているプラグインが値を残す。None なら消す。
+    pub fn set_data_of(&self, id: &str, key: &str, value: Option<String>) -> Result<(), String> {
+        self.set_data(self.index_of(id)?, key, value)
+    }
+
+    /// 設定を変えて、ライブラリに書く。
+    pub fn set_setting(&self, id: &str, key: &str, value: &Value) -> Result<(), String> {
+        let i = self.index_of(id)?;
+        let decl = self.plugins[i]
             .settings
             .iter()
             .find(|s| s.key == key)
@@ -697,13 +748,9 @@ impl Registry {
         let v = decl
             .accept(value)
             .ok_or_else(|| format!("「{key}」の設定値が無効です：{value}"))?;
-        let mut r = self.record.write().map_err(|e| e.to_string())?;
-        r.plugins
-            .entry(id.to_owned())
-            .or_default()
-            .settings
-            .insert(key.to_owned(), v);
-        r.write(path)
+        self.store(i, |s| {
+            s.settings.insert(key.to_owned(), v);
+        })
     }
 
     pub fn formats(&self) -> Vec<FormatInfo> {

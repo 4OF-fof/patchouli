@@ -101,6 +101,8 @@ export function tauriBackend(): Backend {
     call: (method, args) => invoke<string>('plugin_call', { id: item.id, part, method, args }),
     settings: () => invoke('plugin_settings', { plugin }),
     setSetting: (key, value) => setSetting(plugin, key, value),
+    getData: async (key) => (await invoke<string | null>('plugin_data', { plugin, key })) ?? undefined,
+    setData: (key, value) => invoke('set_plugin_data', { plugin, key, value: value ?? null }),
   })
 
   // 読んだ設定を Rust に渡し、その値が変わったときに作り直せるようにする

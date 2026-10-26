@@ -364,41 +364,63 @@ fn root_of(cur: &State<Current>) -> Result<PathBuf, String> {
     with(cur, |l| Ok(l.root().to_owned()))
 }
 
-/// プラグインを取得先から入れて、開いているライブラリに記録する。入れたあとは、画面がライブラリを開き直す。
+/// プラグインを取得先から入れて、開いているライブラリに記録する。expect は取得元の検証値。
+/// 入れたあとは、画面がライブラリを開き直す。
+fn install_from(
+    app: &tauri::AppHandle,
+    cur: &State<Current>,
+    source: Source,
+    expect: Option<&str>,
+) -> Result<(), String> {
+    let root = root_of(cur)?;
+    let (m, hash) =
+        plugin::install::install(&source, &plugin_dir(app)?, &plugin::builtin_ids(), expect)?;
+    record::update(&root, |r| {
+        let e = r.plugins.entry(m.id).or_default();
+        e.version = Some(m.version);
+        e.source = Some(source);
+        e.hash = Some(hash);
+    })
+}
+
 #[tauri::command]
 async fn install_plugin(
     app: tauri::AppHandle,
     cur: State<'_, Current>,
     source: Source,
 ) -> Result<(), String> {
-    let root = root_of(&cur)?;
-    let m = plugin::install::install(&source, &plugin_dir(&app)?, &plugin::builtin_ids())?;
-    record::update(&root, |r| {
-        let e = r.plugins.entry(m.id).or_default();
-        e.version = Some(m.version);
-        e.source = Some(source);
-    })
+    install_from(&app, &cur, source, None)
 }
 
-/// 記録してある取得先から入れ直す。
+/// 記録してある取得先から入れ直す。この端末に入っていないものは、取得元が記録と同じときだけ入れる。
 #[tauri::command]
 async fn update_plugin(
     app: tauri::AppHandle,
     cur: State<'_, Current>,
     id: String,
 ) -> Result<(), String> {
-    let source = with_session(&cur, |s| Ok(s.plugins.source_of(&id)))?
-        .ok_or_else(|| format!("{id} の取得先が記録されていません"))?;
-    install_plugin(app, cur, source).await
+    let (recorded, installed) = with_session(&cur, |s| {
+        Ok((s.plugins.source_of(&id), s.plugins.dir_of(&id).is_some()))
+    })?;
+    let (source, hash) = recorded.ok_or_else(|| format!("{id} の取得先が記録されていません"))?;
+    let expect = hash.as_deref().filter(|_| !installed);
+    install_from(&app, &cur, source, expect)
 }
 
-/// 開いているライブラリの記録から外す。アプリからは消さない。
+/// 開いているライブラリの記録と設定から外す。ほかのどのライブラリでも使っていなければ、アプリからも消す。
 #[tauri::command]
-async fn remove_plugin(cur: State<'_, Current>, id: String) -> Result<(), String> {
+async fn remove_plugin(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    id: String,
+) -> Result<(), String> {
     let root = root_of(&cur)?;
     record::update(&root, |r| {
         r.plugins.remove(&id);
-    })
+    })?;
+    record::forget(&root, &id)?;
+    let unused = unused_plugins_of(&app, &cur)?;
+    remove_plugins(unused.into_iter().filter(|(u, _)| u.id == id).collect())
 }
 
 /// プラグインを入れるフォルダか zip を選ぶ窓を出す。選ばなければ None。
@@ -512,6 +534,27 @@ async fn plugin_call(
         }
         r
     })
+}
+
+/// 組み込み UI のプラグインが自分で残した値。
+#[tauri::command]
+async fn plugin_data(
+    cur: State<'_, Current>,
+    plugin: String,
+    key: String,
+) -> Result<Option<String>, String> {
+    with_session(&cur, |s| s.plugins.data_of(&plugin, &key))
+}
+
+/// 組み込み UI のプラグインが値を残す。value がなければ消す。
+#[tauri::command]
+async fn set_plugin_data(
+    cur: State<'_, Current>,
+    plugin: String,
+    key: String,
+    value: Option<String>,
+) -> Result<(), String> {
+    with_session(&cur, |s| s.plugins.set_data_of(&plugin, &key, value))
 }
 
 /// 使っているプラグインの、設定のいまの値。
@@ -785,6 +828,8 @@ pub fn run() {
             plugin_read,
             plugin_call,
             plugin_settings,
+            plugin_data,
+            set_plugin_data,
             put_thumbnail,
             libraries,
             switch_library,

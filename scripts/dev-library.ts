@@ -5,6 +5,7 @@
 // 使い方: node scripts/dev-library.ts（Node 24 以上と ffmpeg、cargo と wasm32-wasip2 が要る。
 // example/dev-library/ と example/dev-plugins/、example/dev-zips/ は消してから作る）
 import { spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -166,7 +167,7 @@ function zip(dir: string, out: string) {
 /**
  * 例のプラグインをビルドし、それぞれのフォルダに plugin.wasm を置いてから、アプリのプラグインの置き場と同じ形で
  * pluginDir/<id>/ に入れる。取得先は、同じ中身を zipDir に zip にしたもの。
- * 返すのはライブラリに残す記録。
+ * 返すのはライブラリに残す記録（library.json の plugins）。
  */
 async function installExamples() {
   await run(
@@ -190,7 +191,8 @@ async function installExamples() {
     fs.cpSync(src, path.join(pluginDir, m.id), { recursive: true })
     const local = path.join(zipDir, `${dir}.zip`)
     zip(src, local)
-    record[m.id] = { version: m.version, source: { local } }
+    const hash = `sha256:${createHash('sha256').update(fs.readFileSync(local)).digest('hex')}`
+    record[m.id] = { version: m.version, source: { local }, hash }
   }
   return record
 }
@@ -226,7 +228,7 @@ spec.projects.forEach((p, i) => {
   fs.writeFileSync(path.join(root, `${p.name}.meta`), json({ [ID_KEY]: `p${i + 1}`, cover: p.cover }))
 })
 
-// ピン留めとタグの表紙はライブラリ全体で 1 つ
+// ピン留めとタグの表紙、使うプラグインはライブラリ全体で 1 つ
 fs.mkdirSync(path.join(root, '.patchouli'))
 fs.writeFileSync(
   path.join(root, '.patchouli', 'library.json'),
@@ -235,9 +237,9 @@ fs.writeFileSync(
     pinnedProjects: PINNED_PROJECTS,
     pinnedTags: PINNED_TAGS,
     tagCovers: Object.fromEntries(spec.tagCovers),
+    plugins: await installExamples(),
   }),
 )
-fs.writeFileSync(path.join(root, '.patchouli', 'plugins.json'), json({ plugins: await installExamples() }))
 
 const jobs: (() => Promise<void>)[] = []
 const touched: { file: string; moved: number }[] = []

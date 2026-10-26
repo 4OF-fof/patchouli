@@ -25,6 +25,10 @@ export interface UiApi {
   /** 自分の設定のいまの値。 */
   settings(): Promise<Record<string, SettingValue>>
   setSetting(key: string, value: SettingValue): Promise<void>
+  /** 自分で残した値。ライブラリごとに残る。ないときは undefined。 */
+  getData(key: string): Promise<string | undefined>
+  /** 値を残す。value がなければ消す。 */
+  setData(key: string, value?: string): Promise<void>
 }
 
 /** できたサムネイル。png は長いほうの辺が edge 以下の PNG。width と height は素材そのものの大きさ。 */

@@ -145,6 +145,17 @@ impl patchouli::plugin::host::Host for HostState {
         w
     }
 
+    fn get_data(&mut self, key: String) -> Option<String> {
+        self.reg.as_ref()?.data(self.index, &key)
+    }
+
+    fn set_data(&mut self, key: String, value: Option<String>) -> Result<(), String> {
+        self.reg
+            .as_ref()
+            .ok_or("現在は値を保存できません")?
+            .set_data(self.index, &key, value)
+    }
+
     fn log(&mut self, message: String) {
         log::info!("[{}] {message}", self.current);
     }

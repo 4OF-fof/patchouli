@@ -5,6 +5,8 @@ use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
+use sha2::{Digest, Sha256};
+
 use super::record::Source;
 use super::{MANIFEST, Manifest};
 
@@ -22,25 +24,43 @@ fn check_id(id: &str) -> Result<(), String> {
 }
 
 /// 取得先から取り込んで、dir に入れる。builtin は組み込みのプラグインの id（同じ id では入れられない）。
-pub fn install(source: &Source, dir: &Path, builtin: &[String]) -> Result<Manifest, String> {
+/// expect があれば、取得元の検証値がそれと同じときだけ入れる。返すのは、入れたものと取得元の検証値。
+pub fn install(
+    source: &Source,
+    dir: &Path,
+    builtin: &[String],
+    expect: Option<&str>,
+) -> Result<(Manifest, String), String> {
     let work = dir.join(format!(".install-{}", uuid::Uuid::new_v4().simple()));
     fs::create_dir_all(&work).map_err(|e| format!("{}: {e}", work.display()))?;
-    let r = fetch(source, &work).and_then(|root| place(&root, dir, builtin));
+    let r = fetch(source, &work, expect)
+        .and_then(|(root, hash)| Ok((place(&root, dir, builtin)?, hash)));
     let _ = fs::remove_dir_all(&work);
     r
 }
 
-/// 取得先の zip を work に広げ、そのフォルダを返す。plugin.json は zip の根元に置く。
-fn fetch(source: &Source, work: &Path) -> Result<PathBuf, String> {
+/// 取得先の zip を work に広げ、そのフォルダと取得元の検証値を返す。plugin.json は zip の根元に置く。
+fn fetch(source: &Source, work: &Path, expect: Option<&str>) -> Result<(PathBuf, String), String> {
     let out = work.join("x");
     let Source::Local(p) = source;
     if p.is_dir() {
         return Err(format!("{}: ZIP ファイルを選択してください", p.display()));
     }
     let bytes = fs::read(p).map_err(|e| format!("{}: {e}", p.display()))?;
+    let hex: String = Sha256::digest(&bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    let hash = format!("sha256:{hex}");
+    if expect.is_some_and(|e| e != hash) {
+        return Err(format!(
+            "{}: ライブラリに記録されたものと内容が異なります",
+            p.display()
+        ));
+    }
     unzip(&bytes, &out)?;
     if out.join(MANIFEST).is_file() {
-        Ok(out)
+        Ok((out, hash))
     } else {
         Err(format!("アーカイブの最上位に {MANIFEST} が見つかりません"))
     }

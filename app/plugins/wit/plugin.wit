@@ -113,6 +113,12 @@ interface host {
   /// 自分の設定の値。変えていなければ settings で返した既定の値。知らない key は none。
   setting: func(key: string) -> option<setting-value>;
 
+  /// 自分で残した値。ライブラリごとに残る。ないときは none。
+  get-data: func(key: string) -> option<string>;
+
+  /// 値を残す。none なら消す。
+  set-data: func(key: string, value: option<string>) -> result<_, string>;
+
   log: func(message: string);
 }
 

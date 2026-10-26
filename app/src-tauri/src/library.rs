@@ -2,7 +2,7 @@
 //!
 //! - 直下のフォルダがプロジェクト。フォルダの属性は同じ階層の `<名前>.meta`（JSON）に置く
 //! - 素材の属性は `<ファイル名>.meta`（JSON）、ノートの属性は frontmatter に置く
-//! - ピン留めとタグの表紙は `.patchouli/library.json` に置く
+//! - ピン留めとタグの表紙は `.patchouli/library.json` に置く（同じファイルにプラグインの記録もある。plugin/record.rs）
 //! - `.` で始まるものは読まない（ほかのツールの設定や、書き込み途中のファイル）
 //!
 //! ID のない素材やノートと、コピーで ID が重なったもののあとから見つけたほうには、読んだときに新しい ID を書く。
@@ -719,10 +719,13 @@ impl Library {
         }
         let dir = self.root.join(STATE_DIR);
         fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-        let Value::Object(m) = serde_json::to_value(state).map_err(|e| e.to_string())? else {
+        let Value::Object(s) = serde_json::to_value(state).map_err(|e| e.to_string())? else {
             unreachable!()
         };
+        // 同じファイルにあるプラグインの記録（plugin/record.rs）は残す
         let path = self.state_path();
+        let mut m = read_json(&path)?.unwrap_or_default();
+        m.extend(s);
         write_json(&path, &m)?;
         self.mark(&path);
         self.cache.put_state(state);
