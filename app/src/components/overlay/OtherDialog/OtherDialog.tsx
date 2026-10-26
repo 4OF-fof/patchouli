@@ -11,9 +11,9 @@ export interface OtherDialogProps {
   usage?: CacheUsage
   /** どのライブラリでも使っていないプラグイン。ないあいだは読み込み中と出す。 */
   unused?: UnusedPlugin[]
-  /** キャッシュを消す。ないときはキャッシュの欄を出さない。 */
+  /** キャッシュを消す。ないときはキャッシュの行を出さない。 */
   onClear?: (kind: CacheKind) => Promise<void>
-  /** 使っていないプラグインをまとめて消す。ないときはその欄を出さない。 */
+  /** 使っていないプラグインをまとめて消す。ないときはその行を出さない。 */
   onRemoveUnused?: () => Promise<void>
   onClose?: () => void
 }
@@ -34,17 +34,13 @@ const bytesLabel = (n: number) => {
 const sizeOf = (u: CacheUsage, kind: CacheKind) =>
   kind === 'library' ? u.library : kind === 'thumbs' ? u.thumbs : u.library + u.thumbs
 
-const CACHES: { kind: CacheKind; label: string; help: string }[] = [
-  {
-    kind: 'library',
-    label: 'ライブラリの写し',
-    help: '開いた結果を取っておいたもの。次に開くときは、ファイルを読み直す',
-  },
-  { kind: 'thumbs', label: 'サムネイル', help: '次に開いたときに作り直す' },
-  { kind: 'all', label: 'すべて', help: '写しとサムネイルの両方' },
+const CACHES: { kind: CacheKind; label: string }[] = [
+  { kind: 'library', label: 'ライブラリの写し' },
+  { kind: 'thumbs', label: 'サムネイル' },
+  { kind: 'all', label: 'すべて' },
 ]
 
-/** 設定の「その他」。アプリの版、キャッシュの削除、使っていないプラグインの削除。置き場所の要素に position: relative を付けておく。 */
+/** 設定の「その他」。アプリの版と、キャッシュ・使っていないプラグインの削除。置き場所の要素に position: relative を付けておく。 */
 export function OtherDialog(props: OtherDialogProps) {
   let el!: HTMLDivElement
   const [busy, setBusy] = createSignal<string>()
@@ -88,74 +84,48 @@ export function OtherDialog(props: OtherDialogProps) {
               <span class={styles.mono}>{props.version}</span>
             </div>
           </section>
-          <Show when={props.onClear}>
-            {(clear) => (
-              <section>
-                <h4>キャッシュ</h4>
-                <p class={styles.note}>すべてのライブラリの分を消します。消すと、ライブラリを開き直します。</p>
-                <For each={CACHES}>
-                  {(c) => (
-                    <div class={styles.row}>
-                      <div>
+          <Show when={props.onClear || props.onRemoveUnused}>
+            <section>
+              <h4>キャッシュ</h4>
+              <Show when={props.onClear}>
+                {(clear) => (
+                  <For each={CACHES}>
+                    {(c) => (
+                      <div class={styles.row}>
                         <b>{c.label}</b>
-                        <small>{c.help}</small>
-                      </div>
-                      <span class={styles.mono}>{props.usage ? bytesLabel(sizeOf(props.usage, c.kind)) : '…'}</span>
-                      <Button
-                        size="sm"
-                        variant={c.kind === 'all' ? 'danger' : 'default'}
-                        disabled={busy() !== undefined}
-                        onClick={() => void run(`${c.label}を消しています`, () => clear()(c.kind))}
-                      >
-                        消す
-                      </Button>
-                    </div>
-                  )}
-                </For>
-              </section>
-            )}
-          </Show>
-          <Show when={props.onRemoveUnused}>
-            {(remove) => (
-              <section>
-                <h4>使っていないプラグイン</h4>
-                <p class={styles.note}>
-                  開いたことのあるどのライブラリでも使っていないプラグインです。読めないライブラリは、最後に開いたときに使っていたものを使っているとみなします。
-                </p>
-                <Show when={props.unused} fallback={<p class={styles.none}>調べています…</p>}>
-                  {(us) => (
-                    <Show when={us().length} fallback={<p class={styles.none}>ありません</p>}>
-                      <ul class={styles.plugins}>
-                        <For each={us()}>
-                          {(p) => (
-                            <li title={p.id}>
-                              <b>{p.name}</b>
-                              <Show when={p.version}>
-                                <span class={styles.mono}>{p.version}</span>
-                              </Show>
-                              <span class={styles.mono}>{bytesLabel(p.bytes)}</span>
-                            </li>
-                          )}
-                        </For>
-                      </ul>
-                      <div class={styles.total}>
-                        <span>
-                          {us().length} 件 · {bytesLabel(unusedBytes())}
-                        </span>
+                        <span class={styles.mono}>{props.usage ? bytesLabel(sizeOf(props.usage, c.kind)) : '…'}</span>
                         <Button
                           size="sm"
-                          variant="danger"
+                          variant={c.kind === 'all' ? 'danger' : 'default'}
                           disabled={busy() !== undefined}
-                          onClick={() => void run('使っていないプラグインを消しています', remove())}
+                          onClick={() => void run(`${c.label}を消しています`, () => clear()(c.kind))}
                         >
-                          まとめて消す
+                          消す
                         </Button>
                       </div>
-                    </Show>
-                  )}
-                </Show>
-              </section>
-            )}
+                    )}
+                  </For>
+                )}
+              </Show>
+              <Show when={props.onRemoveUnused}>
+                {(remove) => (
+                  <div class={styles.row}>
+                    <b title={props.unused?.map((p) => p.name).join('、')}>未使用のプラグイン</b>
+                    <span class={styles.mono}>
+                      {props.unused ? `${props.unused.length} 件 · ${bytesLabel(unusedBytes())}` : '…'}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      disabled={busy() !== undefined || !props.unused?.length}
+                      onClick={() => void run('未使用のプラグインを消しています', remove())}
+                    >
+                      消す
+                    </Button>
+                  </div>
+                )}
+              </Show>
+            </section>
           </Show>
         </ScrollArea>
       </div>
