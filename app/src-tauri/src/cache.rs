@@ -6,6 +6,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::{Duration, SystemTime};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
@@ -68,6 +69,65 @@ pub fn path_for(cache: &Path, root: &Path) -> PathBuf {
         "{:016x}.sqlite",
         crate::thumb::fnv(&[root.as_os_str().as_encoded_bytes()])
     ))
+}
+
+/// 開かなくなってからこれだけ経ったライブラリの写しとサムネイルは消す。
+const KEEP: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+
+/// 写しの更新日時を今にする。開いた日の目印にする（sweep が見る）。
+pub fn touch(path: &Path) {
+    if let Ok(f) = std::fs::File::options().write(true).open(path)
+        && let Err(e) = f.set_modified(SystemTime::now())
+    {
+        warn("開いた日を書けない", e);
+    }
+}
+
+/// 開いているライブラリ（root）のほかで、KEEP より長く開いていないものの写しとサムネイルの置き場を消す。
+/// 開いた日は写しの更新日時で見る。写しがなければ、サムネイルの置き場の更新日時で見る。
+pub fn sweep(cache: &Path, root: &Path) {
+    let current = path_for(cache, root);
+    let Some(current) = current.file_stem().and_then(|s| s.to_str()) else {
+        return;
+    };
+    let library = cache.join("library");
+    let old = |p: &Path| {
+        std::fs::metadata(p)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .is_some_and(|d| d > KEEP)
+    };
+    let others = |dir: &Path| -> Vec<(String, PathBuf)> {
+        let Ok(rd) = std::fs::read_dir(dir) else {
+            return Vec::new();
+        };
+        rd.filter_map(Result::ok)
+            .filter_map(|e| {
+                let name = e.file_name().into_string().ok()?;
+                // 「<16 桁>」で始まるものだけ（写しは -wal などが付くこともある）
+                let key = name.get(..16)?;
+                (key.bytes().all(|b| b.is_ascii_hexdigit()) && key != current)
+                    .then(|| (key.to_owned(), e.path()))
+            })
+            .collect()
+    };
+    // 写しを消すと目印がなくなるので、サムネイルから消す
+    for (key, dir) in others(&cache.join("thumbs")) {
+        let opened = library.join(format!("{key}.sqlite"));
+        if old(if opened.exists() { &opened } else { &dir })
+            && let Err(e) = std::fs::remove_dir_all(&dir)
+        {
+            log::warn!("使わなくなったサムネイルを消せない: {}: {e}", dir.display());
+        }
+    }
+    for (key, file) in others(&library) {
+        if (old(&library.join(format!("{key}.sqlite"))) || old(&file))
+            && let Err(e) = std::fs::remove_file(&file)
+        {
+            warn("消せない", e);
+        }
+    }
 }
 
 fn connect(path: &Path) -> rusqlite::Result<Connection> {

@@ -184,7 +184,13 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
     let (plugins, plugin_problems) = Registry::open(&root, &plugin_dir(&app)?);
     let plugins = Arc::new(plugins);
     let cache_dir = app.path().app_cache_dir().map_err(|e| e.to_string())?;
-    let cache = Arc::new(Cache::open(&cache::path_for(&cache_dir, &root)));
+    let cache_path = cache::path_for(&cache_dir, &root);
+    cache::touch(&cache_path);
+    let cache = Arc::new(Cache::open(&cache_path));
+    {
+        let (dir, root) = (cache_dir.clone(), root.clone());
+        std::thread::spawn(move || cache::sweep(&dir, &root));
+    }
     let thumbs = thumb::dir_for(&cache_dir, &root);
     std::fs::create_dir_all(&thumbs).map_err(|e| format!("{}: {e}", thumbs.display()))?;
     let scope = app.asset_protocol_scope();
