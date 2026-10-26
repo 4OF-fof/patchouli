@@ -1,24 +1,12 @@
 //! 外のプラグインを取得先から取り込み、アプリのデータフォルダ（`<dir>/<id>/`）に入れる。
-//! どこから入れたかは `<dir>/sources.json` に残し、ほかのライブラリで使うときにも記録できるようにする。
+//! どこから入れたかは、使うライブラリの記録にだけ残す。
 
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 
-use serde_json::{Map, Value};
-
 use super::record::Source;
 use super::{MANIFEST, Manifest};
-use crate::library::{read_json, write_json};
-
-const SOURCES: &str = "sources.json";
-
-fn sources(dir: &Path) -> Map<String, Value> {
-    read_json(&dir.join(SOURCES))
-        .ok()
-        .flatten()
-        .unwrap_or_default()
-}
 
 /// id に使えるのは、英小文字・数字と「. _ -」だけ。
 fn check_id(id: &str) -> Result<(), String> {
@@ -37,7 +25,7 @@ fn check_id(id: &str) -> Result<(), String> {
 pub fn install(source: &Source, dir: &Path, builtin: &[String]) -> Result<Manifest, String> {
     let work = dir.join(format!(".install-{}", uuid::Uuid::new_v4().simple()));
     fs::create_dir_all(&work).map_err(|e| format!("{}: {e}", work.display()))?;
-    let r = fetch(source, &work).and_then(|root| place(&root, source, dir, builtin));
+    let r = fetch(source, &work).and_then(|root| place(&root, dir, builtin));
     let _ = fs::remove_dir_all(&work);
     r
 }
@@ -73,8 +61,8 @@ fn unzip(bytes: &[u8], out: &Path) -> Result<(), String> {
     z.extract(out).map_err(|e| e.to_string())
 }
 
-/// 広げたものを確かめて dir/<id> に置き、取得先を残す。
-fn place(root: &Path, source: &Source, dir: &Path, builtin: &[String]) -> Result<Manifest, String> {
+/// 広げたものを確かめて dir/<id> に置く。
+fn place(root: &Path, dir: &Path, builtin: &[String]) -> Result<Manifest, String> {
     let m = Manifest::read(root)?;
     check_id(&m.id)?;
     if builtin.contains(&m.id) {
@@ -85,11 +73,5 @@ fn place(root: &Path, source: &Source, dir: &Path, builtin: &[String]) -> Result
         fs::remove_dir_all(&dest).map_err(|e| format!("{}: {e}", dest.display()))?;
     }
     fs::rename(root, &dest).map_err(|e| format!("{}: {e}", dest.display()))?;
-    let mut s = sources(dir);
-    s.insert(
-        m.id.clone(),
-        serde_json::to_value(source).map_err(|e| e.to_string())?,
-    );
-    write_json(&dir.join(SOURCES), &s)?;
     Ok(m)
 }

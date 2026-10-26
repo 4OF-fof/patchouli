@@ -165,7 +165,7 @@ function zip(dir: string, out: string) {
 
 /**
  * 例のプラグインをビルドし、それぞれのフォルダに plugin.wasm を置いてから、アプリのプラグインの置き場と同じ形で
- * pluginDir に入れる（<id>/ と、取得先を書いた sources.json）。取得先は、同じ中身を zipDir に zip にしたもの。
+ * pluginDir/<id>/ に入れる。取得先は、同じ中身を zipDir に zip にしたもの。
  * 返すのはライブラリに残す記録。
  */
 async function installExamples() {
@@ -179,7 +179,6 @@ async function installExamples() {
     fs.rmSync(d, { recursive: true, force: true })
     fs.mkdirSync(d)
   }
-  const sources: Record<string, unknown> = {}
   const record: Record<string, unknown> = {}
   for (const dir of EXAMPLE_PLUGINS) {
     const src = path.join(example, dir)
@@ -191,10 +190,8 @@ async function installExamples() {
     fs.cpSync(src, path.join(pluginDir, m.id), { recursive: true })
     const local = path.join(zipDir, `${dir}.zip`)
     zip(src, local)
-    sources[m.id] = { local }
     record[m.id] = { version: m.version, source: { local } }
   }
-  fs.writeFileSync(path.join(pluginDir, 'sources.json'), json(sources))
   return record
 }
 
