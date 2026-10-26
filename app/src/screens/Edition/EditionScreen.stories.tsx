@@ -71,7 +71,7 @@ export const Drop: Story = {
   render: () => (
     <ScreenFrame>
       {edition()}
-      <DropZone title="12 個を取り込む" sub="離すと取り込み、自動分類の確認に回ります" />
+      <DropZone title="12 件のファイルを取り込む" sub="ドロップしてプロジェクト未指定で取り込みます" />
     </ScreenFrame>
   ),
 }

@@ -17,7 +17,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
-export const WithWhy: Story = { args: { why: 'つながり 3 · 2 日前' } }
+export const WithWhy: Story = { args: { why: 'リンク 3 · 2 日前' } }
 export const Note: Story = {
   args: {
     note: true,

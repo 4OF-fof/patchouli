@@ -22,12 +22,12 @@ export const Current: Story = { args: { mark: undefined, label: '紙の質感', 
 export const Group: Story = {
   render: () => (
     <div style={{ display: 'flex', 'flex-direction': 'column', gap: '2px' }}>
-      <LinkCaption>このノートへ</LinkCaption>
+      <LinkCaption>このノートへのリンク</LinkCaption>
       <LinkRow mark="←" label="秋の企画：進め方" sub="ノート" />
-      <LinkCaption>このノートから</LinkCaption>
+      <LinkCaption>このノートからのリンク</LinkCaption>
       <LinkRow mark="→" label="moodboard-01" sub="素材" />
       <LinkRow mark="→" label="差し色の比較" sub="未作成" missing />
-      <LinkCaption>この素材を使っているノート</LinkCaption>
+      <LinkCaption>この素材へのリンク</LinkCaption>
       <LinkNone>まだありません</LinkNone>
     </div>
   ),

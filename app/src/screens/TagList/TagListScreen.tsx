@@ -56,8 +56,8 @@ export function TagListScreen(props: TagListScreenProps) {
               type="button"
               class={styles.tw}
               aria-expanded={isOpen()}
-              aria-label={isOpen() ? '下の階層を閉じる' : '下の階層を開く'}
-              title={isOpen() ? '下の階層を閉じる' : '下の階層を開く'}
+              aria-label={isOpen() ? 'サブタグを折りたたむ' : 'サブタグを展開'}
+              title={isOpen() ? 'サブタグを折りたたむ' : 'サブタグを展開'}
               onClick={() => setOpen(toggled(open(), r.tag))}
             >
               <Icon name="chevron" class={styles.twi} />
@@ -97,16 +97,16 @@ export function TagListScreen(props: TagListScreenProps) {
           <header class={shared.mast}>
             <h1>タグ</h1>
             <span class={shared.meta}>
-              {flat().size} 件 · {sort() === 'name' ? '五十音順' : '件数の多い順'}
+              {flat().size} 件 · {sort() === 'name' ? '名前順' : '件数順'}
             </span>
             <span class={shared.end}>
               <Tabs
-                label="並べ方"
+                label="並び順"
                 value={sort()}
                 onChange={setSort}
                 items={[
-                  { key: 'name', label: '五十音' },
-                  { key: 'count', label: '件数' },
+                  { key: 'name', label: '名前順' },
+                  { key: 'count', label: '件数順' },
                 ]}
               />
             </span>

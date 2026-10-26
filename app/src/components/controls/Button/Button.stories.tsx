@@ -8,9 +8,9 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
-export const Primary: Story = { args: { variant: 'primary', children: '承認する' } }
+export const Primary: Story = { args: { variant: 'primary', children: '承認' } }
 export const PrimaryDisabled: Story = {
-  args: { variant: 'primary', disabled: true, children: '承認する' },
+  args: { variant: 'primary', disabled: true, children: '承認' },
 }
 export const Ghost: Story = { args: { variant: 'ghost', children: '‹ ホーム' } }
 export const Danger: Story = { args: { variant: 'danger', children: 'アンインストール' } }

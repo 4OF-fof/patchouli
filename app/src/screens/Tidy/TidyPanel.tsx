@@ -39,13 +39,13 @@ export function TidyPanel(props: TidyPanelProps) {
       .slice(0, 6)
   const reason = () => (onTags().length ? onTags().map((t) => t.tag) : [firstTag()])
   return (
-    <ScrollArea class={styles.root} viewClass={styles.body} aria-label="候補と理由">
+    <ScrollArea class={styles.root} viewClass={styles.body} aria-label="分類の候補">
       <div class={styles.nmh}>
         <b>{props.it.name}</b>
         <small>
-          {props.pos} / {props.total} · {monthDay(lib(), props.it.moved)} 取り込み
-          {props.later && ' · あとでにしたもの'}
-          {props.approved > 0 && ` · 承認 ${props.approved}`}
+          {props.pos} / {props.total} · {monthDay(lib(), props.it.moved)} に追加
+          {props.later && ' · 保留中'}
+          {props.approved > 0 && ` · 承認済み ${props.approved} 件`}
         </small>
       </div>
       <div class={styles.fl}>
@@ -63,24 +63,24 @@ export function TidyPanel(props: TidyPanelProps) {
               </label>
             )}
           </For>
-          <input class={styles.tagin} type="text" placeholder="＋ タグを入力" aria-label="タグを足す" />
+          <input class={styles.tagin} type="text" placeholder="＋ タグを追加" aria-label="タグを追加" />
         </div>
       </div>
       <div class={styles.fl}>
         <span class={styles.sub}>プロジェクト</span>
         <div class={styles.pselect}>
           <select
-            aria-label="プロジェクトに入れる"
+            aria-label="プロジェクトを選択"
             value={props.project}
             onChange={(e) => props.onProject(e.currentTarget.value)}
           >
-            <option value="">入れない</option>
+            <option value="">指定なし</option>
             <For each={lib().projects.filter((p) => p.name !== '日記')}>{(p) => <option>{p.name}</option>}</For>
           </select>
         </div>
       </div>
       <div class={styles.fl}>
-        <span class={styles.sub}># {firstTag()} の付いたものの中で近いもの</span>
+        <span class={styles.sub}># {firstTag()} の類似項目</span>
         <div class={styles.near}>
           <For each={near()} fallback={<span class={styles.hint}>まだありません</span>}>
             {(x) => <Thumb {...thumbOf(x)} />}
@@ -88,26 +88,26 @@ export function TidyPanel(props: TidyPanelProps) {
         </div>
       </div>
       <div class={styles.why}>
-        <span class={styles.sub}>候補になった理由</span>
+        <span class={styles.sub}>提案の理由</span>
         <Show when={props.batch?.ok}>
           <span>
-            {monthDay(lib(), props.it.moved)} に一緒に取り込んだ {props.batch?.size} 件のうち、{props.batch?.ok} 件に #{' '}
-            {firstTag()} を承認済み。
+            {monthDay(lib(), props.it.moved)} に同時追加した {props.batch?.size} 件のうち {props.batch?.ok} 件で #{' '}
+            {firstTag()} を承認済み
           </span>
         </Show>
         <span>
           {reason()
             .map((t) => `# ${t}`)
-            .join(' と ')}{' '}
-          の付いたものと近い。
+            .join('・')}
+          の項目と類似
         </span>
       </div>
       <div class={styles.dec}>
         <button type="button" onClick={() => props.onPutOff()}>
-          あとで <Kbd>→</Kbd>
+          保留 <Kbd>→</Kbd>
         </button>
         <button type="button" class={styles.ok2} disabled={nothing()} onClick={() => props.onApprove()}>
-          ✓ 承認する <Kbd>Enter</Kbd>
+          ✓ 承認 <Kbd>Enter</Kbd>
         </button>
       </div>
     </ScrollArea>

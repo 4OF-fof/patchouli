@@ -96,7 +96,7 @@ export function DetailScreen(props: DetailScreenProps) {
               <Show when={pinned().length}>
                 <div class={shared.head} data-first>
                   <h2>ピン留め</h2>
-                  <span>{pinned().length} 件 · ピン留めした順</span>
+                  <span>{pinned().length} 件</span>
                 </div>
                 <JustifiedRow height={196} gap={10}>
                   <For each={pinned()}>{(it) => card(it, 'M', pinned)}</For>
@@ -106,13 +106,13 @@ export function DetailScreen(props: DetailScreenProps) {
                 <h2>すべて</h2>
                 <span>{props.items.length} 件</span>
                 <Tabs
-                  label="並べ方"
+                  label="並び順"
                   value={sort()}
                   onChange={setSort}
                   items={[
-                    { key: 'moved', label: '動いた順' },
+                    { key: 'moved', label: '更新順' },
                     { key: 'name', label: '名前順' },
-                    { key: 'kind', label: '種類' },
+                    { key: 'kind', label: '種類順' },
                   ]}
                 />
               </div>

@@ -20,7 +20,7 @@ const note = (o: Partial<NoteScreenProps> = {}, name = '配色メモ：秋の企
 }
 
 export const Default: Story = { render: () => note() }
-export const Links: Story = { name: 'つながりを開く', render: () => note({ linksOpen: true }) }
+export const Links: Story = { name: 'リンクを開く', render: () => note({ linksOpen: true }) }
 export const HeadsClosed: Story = { name: '見出しを閉じた', render: () => note({ headsOpen: false }) }
 export const Idle: Story = { name: '何も触っていない', render: () => note({ idle: true }) }
 export const Props: Story = { name: 'タグなどの欄を開く', render: () => note({ propsOpen: true }) }

@@ -10,5 +10,5 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
-export const NoCount: Story = { args: { label: '静かなもの', count: undefined } }
+export const NoCount: Story = { args: { label: 'それ以前', count: undefined } }
 export const Clickable: Story = { args: { label: '秋の企画', count: 32, onClick: () => {} } }

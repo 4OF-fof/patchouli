@@ -32,7 +32,7 @@ const bytesLabel = (n: number) => {
 }
 
 const CACHES: { kind: CacheKind; label: string }[] = [
-  { kind: 'library', label: 'ライブラリの写し' },
+  { kind: 'library', label: 'インデックス' },
   { kind: 'thumbs', label: 'サムネイル' },
   { kind: 'all', label: 'すべて' },
 ]
@@ -97,9 +97,9 @@ export function OtherDialog(props: OtherDialogProps) {
                           size="sm"
                           variant={c.kind === 'all' ? 'danger' : 'default'}
                           disabled={busy() !== undefined}
-                          onClick={() => void run(`${c.label}を消しています`, () => clear()(c.kind))}
+                          onClick={() => void run(`${c.label}を削除しています`, () => clear()(c.kind))}
                         >
-                          消す
+                          削除
                         </Button>
                       </div>
                     )}
@@ -117,9 +117,9 @@ export function OtherDialog(props: OtherDialogProps) {
                       size="sm"
                       variant="danger"
                       disabled={busy() !== undefined || !props.unused?.length}
-                      onClick={() => void run('未使用のプラグインを消しています', remove())}
+                      onClick={() => void run('未使用のプラグインを削除しています', remove())}
                     >
-                      消す
+                      削除
                     </Button>
                   </div>
                 )}

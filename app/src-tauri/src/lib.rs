@@ -81,7 +81,7 @@ fn library_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     if cfg!(debug_assertions) {
         return Ok(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../example/dev-library"));
     }
-    Err("ライブラリが選ばれていません。設定から選んでください".into())
+    Err("ライブラリが選択されていません。設定から選択してください".into())
 }
 
 fn with<T>(
@@ -403,7 +403,7 @@ async fn remove_plugin(cur: State<'_, Current>, id: String) -> Result<(), String
 async fn pick_plugin(app: tauri::AppHandle) -> Result<Option<PathBuf>, String> {
     app.dialog()
         .file()
-        .set_title("プラグインの zip を選ぶ")
+        .set_title("プラグインの ZIP ファイルを選択")
         .add_filter("zip", &["zip"])
         .blocking_pick_file()
         .map(|p| p.into_path().map_err(|e| e.to_string()))
@@ -587,7 +587,7 @@ async fn choose_library(app: tauri::AppHandle) -> Result<bool, String> {
     let Some(picked) = app
         .dialog()
         .file()
-        .set_title("ライブラリにするフォルダを選ぶ")
+        .set_title("ライブラリのフォルダを選択")
         .blocking_pick_folder()
     else {
         return Ok(false);

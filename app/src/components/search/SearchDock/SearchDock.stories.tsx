@@ -8,8 +8,8 @@ import { type DockMode, SearchDock } from './SearchDock'
 const recent = () => (
   <>
     <ResultHeading>プロジェクト</ResultHeading>
-    <ResultRow kind="project" title="秋の企画" sub="32 件 · 最後に扱った 2 日前" selected />
-    <ResultRow kind="project" title="日記" sub="64 件 · 最後に扱った 今日" />
+    <ResultRow kind="project" title="秋の企画" sub="32 件 · 最終更新 2 日前" selected />
+    <ResultRow kind="project" title="日記" sub="64 件 · 最終更新 今日" />
     <ResultHeading>項目</ResultHeading>
     <ResultRow kind="note" title="配色のメモ" sub="最近 · 秋の企画" />
     <ResultRow kind="asset" title="夕方の港" sub="最近 · 秋の企画" thumb={{ hue: 205 }} />
@@ -30,7 +30,7 @@ const typed = () => (
       sub="秋の企画"
       selected
     />
-    <ResultRow kind="create" title="「配色」という名前でノートを作る" />
+    <ResultRow kind="create" title="「配色」というノートを作成" />
   </>
 )
 

@@ -15,7 +15,7 @@ const text: PluginStatus = {
   version: '0.1.0',
   recorded: '0.1.0',
   source: { local: 'D:\\plugins\\patchouli-text' },
-  description: 'テキストファイルを詳細で読む',
+  description: 'テキストファイルの表示とサムネイル生成',
   builtin: false,
   state: 'active',
   required: none,
@@ -26,12 +26,12 @@ const text: PluginStatus = {
   ],
   formats: ['log', 'txt'],
   settings: [
-    { key: 'wrap', label: '折り返す', kind: 'toggle', default: true, value: true },
-    { key: 'size', label: '文字の大きさ', kind: 'number', min: 10, max: 32, step: 1, default: 14, value: 14 },
+    { key: 'wrap', label: '行を折り返す', kind: 'toggle', default: true, value: true },
+    { key: 'size', label: '文字サイズ', kind: 'number', min: 10, max: 32, step: 1, default: 14, value: 14 },
     {
       key: 'font',
-      label: '字体',
-      help: '詳細の画面で使う字体',
+      label: 'フォント',
+      help: '詳細表示で使用するフォント',
       kind: 'choice',
       choices: [
         { value: 'mono', label: '等幅' },
@@ -41,7 +41,7 @@ const text: PluginStatus = {
       value: 'mono',
     },
   ],
-  problems: [{ level: 'warning', text: 'pandoc が見つかりません。pandoc を使う機能は動きません' }],
+  problems: [{ level: 'warning', text: '外部ツール「pandoc」が見つからないため、一部の機能を利用できません' }],
 }
 
 const found: PluginReport = {
@@ -59,7 +59,7 @@ const external: PluginReport = {
       version: '0.1.0',
       recorded: '0.2.0',
       problems: [
-        { level: 'warning', text: 'ライブラリには 0.2.0 が記録されていますが、インストールされているのは 0.1.0 です' },
+        { level: 'warning', text: 'インストール済みのバージョン（0.1.0）がライブラリの記録（0.2.0）と異なります' },
       ],
     },
     {
@@ -75,7 +75,7 @@ const external: PluginReport = {
       caps: [],
       formats: [],
       settings: [],
-      problems: [{ level: 'error', text: 'アプリにインストールされていません。取得先からインストールすると使えます' }],
+      problems: [{ level: 'error', text: 'この端末にインストールされていません' }],
     },
   ],
 }
@@ -90,7 +90,7 @@ const troubled: PluginReport = {
         ? [
             {
               level: 'warning' as const,
-              text: 'ffmpeg が見つかりません。ffmpeg を使う機能は動きません',
+              text: '外部ツール「ffmpeg」が見つからないため、一部の機能を利用できません',
             },
           ]
         : [],
@@ -101,7 +101,7 @@ const troubled: PluginReport = {
       version: '1.2.0',
       recorded: '1.2.0',
       source: { local: 'D:\\plugins\\psd' },
-      description: 'PSD のレイヤーを重ねたサムネイル',
+      description: 'PSD ファイルのサムネイル生成',
       builtin: false,
       state: 'blocked',
       required: { commands: ['magick'], plugins: ['patchouli.image', 'example.layers'] },
@@ -110,10 +110,10 @@ const troubled: PluginReport = {
       formats: [],
       settings: [],
       problems: [
-        { level: 'error', text: 'magick が見つかりません。magick をインストールすると使えるようになります' },
+        { level: 'error', text: '必須の外部ツール「magick」が見つかりません' },
         {
           level: 'error',
-          text: 'プラグイン example.layers が有効になっていません。example.layers を有効にすると使えるようになります',
+          text: '必須プラグイン「example.layers」が有効ではありません',
         },
       ],
     },

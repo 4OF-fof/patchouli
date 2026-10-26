@@ -10,18 +10,18 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Sort: Story = {
-  args: { label: '並べ方', value: 'moved', items: [] },
+  args: { label: '並び順', value: 'moved', items: [] },
   render: () => {
     const [v, setV] = createSignal('moved')
     return (
       <Tabs
-        label="並べ方"
+        label="並び順"
         value={v()}
         onChange={setV}
         items={[
-          { key: 'moved', label: '動いた順' },
+          { key: 'moved', label: '更新順' },
           { key: 'name', label: '名前順' },
-          { key: 'kind', label: '種類' },
+          { key: 'kind', label: '種類順' },
         ]}
       />
     )

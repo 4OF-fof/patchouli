@@ -246,10 +246,6 @@
   background: color-mix(in srgb, var(--danger) 10%, var(--paper));
   color: var(--danger);
 }
-.problems b {
-  margin-right: 8px;
-  font-weight: 600;
-}
 .mainView section {
   margin-top: 28px;
 }

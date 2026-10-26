@@ -89,10 +89,10 @@ export function AppDock(props: AppDockProps) {
     { type: 'cmd', label: '整理を開く', key: 'Ctrl U', run: () => props.onGo?.('tidy') },
     { type: 'cmd', label: 'プロジェクト一覧', key: '', run: () => props.onGo?.('projects') },
     { type: 'cmd', label: 'タグ一覧', key: '', run: () => props.onGo?.('tags') },
-    { type: 'cmd', label: '新しいノート', key: 'Ctrl N', run: () => props.onCreate?.() },
+    { type: 'cmd', label: '新しいノートを作成', key: 'Ctrl N', run: () => props.onCreate?.() },
     { type: 'cmd', label: 'ホームに戻る', key: '', run: () => props.onGo?.('home') },
-    { type: 'cmd', label: 'ショートカットの一覧', key: '?', run: () => setState('help') },
-    { type: 'cmd', label: 'テーマを切り替える', key: '', run: toggleTheme },
+    { type: 'cmd', label: 'ショートカット一覧', key: '?', run: () => setState('help') },
+    { type: 'cmd', label: 'テーマを切り替え', key: '', run: toggleTheme },
   ]
   const terms = () => searchTerms(query())
   const rows = createMemo<Row[]>(() => {
@@ -173,14 +173,14 @@ export function AppDock(props: AppDockProps) {
                 {
                   id: 'library',
                   icon: '▤',
-                  label: 'ライブラリを選ぶ',
+                  label: 'ライブラリを切り替え',
                   hint: props.library?.split(/[\\/]/).at(-1) ?? '未選択',
                   title: props.library,
                 },
               ]
             : []),
-          { id: 'theme', icon: '◐', label: 'テーマを切り替える' },
-          { id: 'keys', icon: '⌨', label: 'キー操作の一覧', kbd: '?' },
+          { id: 'theme', icon: '◐', label: 'テーマを切り替え' },
+          { id: 'keys', icon: '⌨', label: 'ショートカット一覧', kbd: '?' },
           { id: 'plugins', icon: '⧉', label: 'プラグイン' },
           { id: 'other', icon: '⋯', label: 'その他' },
           { id: 'notices', icon: '©', label: '権利表示' },
@@ -220,7 +220,7 @@ export function AppDock(props: AppDockProps) {
       <Show when={props.readOnly && !open()}>
         <div class={styles.ro} role="status">
           <b>読み取り専用</b>
-          <span title="保存先に書き込めないため、見るだけになっています">ⓘ</span>
+          <span title="保存先に書き込めないため、読み取り専用になっています">ⓘ</span>
           <button type="button">編集を有効にする</button>
         </div>
       </Show>

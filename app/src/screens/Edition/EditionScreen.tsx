@@ -24,7 +24,7 @@ import styles from './EditionScreen.module.css'
 const TIERS: { name: string; until: number; size: CardSize; h: number; gap: number }[] = [
   { name: '今週', until: 7, size: 'M', h: 118, gap: 6 },
   { name: '今月', until: 30, size: 'S', h: 76, gap: 5 },
-  { name: '静かなもの', until: Infinity, size: 'X', h: 56, gap: 4 },
+  { name: 'それ以前', until: Infinity, size: 'X', h: 56, gap: 4 },
 ]
 
 /** ピン留めの 1 枚。素材のときは thumb にその素材が入る。 */
@@ -163,9 +163,9 @@ export function EditionScreen(props: EditionScreenProps) {
           fallback={
             <div class={styles.empty}>
               <Icon name="box" class={styles.emptyIcon} />
-              <b class={styles.emptyTitle}>まだ何もありません</b>
+              <b class={styles.emptyTitle}>まだ項目がありません</b>
               <p class={styles.emptyText}>
-                ファイルをこのウィンドウに落とすか、<Kbd class={styles.emptyKey}>Ctrl N</Kbd>でノートを書く
+                ファイルをここにドロップするか、<Kbd class={styles.emptyKey}>Ctrl N</Kbd>でノートを作成できます
               </p>
               <Show when={props.location}>
                 {(l) => (
@@ -179,10 +179,10 @@ export function EditionScreen(props: EditionScreenProps) {
         >
           <div class={styles.ed}>
             <Show when={recent().length}>
-              <section class={styles.recent} aria-label="最近追加したもの">
+              <section class={styles.recent} aria-label="最近追加した項目">
                 <div class={styles.recentHead}>
-                  <b>最近追加したもの</b>
-                  <span>{recent().length} 件がタグの承認待ち</span>
+                  <b>最近追加した項目</b>
+                  <span>タグの承認待ち {recent().length} 件</span>
                   <button type="button" class={styles.tidy} onClick={() => props.onTidy?.()}>
                     分類結果を確認 ›
                   </button>
@@ -214,7 +214,7 @@ export function EditionScreen(props: EditionScreenProps) {
                 <Show when={pins().length > pinLimit()}>
                   <div class={styles.pinsMore}>
                     <button type="button" aria-expanded={pinsOpen()} onClick={() => setPinsOpen(!pinsOpen())}>
-                      {pinsOpen() ? 'たたむ' : `全件を表示（${pins().length} 件）`}
+                      {pinsOpen() ? '折りたたむ' : `すべて表示（${pins().length} 件）`}
                     </button>
                   </div>
                 </Show>

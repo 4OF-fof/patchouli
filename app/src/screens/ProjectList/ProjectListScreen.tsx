@@ -51,7 +51,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
         </span>
         {big && todo?.type === 'todo' && todo.items.length > 0 && (
           <span class={styles.pm}>
-            <span>やること</span>
+            <span>タスク</span>
             <ProgressBar class={styles.bar} value={done / todo.items.length} />
           </span>
         )}
@@ -65,7 +65,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
         <div class={`${shared.page} ${shared.top}`}>
           <header class={shared.mast}>
             <h1>プロジェクト</h1>
-            <span class={shared.meta}>{lib().projects.length} 件 · 最近開いた順</span>
+            <span class={shared.meta}>{lib().projects.length} 件 · 最終更新順</span>
             <span class={shared.end}>
               <FloatingPill onClick={() => props.onCreate?.()}>＋ 新しいプロジェクト</FloatingPill>
             </span>
@@ -73,7 +73,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
           <Show when={pins().length}>
             <div class={shared.head}>
               <h2>ピン留め</h2>
-              <span>{pins().length} 件 · ピン留めした順</span>
+              <span>{pins().length} 件</span>
             </div>
             <div class={styles.grid} data-pinned>
               <For each={pins().flatMap((n) => lib().projectBy.get(n) ?? [])}>{(p) => card(p, true)}</For>
@@ -81,7 +81,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
           </Show>
           <div class={shared.head}>
             <h2>すべてのプロジェクト</h2>
-            <span>{lib().projects.length} 件 · 最近開いた順</span>
+            <span>{lib().projects.length} 件 · 最終更新順</span>
           </div>
           <div class={styles.grid}>
             <For each={sorted().filter((p) => recency(p) <= 30)}>{(p) => card(p, true)}</For>

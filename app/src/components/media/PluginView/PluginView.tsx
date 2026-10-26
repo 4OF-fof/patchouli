@@ -25,7 +25,7 @@ export function PluginView(props: PluginViewProps) {
         if (!mod.mount) throw new Error('詳細の表示を描く関数（mount）がない')
         unmount = mod.mount(el, api) ?? undefined
       })
-      .catch((e: unknown) => setError(`プラグインの表示を出せません: ${message(e)}`))
+      .catch((e: unknown) => setError(`プラグインの表示に失敗しました: ${message(e)}`))
   })
   onCleanup(() => {
     closed = true

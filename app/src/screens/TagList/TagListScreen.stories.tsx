@@ -22,5 +22,5 @@ const tags = (o: Partial<TagListScreenProps> = {}) => {
 }
 
 export const Default: Story = { render: () => tags() }
-export const Expanded: Story = { name: '下の階層を開く', render: () => tags({ expanded: ['写真', 'UI'] }) }
-export const ByName: Story = { name: '五十音順', render: () => tags({ sort: 'name' }) }
+export const Expanded: Story = { name: 'サブタグを展開', render: () => tags({ expanded: ['写真', 'UI'] }) }
+export const ByName: Story = { name: '名前順', render: () => tags({ sort: 'name' }) }

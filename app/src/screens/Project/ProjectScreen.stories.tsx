@@ -24,9 +24,9 @@ const project = (o: Partial<ProjectScreenProps> = {}, name = '秋の企画') => 
 }
 
 export const Default: Story = { render: () => <ScreenFrame>{project()}</ScreenFrame> }
-export const Edit: Story = { name: '表紙を編集', render: () => <ScreenFrame>{project({ editing: true })}</ScreenFrame> }
+export const Edit: Story = { name: '概要を編集', render: () => <ScreenFrame>{project({ editing: true })}</ScreenFrame> }
 export const AddPart: Story = {
-  name: '表紙に部品を足す',
+  name: '概要にセクションを追加',
   render: () => <ScreenFrame>{project({ editing: true, addOpen: true })}</ScreenFrame>,
 }
 export const Drop: Story = {
@@ -34,7 +34,7 @@ export const Drop: Story = {
   render: () => (
     <ScreenFrame>
       {project()}
-      <DropZone title="3 個を取り込む" sub="離すと「秋の企画」に入ります" />
+      <DropZone title="3 件のファイルを取り込む" sub="ドロップして「秋の企画」に追加します" />
     </ScreenFrame>
   ),
 }

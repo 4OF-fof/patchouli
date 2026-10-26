@@ -21,7 +21,7 @@ export function PinToggle(props: PinToggleProps) {
     <IconButton
       class={`${props.reveal ? styles.reveal : ''} ${props.class ?? ''}`}
       look={props.look}
-      label={`${props.where ?? ''}ピン留め${props.pressed ? 'を外す' : 'する'}`}
+      label={props.pressed ? 'ピン留めを解除' : `${props.where ?? ''}ピン留めする`}
       aria-pressed={!!props.pressed}
       onClick={() => props.onClick?.()}
     >

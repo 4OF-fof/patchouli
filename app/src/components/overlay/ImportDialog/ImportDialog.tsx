@@ -18,8 +18,8 @@ export interface DropFolder {
 type Mode = 'flat' | 'project'
 
 const MODES: { key: Mode; label: string }[] = [
-  { key: 'flat', label: '平らに入れる' },
-  { key: 'project', label: 'プロジェクトにする' },
+  { key: 'flat', label: 'ファイルのみ' },
+  { key: 'project', label: 'プロジェクトを作成' },
 ]
 
 export interface ImportDialogProps {
@@ -40,7 +40,7 @@ export function ImportDialog(props: ImportDialogProps) {
   let el!: HTMLDivElement
   const [modes, setModes] = createSignal<Record<number, Mode>>({})
   const modeOf = (key: number) => modes()[key] ?? 'flat'
-  const dest = () => (props.into ? `「${props.into}」に入れる` : 'どのプロジェクトにも入れない')
+  const dest = () => (props.into ? `「${props.into}」に追加` : 'プロジェクト未指定')
   const run = () => props.onImport?.(props.folders.filter((f) => modeOf(f.key) === 'project').map((f) => f.key))
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') props.onClose?.()
@@ -58,7 +58,7 @@ export function ImportDialog(props: ImportDialogProps) {
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
       <div class={styles.root} role="dialog" aria-label="取り込み" tabIndex={-1} ref={el}>
-        <h2>{props.files} 個を取り込む</h2>
+        <h2>{props.files} 件のファイルを取り込む</h2>
         <ScrollArea class={styles.list}>
           <ul>
             <For each={props.folders}>
@@ -68,11 +68,11 @@ export function ImportDialog(props: ImportDialogProps) {
                   <div class={styles.what}>
                     <b title={f.name}>{f.name}</b>
                     <small>
-                      {f.files} 個{f.subfolders > 0 && ` · 下の階層 ${f.subfolders} 個`}
+                      {f.files} 件{f.subfolders > 0 && ` · サブフォルダ ${f.subfolders} 個`}
                     </small>
                   </div>
                   <Tabs
-                    label={`${f.name} の入れ方`}
+                    label={`${f.name} の取り込み方法`}
                     items={MODES}
                     value={modeOf(f.key)}
                     onChange={(m) => setModes({ ...modes(), [f.key]: m })}
@@ -84,8 +84,8 @@ export function ImportDialog(props: ImportDialogProps) {
               <li>
                 <i>·</i>
                 <div class={styles.what}>
-                  <b>ファイル {props.loose} 個</b>
-                  <small>フォルダに入っていないもの</small>
+                  <b>ファイル {props.loose} 件</b>
+                  <small>フォルダ外のファイル</small>
                 </div>
                 <span class={styles.dest}>{dest()}</span>
               </li>
@@ -94,7 +94,7 @@ export function ImportDialog(props: ImportDialogProps) {
         </ScrollArea>
         <footer>
           <Button variant="ghost" onClick={() => props.onClose?.()}>
-            やめる <Kbd>Esc</Kbd>
+            キャンセル <Kbd>Esc</Kbd>
           </Button>
           <Button variant="primary" onClick={run}>
             取り込む <Kbd>Enter</Kbd>

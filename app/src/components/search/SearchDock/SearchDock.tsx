@@ -9,28 +9,28 @@ export type DockMode = 'search' | 'prompt' | 'link'
 const MODES: Record<DockMode, { label: string; placeholder: string; hints: [string, string][] }> = {
   search: {
     label: '検索',
-    placeholder: '名前・プロジェクト・タグ・本文で探す',
+    placeholder: '名前・プロジェクト・タグ・本文で検索',
     hints: [
-      ['Tab', 'AI に頼む'],
+      ['Tab', 'AI に質問'],
       ['Enter', '開く'],
-      ['Ctrl Enter', 'ノートを作る'],
+      ['Ctrl Enter', 'ノートを作成'],
       ['Esc', '閉じる'],
     ],
   },
   prompt: {
     label: 'AI',
-    placeholder: 'AI に頼む（例：秋の企画の素材から、配色の候補を 3 つ出して）',
+    placeholder: 'AI に質問・依頼（例：秋の企画の素材から配色の候補を 3 つ挙げて）',
     hints: [
       ['Tab', '検索に戻る'],
-      ['Enter', '送る'],
+      ['Enter', '送信'],
       ['Esc', '閉じる'],
     ],
   },
   link: {
-    label: 'つなぐ先',
-    placeholder: 'つなぐノートや素材を探す',
+    label: 'リンク先',
+    placeholder: 'リンクするノートや素材を検索',
     hints: [
-      ['Enter', 'つなぐ'],
+      ['Enter', 'リンク'],
       ['Esc', '閉じる'],
     ],
   },
@@ -113,7 +113,7 @@ export function SearchDock(props: SearchDockProps) {
               ref={input}
               type="text"
               autocomplete="off"
-              aria-label="検索語"
+              aria-label="検索キーワード"
               placeholder={mode().placeholder}
               value={props.query ?? ''}
               onInput={(e) => props.onQueryInput?.(e.currentTarget.value)}
@@ -123,8 +123,8 @@ export function SearchDock(props: SearchDockProps) {
           <button
             type="button"
             class={styles.nw}
-            aria-label="新しいノート"
-            title="新しいノート"
+            aria-label="新しいノートを作成"
+            title="新しいノートを作成"
             disabled={props.readOnly}
             onClick={() => props.onCreate?.()}
           >

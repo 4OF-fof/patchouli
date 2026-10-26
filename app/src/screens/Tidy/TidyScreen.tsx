@@ -84,7 +84,7 @@ export function TidyScreen(props: TidyScreenProps) {
       axis="x"
       class={styles.stripBox}
       viewClass={styles.strip}
-      aria-label="確認の列"
+      aria-label="未確認の項目一覧"
       onWheel={(e) => {
         if (!e.deltaY || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return
         e.preventDefault()
@@ -128,11 +128,11 @@ export function TidyScreen(props: TidyScreenProps) {
       <div class={styles.head}>
         <FloatingPill onClick={() => props.onBack?.()}>‹ {props.backLabel ?? 'ホーム'}</FloatingPill>
         <FloatingLabel class={styles.mid}>
-          <b>整理</b>タグの候補を承認する · 残り {pending().length}
+          <b>整理</b>タグの候補を確認 · 残り {pending().length} 件
         </FloatingLabel>
         <span class={styles.sp} />
         <FloatingPill kbd="←" onClick={undo}>
-          取り消す
+          元に戻す
         </FloatingPill>
       </div>
       <div class={styles.body}>
@@ -145,13 +145,13 @@ export function TidyScreen(props: TidyScreenProps) {
                   when={later().length}
                   fallback={
                     <>
-                      <b>確認はすべて終わりました</b>
-                      <span>承認 {decided().length} 件。</span>
+                      <b>すべての確認が完了しました</b>
+                      <span>{decided().length} 件を承認しました。</span>
                     </>
                   }
                 >
-                  <b>ひと通り見終えました</b>
-                  <span>あとでにした {later().length} 件は、次に整理を開いたとき先頭から出ます。</span>
+                  <b>ひと通り確認しました</b>
+                  <span>保留にした {later().length} 件は、次回先頭に表示されます。</span>
                 </Show>
               </div>
               {strip()}

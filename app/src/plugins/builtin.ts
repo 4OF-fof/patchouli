@@ -57,8 +57,8 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
         claim.set(ext, m)
         continue
       }
-      add(first.id, `「${ext}」を「${m.name}」も受け持とうとしている。こちらを使う`)
-      add(m.id, `「${ext}」はもう「${first.name}」が受け持っているので、受け持てない`)
+      add(first.id, `「.${ext}」は「${m.name}」とも重複しています。このプラグインが優先されます`)
+      add(m.id, `「.${ext}」はすでに「${first.name}」が対応しているため、無効になっています`)
     }
   const formats = new Map<string, FormatInfo>()
   for (const [ext, owner] of claim) {
@@ -71,7 +71,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
     let fmt = ext
     while (at) {
       if (seen.has(fmt)) {
-        add(owner.id, `「${ext}」の引き継ぎが輪になっている`)
+        add(owner.id, `「.${ext}」の形式定義（extends）が循環しています`)
         break
       }
       seen.add(fmt)
@@ -84,7 +84,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
       for (const p of d.ui ?? []) if (!parts.has(p) && at.ui) parts.set(p, at)
       if (!d.extends) break
       const next = claim.get(d.extends)
-      if (!next) add(at.id, `「${fmt}」が引き継ぐ「${d.extends}」を受け持つプラグインがない`)
+      if (!next) add(at.id, `「.${fmt}」が引き継ぐ「.${d.extends}」に対応するプラグインがありません`)
       at = next
       fmt = d.extends
     }

@@ -68,10 +68,10 @@ export interface AppProps {
 /** 取り込んだあとに出す知らせ。 */
 const importedNotice = (r: Imported) => {
   const n = r.items.length
-  const parts = [n ? `${n} 個を取り込みました` : '取り込めるものがありませんでした']
-  if (r.projects.length) parts.push(`プロジェクト ${r.projects.length} 個`)
-  if (r.skipped) parts.push(`${r.skipped} 個は取り込めない形式かライブラリの中のファイル`)
-  if (r.failed.length) parts.push(`${r.failed.length} 個はコピーできませんでした`)
+  const parts = [n ? `${n} 件を取り込みました` : '取り込めるファイルがありませんでした']
+  if (r.projects.length) parts.push(`プロジェクト ${r.projects.length} 件`)
+  if (r.skipped) parts.push(`${r.skipped} 件は未対応の形式またはライブラリ内のファイルのためスキップ`)
+  if (r.failed.length) parts.push(`${r.failed.length} 件のコピーに失敗`)
   return parts.join('、')
 }
 
@@ -165,7 +165,7 @@ export function App(props: AppProps) {
       try {
         if (await backend.chooseLibrary?.()) window.location.reload()
       } catch (e) {
-        setNotice(`ライブラリを選べませんでした: ${e instanceof Error ? e.message : String(e)}`)
+        setNotice(`ライブラリを切り替えられませんでした: ${e instanceof Error ? e.message : String(e)}`)
       }
     })
   const viewHost = backend.itemView && { view: backend.itemView, ui: backend.uiApi }
@@ -269,7 +269,7 @@ export function App(props: AppProps) {
   onCleanup(stopDrag)
   const flatSub = () => {
     const f = dropFolder()
-    return f ? `離すと「${f}」に入ります` : '離すと、どのプロジェクトにも入れずに取り込みます'
+    return f ? `ドロップして「${f}」に追加します` : 'ドロップしてプロジェクト未指定で取り込みます'
   }
 
   return (
@@ -381,12 +381,12 @@ export function App(props: AppProps) {
         <Show when={drag()}>
           {(d) => (
             <DropZone
-              title={d().files ? `${d().files} 個を取り込む` : '取り込めるファイルがありません'}
+              title={d().files ? `${d().files} 件のファイルを取り込む` : '取り込めるファイルがありません'}
               sub={
                 !d().files
-                  ? '画像・動画・音声・Markdown を取り込めます'
+                  ? '対応形式：画像・動画・音声・Markdown'
                   : d().folders.length
-                    ? '離すと、フォルダごとの入れ方を選べます'
+                    ? 'ドロップ後にフォルダごとの取り込み方法を選択できます'
                     : flatSub()
               }
             />

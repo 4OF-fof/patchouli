@@ -239,7 +239,7 @@ pub fn check_name(name: &str) -> Result<(), String> {
             .chars()
             .any(|c| c.is_control() || r#"/\:*?"<>|"#.contains(c));
     if bad {
-        Err(format!("「{name}」は名前に使えない"))
+        Err(format!("「{name}」は名前として使用できません"))
     } else {
         Ok(())
     }
@@ -685,7 +685,7 @@ impl Library {
         };
         let path = dir.join(format!("{name}.{NOTE_EXT}"));
         if path.exists() {
-            return Err(format!("{} はもうある", path.display()));
+            return Err(format!("{} はすでに存在します", path.display()));
         }
         let id = new_id();
         let mut front = String::new();
@@ -734,7 +734,7 @@ impl Library {
         let dir = self.project_dir(name)?;
         let meta = meta_path(&dir);
         if dir.exists() || meta.exists() {
-            return Err(format!("プロジェクト「{name}」はもうある"));
+            return Err(format!("プロジェクト「{name}」はすでに存在します"));
         }
         fs::create_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let mut m = Map::new();
@@ -754,7 +754,7 @@ impl Library {
     pub fn save_project(&mut self, name: &str, cover: Value) -> Result<(), String> {
         let dir = self.project_dir(name)?;
         if !dir.is_dir() {
-            return Err(format!("プロジェクト「{name}」がない"));
+            return Err(format!("プロジェクト「{name}」が見つかりません"));
         }
         let meta = meta_path(&dir);
         let mut m = read_json(&meta)?.unwrap_or_default();

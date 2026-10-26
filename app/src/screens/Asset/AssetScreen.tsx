@@ -139,8 +139,8 @@ export function AssetScreen(props: AssetScreenProps) {
                     <div class={styles.fl}>
                       <span class={styles.k}>タグ</span>
                       <div class={styles.tags}>
-                        <For each={a().tags}>{(t) => <Chip aria-label={`# ${t} を外す`}># {t} ✕</Chip>}</For>
-                        <input type="text" placeholder="＋ タグ" aria-label="タグを足す" />
+                        <For each={a().tags}>{(t) => <Chip aria-label={`# ${t} を削除`}># {t} ✕</Chip>}</For>
+                        <input type="text" placeholder="＋ タグ" aria-label="タグを追加" />
                       </div>
                     </div>
                     <label class={styles.fl}>
@@ -148,7 +148,7 @@ export function AssetScreen(props: AssetScreenProps) {
                       <textarea placeholder="メモ" value={a().memo} />
                     </label>
                     <div class={styles.fl}>
-                      <span class={styles.k}>この素材を使っているノート {lib().backOf(a()).length}</span>
+                      <span class={styles.k}>この素材へのリンク {lib().backOf(a()).length}</span>
                       <Show when={lib().backOf(a()).length} fallback={<LinkNone>まだありません</LinkNone>}>
                         <For each={lib().backOf(a())}>
                           {(n) => <LinkRow mark="←" label={n.name} onClick={() => props.onOpenNote?.(n.id)} />}
@@ -164,13 +164,14 @@ export function AssetScreen(props: AssetScreenProps) {
                         </span>
                         <span>場所</span>
                         <span>
-                          {a().folder ?? '（直下）'}/{a().name}.{a().ext}
+                          {a().folder ? `${a().folder}/` : ''}
+                          {a().name}.{a().ext}
                         </span>
-                        <span>属性</span>
+                        <span>メタ情報</span>
                         <span>
                           {a().name}.{a().ext}.meta
                         </span>
-                        <span>動いた</span>
+                        <span>更新日</span>
                         <span>{relDay(lib(), a().moved)}</span>
                       </div>
                     </details>

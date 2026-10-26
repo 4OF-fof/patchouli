@@ -61,7 +61,7 @@ export function LibrariesDialog(props: LibrariesDialogProps) {
         <ScrollArea class={styles.list} viewClass={styles.listView}>
           <Show when={props.libraries} fallback={<p class={styles.none}>読み込み中…</p>}>
             {(ls) => (
-              <Show when={ls().length} fallback={<p class={styles.none}>まだありません</p>}>
+              <Show when={ls().length} fallback={<p class={styles.none}>履歴がありません</p>}>
                 <ul>
                   <For each={ls()}>
                     {(l) => (
@@ -79,14 +79,14 @@ export function LibrariesDialog(props: LibrariesDialogProps) {
                           <span class={styles.path}>{l.path}</span>
                         </button>
                         <span class={styles.when}>
-                          {l.current ? '開いている' : l.exists ? touchedLabel(today(), new Date(l.opened)) : '未検出'}
+                          {l.current ? '使用中' : l.exists ? touchedLabel(today(), new Date(l.opened)) : '未検出'}
                         </span>
                         <Show when={!l.current && props.onForget}>
                           <button
                             type="button"
                             class={styles.forget}
-                            aria-label={`${l.name} を一覧から外す`}
-                            title="一覧から外す"
+                            aria-label={`${l.name} を履歴から削除`}
+                            title="履歴から削除"
                             disabled={busy() !== undefined}
                             onClick={() => void run('', () => props.onForget!(l.path))}
                           >
@@ -106,9 +106,9 @@ export function LibrariesDialog(props: LibrariesDialogProps) {
             <Button
               variant="primary"
               disabled={busy() !== undefined}
-              onClick={() => void run('フォルダを選んでいます', props.onChoose)}
+              onClick={() => void run('フォルダを選択しています', props.onChoose)}
             >
-              フォルダを選ぶ…
+              フォルダを選択…
             </Button>
           </div>
         </Show>

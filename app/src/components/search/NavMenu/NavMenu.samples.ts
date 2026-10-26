@@ -12,7 +12,7 @@ export const MAIN_ITEMS: NavMenuEntry[] = [
 export const SETTINGS_ITEMS: NavMenuEntry[] = [
   { id: 'back', icon: '‹', label: '設定', heading: true },
   'separator',
-  { id: 'library', icon: '▤', label: 'ライブラリを選ぶ', hint: 'dev-library' },
-  { id: 'theme', icon: '◐', label: 'テーマを切り替える' },
-  { id: 'keys', icon: '⌨', label: 'キー操作の一覧', kbd: '?' },
+  { id: 'library', icon: '▤', label: 'ライブラリを切り替え', hint: 'dev-library' },
+  { id: 'theme', icon: '◐', label: 'テーマを切り替え' },
+  { id: 'keys', icon: '⌨', label: 'ショートカット一覧', kbd: '?' },
 ]

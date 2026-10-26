@@ -42,7 +42,7 @@ export interface SearchResultsProps {
 /** 検索の結果。種類ごとに見出しを入れ、当たった語に印を付ける。 */
 export function SearchResults(props: SearchResultsProps) {
   return (
-    <Show when={props.rows.length} fallback={<ResultHeading>見つかりません</ResultHeading>}>
+    <Show when={props.rows.length} fallback={<ResultHeading>一致する項目がありません</ResultHeading>}>
       <For each={props.rows}>
         {(r, i) => {
           const prev = () => props.rows[i() - 1]
@@ -62,7 +62,7 @@ export function SearchResults(props: SearchResultsProps) {
                 <ResultRow
                   kind="project"
                   title={marked(r.p.name, props.terms)}
-                  sub={`${props.lib.inProject(r.p.name).length} 件 · 最後に扱った ${r.p.touched}`}
+                  sub={`${props.lib.inProject(r.p.name).length} 件 · 最終更新 ${r.p.touched}`}
                   selected={sel()}
                   onClick={() => props.onRun(r)}
                 />
@@ -78,7 +78,7 @@ export function SearchResults(props: SearchResultsProps) {
               ) : (
                 <ResultRow
                   kind="create"
-                  title={`「${r.q}」という名前でノートを作る`}
+                  title={`「${r.q}」というノートを作成`}
                   selected={sel()}
                   onClick={() => props.onRun(r)}
                 />

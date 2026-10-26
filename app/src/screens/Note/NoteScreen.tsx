@@ -84,22 +84,22 @@ export function NoteScreen(props: NoteScreenProps) {
                   <For each={n().tags}>{(t) => <span class={styles.tag}># {t}</span>}</For>
                 </Show>
                 <span>
-                  · 別名 {n().aliases?.length ?? 0} · {propsOpen() ? '閉じる ▾' : 'ほか ▸'}
+                  · 別名 {n().aliases?.length ?? 0} · {propsOpen() ? '閉じる ▾' : '詳細 ▸'}
                 </span>
               </button>
               <Show when={propsOpen()}>
                 <dl class={styles.panel}>
-                  <dt>tags</dt>
+                  <dt>タグ</dt>
                   <dd>
                     <input type="text" value={n().tags.join(', ')} aria-label="タグ（カンマ区切り）" />
                   </dd>
-                  <dt>aliases</dt>
+                  <dt>別名</dt>
                   <dd>
                     <input type="text" value={(n().aliases ?? []).join(', ')} aria-label="別名（カンマ区切り）" />
                   </dd>
-                  <dt>project</dt>
+                  <dt>プロジェクト</dt>
                   <dd>{n().folder ?? 'なし'}</dd>
-                  <dt>更新</dt>
+                  <dt>更新日</dt>
                   <dd>{relDay(lib(), n().moved)}</dd>
                 </dl>
               </Show>
@@ -162,15 +162,15 @@ export function NoteScreen(props: NoteScreenProps) {
                 count={into().length + from().length}
                 onClick={() => setLinks(true)}
               >
-                つながり
+                リンク
               </FloatingPill>
             }
           >
-            <aside class={`${styles.card} ${styles.r}`} aria-label="つながり">
+            <aside class={`${styles.card} ${styles.r}`} aria-label="リンク">
               <ScrollArea viewClass={styles.cardView}>
-                <FloatingCard title={`つながり ${into().length + from().length} ⇄`} onClose={() => setLinks(false)}>
+                <FloatingCard title={`リンク ${into().length + from().length} ⇄`} onClose={() => setLinks(false)}>
                   <div>
-                    <LinkCaption>このノートへ</LinkCaption>
+                    <LinkCaption>このノートへのリンク</LinkCaption>
                     <Show when={into().length} fallback={<LinkNone>まだありません</LinkNone>}>
                       <For each={into()}>
                         {(x) => (
@@ -180,7 +180,7 @@ export function NoteScreen(props: NoteScreenProps) {
                     </Show>
                   </div>
                   <div>
-                    <LinkCaption>このノートから</LinkCaption>
+                    <LinkCaption>このノートからのリンク</LinkCaption>
                     <Show when={from().length} fallback={<LinkNone>まだありません</LinkNone>}>
                       <For each={from()}>
                         {(name) => {
@@ -199,7 +199,7 @@ export function NoteScreen(props: NoteScreenProps) {
                     </Show>
                   </div>
                   <button type="button" class={styles.connect}>
-                    ＋ つなぐ
+                    ＋ リンクを追加
                   </button>
                 </FloatingCard>
               </ScrollArea>

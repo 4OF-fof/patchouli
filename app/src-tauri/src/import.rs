@@ -142,7 +142,7 @@ impl Library {
                 check_name(f)?;
                 let d = root.join(f);
                 if !d.is_dir() {
-                    return Err(format!("プロジェクト「{f}」がない"));
+                    return Err(format!("プロジェクト「{f}」が見つかりません"));
                 }
                 d
             }

@@ -13,10 +13,10 @@ import styles from './TagScreen.module.css'
 
 /** タグの表紙に足せる部品の名前と説明。 */
 export const TAG_PARTS: Record<TagCoverPart['type'], { label: string; note: string }> = {
-  desc: { label: '説明', note: '短い文' },
-  kids: { label: '下の階層', note: '中のタグで絞り込む' },
-  exts: { label: '拡張子ごとの数', note: 'jpg・png など' },
-  together: { label: 'よく一緒に付くタグ', note: '多い順に 6 つ' },
+  desc: { label: '説明', note: 'テキスト' },
+  kids: { label: 'サブタグ', note: '階層下のタグで絞り込み' },
+  exts: { label: 'ファイル形式', note: '拡張子ごとの件数' },
+  together: { label: '関連タグ', note: 'よく併用されるタグ' },
 }
 
 /** 同じタグか、上や下の階層。よく一緒に付くタグには数えない。 */
@@ -93,11 +93,11 @@ export function TagScreen(props: TagScreenProps) {
       return editing() ? (
         <textarea aria-label="説明" value={c.text} />
       ) : (
-        <span>{c.text || <NoneText>（説明はまだありません）</NoneText>}</span>
+        <span>{c.text || <NoneText>説明はまだありません</NoneText>}</span>
       )
     if (c.type === 'kids')
       return (
-        <Show when={kids().length} fallback={<NoneText>（下の階層のタグはありません）</NoneText>}>
+        <Show when={kids().length} fallback={<NoneText>サブタグはありません</NoneText>}>
           <div class={styles.chips}>
             <Chip aria-pressed={!sub()} onClick={() => setSub('')}>
               すべて {all().length}
@@ -127,7 +127,7 @@ export function TagScreen(props: TagScreenProps) {
         </div>
       )
     return (
-      <Show when={together().length} fallback={<NoneText>（一緒に付くタグはありません）</NoneText>}>
+      <Show when={together().length} fallback={<NoneText>関連タグはありません</NoneText>}>
         <div class={styles.chips}>
           <For each={together()}>
             {([t, n]) => (
@@ -151,7 +151,7 @@ export function TagScreen(props: TagScreenProps) {
             <input
               class={shared.nameEdit}
               type="text"
-              aria-label="タグの名前"
+              aria-label="タグ名"
               value={draft()}
               onInput={(e) => setDraft(e.currentTarget.value)}
               onKeyDown={(e) => e.key === 'Enter' && toggleEdit()}
@@ -161,7 +161,7 @@ export function TagScreen(props: TagScreenProps) {
       }
       meta={
         editing()
-          ? `名前を変えると、付いている ${all().length} 件と下の階層のタグも付け替えます`
+          ? `タグ名を変更すると、付与されている ${all().length} 件とサブタグも更新されます`
           : `タグ · ${all().length} 件 · ${projectCount()} プロジェクト`
       }
       backLabel={props.backLabel}
@@ -177,14 +177,14 @@ export function TagScreen(props: TagScreenProps) {
             }}
           />
           <FloatingPill aria-pressed={editing()} onClick={toggleEdit}>
-            {editing() ? '編集を終える' : '表紙を編集'}
+            {editing() ? '編集を完了' : '概要を編集'}
           </FloatingPill>
           <FloatingPill icon aria-label="その他">
             ⋯
           </FloatingPill>
         </>
       }
-      sideLabel="表紙"
+      sideLabel="概要"
       side={
         <>
           <For each={cover()}>
@@ -200,7 +200,7 @@ export function TagScreen(props: TagScreenProps) {
         </>
       }
       items={shown()}
-      empty="このタグの付いたものはありません。"
+      empty="このタグが付いた項目はありません。"
       pins={lib().pins}
       onTogglePin={props.onTogglePin}
       onOpenItem={props.onOpenItem}

@@ -26,12 +26,12 @@ export interface PluginsDialogProps {
   onClose?: () => void
 }
 
-const PART: Record<Part, string> = { thumbnail: 'サムネイル', view: '詳細の表示' }
+const PART: Record<Part, string> = { thumbnail: 'サムネイル', view: '詳細表示' }
 
 /** 左の一覧の段。プラグインは、提供するものの種類ごとに分ける。 */
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [
-  { label: 'ファイル', has: (p) => p.formats.length > 0 },
-  { label: 'そのほか', has: (p) => p.formats.length === 0 },
+  { label: 'ファイル形式', has: (p) => p.formats.length > 0 },
+  { label: 'その他', has: (p) => p.formats.length === 0 },
 ]
 
 const TOOLS = '外部ツール'
@@ -53,11 +53,11 @@ const needs = (p: PluginStatus, k: keyof Deps) => [
 
 /** p ができること。full は、本体の画面で隔離されずに動くもの。 */
 const perms = (p: PluginStatus) => [
-  ...(p.formats.length ? [{ label: 'ファイルを読む', text: '受け持つ形式のファイルだけ', full: false }] : []),
+  ...(p.formats.length ? [{ label: 'ファイルの読み取り', text: '対応形式のファイルのみ', full: false }] : []),
   ...(needs(p, 'commands').length
     ? [
         {
-          label: '外部ツールを動かす',
+          label: '外部ツールの実行',
           text: needs(p, 'commands')
             .map((n) => n.name)
             .join(', '),
@@ -66,7 +66,7 @@ const perms = (p: PluginStatus) => [
       ]
     : []),
   ...(p.caps.some((c) => c.by === 'ui')
-    ? [{ label: 'フルアクセス', text: '本体の画面で隔離されずに動き、本体と同じことができる', full: true }]
+    ? [{ label: 'フルアクセス', text: 'アプリの画面上で直接動作し、すべての機能にアクセス可能', full: true }]
     : []),
 ]
 
@@ -217,9 +217,9 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 size="sm"
                 variant="primary"
                 disabled={busy() !== undefined}
-                onClick={() => void run(`${p().name} を入れています`, () => a().update!(p().id))}
+                onClick={() => void run(`${p().name} をインストールしています`, () => a().update!(p().id))}
               >
-                取得先から入れる
+                インストール
               </Button>
             </Show>
             <Show when={!p().builtin && a().remove}>
@@ -240,20 +240,13 @@ export function PluginsDialog(props: PluginsDialogProps) {
         </Show>
         <Show when={p().problems.length}>
           <ul class={styles.problems}>
-            <For each={p().problems}>
-              {(x) => (
-                <li data-level={x.level}>
-                  <b>{x.level === 'error' ? 'エラー' : '警告'}</b>
-                  {x.text}
-                </li>
-              )}
-            </For>
+            <For each={p().problems}>{(x) => <li data-level={x.level}>{x.text}</li>}</For>
           </ul>
         </Show>
         <Show when={p().state !== 'missing'}>
           <Show when={p().formats.length}>
             <section>
-              <h4>ファイル</h4>
+              <h4>対応形式</h4>
               <span class={styles.chips}>
                 <For each={p().formats}>{(f) => <span class={styles.ext}>.{f}</span>}</For>
               </span>
@@ -261,7 +254,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
           </Show>
           <Show when={p().caps.length}>
             <section>
-              <h4>対象</h4>
+              <h4>対応機能</h4>
               <span class={styles.chips}>
                 <For each={p().caps}>{(c) => <span class={styles.cap}>{PART[c.part]}</span>}</For>
               </span>
@@ -269,7 +262,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
           </Show>
           <Show when={needs(p(), 'plugins').length}>
             <section>
-              <h4>プラグイン</h4>
+              <h4>依存プラグイン</h4>
               <ul class={styles.deps}>
                 <For each={needs(p(), 'plugins')}>
                   {(d) => {
@@ -325,7 +318,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                           </button>
                         </Show>
                         <span class={styles.need}>{d.need}</span>
-                        <Show when={props.report?.commands} fallback={<span class={styles.state}>探さない</span>}>
+                        <Show when={props.report?.commands} fallback={<span class={styles.state}>未確認</span>}>
                           <Show
                             when={c()?.path}
                             fallback={
@@ -392,8 +385,8 @@ export function PluginsDialog(props: PluginsDialogProps) {
       </p>
       <For
         each={[
-          { label: '必須とするプラグイン', need: '必須' },
-          { label: '任意で使うプラグイン', need: '任意' },
+          { label: '必須としているプラグイン', need: '必須' },
+          { label: '任意で使用するプラグイン', need: '任意' },
         ]}
       >
         {(g) => {
@@ -429,7 +422,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
             <input
               type="search"
               placeholder="検索"
-              aria-label="プラグインと外部ツールを探す"
+              aria-label="プラグインと外部ツールを検索"
               value={query()}
               onInput={(e) => setQuery(e.currentTarget.value)}
             />

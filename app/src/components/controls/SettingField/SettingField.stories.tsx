@@ -16,14 +16,14 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Toggle: Story = {
-  args: { setting: { key: 'wrap', label: '折り返す', kind: 'toggle', default: true, value: true } },
+  args: { setting: { key: 'wrap', label: '行を折り返す', kind: 'toggle', default: true, value: true } },
 }
 export const Number: Story = {
   args: {
     setting: {
       key: 'size',
-      label: '文字の大きさ',
-      help: '10 から 32 まで',
+      label: '文字サイズ',
+      help: '10〜32 px',
       kind: 'number',
       min: 10,
       max: 32,
@@ -34,13 +34,13 @@ export const Number: Story = {
   },
 }
 export const Text: Story = {
-  args: { setting: { key: 'prefix', label: '前に付ける文字', kind: 'text', default: '', value: '# ' } },
+  args: { setting: { key: 'prefix', label: '接頭辞', kind: 'text', default: '', value: '# ' } },
 }
 export const Choice: Story = {
   args: {
     setting: {
       key: 'font',
-      label: '字体',
+      label: 'フォント',
       kind: 'choice',
       choices: [
         { value: 'mono', label: '等幅' },

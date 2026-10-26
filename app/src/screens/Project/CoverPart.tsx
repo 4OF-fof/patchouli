@@ -8,9 +8,9 @@ import styles from './CoverPart.module.css'
 
 /** プロジェクトの表紙に足せる部品の名前と説明。 */
 export const PARTS: Record<CoverPart['type'], { label: string; note: string }> = {
-  desc: { label: '説明', note: '短い文' },
-  todo: { label: 'やること', note: 'チェックと期日' },
-  links: { label: 'リンク', note: '外のページ' },
+  desc: { label: '説明', note: 'テキスト' },
+  todo: { label: 'タスク', note: 'チェックリストと期日' },
+  links: { label: 'リンク', note: '外部 URL' },
 }
 
 export interface CoverPartViewProps {
@@ -29,12 +29,12 @@ export function CoverPartView(props: CoverPartViewProps) {
       return ed ? (
         <textarea aria-label="説明" value={c.text} />
       ) : (
-        <span>{c.text || <NoneText>（説明はまだありません）</NoneText>}</span>
+        <span>{c.text || <NoneText>説明はまだありません</NoneText>}</span>
       )
     if (c.type === 'links')
       return (
         <>
-          <Show when={c.items.length} fallback={<NoneText>（リンクはまだありません）</NoneText>}>
+          <Show when={c.items.length} fallback={<NoneText>リンクはまだありません</NoneText>}>
             <For each={c.items}>
               {(x) => (
                 <span class={styles.link}>
@@ -42,7 +42,7 @@ export function CoverPartView(props: CoverPartViewProps) {
                     {x.t} ↗
                   </a>
                   {ed && (
-                    <button type="button" class={styles.x} aria-label="消す">
+                    <button type="button" class={styles.x} aria-label="削除">
                       ✕
                     </button>
                   )}
@@ -51,9 +51,9 @@ export function CoverPartView(props: CoverPartViewProps) {
             </For>
           </Show>
           <Show when={ed}>
-            <input type="text" placeholder="名前" aria-label="リンクの名前" />
+            <input type="text" placeholder="タイトル" aria-label="リンクのタイトル" />
             <input type="url" placeholder="https://" aria-label="リンクの URL" />
-            <Button size="sm">リンクを足す</Button>
+            <Button size="sm">リンクを追加</Button>
           </Show>
         </>
       )
@@ -78,7 +78,7 @@ export function CoverPartView(props: CoverPartViewProps) {
                 {ed ? (
                   <>
                     <input type="date" class={styles.due} aria-label={`${x.t} の期日`} value={x.due ?? ''} />
-                    <button type="button" class={styles.x} aria-label="消す">
+                    <button type="button" class={styles.x} aria-label="削除">
                       ✕
                     </button>
                   </>
@@ -95,14 +95,14 @@ export function CoverPartView(props: CoverPartViewProps) {
             )
           }}
         </For>
-        {ed && <input type="text" placeholder="やることを足す（Enter）" aria-label="やることを足す" />}
+        {ed && <input type="text" placeholder="タスクを追加（Enter）" aria-label="タスクを追加" />}
       </>
     )
   }
   const label = () => {
     const c = props.part
     return c.type === 'todo'
-      ? `やること · ${c.items.filter((x) => x.done).length} / ${c.items.length}`
+      ? `タスク · ${c.items.filter((x) => x.done).length} / ${c.items.length}`
       : PARTS[c.type].label
   }
   return (

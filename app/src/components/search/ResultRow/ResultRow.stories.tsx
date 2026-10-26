@@ -18,7 +18,7 @@ type Story = StoryObj<typeof meta>
 
 export const Command: Story = {}
 export const Project: Story = {
-  args: { kind: 'project', title: '秋の企画', sub: '32 件 · 最後に扱った 2 日前', kbd: undefined },
+  args: { kind: 'project', title: '秋の企画', sub: '32 件 · 最終更新 2 日前', kbd: undefined },
 }
 export const Note: Story = {
   args: { kind: 'note', sub: '最近 · 秋の企画', kbd: undefined },
@@ -47,7 +47,7 @@ export const Asset: Story = {
   ),
 }
 export const Create: Story = {
-  args: { kind: 'create', title: '「配色」という名前でノートを作る', kbd: undefined },
+  args: { kind: 'create', title: '「配色」というノートを作成', kbd: undefined },
 }
 export const Selected: Story = {
   args: {
@@ -94,7 +94,7 @@ export const List: Story = {
         }
         thumb={{ hue: 20 }}
       />
-      <ResultRow kind="create" title="「配色」という名前でノートを作る" />
+      <ResultRow kind="create" title="「配色」というノートを作成" />
     </div>
   ),
 }

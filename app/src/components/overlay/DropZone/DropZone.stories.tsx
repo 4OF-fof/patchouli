@@ -5,7 +5,7 @@ const meta = {
   title: '部品/overlay/DropZone',
   component: DropZone,
   parameters: { layout: 'fullscreen' },
-  args: { title: '12 個を取り込む', sub: '離すと取り込み、自動分類の確認に回ります' },
+  args: { title: '12 件のファイルを取り込む', sub: 'ドロップしてプロジェクト未指定で取り込みます' },
   decorators: [
     (Story) => (
       <div style={{ position: 'relative', height: '100vh', 'min-height': '480px', background: 'var(--paper)' }}>
@@ -17,5 +17,9 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const Default: Story = {}
-export const IntoProject: Story = { args: { title: '3 個を取り込む', sub: '離すと「秋の企画」に入ります' } }
+export const Default: Story = {
+  args: { title: '12 件のファイルを取り込む', sub: 'ドロップしてプロジェクト未指定で取り込みます' },
+}
+export const IntoProject: Story = {
+  args: { title: '3 件のファイルを取り込む', sub: 'ドロップして「秋の企画」に追加します' },
+}

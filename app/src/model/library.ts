@@ -355,7 +355,7 @@ export function dueLabel(lib: Library, date: string) {
   const d = Math.round((t.getTime() - lib.today.getTime()) / DAY)
   return {
     date: `${t.getMonth() + 1}/${t.getDate()}`,
-    left: d > 0 ? `あと ${d} 日` : d === 0 ? '今日' : `${-d} 日過ぎた`,
+    left: d > 0 ? `あと ${d} 日` : d === 0 ? '今日まで' : `${-d} 日超過`,
     late: d < 0,
   }
 }
@@ -364,7 +364,7 @@ export function dueLabel(lib: Library, date: string) {
 export function whyOf(lib: Library, it: Item) {
   if (it.note && it.moved === 0) return '編集 · 今日'
   const n = lib.linkCount(it)
-  if (n >= 2) return `つながり ${n} · ${relDay(lib, it.moved)}`
+  if (n >= 2) return `リンク ${n} · ${relDay(lib, it.moved)}`
   if (it.rating === 5) return `★5 · ${relDay(lib, it.moved)}`
   return `${it.note ? '編集' : '更新'} · ${relDay(lib, it.moved)}`
 }

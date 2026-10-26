@@ -16,13 +16,13 @@ export function DetailPart(props: DetailPartProps) {
     <div class={`${styles.root} ${props.class ?? ''}`} data-editing={props.editing}>
       {props.editing && (
         <span class={styles.ctl}>
-          <button type="button" aria-label="上へ">
+          <button type="button" aria-label="上へ移動">
             ↑
           </button>
-          <button type="button" aria-label="下へ">
+          <button type="button" aria-label="下へ移動">
             ↓
           </button>
-          <button type="button" class={styles.del} aria-label="外す">
+          <button type="button" class={styles.del} aria-label="削除">
             ✕
           </button>
         </span>

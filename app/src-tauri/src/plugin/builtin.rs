@@ -44,7 +44,7 @@ pub(super) fn load() -> Vec<Loaded> {
             let wasm = match pre {
                 Some(Ok(p)) => Some(Arc::clone(p)),
                 Some(Err(e)) => {
-                    problems.push(error(format!("処理部分を読み込めません: {e}")));
+                    problems.push(error(format!("plugin.wasm の読み込みに失敗しました: {e}")));
                     None
                 }
                 None => None,

@@ -45,13 +45,13 @@ export function ProjectScreen(props: ProjectScreenProps) {
                   ref={(el) => props.editing && queueMicrotask(() => el.select())}
                   class={shared.nameEdit}
                   type="text"
-                  aria-label="プロジェクトの名前"
+                  aria-label="プロジェクト名"
                   value={pr().name}
                 />
               </h1>
             </Show>
           }
-          meta={`プロジェクト · ${list().length} 件 · 最後に扱った ${pr().touched}`}
+          meta={`プロジェクト · ${list().length} 件 · 最終更新 ${pr().touched}`}
           backLabel={props.backLabel}
           onBack={props.onBack}
           actions={
@@ -65,11 +65,11 @@ export function ProjectScreen(props: ProjectScreenProps) {
                 }}
               />
               <FloatingPill aria-pressed={editing()} onClick={() => setEditing(!editing())}>
-                {editing() ? '編集を終える' : '表紙を編集'}
+                {editing() ? '編集を完了' : '概要を編集'}
               </FloatingPill>
             </>
           }
-          sideLabel="表紙"
+          sideLabel="概要"
           side={
             <>
               <For each={pr().cover}>{(c) => <CoverPartView lib={lib()} part={c} editing={editing()} />}</For>
@@ -79,7 +79,7 @@ export function ProjectScreen(props: ProjectScreenProps) {
             </>
           }
           items={list()}
-          empty="まだ何も入っていません。ファイルをここに落とすと、このプロジェクトに入ります。"
+          empty="項目がありません。ファイルをここにドロップすると、このプロジェクトに追加されます。"
           pins={lib().pins}
           onTogglePin={props.onTogglePin}
           onOpenItem={props.onOpenItem}
