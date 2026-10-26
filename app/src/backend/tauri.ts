@@ -4,9 +4,11 @@ import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import {
   type ItemUrls,
+  type StoredChanged,
   type StoredItem,
   type StoredLibrary,
   type StoredProject,
+  toChanged,
   toItem,
   toOpened,
   toProject,
@@ -14,7 +16,7 @@ import {
 import type { Thumbnail } from '../model/library'
 import type { FormatInfo, Part, PluginReport, PluginSource } from '../plugins/types'
 import { type UiApi, type UiItem, uiThumbnail } from '../plugins/ui'
-import type { Backend, Dropped, FileDrag } from './types'
+import type { Backend, Changed, Dropped, FileDrag } from './types'
 
 /** Rust から届く項目。file はファイルの場所、thumb はできているサムネイルの場所。 */
 type TauriItem = StoredItem & { file: string; thumb?: string }
@@ -56,6 +58,17 @@ export function tauriBackend(): Backend {
       if (subs.size) for (const cb of subs) cb(p.id, t)
       else ready.push([p.id, t])
     }))
+  // 写しから開いたあとの突き合わせの結果も、画面が受け取れるようになるまで溜めておく
+  const changes: Changed[] = []
+  const changeSubs = new Set<(c: Changed) => void>()
+  let listeningChanges: Promise<unknown> | undefined
+  const listenChanges = () =>
+    (listeningChanges ??= listen<StoredChanged<TauriItem>>('library-changed', (e) => {
+      const c = toChanged(e.payload, new Date(), formats, urlsOf)
+      void makeUiThumbs(e.payload.items.toSorted((a, b) => b.mtime - a.mtime))
+      if (changeSubs.size) for (const cb of changeSubs) cb(c)
+      else changes.push(c)
+    }))
   // 開いたライブラリで扱える形式。あとから足す項目にも使う
   let formats = new Map<string, FormatInfo>()
 
@@ -93,7 +106,7 @@ export function tauriBackend(): Backend {
 
   return {
     async open() {
-      await listenThumbs()
+      await Promise.all([listenThumbs(), listenChanges()])
       const s = await invoke<StoredLibrary<TauriItem>>('open_library')
       formats = new Map(s.formats.map((f) => [f.ext, f]))
       void makeUiThumbs(s.items.toSorted((a, b) => b.mtime - a.mtime))
@@ -143,6 +156,11 @@ export function tauriBackend(): Backend {
       for (const [id, t] of ready.splice(0)) cb(id, t)
       subs.add(cb)
       return () => subs.delete(cb)
+    },
+    onChanged(cb) {
+      for (const c of changes.splice(0)) cb(c)
+      changeSubs.add(cb)
+      return () => changeSubs.delete(cb)
     },
     plugins: () => invoke<PluginReport>('plugins'),
     pluginActions: {

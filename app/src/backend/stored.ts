@@ -9,7 +9,7 @@ import {
   touchedLabel,
 } from '../model/library'
 import type { FormatInfo } from '../plugins/types'
-import type { LibraryState, Opened } from './types'
+import type { Changed, LibraryState, Opened } from './types'
 
 export interface StoredItem {
   id: string
@@ -43,6 +43,15 @@ export interface StoredLibrary<I extends StoredItem = StoredItem> {
   state: Partial<LibraryState>
   /** 扱える形式。 */
   formats: FormatInfo[]
+  problems: string[]
+}
+
+/** 開いたあとに突き合わせて見つかった違い。 */
+export interface StoredChanged<I extends StoredItem = StoredItem> {
+  items: I[]
+  removed: string[]
+  projects?: StoredProject[]
+  state?: Partial<LibraryState>
   problems: string[]
 }
 
@@ -124,3 +133,19 @@ export function toOpened<I extends StoredItem>(s: StoredLibrary<I>, today: Date,
     problems: s.problems,
   }
 }
+
+/** 届いた違いを画面の形にする。プロジェクトは最近扱った順に並べる。 */
+export const toChanged = <I extends StoredItem>(
+  s: StoredChanged<I>,
+  today: Date,
+  formats: ReadonlyMap<string, FormatInfo>,
+  urlsOf: (it: I) => ItemUrls,
+): Changed => ({
+  items: s.items.map((i) => toItem(i, today, formats, urlsOf(i))),
+  removed: s.removed,
+  ...(s.projects && {
+    projects: s.projects.toSorted((a, b) => b.mtime - a.mtime).map((p) => toProject(p, today)),
+  }),
+  ...(s.state && { state: s.state }),
+  problems: s.problems,
+})

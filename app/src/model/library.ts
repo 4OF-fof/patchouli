@@ -286,6 +286,31 @@ export const withAdded = (lib: Library, items: Item[], projects: Project[] = [])
     lib.formats,
   )
 
+/** items を足すか同じ id のものと差し替え、removed の id を除いたライブラリ。ピン留めからも、なくなったものを除く。 */
+export function withChanged(
+  lib: Library,
+  items: Item[],
+  removed: string[],
+  projects = lib.projects,
+  tagCovers = lib.tagCovers,
+  pins = lib.pins,
+) {
+  const gone = new Set(removed)
+  const next = new Map(items.map((i) => [i.id, i]))
+  const kept = lib.items.filter((i) => !gone.has(i.id) || next.has(i.id)).map((i) => next.get(i.id) ?? i)
+  const have = new Set(kept.map((i) => i.id))
+  const all = [...kept, ...items.filter((i) => !have.has(i.id))]
+  const ids = new Set(all.map((i) => i.id))
+  return buildLibrary(
+    all,
+    projects,
+    lib.today,
+    tagCovers,
+    pins.filter((id) => ids.has(id)),
+    lib.formats,
+  )
+}
+
 /** タグの名前を変えたとき、タグが変わった項目。 */
 export const retaggedItems = (before: Library, after: Library) =>
   after.items.filter((i) => {

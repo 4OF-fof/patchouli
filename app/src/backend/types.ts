@@ -35,6 +35,19 @@ export interface Opened {
   problems: string[]
 }
 
+/** 開いたあとにファイルと突き合わせて見つかった違い。 */
+export interface Changed {
+  /** 足されたものと変わったもの。 */
+  items: Item[]
+  /** なくなったものの id。 */
+  removed: string[]
+  /** 変わったときだけある。 */
+  projects?: Project[]
+  state?: Partial<LibraryState>
+  /** 読めなかったもの。 */
+  problems: string[]
+}
+
 /** 落とそうとしているものの中身。 */
 export interface Dropped {
   /** 取り込めるファイルの数（フォルダの中も数える）。 */
@@ -83,6 +96,8 @@ export interface Backend {
   importDropped?(folder: string | null, projects: number[]): Promise<Imported>
   /** サムネイルができるたびに呼ぶ。開く前にできたものも、登録したときにまとめて渡す。返す関数で止める。 */
   onThumbnail(cb: (id: string, thumb: Thumbnail) => void): () => void
+  /** 前に開いたときの写しから開いた環境で、裏でファイルと突き合わせて違いがわかったら呼ぶ。開く前に届いたものも、登録したときに渡す。返す関数で止める。 */
+  onChanged?(cb: (c: Changed) => void): () => void
   /** プラグインの一覧と、それぞれの問題。 */
   plugins(): Promise<PluginReport>
   /** プラグインを入れる・外すなどの操作。できない環境にはない。使うプラグインが変わったら、open からやり直す。 */

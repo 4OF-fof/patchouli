@@ -25,7 +25,7 @@ pub struct Job {
 }
 
 /// 置き場所の名前に使う、版をまたいでも変わらないハッシュ（FNV-1a）。
-fn fnv(parts: &[&[u8]]) -> u64 {
+pub(crate) fn fnv(parts: &[&[u8]]) -> u64 {
     let mut h: u64 = 0xcbf29ce484222325;
     for p in parts {
         for b in *p {

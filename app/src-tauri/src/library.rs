@@ -5,9 +5,12 @@
 //! - ピン留めとタグの表紙は `.patchouli/library.json` に置く
 //! - `.` で始まるものは読まない（ほかのツールの設定や、書き込み途中のファイル）
 //!
-//! 読むときは何も書かない。ID のない素材やノートには仮の ID を渡し、最初に保存するときに書く。
+//! ID のない素材やノートは、読んだときに ID を書く（ノートの更新日時は変えない）。
+//! 書けなかったものと、コピーで ID が重なったものには仮の ID を渡し、最初に保存するときに書く。
+//!
+//! 開いた結果は写し（`cache.rs`）に取っておき、次はまずそれを返してから、裏でファイルと突き合わせる。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -17,6 +20,7 @@ use std::time::UNIX_EPOCH;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
+use crate::cache::{Cache, Row, Sig};
 use crate::note::{self, Block};
 use crate::plugin::{FormatInfo, Registry};
 
@@ -47,7 +51,7 @@ pub(crate) fn image_size(path: &Path) -> Option<(u32, u32)> {
     Some(if turned { (h, w) } else { (w, h) })
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoredItem {
     pub id: String,
@@ -74,7 +78,7 @@ pub struct StoredItem {
     pub thumb: Option<PathBuf>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StoredProject {
     pub name: String,
@@ -106,6 +110,30 @@ pub struct Opened {
     pub problems: Vec<String>,
 }
 
+/// ファイルを読んだ結果。
+pub struct Scan {
+    pub items: Vec<Row>,
+    pub projects: Vec<StoredProject>,
+    pub state: LibraryState,
+    pub problems: Vec<String>,
+}
+
+/// 写しから開いたあとに、ファイルと突き合わせて見つかった違い。
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Changes {
+    /// 足されたものと変わったもの。
+    pub items: Vec<StoredItem>,
+    /// なくなったものの ID。
+    pub removed: Vec<String>,
+    /// 変わったときだけ、全部を入れる。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub projects: Option<Vec<StoredProject>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state: Option<LibraryState>,
+    pub problems: Vec<String>,
+}
+
 /// 保存する属性。書いたものだけを変える。
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
@@ -128,6 +156,9 @@ pub struct Library {
     root: PathBuf,
     entries: HashMap<String, Entry>,
     plugins: Arc<Registry>,
+    cache: Arc<Cache>,
+    /// 裏で突き合わせているあいだに書いたファイル。突き合わせた結果より、こちらを残す。
+    touched: Option<HashSet<PathBuf>>,
 }
 
 fn new_id() -> String {
@@ -213,26 +244,79 @@ impl Library {
         Arc::clone(&self.plugins)
     }
 
-    pub fn open(root: &Path, plugins: Arc<Registry>) -> Result<(Library, Opened), String> {
-        let root = fs::canonicalize(root).map_err(|e| format!("{}: {e}", root.display()))?;
-        let root = dunce(root);
-        let mut lib = Library {
-            root: root.clone(),
+    fn new(root: PathBuf, plugins: Arc<Registry>, cache: Arc<Cache>) -> Library {
+        Library {
+            root,
             entries: HashMap::new(),
             plugins,
-        };
+            cache,
+            touched: None,
+        }
+    }
+
+    pub fn cache(&self) -> Arc<Cache> {
+        Arc::clone(&self.cache)
+    }
+
+    fn state_path(&self) -> PathBuf {
+        self.root.join(STATE_DIR).join(STATE_FILE)
+    }
+
+    /// 写しから開く。まだ写しがなければ None。root は canonical で正規化したもの。
+    pub fn cached(
+        root: &Path,
+        plugins: Arc<Registry>,
+        cache: Arc<Cache>,
+    ) -> Option<(Library, Opened)> {
+        let snap = cache.load()?;
+        let mut lib = Library::new(root.to_owned(), plugins, cache);
+        let items = snap
+            .rows
+            .into_iter()
+            .filter(|r| lib.plugins.knows(&r.item.ext))
+            .map(|r| {
+                lib.entries.insert(
+                    r.item.id.clone(),
+                    Entry {
+                        path: r.item.file.clone(),
+                        note: r.item.note,
+                        saved: r.saved,
+                    },
+                );
+                r.item
+            })
+            .collect();
+        lib.touched = Some(HashSet::new());
+        let formats = lib.plugins.formats();
+        Some((
+            lib,
+            Opened {
+                root: root.to_owned(),
+                items,
+                projects: snap.projects,
+                state: snap.state,
+                formats,
+                problems: vec![],
+            },
+        ))
+    }
+
+    /// ファイルを読む。更新日時が写しと同じものは、写しの中身を使う。
+    pub fn scan(root: &Path, plugins: Arc<Registry>, cache: Arc<Cache>) -> (Library, Scan) {
+        let known = cache.rows();
+        let mut lib = Library::new(root.to_owned(), plugins, cache);
         let mut items = Vec::new();
         let mut projects = Vec::new();
         let mut problems = Vec::new();
 
-        for (path, is_dir) in list_dir(&root, &mut problems) {
+        for (path, is_dir) in list_dir(root, &mut problems) {
             let name = path
                 .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or_default()
                 .to_owned();
             if !is_dir {
-                lib.read_item(&path, None, &mut items, &mut problems);
+                items.extend(lib.read_item(&path, None, known.get(&path), &mut problems));
                 continue;
             }
             let meta = meta_path(&path);
@@ -246,15 +330,15 @@ impl Library {
                 }
             };
             let from = items.len();
-            lib.read_dir(&path, &name, &mut items, &mut problems);
+            lib.read_dir(&path, &name, &known, &mut items, &mut problems);
             let mtime = items[from..]
                 .iter()
-                .map(|i| i.mtime)
+                .map(|r| r.item.mtime)
                 .fold(mtime_of(&path).max(mtime_of(&meta)), f64::max);
             projects.push(StoredProject { name, cover, mtime });
         }
 
-        let state_path = root.join(STATE_DIR).join(STATE_FILE);
+        let state_path = lib.state_path();
         let state = match read_json(&state_path) {
             Ok(Some(m)) => serde_json::from_value(Value::Object(m)).unwrap_or_else(|e| {
                 problems.push(format!("{}: {e}", state_path.display()));
@@ -266,52 +350,158 @@ impl Library {
                 LibraryState::default()
             }
         };
-        let formats = lib.plugins.formats();
-        Ok((
+        (
             lib,
-            Opened {
-                root,
+            Scan {
                 items,
                 projects,
                 state,
-                formats,
                 problems,
             },
-        ))
+        )
+    }
+
+    /// 読んだ結果で写しを作り直し、開いた結果にする。
+    pub fn opened(&self, scan: Scan) -> Opened {
+        self.cache.replace(&scan.items, &scan.projects, &scan.state);
+        Opened {
+            root: self.root.clone(),
+            items: scan.items.into_iter().map(|r| r.item).collect(),
+            projects: scan.projects,
+            state: scan.state,
+            formats: self.plugins.formats(),
+            problems: scan.problems,
+        }
+    }
+
+    /// 写しから開いたあとに、裏で読んだ結果（fresh と scan）を取り込み、写しとの違いを返す。
+    /// 読んでいるあいだに書いたものは、書いたほうを残す。
+    pub fn apply(&mut self, fresh: Library, scan: Scan) -> Changes {
+        let touched = self.touched.take().unwrap_or_default();
+        let before = self.cache.rows();
+        let mut changes = Changes {
+            problems: scan.problems,
+            ..Changes::default()
+        };
+
+        let mut seen = HashSet::new();
+        let mut rows = Vec::new();
+        for row in scan.items {
+            let path = row.item.file.clone();
+            seen.insert(path.clone());
+            if touched.contains(&path) {
+                continue;
+            }
+            match before.get(&path) {
+                Some(b) if b.same_item(&row) => {
+                    if b.sig != row.sig || b.saved != row.saved {
+                        rows.push(row);
+                    }
+                    continue;
+                }
+                Some(b) if b.item.id != row.item.id => changes.removed.push(b.item.id.clone()),
+                _ => {}
+            }
+            changes.items.push(row.item.clone());
+            rows.push(row);
+        }
+        let mut gone = Vec::new();
+        for (path, b) in before {
+            if !seen.contains(&path) && !touched.contains(&path) {
+                changes.removed.push(b.item.id);
+                gone.push(path);
+            }
+        }
+        self.cache.update(&rows, &gone);
+
+        let mut entries = fresh.entries;
+        entries.retain(|_, e| !touched.contains(&e.path));
+        for (id, e) in self.entries.drain() {
+            if touched.contains(&e.path) {
+                entries.insert(id, e);
+            }
+        }
+        self.entries = entries;
+
+        let was = self.cache.projects();
+        let kept = |name: &str| touched.contains(&self.root.join(name));
+        let mut projects: Vec<StoredProject> = scan
+            .projects
+            .into_iter()
+            .filter(|p| !kept(&p.name))
+            .chain(was.iter().filter(|p| kept(&p.name)).cloned())
+            .collect();
+        projects.sort_by(|a, b| a.name.cmp(&b.name));
+        if serde_json::to_value(&projects).ok() != serde_json::to_value(&was).ok() {
+            self.cache.replace_projects(&projects);
+            changes.projects = Some(projects);
+        }
+
+        if !touched.contains(&self.state_path())
+            && serde_json::to_value(&scan.state).ok()
+                != serde_json::to_value(self.cache.state()).ok()
+        {
+            self.cache.put_state(&scan.state);
+            changes.state = Some(scan.state);
+        }
+        changes
+    }
+
+    /// 裏で突き合わせているあいだなら、書いたことを覚えておく。
+    fn mark(&mut self, path: &Path) {
+        if let Some(t) = &mut self.touched {
+            t.insert(path.to_owned());
+        }
     }
 
     fn read_dir(
         &mut self,
         dir: &Path,
         project: &str,
-        items: &mut Vec<StoredItem>,
+        known: &HashMap<PathBuf, Row>,
+        items: &mut Vec<Row>,
         problems: &mut Vec<String>,
     ) {
         for (path, is_dir) in list_dir(dir, problems) {
             if is_dir {
-                self.read_dir(&path, project, items, problems);
+                self.read_dir(&path, project, known, items, problems);
             } else {
-                self.read_item(&path, Some(project), items, problems);
+                items.extend(self.read_item(&path, Some(project), known.get(&path), problems));
             }
         }
     }
 
+    /// 扱えるファイルを読む。known は写しにある、このファイルの行。
     pub(crate) fn read_item(
         &mut self,
         path: &Path,
         folder: Option<&str>,
-        items: &mut Vec<StoredItem>,
+        known: Option<&Row>,
         problems: &mut Vec<String>,
-    ) {
+    ) -> Option<Row> {
         let ext = path
             .extension()
             .and_then(|e| e.to_str())
             .unwrap_or_default()
             .to_lowercase();
         if !self.plugins.knows(&ext) {
-            return;
+            return None;
         }
         let note = ext == NOTE_EXT;
+        let sig = Sig::of(path, note);
+        // 写しの ID を使えるのは、ほかのファイルがまだ使っていないときだけ
+        let free = |k: &&Row| !self.entries.contains_key(&k.item.id);
+        if let Some(k) = known.filter(|k| k.sig == sig).filter(free) {
+            self.entries.insert(
+                k.item.id.clone(),
+                Entry {
+                    path: path.to_owned(),
+                    note,
+                    saved: k.saved,
+                },
+            );
+            return Some(k.clone());
+        }
         let name = path
             .file_stem()
             .and_then(|n| n.to_str())
@@ -326,16 +516,29 @@ impl Library {
             Ok(r) => r,
             Err(e) => {
                 problems.push(format!("{}: {e}", path.display()));
-                return;
+                return None;
             }
         };
-        // コピーしたファイルは ID が重なる。あとから見つけたほうに新しい ID を渡す
-        let saved = matches!(&r.id, Some(id) if !self.entries.contains_key(id));
+        let missing = r.id.is_none();
+        // コピーしたファイルは ID が重なる。あとから見つけたほうに仮の ID を渡す
+        let mut saved = matches!(&r.id, Some(id) if !self.entries.contains_key(id));
         let id = if saved {
             r.id.take().unwrap_or_default()
+        } else if let Some(k) = known.filter(|k| !k.saved).filter(free) {
+            k.item.id.clone()
         } else {
             new_id()
         };
+        let mut sig = sig;
+        if missing {
+            match write_id(path, note, &id) {
+                Ok(()) => {
+                    saved = true;
+                    sig = Sig::of(path, note);
+                }
+                Err(e) => log::warn!("ID を書けない: {e}"),
+            }
+        }
         self.entries.insert(
             id.clone(),
             Entry {
@@ -344,23 +547,60 @@ impl Library {
                 saved,
             },
         );
-        items.push(StoredItem {
-            id,
-            note,
-            name,
-            ext,
-            folder: folder.map(str::to_owned),
-            tags: r.tags,
-            rating: r.rating,
-            memo: r.memo,
-            aliases: r.aliases,
-            blocks: r.blocks,
-            mtime: mtime_of(path),
-            width: None,
-            height: None,
-            file: path.to_owned(),
-            thumb: None,
-        });
+        Some(Row {
+            item: StoredItem {
+                id,
+                note,
+                name,
+                ext,
+                folder: folder.map(str::to_owned),
+                tags: r.tags,
+                rating: r.rating,
+                memo: r.memo,
+                aliases: r.aliases,
+                blocks: r.blocks,
+                mtime: mtime_of(path),
+                width: None,
+                height: None,
+                file: path.to_owned(),
+                thumb: None,
+            },
+            saved,
+            sig,
+        })
+    }
+
+    /// 書いた項目 id を読み直して、写しに入れる。
+    fn refresh(&mut self, id: &str) {
+        let Ok(e) = self.entry(id) else {
+            return;
+        };
+        let (path, note) = (e.path.clone(), e.note);
+        self.mark(&path);
+        let Some(mut row) = self.cache.row(&path) else {
+            return;
+        };
+        let read = if note {
+            read_note(&path)
+        } else {
+            read_asset(&path)
+        };
+        let Ok(r) = read else {
+            return;
+        };
+        let it = &mut row.item;
+        (it.tags, it.rating, it.memo, it.aliases, it.blocks) =
+            (r.tags, r.rating, r.memo, r.aliases, r.blocks);
+        it.mtime = mtime_of(&path);
+        row.saved = true;
+        row.sig = Sig::of(&path, note);
+        self.cache.update(&[row], &[]);
+    }
+
+    /// 取り込んだり作ったりした項目を写しに入れる。
+    pub(crate) fn remember(&mut self, row: &Row) {
+        self.mark(&row.item.file);
+        self.cache.update(std::slice::from_ref(row), &[]);
     }
 
     fn entry(&self, id: &str) -> Result<&Entry, String> {
@@ -394,6 +634,7 @@ impl Library {
         if let Some(e) = self.entries.get_mut(id) {
             e.saved = true;
         }
+        self.refresh(id);
         Ok(())
     }
 
@@ -414,7 +655,11 @@ impl Library {
         let Value::Object(m) = serde_json::to_value(state).map_err(|e| e.to_string())? else {
             unreachable!()
         };
-        write_json(&dir.join(STATE_FILE), &m)
+        let path = self.state_path();
+        write_json(&path, &m)?;
+        self.mark(&path);
+        self.cache.put_state(state);
+        Ok(())
     }
 
     fn project_dir(&self, name: &str) -> Result<PathBuf, String> {
@@ -450,7 +695,7 @@ impl Library {
                 saved: true,
             },
         );
-        Ok(StoredItem {
+        let item = StoredItem {
             id,
             note: true,
             name: name.to_owned(),
@@ -464,9 +709,15 @@ impl Library {
             mtime: mtime_of(&path),
             width: None,
             height: None,
-            file: path,
+            file: path.clone(),
             thumb: None,
-        })
+        };
+        self.remember(&Row {
+            item: item.clone(),
+            saved: true,
+            sig: Sig::of(&path, true),
+        });
+        Ok(item)
     }
 
     pub fn create_project(&mut self, name: &str) -> Result<StoredProject, String> {
@@ -480,11 +731,14 @@ impl Library {
         m.insert(ID_KEY.into(), json!(new_id()));
         m.insert("cover".into(), json!([]));
         write_json(&meta, &m)?;
-        Ok(StoredProject {
+        let p = StoredProject {
             name: name.to_owned(),
             cover: json!([]),
             mtime: mtime_of(&meta),
-        })
+        };
+        self.mark(&dir);
+        self.cache.put_project(&p);
+        Ok(p)
     }
 
     pub fn save_project(&mut self, name: &str, cover: Value) -> Result<(), String> {
@@ -497,9 +751,37 @@ impl Library {
         if !m.contains_key(ID_KEY) {
             m.insert(ID_KEY.into(), json!(new_id()));
         }
-        m.insert("cover".into(), cover);
-        write_json(&meta, &m)
+        m.insert("cover".into(), cover.clone());
+        write_json(&meta, &m)?;
+        self.mark(&dir);
+        if let Some(mut p) = self.cache.projects().into_iter().find(|p| p.name == name) {
+            p.cover = cover;
+            p.mtime = p.mtime.max(mtime_of(&meta));
+            self.cache.put_project(&p);
+        }
+        Ok(())
     }
+}
+
+/// 開くライブラリの場所を、写しやサムネイルの置き場所を決めるのに使う形にする。
+pub fn canonical(root: &Path) -> Result<PathBuf, String> {
+    let p = fs::canonicalize(root).map_err(|e| format!("{}: {e}", root.display()))?;
+    Ok(dunce(p))
+}
+
+/// ID をファイルに書く。ノートは本文のファイルを書き直すので、更新日時を戻す（ID を足しただけで、最近動いたものにしない）。
+fn write_id(path: &Path, note: bool, id: &str) -> Result<(), String> {
+    if !note {
+        return save_asset(path, id, &ItemPatch::default());
+    }
+    let at = |e: std::io::Error| format!("{}: {e}", path.display());
+    let t = fs::metadata(path).and_then(|m| m.modified()).map_err(at)?;
+    save_note(path, id, &ItemPatch::default())?;
+    File::options()
+        .write(true)
+        .open(path)
+        .and_then(|f| f.set_modified(t))
+        .map_err(at)
 }
 
 /// Windows の canonicalize が付ける `\\?\` を外す。

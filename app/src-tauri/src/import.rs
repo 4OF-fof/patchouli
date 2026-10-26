@@ -214,7 +214,10 @@ impl Library {
             return;
         }
         let mut problems = Vec::new();
-        self.read_item(&to, folder, &mut out.items, &mut problems);
+        if let Some(row) = self.read_item(&to, folder, None, &mut problems) {
+            self.remember(&row);
+            out.items.push(row.item);
+        }
         out.failed.extend(problems);
     }
 }

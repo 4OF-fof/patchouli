@@ -11,6 +11,7 @@ import {
   retaggedItems,
   toggled,
   withAdded,
+  withChanged,
   withItem,
   withProject,
   withRenamedTag,
@@ -211,6 +212,29 @@ export function App(props: AppProps) {
     stopThumbs()
     clearTimeout(flush)
   })
+
+  // 写しから開いたときは、裏でファイルと突き合わせた違いがあとから届く
+  const stopChanged =
+    backend.onChanged?.((c) => {
+      const s = c.state
+      setLib(
+        withChanged(
+          lib(),
+          c.items,
+          c.removed,
+          c.projects,
+          s?.tagCovers && new Map(Object.entries(s.tagCovers)),
+          s?.pins,
+        ),
+      )
+      if (s?.pinnedProjects) setPinnedProjects(s.pinnedProjects)
+      if (s?.pinnedTags) setPinnedTags(s.pinnedTags)
+      if (c.problems.length) {
+        console.warn('読めなかったもの', c.problems)
+        setNotice(`${c.problems.length} 件を読み込めませんでした`)
+      }
+    }) ?? (() => {})
+  onCleanup(stopChanged)
 
   // ファイルを持ってきたら受け口を出す。フォルダを含むものは、落としたあとにフォルダごとの入れ方を選ぶ
   const [drag, setDrag] = createSignal<Dropped>()

@@ -1,3 +1,4 @@
+pub mod cache;
 pub mod import;
 pub mod library;
 pub mod note;
@@ -8,6 +9,7 @@ pub mod thumb;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use cache::Cache;
 use library::{ItemPatch, Library, LibraryState, Opened, StoredItem, StoredProject};
 use plugin::record::{self, Source};
 use plugin::{By, Part, Registry, Runner, ViewOut};
@@ -85,18 +87,20 @@ fn with_session<T>(
 /// 組み込み UI が作るものは、画面が作って put_thumbnail で渡す。
 /// できているものの大きさは、サムネイルの大きさで代える（縦横比が同じなので）。
 /// 返すのは、作る仕事、いまのサムネイルすべての場所、すべての場所を決められたか。
-fn plan_thumbs(
+fn plan_thumbs<'a>(
     plugins: &Registry,
     thumbs: &Path,
-    items: &mut [StoredItem],
+    items: impl IntoIterator<Item = &'a mut StoredItem>,
 ) -> (Vec<thumb::Job>, Vec<PathBuf>, bool) {
     let mut jobs = Vec::new();
     let mut current = Vec::new();
     let mut all = true;
-    for it in items.iter_mut() {
+    for it in items {
         let Some(by) = plugins.handles(&it.ext, Part::Thumbnail) else {
             continue;
         };
+        // 写しにあった場所は、消されていることもあるので確かめ直す
+        it.thumb = None;
         let Some(out) = thumb::path_for(thumbs, &it.file) else {
             all = false;
             continue;
@@ -123,13 +127,27 @@ fn plan_thumbs(
 }
 
 /// 裏でサムネイルを作り、できたものから画面へ知らせる。
-fn make_thumbs(app: &tauri::AppHandle, plugins: &Arc<Registry>, jobs: Vec<thumb::Job>) {
+fn make_thumbs(
+    app: &tauri::AppHandle,
+    plugins: &Arc<Registry>,
+    cache: &Cache,
+    jobs: Vec<thumb::Job>,
+) {
     thumb::make_all(plugins, jobs, |j, size| {
-        tell_thumb(app, &j.id, &j.out, size)
+        tell_thumb(app, cache, &j.id, &j.src, &j.out, size)
     })
 }
 
-fn tell_thumb(app: &tauri::AppHandle, id: &str, file: &Path, (width, height): (u32, u32)) {
+/// src のサムネイル file ができたことを、写しに書いて画面へ知らせる。
+fn tell_thumb(
+    app: &tauri::AppHandle,
+    cache: &Cache,
+    id: &str,
+    src: &Path,
+    file: &Path,
+    (width, height): (u32, u32),
+) {
+    cache.set_thumb(src, file, (width, height));
     let _ = app.emit(
         "thumbnail",
         ThumbReady {
@@ -141,39 +159,99 @@ fn tell_thumb(app: &tauri::AppHandle, id: &str, file: &Path, (width, height): (u
     );
 }
 
+/// ライブラリを開く。前に開いたときの写しがあればそれを返し、裏でファイルと突き合わせて、違いを library-changed で知らせる。
+/// 写しがなければ、ファイルを読み終えてから返す。
 #[tauri::command]
 async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<Opened, String> {
-    let root = library_root(&app)?;
+    let root = library::canonical(&library_root(&app)?)?;
     let (plugins, plugin_problems) = Registry::open(&root, &plugin_dir(&app)?);
     let plugins = Arc::new(plugins);
-    let (lib, mut opened) = Library::open(&root, Arc::clone(&plugins))?;
-    opened.problems.extend(plugin_problems);
-    let cache = app.path().app_cache_dir().map_err(|e| e.to_string())?;
-    let thumbs = thumb::dir_for(&cache, lib.root());
+    let cache_dir = app.path().app_cache_dir().map_err(|e| e.to_string())?;
+    let cache = Arc::new(Cache::open(&cache::path_for(&cache_dir, &root)));
+    let thumbs = thumb::dir_for(&cache_dir, &root);
     std::fs::create_dir_all(&thumbs).map_err(|e| format!("{}: {e}", thumbs.display()))?;
     let scope = app.asset_protocol_scope();
-    for dir in [lib.root(), &thumbs] {
+    for dir in [&root, &thumbs] {
         scope
             .allow_directory(dir, true)
             .map_err(|e| e.to_string())?;
     }
-    // サムネイルは取り込んだときに作る。アプリの外で足された画像は、開いたときに見つけた時点で取り込んだものとみなす
-    let (jobs, current, all) = plan_thumbs(&plugins, &thumbs, &mut opened.items);
-    let all_found = all && opened.problems.is_empty();
-    let dir = thumbs.clone();
-    let made = Arc::clone(&plugins);
-    std::thread::spawn(move || {
-        thumb::prune(&dir, &current, all_found);
-        make_thumbs(&app, &made, jobs);
-    });
+    let (lib, mut opened, checking) =
+        match Library::cached(&root, Arc::clone(&plugins), Arc::clone(&cache)) {
+            Some((lib, opened)) => (lib, opened, true),
+            None => {
+                let (lib, mut scan) =
+                    Library::scan(&root, Arc::clone(&plugins), Arc::clone(&cache));
+                let thumbs_job = plan_thumbs(
+                    &plugins,
+                    &thumbs,
+                    scan.items.iter_mut().map(|r| &mut r.item),
+                );
+                let all_found = thumbs_job.2 && scan.problems.is_empty();
+                let opened = lib.opened(scan);
+                spawn_thumbs(&app, &plugins, &cache, &thumbs, thumbs_job, all_found);
+                (lib, opened, false)
+            }
+        };
+    opened.problems.extend(plugin_problems);
     let runner = Runner::new(Arc::clone(&plugins));
     *cur.0.lock().map_err(|e| e.to_string())? = Some(Session {
         lib,
-        thumbs,
-        plugins,
+        thumbs: thumbs.clone(),
+        plugins: Arc::clone(&plugins),
         runner,
     });
+    if checking {
+        std::thread::spawn(move || check(&app, &root, &plugins, &cache, &thumbs));
+    }
     Ok(opened)
+}
+
+/// 裏でサムネイルの要らなくなったものを消し、足りないものを作る。
+fn spawn_thumbs(
+    app: &tauri::AppHandle,
+    plugins: &Arc<Registry>,
+    cache: &Arc<Cache>,
+    thumbs: &Path,
+    (jobs, current, _): (Vec<thumb::Job>, Vec<PathBuf>, bool),
+    all_found: bool,
+) {
+    let (app, plugins, cache, dir) = (
+        app.clone(),
+        Arc::clone(plugins),
+        Arc::clone(cache),
+        thumbs.to_owned(),
+    );
+    std::thread::spawn(move || {
+        thumb::prune(&dir, &current, all_found);
+        make_thumbs(&app, &plugins, &cache, jobs);
+    });
+}
+
+/// 写しから開いたライブラリを、ファイルと突き合わせる。開き直していたら（plugins が替わっていたら）何もしない。
+fn check(
+    app: &tauri::AppHandle,
+    root: &Path,
+    plugins: &Arc<Registry>,
+    cache: &Arc<Cache>,
+    thumbs: &Path,
+) {
+    let (fresh, mut scan) = Library::scan(root, Arc::clone(plugins), Arc::clone(cache));
+    // サムネイルは取り込んだときに作る。アプリの外で足された画像は、見つけた時点で取り込んだものとみなす
+    let job = plan_thumbs(plugins, thumbs, scan.items.iter_mut().map(|r| &mut r.item));
+    let all_found = job.2 && scan.problems.is_empty();
+    let cur = app.state::<Current>();
+    let changes = {
+        let Ok(mut g) = cur.0.lock() else {
+            return;
+        };
+        match g.as_mut() {
+            Some(s) if Arc::ptr_eq(&s.plugins, plugins) => s.lib.apply(fresh, scan),
+            _ => return,
+        }
+    };
+    let _ = app.emit("library-changed", &changes);
+    spawn_thumbs(app, plugins, cache, thumbs, job, all_found);
 }
 
 /// 落とそうとしているものの中身を数える。
@@ -198,16 +276,17 @@ async fn import_files(
     folder: Option<String>,
     projects: Vec<usize>,
 ) -> Result<import::Imported, String> {
-    let (mut out, thumbs, plugins) = with_session(&cur, |s| {
+    let (mut out, thumbs, plugins, cache) = with_session(&cur, |s| {
         Ok((
             s.lib.import(&paths, folder.as_deref(), &projects)?,
             s.thumbs.clone(),
             Arc::clone(&s.plugins),
+            s.lib.cache(),
         ))
     })?;
     let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &mut out.items);
     if !jobs.is_empty() {
-        std::thread::spawn(move || make_thumbs(&app, &plugins, jobs));
+        std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
     Ok(out)
 }
@@ -370,17 +449,17 @@ async fn put_thumbnail(
     let id = head("id").ok_or("id がない")?.to_owned();
     let num = |k: &str| head(k).and_then(|v| v.parse::<u32>().ok());
     let original = num("width").zip(num("height"));
-    let (src, out) = with_session(&cur, |s| {
+    let (src, out, cache) = with_session(&cur, |s| {
         let (path, ext) = s.lib.asset(&id)?;
         if s.plugins.handles(&ext, Part::Thumbnail) != Some(By::Ui) {
             return Err(format!("{ext} のサムネイルは組み込み UI が作るものでない"));
         }
         let out = thumb::path_for(&s.thumbs, path)
             .ok_or_else(|| format!("{} を読めない", path.display()))?;
-        Ok((path.to_owned(), out))
+        Ok((path.to_owned(), out, s.lib.cache()))
     })?;
     let size = thumb::place(png, original, &out).map_err(|e| format!("{}: {e}", src.display()))?;
-    tell_thumb(&app, &id, &out, size);
+    tell_thumb(&app, &cache, &id, &src, &out, size);
     Ok(())
 }
 
