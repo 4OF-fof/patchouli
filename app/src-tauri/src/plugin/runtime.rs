@@ -12,7 +12,7 @@ use wasmtime::component::{Component, Linker, ResourceTable};
 use wasmtime::{Engine, Store};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
-use super::{By, Choice, Part, Registry, SettingDecl, SettingKind, UiRef, commands, os};
+use super::{By, Choice, Part, Reads, Registry, SettingDecl, SettingKind, UiRef, commands, os};
 use crate::{library, thumb};
 
 wasmtime::component::bindgen!({ world: "plugin", path: "../plugins/wit" });
@@ -38,6 +38,8 @@ pub struct HostState {
     index: usize,
     /// 設定の値を読むところ。設定の項目を聞いている間はない。
     reg: Option<Arc<Registry>>,
+    /// Runner::reading のあいだに読んだ設定。
+    reads: Option<Reads>,
 }
 
 impl HostState {
@@ -50,6 +52,7 @@ impl HostState {
             current: String::new(),
             index: 0,
             reg,
+            reads: None,
         }
     }
 
@@ -127,7 +130,12 @@ impl patchouli::plugin::host::Host for HostState {
     }
 
     fn setting(&mut self, key: String) -> Option<types::SettingValue> {
-        to_wit(&self.reg.as_ref()?.setting(self.index, &key)?)
+        let v = self.reg.as_ref()?.setting(self.index, &key)?;
+        let w = to_wit(&v);
+        if let Some(r) = &mut self.reads {
+            r.insert(key, v);
+        }
+        w
     }
 
     fn log(&mut self, message: String) {
@@ -221,8 +229,8 @@ impl Prepared {
     }
 }
 
-/// できたサムネイルの PNG と、素材そのものの大きさ。
-pub type Made = (Vec<u8>, Option<(u32, u32)>);
+/// できたサムネイルの PNG と、素材そのものの大きさ、作るときに読んだ設定。
+pub type Made = (Vec<u8>, Option<(u32, u32)>, Reads);
 
 /// 素材の詳細に出すもの。
 #[derive(Debug, Clone, Serialize)]
@@ -300,14 +308,22 @@ impl Runner {
         }))
     }
 
+    /// f を呼び、そのあいだにプラグインが読んだ設定も返す。
+    pub fn reading<R>(&mut self, f: impl FnOnce(&mut Runner) -> R) -> (R, Reads) {
+        self.store.data_mut().reads = Some(Reads::new());
+        let r = f(self);
+        (r, self.store.data_mut().reads.take().unwrap_or_default())
+    }
+
     /// サムネイルの PNG と、素材そのものの大きさ。受け持つプラグインがない、または作らなかったときは None。
     pub fn thumbnail(&mut self, ext: &str, path: &Path, edge: u32) -> Result<Option<Made>, String> {
-        let t = self
-            .call(ext, Part::Thumbnail, By::Wasm, path, |p, s, fmt, file| {
+        let (t, reads) = self.reading(|r| {
+            r.call(ext, Part::Thumbnail, By::Wasm, path, |p, s, fmt, file| {
                 p.call_thumbnail(s, fmt, &file, edge)
             })
-            .unwrap_or(Ok(Ok(None)))??;
-        Ok(t.map(|t| (t.png, t.size.map(|d| (d.width, d.height)))))
+        });
+        let t = t.unwrap_or(Ok(Ok(None)))??;
+        Ok(t.map(|t| (t.png, t.size.map(|d| (d.width, d.height)), reads)))
     }
 
     /// 詳細に出すもの。受け持つプラグインがない、または出さないときは None。

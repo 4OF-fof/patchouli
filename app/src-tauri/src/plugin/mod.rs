@@ -37,6 +37,9 @@ pub struct Deps {
     pub plugins: Vec<String>,
 }
 
+/// サムネイルを作るときにプラグインが読んだ設定（key → 値）。値が変わったら作り直す。
+pub type Reads = BTreeMap<String, Value>;
+
 /// 形式ごとに受け持つもの。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -571,6 +574,24 @@ impl Registry {
     fn part(&self, ext: &str, part: Part, by: By) -> Option<(usize, &str)> {
         let h = self.formats.get(ext)?.parts.get(&part)?;
         (h.by == by).then_some((h.plugin, h.format.as_str()))
+    }
+
+    /// ext のサムネイルを受け持つプラグインの位置。
+    fn thumb_plugin(&self, ext: &str) -> Option<usize> {
+        let by = self.handles(ext, Part::Thumbnail)?;
+        Some(self.part(ext, Part::Thumbnail, by)?.0)
+    }
+
+    /// ext のサムネイルを受け持つプラグインの id。
+    pub fn thumb_owner(&self, ext: &str) -> Option<&str> {
+        Some(&self.plugins[self.thumb_plugin(ext)?].manifest.id)
+    }
+
+    /// ext のサムネイルを受け持つプラグインの、設定 key のいまの値。読めなければ Null。
+    pub fn thumb_setting(&self, ext: &str, key: &str) -> Value {
+        self.thumb_plugin(ext)
+            .and_then(|i| self.setting(i, key))
+            .unwrap_or(Value::Null)
     }
 
     /// part を受け持つ組み込み UI。

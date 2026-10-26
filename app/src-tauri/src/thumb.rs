@@ -10,7 +10,7 @@ use std::time::UNIX_EPOCH;
 
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader};
 
-use crate::plugin::{Registry, Runner};
+use crate::plugin::{Reads, Registry, Runner};
 
 /// 長いほうの辺の長さ（px）。
 const EDGE: u32 = 512;
@@ -20,7 +20,8 @@ pub struct Job {
     pub src: PathBuf,
     /// 拡張子（小文字）。
     pub ext: String,
-    pub out: PathBuf,
+    /// 置き場所。名前は作ったあとで、読んだ設定も入れて決める。
+    pub dir: PathBuf,
     pub mtime: f64,
 }
 
@@ -43,8 +44,9 @@ pub fn dir_for(cache: &Path, root: &Path) -> PathBuf {
     ))
 }
 
-/// 「<元の場所のハッシュ>-<更新日時と大きさのハッシュ>.png」。元が変わると後ろ半分が変わる。
-pub fn path_for(dir: &Path, src: &Path) -> Option<PathBuf> {
+/// 「<元の場所のハッシュ>-<更新日時と大きさ、作るときに読んだ設定のハッシュ>.png」。
+/// 元か、読んだ設定の値が変わると後ろ半分が変わる。
+pub fn path_for(dir: &Path, src: &Path, reads: &Reads) -> Option<PathBuf> {
     let m = fs::metadata(src).ok()?;
     let t = m
         .modified()
@@ -53,7 +55,13 @@ pub fn path_for(dir: &Path, src: &Path) -> Option<PathBuf> {
         .ok()?
         .as_nanos();
     let place = fnv(&[src.as_os_str().as_encoded_bytes()]);
-    let version = fnv(&[&t.to_le_bytes(), &m.len().to_le_bytes()]);
+    // 設定を読まないものは、前の版と同じ名前になる
+    let settings = if reads.is_empty() {
+        Vec::new()
+    } else {
+        serde_json::to_vec(reads).ok()?
+    };
+    let version = fnv(&[&t.to_le_bytes(), &m.len().to_le_bytes(), &settings]);
     Some(dir.join(format!("{place:016x}-{version:016x}.png")))
 }
 
@@ -119,15 +127,22 @@ pub fn encode(mut img: DynamicImage, edge: u32) -> Result<Vec<u8>, String> {
     Ok(png)
 }
 
-/// プラグインにサムネイルを作らせて置く。返すのは素材の大きさ（プラグインがわからなければサムネイルの大きさ）。
-/// プラグインが作らなければ None。
-fn make(runner: &mut Runner, job: &Job) -> Result<Option<(u32, u32)>, String> {
-    let Some((png, original)) = runner.thumbnail(&job.ext, &job.src, EDGE)? else {
+/// 置いたサムネイルの場所と素材の大きさ（わからなければサムネイルの大きさ）、作るときに読んだ設定。
+pub struct Placed {
+    pub out: PathBuf,
+    pub size: (u32, u32),
+    pub reads: Reads,
+}
+
+/// プラグインにサムネイルを作らせて置く。プラグインが作らなければ None。
+fn make(runner: &mut Runner, job: &Job) -> Result<Option<Placed>, String> {
+    let err = |e: &dyn std::fmt::Display| format!("{}: {e}", job.src.display());
+    let Some((png, original, reads)) = runner.thumbnail(&job.ext, &job.src, EDGE)? else {
         return Ok(None);
     };
-    place(&png, original, &job.out)
-        .map(Some)
-        .map_err(|e| format!("{}: {e}", job.src.display()))
+    let out = path_for(&job.dir, &job.src, &reads).ok_or_else(|| err(&"読めない"))?;
+    let size = place(&png, original, &out).map_err(|e| err(&e))?;
+    Ok(Some(Placed { out, size, reads }))
 }
 
 /// プラグインが作ったサムネイルを確かめて out に置く。返すのは素材の大きさ（わからなければサムネイルの大きさ）。
@@ -150,8 +165,8 @@ pub fn place(png: &[u8], original: Option<(u32, u32)>, out: &Path) -> Result<(u3
     Ok(original.filter(|(w, h)| *w > 0 && *h > 0).unwrap_or((w, h)))
 }
 
-/// 新しいものから順に、手の空いた数だけ並べて作る。できたものごとに、素材の大きさを添えて done を呼ぶ。
-pub fn make_all(reg: &Arc<Registry>, mut jobs: Vec<Job>, done: impl Fn(&Job, (u32, u32)) + Sync) {
+/// 新しいものから順に、手の空いた数だけ並べて作る。できたものごとに done を呼ぶ。
+pub fn make_all(reg: &Arc<Registry>, mut jobs: Vec<Job>, done: impl Fn(&Job, Placed) + Sync) {
     jobs.sort_by(|a, b| b.mtime.total_cmp(&a.mtime));
     let next = AtomicUsize::new(0);
     let width = std::thread::available_parallelism().map_or(2, |n| (n.get() / 2).max(1));
@@ -161,7 +176,7 @@ pub fn make_all(reg: &Arc<Registry>, mut jobs: Vec<Job>, done: impl Fn(&Job, (u3
                 let mut runner = Runner::new(Arc::clone(reg));
                 while let Some(job) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
                     match make(&mut runner, job) {
-                        Ok(Some(size)) => done(job, size),
+                        Ok(Some(placed)) => done(job, placed),
                         Ok(None) => {}
                         Err(e) => log::warn!("サムネイルを作れない: {e}"),
                     }

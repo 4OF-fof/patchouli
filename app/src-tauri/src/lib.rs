@@ -6,13 +6,14 @@ pub mod plugin;
 mod settings;
 pub mod thumb;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use cache::Cache;
 use library::{ItemPatch, Library, LibraryState, Opened, StoredItem, StoredProject};
 use plugin::record::{self, Source};
-use plugin::{By, Part, Registry, Runner, ViewOut};
+use plugin::{By, Part, Reads, Registry, Runner, ViewOut};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{Emitter, Manager, State};
@@ -28,6 +29,8 @@ struct Session {
     plugins: Arc<Registry>,
     /// 詳細の表示に使う。
     runner: Runner,
+    /// 組み込み UI がサムネイルを作るあいだに、WASM が読んだ設定（素材の id → 設定）。put_thumbnail で使う。
+    ui_reads: HashMap<String, Reads>,
 }
 
 /// 開発中に、動作確認のための場所を環境変数で替える。
@@ -83,6 +86,15 @@ fn with_session<T>(
     f(s)
 }
 
+/// 前に作ったときに読んだ設定（ext の素材）を、いまの値で埋めたもの。
+fn reads_now(plugins: &Registry, before: Option<&Reads>, ext: &str) -> Reads {
+    before.map_or_else(Reads::new, |r| {
+        r.keys()
+            .map(|k| (k.clone(), plugins.thumb_setting(ext, k)))
+            .collect()
+    })
+}
+
 /// サムネイルを作れるもののうち、できているものは thumb に入れ、まだのもので WASM が作るものは作る仕事にする。
 /// 組み込み UI が作るものは、画面が作って put_thumbnail で渡す。
 /// できているものの大きさは、サムネイルの大きさで代える（縦横比が同じなので）。
@@ -90,8 +102,10 @@ fn with_session<T>(
 fn plan_thumbs<'a>(
     plugins: &Registry,
     thumbs: &Path,
+    cache: &Cache,
     items: impl IntoIterator<Item = &'a mut StoredItem>,
 ) -> (Vec<thumb::Job>, Vec<PathBuf>, bool) {
+    let reads = cache.thumb_reads();
     let mut jobs = Vec::new();
     let mut current = Vec::new();
     let mut all = true;
@@ -101,7 +115,9 @@ fn plan_thumbs<'a>(
         };
         // 写しにあった場所は、消されていることもあるので確かめ直す
         it.thumb = None;
-        let Some(out) = thumb::path_for(thumbs, &it.file) else {
+        // 値が変わっていれば、場所が変わって作り直しになる
+        let now = reads_now(plugins, reads.get(&it.file), &it.ext);
+        let Some(out) = thumb::path_for(thumbs, &it.file, &now) else {
             all = false;
             continue;
         };
@@ -118,7 +134,7 @@ fn plan_thumbs<'a>(
                 id: it.id.clone(),
                 src: it.file.clone(),
                 ext: it.ext.clone(),
-                out,
+                dir: thumbs.to_owned(),
                 mtime: it.mtime,
             });
         }
@@ -133,8 +149,8 @@ fn make_thumbs(
     cache: &Cache,
     jobs: Vec<thumb::Job>,
 ) {
-    thumb::make_all(plugins, jobs, |j, size| {
-        tell_thumb(app, cache, &j.id, &j.src, &j.out, size)
+    thumb::make_all(plugins, jobs, |j, p| {
+        tell_thumb(app, cache, &j.id, &j.src, &p.out, p.size, &p.reads)
     })
 }
 
@@ -146,8 +162,9 @@ fn tell_thumb(
     src: &Path,
     file: &Path,
     (width, height): (u32, u32),
+    reads: &Reads,
 ) {
-    cache.set_thumb(src, file, (width, height));
+    cache.set_thumb(src, file, (width, height), reads);
     let _ = app.emit(
         "thumbnail",
         ThumbReady {
@@ -185,6 +202,7 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
                 let thumbs_job = plan_thumbs(
                     &plugins,
                     &thumbs,
+                    &cache,
                     scan.items.iter_mut().map(|r| &mut r.item),
                 );
                 let all_found = thumbs_job.2 && scan.problems.is_empty();
@@ -200,6 +218,7 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
         thumbs: thumbs.clone(),
         plugins: Arc::clone(&plugins),
         runner,
+        ui_reads: HashMap::new(),
     });
     if checking {
         std::thread::spawn(move || check(&app, &root, &plugins, &cache, &thumbs));
@@ -238,7 +257,12 @@ fn check(
 ) {
     let (fresh, mut scan) = Library::scan(root, Arc::clone(plugins), Arc::clone(cache));
     // サムネイルは取り込んだときに作る。アプリの外で足された画像は、見つけた時点で取り込んだものとみなす
-    let job = plan_thumbs(plugins, thumbs, scan.items.iter_mut().map(|r| &mut r.item));
+    let job = plan_thumbs(
+        plugins,
+        thumbs,
+        cache,
+        scan.items.iter_mut().map(|r| &mut r.item),
+    );
     let all_found = job.2 && scan.problems.is_empty();
     let cur = app.state::<Current>();
     let changes = {
@@ -287,7 +311,7 @@ async fn import_files(
             s.lib.cache(),
         ))
     })?;
-    let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &mut out.items);
+    let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut out.items);
     if !jobs.is_empty() {
         std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
@@ -363,14 +387,48 @@ async fn pick_plugin(app: tauri::AppHandle) -> Result<Option<PathBuf>, String> {
         .transpose()
 }
 
+/// 設定を変え、その設定を読んで作ったサムネイルを作り直す。
+/// WASM が作るものは裏で作り、組み込み UI が作るものは返す（画面が作る）。
 #[tauri::command]
 async fn set_plugin_setting(
+    app: tauri::AppHandle,
     cur: State<'_, Current>,
     id: String,
     key: String,
     value: Value,
-) -> Result<(), String> {
-    with_session(&cur, |s| s.plugins.set_setting(&id, &key, &value))
+) -> Result<Vec<StoredItem>, String> {
+    let (plugins, thumbs, cache) = with_session(&cur, |s| {
+        s.plugins.set_setting(&id, &key, &value)?;
+        Ok((Arc::clone(&s.plugins), s.thumbs.clone(), s.lib.cache()))
+    })?;
+    let reads = cache.thumb_reads();
+    if !reads.values().any(|r| r.contains_key(&key)) {
+        return Ok(Vec::new());
+    }
+    let mut items: Vec<StoredItem> = cache
+        .rows()
+        .into_values()
+        .map(|r| r.item)
+        .filter(|it| {
+            plugins.thumb_owner(&it.ext) == Some(id.as_str())
+                && reads.get(&it.file).is_some_and(|r| r.contains_key(&key))
+        })
+        .collect();
+    let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut items);
+    // 前の値に戻したときなど、いまの値で作ったものが残っていれば、作り直さずにそれへ切り替える
+    for it in &items {
+        if let (Some(file), Some(size)) = (&it.thumb, it.width.zip(it.height)) {
+            let now = reads_now(&plugins, reads.get(&it.file), &it.ext);
+            tell_thumb(&app, &cache, &it.id, &it.file, file, size, &now);
+        }
+    }
+    items.retain(|it| {
+        it.thumb.is_none() && plugins.handles(&it.ext, Part::Thumbnail) == Some(By::Ui)
+    });
+    if !jobs.is_empty() {
+        std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
+    }
+    Ok(items)
 }
 
 /// 素材の詳細に出すもの。受け持つプラグインが決める。
@@ -420,7 +478,13 @@ async fn plugin_call(
     with_session(&cur, |s| {
         let (path, ext) = s.lib.asset(&id)?;
         let path = path.to_owned();
-        s.runner.call_ui(&ext, part, &path, &method, &args)
+        let (r, reads) = s
+            .runner
+            .reading(|r| r.call_ui(&ext, part, &path, &method, &args));
+        if part == Part::Thumbnail {
+            s.ui_reads.entry(id).or_default().extend(reads);
+        }
+        r
     })
 }
 
@@ -438,7 +502,8 @@ async fn plugin_settings(
 }
 
 /// 組み込み UI が作ったサムネイル（本文が PNG）を置いて、画面へ知らせる。
-/// 見出しの id は素材、width と height は素材の大きさ（わからなければ付けない）。
+/// 見出しの id は素材、width と height は素材の大きさ（わからなければ付けない）、
+/// settings は作るときに読んだ設定の key の JSON の配列（ASCII にしたもの）。
 #[tauri::command]
 async fn put_thumbnail(
     app: tauri::AppHandle,
@@ -452,17 +517,28 @@ async fn put_thumbnail(
     let id = head("id").ok_or("id がない")?.to_owned();
     let num = |k: &str| head(k).and_then(|v| v.parse::<u32>().ok());
     let original = num("width").zip(num("height"));
-    let (src, out, cache) = with_session(&cur, |s| {
+    let keys: Vec<String> = head("settings")
+        .map(serde_json::from_str)
+        .transpose()
+        .map_err(|e| format!("settings を読めない: {e}"))?
+        .unwrap_or_default();
+    let (src, out, cache, reads) = with_session(&cur, |s| {
+        let mut reads = s.ui_reads.remove(&id).unwrap_or_default();
         let (path, ext) = s.lib.asset(&id)?;
         if s.plugins.handles(&ext, Part::Thumbnail) != Some(By::Ui) {
             return Err(format!("{ext} のサムネイルは組み込み UI が作るものでない"));
         }
-        let out = thumb::path_for(&s.thumbs, path)
+        // 値は、WASM が読んだものと同じ形にそろえるため、こちらで引く
+        for k in keys {
+            let v = s.plugins.thumb_setting(&ext, &k);
+            reads.insert(k, v);
+        }
+        let out = thumb::path_for(&s.thumbs, path, &reads)
             .ok_or_else(|| format!("{} を読めない", path.display()))?;
-        Ok((path.to_owned(), out, s.lib.cache()))
+        Ok((path.to_owned(), out, s.lib.cache(), reads))
     })?;
     let size = thumb::place(png, original, &out).map_err(|e| format!("{}: {e}", src.display()))?;
-    tell_thumb(&app, &cache, &id, &src, &out, size);
+    tell_thumb(&app, &cache, &id, &src, &out, size, &reads);
     Ok(())
 }
 

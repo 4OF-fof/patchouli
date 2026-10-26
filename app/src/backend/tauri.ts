@@ -14,8 +14,9 @@ import {
   toProject,
 } from './stored'
 import type { Thumbnail } from '../model/library'
-import type { FormatInfo, Part, PluginReport, PluginSource } from '../plugins/types'
+import type { FormatInfo, Part, PluginReport, PluginSource, SettingValue, UiRef } from '../plugins/types'
 import { type UiApi, type UiItem, uiThumbnail } from '../plugins/ui'
+import errorThumb from './thumb-error.svg'
 import type { Backend, Changed, Dropped, FileDrag } from './types'
 
 /** Rust から届く項目。file はファイルの場所、thumb はできているサムネイルの場所。 */
@@ -33,13 +34,25 @@ type TauriView = { kind: 'image' | 'video' | 'audio' | 'decoded' } | { kind: 'ui
 const pluginUrl = (plugin: string, path: string) =>
   convertFileSrc('', 'plugin') + [plugin, ...path.split('/')].map(encodeURIComponent).join('/')
 
-const uiApi = (item: UiItem, part: Part, plugin: string): UiApi => ({
-  item,
-  read: (offset, length) => invoke<ArrayBuffer>('plugin_read', { id: item.id, offset, length }),
-  call: (method, args) => invoke<string>('plugin_call', { id: item.id, part, method, args }),
-  settings: () => invoke('plugin_settings', { plugin }),
-  setSetting: (key, value) => invoke('set_plugin_setting', { id: plugin, key, value }),
-})
+/** 組み込み UI がサムネイルを作るのを待つ長さ（ms）。過ぎたらエラー用のサムネイルを出し、次へ進む。 */
+const UI_THUMB_LIMIT = 10_000
+
+/** 読んだ key を read に足していく設定の値。 */
+const watched = (s: Record<string, SettingValue>, read: Set<string>) =>
+  new Proxy(s, {
+    get(t, k) {
+      if (typeof k === 'string' && Object.hasOwn(t, k)) read.add(k)
+      return Reflect.get(t, k)
+    },
+    ownKeys(t) {
+      for (const k of Object.keys(t)) read.add(k)
+      return Reflect.ownKeys(t)
+    },
+  })
+
+/** 見出しに載せられるよう、ASCII でない文字を \uXXXX にした JSON。 */
+const asciiJson = (v: unknown) =>
+  JSON.stringify(v).replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
 
 const uiItemOf = (it: TauriItem): UiItem => ({ id: it.id, name: it.name, ext: it.ext, url: convertFileSrc(it.file) })
 
@@ -50,13 +63,15 @@ export function tauriBackend(): Backend {
   // 開いた直後からサムネイルが届くので、画面が受け取れるようになるまで溜めておく
   const ready: [string, Thumbnail][] = []
   const subs = new Set<(id: string, thumb: Thumbnail) => void>()
+  const sendThumb = (id: string, t: Thumbnail) => {
+    if (subs.size) for (const cb of subs) cb(id, t)
+    else ready.push([id, t])
+  }
   let listening: Promise<unknown> | undefined
   const listenThumbs = () =>
     (listening ??= listen<{ id: string; file: string; width: number; height: number }>('thumbnail', (e) => {
       const p = e.payload
-      const t = { url: convertFileSrc(p.file), ratio: p.width / p.height }
-      if (subs.size) for (const cb of subs) cb(p.id, t)
-      else ready.push([p.id, t])
+      sendThumb(p.id, { url: convertFileSrc(p.file), ratio: p.width / p.height })
     }))
   // 写しから開いたあとの突き合わせの結果も、画面が受け取れるようになるまで溜めておく
   const changes: Changed[] = []
@@ -78,6 +93,41 @@ export function tauriBackend(): Backend {
   // 落としたもののパスは画面に渡さず、取り込むときまでここで持つ
   let dropped: string[] = []
 
+  // 設定を変えると、その設定を読んで作ったサムネイルのうち、組み込み UI が作るものが返ってくる
+  const setSetting = async (plugin: string, key: string, value: SettingValue) => {
+    void makeUiThumbs(await invoke<TauriItem[]>('set_plugin_setting', { id: plugin, key, value }))
+  }
+
+  const uiApi = (item: UiItem, part: Part, plugin: string): UiApi => ({
+    item,
+    read: (offset, length) => invoke<ArrayBuffer>('plugin_read', { id: item.id, offset, length }),
+    call: (method, args) => invoke<string>('plugin_call', { id: item.id, part, method, args }),
+    settings: () => invoke('plugin_settings', { plugin }),
+    setSetting: (key, value) => setSetting(plugin, key, value),
+  })
+
+  // 読んだ設定を Rust に渡し、その値が変わったときに作り直せるようにする
+  const makeUiThumb = async (it: TauriItem, ui: UiRef) => {
+    const read = new Set<string>()
+    const api = uiApi(uiItemOf(it), 'thumbnail', ui.plugin)
+    const made = uiThumbnail(pluginUrl(ui.plugin, ui.module), {
+      ...api,
+      settings: async () => watched(await api.settings(), read),
+    })
+    let timer = 0
+    const late = new Promise<'late'>((r) => (timer = window.setTimeout(() => r('late'), UI_THUMB_LIMIT)))
+    const t = await Promise.race([made, late]).finally(() => clearTimeout(timer))
+    if (t === 'late') {
+      console.warn(`サムネイルが ${UI_THUMB_LIMIT / 1000} 秒で作り終わらない: ${it.name}.${it.ext}`)
+      sendThumb(it.id, { url: errorThumb, ratio: formats.get(it.ext)?.ratio ?? 1 })
+      return
+    }
+    if (!t) return
+    const headers: Record<string, string> = { id: it.id, settings: asciiJson([...read]) }
+    if (t.width && t.height) Object.assign(headers, { width: `${t.width}`, height: `${t.height}` })
+    await invoke('put_thumbnail', t.png, { headers })
+  }
+
   // 組み込み UI が作るサムネイルは、画面で 1 つずつ作って Rust に置かせる（できたら thumbnail が届く）
   const uiQueue: TauriItem[] = []
   let making = false
@@ -90,11 +140,7 @@ export function tauriBackend(): Backend {
         const ui = formats.get(it.ext)?.uiThumbnail
         if (!ui) continue
         try {
-          const t = await uiThumbnail(pluginUrl(ui.plugin, ui.module), uiApi(uiItemOf(it), 'thumbnail', ui.plugin))
-          if (!t) continue
-          const headers: Record<string, string> = { id: it.id }
-          if (t.width && t.height) Object.assign(headers, { width: `${t.width}`, height: `${t.height}` })
-          await invoke('put_thumbnail', t.png, { headers })
+          await makeUiThumb(it, ui)
         } catch (e) {
           console.warn(`サムネイルを作れない: ${it.name}.${it.ext}`, e)
         }
@@ -173,7 +219,7 @@ export function tauriBackend(): Backend {
       },
       update: (id) => invoke('update_plugin', { id }),
       remove: (id) => invoke('remove_plugin', { id }),
-      setSetting: (id, key, value) => invoke('set_plugin_setting', { id, key, value }),
+      setSetting,
     },
     async itemView(id) {
       if (decoded) URL.revokeObjectURL(decoded)

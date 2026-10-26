@@ -38,9 +38,12 @@ export function mount(el, api) {
 }
 
 export async function thumbnail(api) {
-  const text = decode(await api.read(0, 4096))
+  const [text, s] = await Promise.all([api.read(0, 4096).then(decode), api.settings()])
   const w = Math.round(api.edge * 0.8)
   const h = api.edge
+  // 詳細の文字の大きさに合わせる（設定を変えると作り直される）
+  const font = Math.round(s.size * 1.5)
+  const step = Math.round(font * 1.2)
   const c = document.createElement('canvas')
   c.width = w
   c.height = h
@@ -48,11 +51,11 @@ export async function thumbnail(api) {
   g.fillStyle = '#f7f5ef'
   g.fillRect(0, 0, w, h)
   g.fillStyle = '#3a3a36'
-  g.font = '22px monospace'
+  g.font = `${font}px monospace`
   text
     .split('\n')
-    .slice(0, 18)
-    .forEach((line, i) => g.fillText(line.slice(0, 26), 24, 48 + i * 26))
+    .slice(0, Math.ceil((h - 24) / step))
+    .forEach((line, i) => g.fillText(line.slice(0, Math.floor((w - 24) / (font * 0.6))), 24, 24 + font + i * step))
   const png = await new Promise((r) => c.toBlob(r, 'image/png'))
   return { png }
 }

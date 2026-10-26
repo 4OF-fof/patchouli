@@ -10,6 +10,7 @@ use std::sync::Mutex;
 use rusqlite::{Connection, OptionalExtension, params};
 
 use crate::library::{LibraryState, StoredItem, StoredProject, meta_path, mtime_of};
+use crate::plugin::Reads;
 
 /// 中身の形を変えたら上げる。違う版の写しは捨てて作り直す。
 const VERSION: i32 = 1;
@@ -74,7 +75,8 @@ fn connect(path: &Path) -> rusqlite::Result<Connection> {
     let v: i32 = c.pragma_query_value(None, "user_version", |r| r.get(0))?;
     if v != VERSION {
         c.execute_batch(
-            "DROP TABLE IF EXISTS items; DROP TABLE IF EXISTS projects; DROP TABLE IF EXISTS state;",
+            "DROP TABLE IF EXISTS items; DROP TABLE IF EXISTS projects; DROP TABLE IF EXISTS state;
+            DROP TABLE IF EXISTS thumb_reads;",
         )?;
         c.pragma_update(None, "user_version", VERSION)?;
     }
@@ -87,7 +89,8 @@ fn connect(path: &Path) -> rusqlite::Result<Connection> {
             item TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS projects (name TEXT PRIMARY KEY, project TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK (id = 0), state TEXT NOT NULL);",
+        CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK (id = 0), state TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS thumb_reads (path TEXT PRIMARY KEY, reads TEXT NOT NULL);",
     )?;
     Ok(c)
 }
@@ -300,8 +303,13 @@ impl Cache {
             let tx = c.transaction().map_err(|e| e.to_string())?;
             put_rows(&tx, rows)?;
             for p in gone {
-                tx.execute("DELETE FROM items WHERE path = ?1", [p.to_string_lossy()])
-                    .map_err(|e| e.to_string())?;
+                for sql in [
+                    "DELETE FROM items WHERE path = ?1",
+                    "DELETE FROM thumb_reads WHERE path = ?1",
+                ] {
+                    tx.execute(sql, [p.to_string_lossy()])
+                        .map_err(|e| e.to_string())?;
+                }
             }
             tx.commit().map_err(|e| e.to_string())
         })
@@ -328,8 +336,8 @@ impl Cache {
         self.with("書けない", |c| put_state(c, state))
     }
 
-    /// src のサムネイルができたことを書く。大きさは、わからなかったときだけ size で埋める。
-    pub fn set_thumb(&self, src: &Path, thumb: &Path, (width, height): (u32, u32)) {
+    /// src のサムネイルができたことを、作るときに読んだ設定と一緒に書く。大きさは、わからなかったときだけ size で埋める。
+    pub fn set_thumb(&self, src: &Path, thumb: &Path, (width, height): (u32, u32), reads: &Reads) {
         let Some(mut row) = self.row(src) else {
             return;
         };
@@ -338,5 +346,42 @@ impl Cache {
             (row.item.width, row.item.height) = (Some(width), Some(height));
         }
         self.update(&[row], &[]);
+        self.with("書けない", |c| {
+            let path = src.to_string_lossy();
+            if reads.is_empty() {
+                c.execute("DELETE FROM thumb_reads WHERE path = ?1", [path])
+            } else {
+                let json = serde_json::to_string(reads).map_err(|e| e.to_string())?;
+                c.execute(
+                    "INSERT OR REPLACE INTO thumb_reads (path, reads) VALUES (?1, ?2)",
+                    params![path, json],
+                )
+            }
+            .map(drop)
+            .map_err(|e| e.to_string())
+        })
+    }
+
+    /// サムネイルを作るときに読んだ設定（素材の場所 → 設定）。設定を読まなかったものは入れない。
+    pub fn thumb_reads(&self) -> HashMap<PathBuf, Reads> {
+        self.with("読めない", |c| {
+            let mut st = c
+                .prepare("SELECT path, reads FROM thumb_reads")
+                .map_err(|e| e.to_string())?;
+            let it = st
+                .query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))
+                .map_err(|e| e.to_string())?;
+            let mut out = HashMap::new();
+            for r in it {
+                let (path, reads) = r.map_err(|e| e.to_string())?;
+                match serde_json::from_str(&reads) {
+                    Ok(reads) => {
+                        out.insert(PathBuf::from(path), reads);
+                    }
+                    Err(e) => warn("一部読めない", e),
+                }
+            }
+            Ok(out)
+        })
     }
 }
