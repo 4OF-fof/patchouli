@@ -58,10 +58,13 @@ impl HostState {
 
     /// いま動いているプラグインが plugin.json に書いたコマンドの場所。
     fn command(&self, name: &str) -> Result<PathBuf, String> {
-        let reg = self.reg.as_ref().ok_or("いまはコマンドを使えない")?;
+        let reg = self
+            .reg
+            .as_ref()
+            .ok_or("現在は外部ツールを実行できません")?;
         if !reg.plugins[self.index].manifest.declares(name) {
             return Err(format!(
-                "{name} は plugin.json の required / optional に書いていない"
+                "外部ツール「{name}」が plugin.json の required / optional に記載されていません"
             ));
         }
         commands::find(name).ok_or_else(|| format!("{name} が見つかりません"))
@@ -71,7 +74,7 @@ impl HostState {
         self.files
             .get(f.handle as usize)
             .map(PathBuf::as_path)
-            .ok_or_else(|| "渡していないファイル".into())
+            .ok_or_else(|| "プラグインに渡されていないファイルです".into())
     }
 }
 
@@ -280,13 +283,15 @@ impl Runner {
         let size = std::fs::metadata(path).map_or(0, |m| m.len());
         if !self.instances.contains_key(&i) {
             let Some(pre) = self.reg.plugins[i].wasm.as_ref() else {
-                return Some(Err(format!("{id} に処理の部分（plugin.wasm）がない")));
+                return Some(Err(format!(
+                    "プラグイン「{id}」の plugin.wasm が見つかりません"
+                )));
             };
             match pre.0.instantiate(&mut self.store) {
                 Ok(p) => {
                     self.instances.insert(i, p);
                 }
-                Err(e) => return Some(Err(format!("{id} を動かせない: {e}"))),
+                Err(e) => return Some(Err(format!("プラグイン「{id}」の起動に失敗しました：{e}"))),
             }
         }
         let plugin = &self.instances[&i];
@@ -354,7 +359,7 @@ impl Runner {
         self.call(ext, Part::View, By::Wasm, path, |p, s, fmt, file| {
             p.call_decode(s, fmt, &file)
         })
-        .ok_or("詳細を受け持つプラグインがない")??
+        .ok_or("詳細表示に対応するプラグインがありません")??
     }
 
     /// part を受け持つ組み込み UI から、そのプラグインの WASM の関数を呼ぶ。
@@ -369,6 +374,6 @@ impl Runner {
         self.call(ext, part, By::Ui, path, |p, s, fmt, file| {
             p.call_call(s, fmt, &file, method, args)
         })
-        .ok_or("組み込み UI で受け持つプラグインがない")??
+        .ok_or("UI ファイルで対応するプラグインがありません")??
     }
 }

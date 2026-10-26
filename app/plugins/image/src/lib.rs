@@ -27,7 +27,7 @@ impl Guest for Image {
     }
 
     fn decode(_format: String, _f: File) -> Result<Vec<u8>, String> {
-        Err("decode はない".into())
+        Err("decode には対応していません".into())
     }
 
     fn settings() -> Vec<Setting> {
@@ -35,7 +35,7 @@ impl Guest for Image {
     }
 
     fn call(_format: String, _f: File, method: String, _args: String) -> Result<String, String> {
-        Err(format!("{method} はない"))
+        Err(format!("{method} には対応していません"))
     }
 }
 

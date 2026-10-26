@@ -696,7 +696,7 @@ impl Registry {
             .ok_or_else(|| format!("設定項目「{key}」が見つかりません"))?;
         let v = decl
             .accept(value)
-            .ok_or_else(|| format!("「{key}」の設定値が無効です: {value}"))?;
+            .ok_or_else(|| format!("「{key}」の設定値が無効です：{value}"))?;
         let mut r = self.record.write().map_err(|e| e.to_string())?;
         r.plugins
             .entry(id.to_owned())
@@ -853,7 +853,7 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
         {
             Ok(p) => Some(Arc::new(p)),
             Err(e) => {
-                problems.push(error(format!("plugin.wasm の読み込みに失敗しました: {e}")));
+                problems.push(error(format!("plugin.wasm の読み込みに失敗しました：{e}")));
                 None
             }
         }
@@ -891,7 +891,7 @@ fn settings_of(
     match w.settings(id) {
         Ok(s) => s,
         Err(e) => {
-            problems.push(error(format!("設定項目の読み込みに失敗しました: {e}")));
+            problems.push(error(format!("設定項目の読み込みに失敗しました：{e}")));
             Vec::new()
         }
     }

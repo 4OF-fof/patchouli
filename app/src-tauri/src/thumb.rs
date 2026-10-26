@@ -140,7 +140,7 @@ fn make(runner: &mut Runner, job: &Job) -> Result<Option<Placed>, String> {
     let Some((png, original, reads)) = runner.thumbnail(&job.ext, &job.src, EDGE)? else {
         return Ok(None);
     };
-    let out = path_for(&job.dir, &job.src, &reads).ok_or_else(|| err(&"読めない"))?;
+    let out = path_for(&job.dir, &job.src, &reads).ok_or_else(|| err(&"読み込みに失敗しました"))?;
     let size = place(&png, original, &out).map_err(|e| err(&e))?;
     Ok(Some(Placed { out, size, reads }))
 }
@@ -154,7 +154,7 @@ pub fn place(png: &[u8], original: Option<(u32, u32)>, out: &Path) -> Result<(u3
         || w > EDGE * 2
         || h > EDGE * 2
     {
-        return Err("プラグインが返したサムネイルが PNG でないか、大きすぎる".into());
+        return Err("プラグインが返したサムネイルが PNG ではないか、サイズが大きすぎます".into());
     }
     if let Some(dir) = out.parent() {
         fs::create_dir_all(dir).map_err(|e| e.to_string())?;

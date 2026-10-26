@@ -21,7 +21,7 @@ void backend
       lib: buildLibrary([], [], new Date()),
       pinnedProjects: [],
       pinnedTags: [],
-      notice: `ライブラリを開けませんでした: ${e instanceof Error ? e.message : String(e)}`,
+      notice: `ライブラリを開けませんでした：${e instanceof Error ? e.message : String(e)}`,
     }),
   )
   .then((o) =>

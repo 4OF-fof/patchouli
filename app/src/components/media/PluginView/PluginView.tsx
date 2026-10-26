@@ -22,10 +22,10 @@ export function PluginView(props: PluginViewProps) {
     loadUi(url)
       .then((mod) => {
         if (closed) return
-        if (!mod.mount) throw new Error('詳細の表示を描く関数（mount）がない')
+        if (!mod.mount) throw new Error('詳細表示の関数（mount）が見つかりません')
         unmount = mod.mount(el, api) ?? undefined
       })
-      .catch((e: unknown) => setError(`プラグインの表示に失敗しました: ${message(e)}`))
+      .catch((e: unknown) => setError(`プラグインの表示に失敗しました：${message(e)}`))
   })
   onCleanup(() => {
     closed = true

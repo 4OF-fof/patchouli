@@ -187,8 +187,8 @@ pub(crate) fn read_json(path: &Path) -> Result<Option<Map<String, Value>>, Strin
     match fs::read_to_string(path) {
         Ok(s) => match serde_json::from_str(&s) {
             Ok(Value::Object(m)) => Ok(Some(m)),
-            Ok(_) => Err("中身が JSON のオブジェクトでない".into()),
-            Err(e) => Err(format!("JSON を読めない: {e}")),
+            Ok(_) => Err("内容が JSON オブジェクトではありません".into()),
+            Err(e) => Err(format!("JSON の読み込みに失敗しました：{e}")),
         },
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
         Err(e) => Err(e.to_string()),
@@ -200,7 +200,7 @@ fn write_file(path: &Path, text: &str) -> Result<(), String> {
     let name = path
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or("ファイル名がない")?;
+        .ok_or("ファイル名がありません")?;
     let tmp = path.with_file_name(format!(".{name}.tmp"));
     fs::write(&tmp, text).map_err(|e| format!("{}: {e}", tmp.display()))?;
     fs::rename(&tmp, path).map_err(|e| {
@@ -616,14 +616,14 @@ impl Library {
     fn entry(&self, id: &str) -> Result<&Entry, String> {
         self.entries
             .get(id)
-            .ok_or_else(|| format!("ID {id} の項目がない"))
+            .ok_or_else(|| format!("ID「{id}」の項目が見つかりません"))
     }
 
     /// 素材のファイルと、拡張子（小文字）。
     pub fn asset(&self, id: &str) -> Result<(&Path, String), String> {
         let e = self.entry(id)?;
         if e.note {
-            return Err(format!("ID {id} はノート"));
+            return Err(format!("ID「{id}」はノートのため、素材として扱えません"));
         }
         let ext = e
             .path

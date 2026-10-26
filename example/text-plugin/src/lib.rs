@@ -17,22 +17,22 @@ impl Guest for Text {
     }
 
     fn decode(_format: String, _f: File) -> Result<Vec<u8>, String> {
-        Err("decode はない".into())
+        Err("decode には対応していません".into())
     }
 
     fn settings() -> Vec<Setting> {
         vec![
             Setting {
                 key: "wrap".into(),
-                label: "折り返す".into(),
+                label: "行を折り返す".into(),
                 help: None,
                 kind: SettingKind::Toggle,
                 default: SettingValue::Toggle(true),
             },
             Setting {
                 key: "size".into(),
-                label: "文字の大きさ".into(),
-                help: Some("10 から 32 まで".into()),
+                label: "文字サイズ".into(),
+                help: Some("10〜32 px".into()),
                 kind: SettingKind::Number(NumberRange {
                     min: Some(10.0),
                     max: Some(32.0),
@@ -42,7 +42,7 @@ impl Guest for Text {
             },
             Setting {
                 key: "font".into(),
-                label: "字体".into(),
+                label: "フォント".into(),
                 help: None,
                 kind: SettingKind::Choice(vec![
                     Choice {
@@ -72,7 +72,7 @@ impl Guest for Text {
                     f.size
                 ))
             }
-            m => Err(format!("{m} はない")),
+            m => Err(format!("{m} には対応していません")),
         }
     }
 }

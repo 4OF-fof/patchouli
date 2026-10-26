@@ -78,7 +78,9 @@ pub fn run(path: &Path, args: &[OsString]) -> Result<Output, String> {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         c.creation_flags(CREATE_NO_WINDOW);
     }
-    let mut child = c.spawn().map_err(|e| format!("{name} を動かせない: {e}"))?;
+    let mut child = c
+        .spawn()
+        .map_err(|e| format!("外部ツール「{name}」の実行に失敗しました：{e}"))?;
     // 出力が詰まって止まらないよう、どちらも別のスレッドで読み続ける
     let stdout = drain(child.stdout.take());
     let stderr = drain(child.stderr.take());
@@ -96,12 +98,15 @@ pub fn run(path: &Path, args: &[OsString]) -> Result<Output, String> {
     };
     let stdout = stdout
         .join()
-        .map_err(|_| format!("{name} の出力を読めない"))?;
+        .map_err(|_| format!("外部ツール「{name}」の出力の読み込みに失敗しました"))?;
     let stderr = stderr
         .join()
-        .map_err(|_| format!("{name} の出力を読めない"))?;
+        .map_err(|_| format!("外部ツール「{name}」の出力の読み込みに失敗しました"))?;
     if status.is_none() {
-        return Err(format!("{name} が {} 秒で終わらない", TIMEOUT.as_secs()));
+        return Err(format!(
+            "外部ツール「{name}」が {} 秒以内に終了しませんでした",
+            TIMEOUT.as_secs()
+        ));
     }
     Ok(Output {
         code: status.and_then(|s| s.code()),

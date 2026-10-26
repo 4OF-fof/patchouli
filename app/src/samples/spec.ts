@@ -525,11 +525,11 @@ export function sampleSpec(): Spec {
 
   let order = 0
   const suggest = (like: string | null, main: string[]): Suggestion => {
-    const conf = rnd() < 0.72 ? '類似度: 高' : '類似度: 中'
-    const tags = main.map((tag, i) => ({ tag, conf: i === 0 ? conf : '類似度: 中', on: true }))
+    const conf = rnd() < 0.72 ? '類似度：高' : '類似度：中'
+    const tags = main.map((tag, i) => ({ tag, conf: i === 0 ? conf : '類似度：中', on: true }))
     for (const tag of (like && TAG_POOL[like]) || ['参考', '写真', '配色'])
       if (tags.length < 4 && !tags.some((x) => x.tag === tag))
-        tags.push({ tag, conf: tags.length < 3 ? '類似度: 中' : '類似度: 低', on: false })
+        tags.push({ tag, conf: tags.length < 3 ? '類似度：中' : '類似度：低', on: false })
     return { tags, order: order++ }
   }
   for (const [name, ext, moved, like, main] of LOOSE) {

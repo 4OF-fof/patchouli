@@ -17,8 +17,9 @@ pub fn thumbnail(src: &Path, edge: u32) -> Result<Vec<u8>, String> {
     };
     use windows::core::HSTRING;
 
-    let err =
-        |e: &dyn std::fmt::Display| format!("{}: OS のサムネイルを作れない: {e}", src.display());
+    let err = |e: &dyn std::fmt::Display| {
+        format!("{}: OS のサムネイル生成に失敗しました：{e}", src.display())
+    };
     // エクスプローラーと同じサムネイル。中身を読めない形式はアイコンになるので、サムネイルだけを頼む
     let (w, h, mut px) = unsafe {
         // 同じスレッドで何度呼んでもよい（2 回目からは S_FALSE）
@@ -67,7 +68,7 @@ pub fn thumbnail(src: &Path, edge: u32) -> Result<Vec<u8>, String> {
         ReleaseDC(None, dc);
         let _ = DeleteObject(HGDIOBJ(hbm.0));
         if lines == 0 || w <= 0 || h <= 0 {
-            return Err(err(&"絵を読み出せない"));
+            return Err(err(&"画像データを取得できません"));
         }
         (w as u32, h as u32, px)
     };
@@ -79,14 +80,15 @@ pub fn thumbnail(src: &Path, edge: u32) -> Result<Vec<u8>, String> {
             p[3] = 255;
         }
     }
-    let img = image::RgbaImage::from_raw(w, h, px).ok_or_else(|| err(&"大きさが合わない"))?;
+    let img =
+        image::RgbaImage::from_raw(w, h, px).ok_or_else(|| err(&"画像サイズが一致しません"))?;
     crate::thumb::encode(image::DynamicImage::ImageRgba8(img), edge).map_err(|e| err(&e))
 }
 
 #[cfg(not(windows))]
 pub fn thumbnail(src: &Path, _edge: u32) -> Result<Vec<u8>, String> {
     Err(format!(
-        "{}: この OS では、OS の機能でサムネイルを作れない",
+        "{}: この OS は OS のサムネイル生成に対応していません",
         src.display()
     ))
 }

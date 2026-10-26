@@ -68,7 +68,7 @@ export function ImportDialog(props: ImportDialogProps) {
                   <div class={styles.what}>
                     <b title={f.name}>{f.name}</b>
                     <small>
-                      {f.files} 件{f.subfolders > 0 && ` · サブフォルダ ${f.subfolders} 個`}
+                      {f.files} 件{f.subfolders > 0 && ` · サブフォルダ ${f.subfolders} 件`}
                     </small>
                   </div>
                   <Tabs

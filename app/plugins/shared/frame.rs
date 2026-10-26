@@ -39,7 +39,7 @@ fn ffmpeg(f: &File, at: f64, edge: u32) -> Result<Vec<u8>, String> {
     let out = host::run_command("ffmpeg", &args)?;
     if out.code != Some(0) || out.stdout.is_empty() {
         return Err(format!(
-            "FFmpeg でコマを取り出せない: {}",
+            "FFmpeg でのフレームの取り出しに失敗しました：{}",
             out.stderr.trim()
         ));
     }

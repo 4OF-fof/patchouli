@@ -1,7 +1,7 @@
 import styles from './DropZone.module.css'
 
 export interface DropZoneProps {
-  /** 例「12 個を取り込む」。 */
+  /** 例「12 件のファイルを取り込む」。 */
   title: string
   /** 例「離すと取り込み、自動分類の確認に回ります」。 */
   sub?: string

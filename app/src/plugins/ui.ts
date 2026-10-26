@@ -56,7 +56,7 @@ export const loadUi = (url: string): Promise<UiModule> => {
   let m = loaded.get(url)
   if (!m) {
     m = import(/* @vite-ignore */ url).then((mod: unknown) => {
-      if (!isModule(mod)) throw new Error('mount と thumbnail は関数で書き出す')
+      if (!isModule(mod)) throw new Error('mount と thumbnail が関数として export されていません')
       return mod
     })
     loaded.set(url, m)
@@ -71,7 +71,7 @@ export async function uiThumbnail(
   api: UiApi,
 ): Promise<{ png: Uint8Array; width?: number; height?: number } | null> {
   const mod = await loadUi(url)
-  if (!mod.thumbnail) throw new Error('サムネイルを作る関数（thumbnail）がない')
+  if (!mod.thumbnail) throw new Error('サムネイル生成の関数（thumbnail）が見つかりません')
   const t = await mod.thumbnail({ ...api, edge: EDGE })
   if (!t) return null
   const png =

@@ -49,19 +49,19 @@ fn number(b: &[u8], pos: &mut usize) -> Result<u32, String> {
     std::str::from_utf8(&b[start..*pos])
         .ok()
         .and_then(|s| s.parse().ok())
-        .ok_or_else(|| "PPM の頭を読めない".into())
+        .ok_or_else(|| "PPM のヘッダーの読み込みに失敗しました".into())
 }
 
 fn parse(b: &[u8]) -> Result<Rgb, String> {
     if !b.starts_with(b"P6") {
-        return Err("P6 の PPM でない".into());
+        return Err("P6 形式の PPM ではありません".into());
     }
     let mut pos = 2;
     let width = number(b, &mut pos)?;
     let height = number(b, &mut pos)?;
     let max = number(b, &mut pos)?;
     if width == 0 || height == 0 || max == 0 || max > 65535 {
-        return Err("PPM の大きさか最大値がおかしい".into());
+        return Err("PPM のサイズまたは最大値が正しくありません".into());
     }
     // 最大値のあとの空白 1 つまでが頭
     pos += 1;
@@ -69,7 +69,7 @@ fn parse(b: &[u8]) -> Result<Rgb, String> {
     let samples = width as usize * height as usize * 3;
     let body = b
         .get(pos..pos + samples * if wide { 2 } else { 1 })
-        .ok_or("PPM の中身が足りない")?;
+        .ok_or("PPM の画像データが不足しています")?;
     let scale = |v: u32| (v * 255 / max) as u8;
     let data = if wide {
         body.chunks_exact(2)
@@ -169,7 +169,7 @@ impl Guest for Ppm {
     }
 
     fn call(_format: String, _f: File, method: String, _args: String) -> Result<String, String> {
-        Err(format!("{method} はない"))
+        Err(format!("{method} には対応していません"))
     }
 }
 

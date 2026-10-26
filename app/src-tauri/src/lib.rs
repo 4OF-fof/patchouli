@@ -534,22 +534,24 @@ async fn put_thumbnail(
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), String> {
     let tauri::ipc::InvokeBody::Raw(png) = request.body() else {
-        return Err("本文が PNG でない".into());
+        return Err("リクエスト本文が PNG ではありません".into());
     };
     let head = |k: &str| request.headers().get(k).and_then(|v| v.to_str().ok());
-    let id = head("id").ok_or("id がない")?.to_owned();
+    let id = head("id").ok_or("ID が指定されていません")?.to_owned();
     let num = |k: &str| head(k).and_then(|v| v.parse::<u32>().ok());
     let original = num("width").zip(num("height"));
     let keys: Vec<String> = head("settings")
         .map(serde_json::from_str)
         .transpose()
-        .map_err(|e| format!("settings を読めない: {e}"))?
+        .map_err(|e| format!("settings の読み込みに失敗しました：{e}"))?
         .unwrap_or_default();
     let (src, out, cache, reads) = with_session(&cur, |s| {
         let mut reads = s.ui_reads.remove(&id).unwrap_or_default();
         let (path, ext) = s.lib.asset(&id)?;
         if s.plugins.handles(&ext, Part::Thumbnail) != Some(By::Ui) {
-            return Err(format!("{ext} のサムネイルは組み込み UI が作るものでない"));
+            return Err(format!(
+                "「.{ext}」のサムネイルは UI ファイルで生成する設定になっていません"
+            ));
         }
         // 値は、WASM が読んだものと同じ形にそろえるため、こちらで引く
         for k in keys {
@@ -557,7 +559,7 @@ async fn put_thumbnail(
             reads.insert(k, v);
         }
         let out = thumb::path_for(&s.thumbs, path, &reads)
-            .ok_or_else(|| format!("{} を読めない", path.display()))?;
+            .ok_or_else(|| format!("{} の読み込みに失敗しました", path.display()))?;
         Ok((path.to_owned(), out, s.lib.cache(), reads))
     })?;
     let size = thumb::place(png, original, &out).map_err(|e| format!("{}: {e}", src.display()))?;

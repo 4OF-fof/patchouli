@@ -114,7 +114,7 @@ export function App(props: AppProps) {
   // 書き込みは出した順に 1 つずつ流し、失敗したら知らせる
   let queue = Promise.resolve()
   const fail = (e: unknown) => {
-    setNotice(`保存できませんでした: ${e instanceof Error ? e.message : String(e)}`)
+    setNotice(`保存できませんでした：${e instanceof Error ? e.message : String(e)}`)
   }
   const persist = (job: () => Promise<void>) => {
     queue = queue.then(job).catch(fail)
@@ -165,7 +165,7 @@ export function App(props: AppProps) {
       try {
         if (await backend.chooseLibrary?.()) window.location.reload()
       } catch (e) {
-        setNotice(`ライブラリを切り替えられませんでした: ${e instanceof Error ? e.message : String(e)}`)
+        setNotice(`ライブラリを切り替えられませんでした：${e instanceof Error ? e.message : String(e)}`)
       }
     })
   const viewHost = backend.itemView && { view: backend.itemView, ui: backend.uiApi }
@@ -252,7 +252,7 @@ export function App(props: AppProps) {
       setLib(withAdded(lib(), r.items, r.projects))
       setNotice(importedNotice(r))
     } catch (e) {
-      setNotice(`取り込めませんでした: ${e instanceof Error ? e.message : String(e)}`)
+      setNotice(`取り込めませんでした：${e instanceof Error ? e.message : String(e)}`)
     }
   }
   const stopDrag =

@@ -55,7 +55,8 @@ pub fn front_values(front: Option<&str>) -> Result<Value, String> {
     match front {
         None => Ok(Value::Null),
         Some(f) if f.trim().is_empty() => Ok(Value::Null),
-        Some(f) => serde_yaml_ng::from_str(f).map_err(|e| format!("frontmatter を読めない: {e}")),
+        Some(f) => serde_yaml_ng::from_str(f)
+            .map_err(|e| format!("frontmatter の読み込みに失敗しました：{e}")),
     }
 }
 
