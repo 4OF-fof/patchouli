@@ -1,5 +1,8 @@
 .root {
-  --s: 28%;
+  --thumb-h: 100%;
+  --radius-thumb: 0;
+  --note-pad: 7px 9px;
+  --note-font: 11px;
   display: grid;
   grid-template-columns: 2fr 1fr 1fr;
   grid-template-rows: 1fr 1fr;
@@ -15,16 +18,6 @@
   grid-template-columns: 2fr 1fr;
   aspect-ratio: 2 / 1;
 }
-.root > span {
-  display: block;
-  background: linear-gradient(
-    155deg,
-    hsl(var(--h) var(--s) var(--tl)),
-    hsl(calc(var(--h) + 28) var(--s) calc(var(--tl) - 9%))
-  );
-  background-size: cover;
-  background-position: center;
-}
-.root > span:first-child {
+.tile:first-child {
   grid-row: span 2;
 }

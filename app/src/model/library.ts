@@ -1,6 +1,6 @@
 /* 画面が読む素材・ノート・プロジェクトの形と、そこから出す集計。読み書きは backend/ が受け持つ。 */
 import { BUILTIN_FORMATS } from '../plugins/builtin'
-import type { FormatInfo } from '../plugins/types'
+import type { Fit, FormatInfo } from '../plugins/types'
 
 /** ノート本文の 1 段。text の中の [[名前]] がリンクになる。 */
 export interface NoteBlock {
@@ -48,6 +48,8 @@ export interface Item {
   src?: string
   /** サムネイルの URL。作れる形式だけにあり、まだできていなければない。 */
   thumb?: string
+  /** サムネイルを決まった形の枠に入れるときの収め方（形式から決める）。 */
+  fit?: Fit
 }
 
 export type CoverPart =
@@ -372,7 +374,7 @@ export type CardSize = 'L' | 'M' | 'S' | 'X'
 
 /** Thumb に渡す値。ノートは大きさに合わせて本文を切る。 */
 export function thumbOf(it: Item, size: CardSize = 'M') {
-  if (!it.note) return { hue: it.hue, sat: it.sat, src: it.thumb }
+  if (!it.note) return { hue: it.hue, sat: it.sat, src: it.thumb, fit: it.fit }
   if (size === 'X') return { note: true, excerpt: it.name }
   const ex = plainText(it.blocks ?? [])
   const lim = size === 'L' ? 140 : size === 'S' ? 0 : 46
@@ -386,6 +388,10 @@ export function coverOf(lib: Library, p: Project, n: number) {
     .toSorted((a, b) => Number(a.note) - Number(b.note) || a.moved - b.moved)
     .slice(0, n)
 }
+
+/** 表紙の枠に渡す値。ノートの本文は切らずに渡し、枠に入るところまで出す。 */
+export const coverTile = (it: Item) =>
+  it.note ? { note: true, title: it.name, excerpt: plainText(it.blocks ?? []).slice(0, 400) } : thumbOf(it)
 
 /** まだ済んでいないやることのうち、いちばん近い期日。 */
 export function nextDue(p: Project): string | undefined {

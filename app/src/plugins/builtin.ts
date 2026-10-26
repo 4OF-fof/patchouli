@@ -6,14 +6,18 @@ import audio from '../../plugins/audio/plugin.json'
 import image from '../../plugins/image/plugin.json'
 import note from '../../plugins/note/plugin.json'
 import video from '../../plugins/video/plugin.json'
-import type { Cap, Deps, FormatInfo, Manifest, Part, PluginReport, PluginStatus, Problem } from './types'
+import type { Cap, Deps, Fit, FormatInfo, Manifest, Part, PluginReport, PluginStatus, Problem } from './types'
 
 /** JSON のままの plugin.json。 */
 export interface RawManifest extends Omit<Manifest, 'formats'> {
-  formats: Record<string, { extends?: string; label?: string; ratio?: number; parts?: string[]; ui?: string[] }>
+  formats: Record<
+    string,
+    { extends?: string; label?: string; ratio?: number; fit?: string; parts?: string[]; ui?: string[] }
+  >
 }
 
 const PARTS: readonly Part[] = ['thumbnail', 'view']
+const FITS: readonly Fit[] = ['center', 'top', 'contain']
 
 const partsOf = (raw?: string[]) => (raw ?? []).flatMap((p) => PARTS.find((x) => x === p) ?? [])
 
@@ -21,7 +25,10 @@ const partsOf = (raw?: string[]) => (raw ?? []).flatMap((p) => PARTS.find((x) =>
 export const readManifest = (raw: RawManifest): Manifest => ({
   ...raw,
   formats: Object.fromEntries(
-    Object.entries(raw.formats).map(([ext, d]) => [ext, { ...d, parts: partsOf(d.parts), ui: partsOf(d.ui) }]),
+    Object.entries(raw.formats).map(([ext, d]) => [
+      ext,
+      { ...d, fit: FITS.find((f) => f === d.fit), parts: partsOf(d.parts), ui: partsOf(d.ui) },
+    ]),
   ),
 })
 
@@ -57,6 +64,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
   for (const [ext, owner] of claim) {
     let label: string | undefined
     let ratio: number | undefined
+    let fit: Fit | undefined
     const parts = new Map<Part, Manifest | 'wasm'>()
     const seen = new Set<string>()
     let at: Manifest | undefined = owner
@@ -71,6 +79,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
       if (!d) break
       label ??= d.label
       ratio ??= d.ratio
+      fit ??= d.fit
       for (const p of d.parts ?? []) if (!parts.has(p)) parts.set(p, 'wasm')
       for (const p of d.ui ?? []) if (!parts.has(p) && at.ui) parts.set(p, at)
       if (!d.extends) break
@@ -84,6 +93,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
       ext,
       label: label ?? ext.toUpperCase(),
       ratio: ratio ?? DEFAULT_RATIO,
+      fit: fit ?? 'center',
       plugin: owner.id,
       thumbnail: parts.has('thumbnail'),
       ...(ui && ui !== 'wasm' && ui.ui && { uiThumbnail: { plugin: ui.id, module: ui.ui } }),

@@ -4,7 +4,7 @@ import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPil
 import { Mosaic } from '../../components/media/Mosaic/Mosaic'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
-import { type Library, type Project, coverOf, dueLabel, nextDue, toggled } from '../../model/library'
+import { type Library, type Project, coverOf, coverTile, dueLabel, nextDue, toggled } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './ProjectListScreen.module.css'
 
@@ -39,7 +39,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
     return (
       <div class={styles.wrap}>
         <button type="button" class={styles.card} data-big={big} onClick={() => props.onOpenProject?.(p.name)}>
-          <Mosaic tiles={coverOf(lib(), p, 5).map((i) => ({ hue: i.hue, sat: i.sat, src: i.thumb }))} />
+          <Mosaic tiles={coverOf(lib(), p, 5).map(coverTile)} />
           <span class={styles.nm}>{p.name}</span>
           {big && <span class={styles.ds}>{desc?.type === 'desc' ? desc.text : ' '}</span>}
           <span class={styles.pm}>

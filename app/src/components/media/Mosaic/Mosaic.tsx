@@ -1,13 +1,9 @@
 import { For } from 'solid-js'
+import { Thumb, type ThumbProps } from '../Thumb/Thumb'
 import styles from './Mosaic.module.css'
 
-export interface MosaicTile {
-  /** 色相 0–360。画像がないときの仮の絵に使う。 */
-  hue?: number
-  /** 彩度（%）。省略すると 28。 */
-  sat?: number
-  src?: string
-}
+/** 1 枠の絵。Thumb に渡す値で、大きさは枠が決める。 */
+export type MosaicTile = Omit<ThumbProps, 'height' | 'class'>
 
 export interface MosaicProps {
   /** 先頭が左の大きな枠、残りが右の小さな枠になる。count より多い分は使わない。 */
@@ -25,17 +21,7 @@ export function Mosaic(props: MosaicProps) {
       data-count={props.count ?? 5}
       style={{ '--mosaic-h': props.height ? `${props.height}px` : undefined }}
     >
-      <For each={props.tiles.slice(0, props.count ?? 5)}>
-        {(t) => (
-          <span
-            style={{
-              '--h': t.hue ?? 210,
-              '--s': t.sat != null ? `${t.sat}%` : undefined,
-              'background-image': t.src ? `url(${t.src})` : undefined,
-            }}
-          />
-        )}
-      </For>
+      <For each={props.tiles.slice(0, props.count ?? 5)}>{(t) => <Thumb {...t} class={styles.tile} />}</For>
     </span>
   )
 }

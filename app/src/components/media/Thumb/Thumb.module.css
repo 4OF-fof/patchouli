@@ -16,6 +16,14 @@
   background-size: cover;
   background-position: center;
 }
+.root[data-fit='top'] {
+  background-position: top;
+}
+.root[data-fit='contain'] {
+  background-color: var(--card);
+  background-size: contain;
+  background-repeat: no-repeat;
+}
 /* 置き場所の側で、--note-pad・--note-font・--note-ink で余白と文字を変えられる */
 .root[data-note='true'] {
   background: var(--card);
@@ -25,8 +33,12 @@
   line-height: 1.65;
   color: var(--note-ink, var(--muted));
 }
+/* 名前は切らずに折り返す。日本語は文節で、行の長さはそろえて切り、切れ目のない長い語だけはどこででも切る */
 .root[data-note='true'] b {
   display: block;
+  text-wrap: balance;
+  word-break: auto-phrase;
+  overflow-wrap: anywhere;
   margin-bottom: 3px;
   color: var(--ink);
   font-size: 13px;

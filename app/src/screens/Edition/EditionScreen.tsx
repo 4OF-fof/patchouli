@@ -7,7 +7,17 @@ import { Kbd } from '../../components/base/Kbd/Kbd'
 import { PinnedCard } from '../../components/media/PinnedCard/PinnedCard'
 import { SectionLabel } from '../../components/base/SectionLabel/SectionLabel'
 import { ThumbStrip } from '../../components/media/ThumbStrip/ThumbStrip'
-import { type CardSize, type Item, type Library, coverOf, hasTag, scoreOf, thumbOf, toggled } from '../../model/library'
+import {
+  type CardSize,
+  type Item,
+  type Library,
+  coverOf,
+  coverTile,
+  hasTag,
+  scoreOf,
+  thumbOf,
+  toggled,
+} from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './EditionScreen.module.css'
 
@@ -201,7 +211,7 @@ export function EditionScreen(props: EditionScreenProps) {
                       <PinnedCard
                         name={p().name}
                         meta={p().meta}
-                        tiles={p().tiles.map((i) => ({ hue: i.hue, sat: i.sat, src: i.thumb }))}
+                        tiles={p().tiles.map(coverTile)}
                         thumb={p().thumb && thumbOf(p().thumb!, 'L')}
                         onClick={() => p().open()}
                       />

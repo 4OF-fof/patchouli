@@ -1,6 +1,8 @@
 import type { Preview } from 'storybook-solidjs-vite'
 import '../src/index.css'
 
+document.documentElement.lang = 'ja'
+
 const preview: Preview = {
   globalTypes: {
     theme: {

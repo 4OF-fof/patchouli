@@ -1,3 +1,4 @@
+import type { Fit } from '../../../plugins/types'
 import styles from './Thumb.module.css'
 
 export interface ThumbProps {
@@ -8,6 +9,8 @@ export interface ThumbProps {
   /** 彩度（%）。省略すると 28。 */
   sat?: number
   src?: string
+  /** 枠と縦横比が合わない src の収め方。省略すると center。 */
+  fit?: Fit
   title?: string
   excerpt?: string
   height?: number
@@ -23,6 +26,7 @@ export function Thumb(props: ThumbProps) {
     <span
       class={`${styles.root} ${props.class ?? ''}`}
       data-note={!!props.note}
+      data-fit={props.src ? (props.fit ?? 'center') : undefined}
       data-selected={props.selected}
       style={{
         '--h': props.hue ?? 210,

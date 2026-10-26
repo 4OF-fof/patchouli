@@ -5,6 +5,6 @@
   "description": "テキストファイルを詳細で読む（組み込み UI の例）",
   "ui": "ui.js",
   "formats": {
-    "txt": { "label": "テキスト", "ratio": 0.8, "ui": ["thumbnail", "view"] }
+    "txt": { "label": "テキスト", "ratio": 0.8, "fit": "top", "ui": ["thumbnail", "view"] }
   }
 }

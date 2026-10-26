@@ -48,6 +48,21 @@ pub enum Part {
     Unknown,
 }
 
+/// サムネイルを決まった形の枠に入れるときの収め方。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Fit {
+    /// 真ん中を残して切り抜く。
+    Center,
+    /// 上の端を残して切り抜く。
+    Top,
+    /// 切り抜かずに収め、空いたところは地の色にする。
+    Contain,
+    /// この版のアプリが知らないもの。書いていないものとして扱う。
+    #[serde(other)]
+    Unknown,
+}
+
 /// 受け持ち方。wasm は宣言型、ui は組み込み UI。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -64,6 +79,8 @@ pub struct FormatDecl {
     pub label: Option<String>,
     /// 縦横比（幅 / 高さ）の既定。サムネイルができるまで使う。
     pub ratio: Option<f64>,
+    /// サムネイルの枠への収め方。書かなければ真ん中を切り抜く。
+    pub fit: Option<Fit>,
     /// WASM で受け持つもの。
     #[serde(default)]
     pub parts: Vec<Part>,
@@ -251,6 +268,7 @@ struct Resolved {
     owner: usize,
     label: String,
     ratio: f64,
+    fit: Fit,
     parts: HashMap<Part, Handler>,
 }
 
@@ -283,6 +301,7 @@ pub struct FormatInfo {
     pub ext: String,
     pub label: String,
     pub ratio: f64,
+    pub fit: Fit,
     /// 受け持つプラグインの id。
     pub plugin: String,
     pub thumbnail: bool,
@@ -453,6 +472,7 @@ impl Registry {
         for (ext, &owner) in &claim {
             let mut label = None;
             let mut ratio = None;
+            let mut fit = None;
             let mut parts = HashMap::new();
             let mut seen = HashSet::new();
             let (mut at, mut fmt) = (owner, ext.clone());
@@ -464,6 +484,7 @@ impl Registry {
                 let decl = &self.plugins[at].manifest.formats[&fmt];
                 label = label.or_else(|| decl.label.clone());
                 ratio = ratio.or(decl.ratio);
+                fit = fit.or(decl.fit.filter(|&f| f != Fit::Unknown));
                 let own = decl.parts.iter().map(|&p| (p, By::Wasm));
                 for (part, by) in own.chain(decl.ui.iter().map(|&p| (p, By::Ui))) {
                     if part != Part::Unknown {
@@ -497,6 +518,7 @@ impl Registry {
                     owner,
                     label: label.unwrap_or_else(|| ext.to_uppercase()),
                     ratio: ratio.unwrap_or(DEFAULT_RATIO),
+                    fit: fit.unwrap_or(Fit::Center),
                     parts,
                 },
             );
@@ -641,6 +663,7 @@ impl Registry {
                 ext: ext.clone(),
                 label: f.label.clone(),
                 ratio: f.ratio,
+                fit: f.fit,
                 plugin: id(f.owner),
                 thumbnail: f.parts.contains_key(&Part::Thumbnail),
                 ui_thumbnail: self.ui_of(ext, Part::Thumbnail),

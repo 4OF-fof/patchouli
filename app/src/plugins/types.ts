@@ -20,12 +20,17 @@ export interface Deps {
   plugins?: string[]
 }
 
+/** サムネイルを決まった形の枠に入れるときの収め方。center 真ん中を残して切り抜く / top 上の端を残して切り抜く / contain 切り抜かずに収める。 */
+export type Fit = 'center' | 'top' | 'contain'
+
 export interface FormatDecl {
   /** 引き継ぐ形式。自分で受け持たないものと、書いていない呼び名などはそちらのものを使う。 */
   extends?: string
   label?: string
   /** 縦横比（幅 / 高さ）の既定。サムネイルができるまで使う。 */
   ratio?: number
+  /** サムネイルの枠への収め方。書かなければ center。 */
+  fit?: Fit
   /** WASM で受け持つもの。 */
   parts?: Part[]
   /** 組み込み UI で受け持つもの。 */
@@ -58,6 +63,7 @@ export interface FormatInfo {
   ext: string
   label: string
   ratio: number
+  fit: Fit
   /** 受け持つプラグインの id。 */
   plugin: string
   /** サムネイルを作れる。 */
