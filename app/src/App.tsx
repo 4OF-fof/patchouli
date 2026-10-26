@@ -279,6 +279,7 @@ export function App(props: AppProps) {
           <Match when={view().s === 'edition'}>
             <EditionScreen
               lib={lib()}
+              location={props.location}
               pinnedProjects={pinnedProjects()}
               pinnedTags={pinnedTags()}
               onTogglePin={togglePin}

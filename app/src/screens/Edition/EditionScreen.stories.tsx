@@ -85,7 +85,7 @@ export const Empty: Story = {
     const lib = buildLibrary([], [], TODAY)
     return (
       <ScreenFrame>
-        <EditionScreen lib={lib} />
+        <EditionScreen lib={lib} location="D:\Library\Example" />
         <AppDock lib={lib} here="home" />
       </ScreenFrame>
     )

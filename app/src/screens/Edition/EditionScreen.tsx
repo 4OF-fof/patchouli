@@ -2,6 +2,7 @@ import { For, Index, Show, createMemo, createSignal, onCleanup, onMount } from '
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
+import { Icon } from '../../components/base/Icon/Icon'
 import { Kbd } from '../../components/base/Kbd/Kbd'
 import { PinnedCard } from '../../components/media/PinnedCard/PinnedCard'
 import { SectionLabel } from '../../components/base/SectionLabel/SectionLabel'
@@ -24,6 +25,8 @@ const MORE = 30
 
 export interface EditionScreenProps {
   lib: Library
+  /** 開いたライブラリの場所。空のときに出す。 */
+  location?: string
   pinnedProjects?: string[]
   pinnedTags?: string[]
   /** ピン留めを 2 行で切らず、全件を出している。 */
@@ -156,10 +159,18 @@ export function EditionScreen(props: EditionScreenProps) {
           when={lib().items.length}
           fallback={
             <div class={styles.empty}>
-              <div class={styles.emptyDrop}>ここに素材を落とすと、ホームに並ぶ</div>
-              <div class={styles.emptyHint}>
-                ノートから始めるなら<Kbd>Ctrl N</Kbd>
-              </div>
+              <Icon name="box" class={styles.emptyIcon} />
+              <b class={styles.emptyTitle}>まだ何もありません</b>
+              <p class={styles.emptyText}>
+                ファイルをこのウィンドウに落とすか、<Kbd class={styles.emptyKey}>Ctrl N</Kbd>でノートを書く
+              </p>
+              <Show when={props.location}>
+                {(l) => (
+                  <div class={styles.emptyPlace}>
+                    {l().split(/[\\/]/).findLast(Boolean)} · {l()}
+                  </div>
+                )}
+              </Show>
             </div>
           }
         >

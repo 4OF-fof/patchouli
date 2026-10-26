@@ -19,10 +19,14 @@
 }
 .sep {
   flex: none;
+  align-self: stretch;
   width: 1px;
-  height: 16px;
-  margin: 0 10px 0 14px;
+  margin: 9px 10px 9px 14px;
   background: var(--line-2);
+}
+/* 右の端は丸いぶん詰まって見えるので、✕ は縦線と右の端の真ん中より少し左に置く */
+.sep:has(+ .x) {
+  margin-right: 5px;
 }
 .root button {
   height: 26px;
@@ -38,9 +42,13 @@
   font-weight: 600;
 }
 .x {
+  flex: none;
   width: 26px;
-  margin-left: 4px;
+  margin-right: 3px;
   color: var(--muted);
+}
+.act + .x {
+  margin-left: 4px;
 }
 .x:hover {
   color: var(--ink);

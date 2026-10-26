@@ -1,6 +1,6 @@
 import { Match, Switch } from 'solid-js'
 
-export type IconName = 'chevron' | 'pin'
+export type IconName = 'box' | 'chevron' | 'pin'
 
 export interface IconProps {
   name: IconName
@@ -13,6 +13,15 @@ export function Icon(props: IconProps) {
   return (
     <svg viewBox="0 0 16 16" class={props.class} aria-hidden="true">
       <Switch>
+        <Match when={props.name === 'box'}>
+          <path
+            d="M2.5 4.8 8 2.2l5.5 2.6v6.4L8 13.8l-5.5-2.6zM2.5 4.8 8 7.4l5.5-2.6M8 7.4v6.4"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="0.8"
+            stroke-linejoin="round"
+          />
+        </Match>
         <Match when={props.name === 'chevron'}>
           <path
             d="M6 3.5 10.5 8 6 12.5"
