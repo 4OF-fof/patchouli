@@ -519,11 +519,13 @@ async fn plugin_read(
 }
 
 /// 素材 id の part を受け持つ組み込み UI から、そのプラグインの WASM の関数を呼ぶ。
+/// plugin があれば、依存先のそのプラグインのものを呼ぶ。
 #[tauri::command]
 async fn plugin_call(
     cur: State<'_, Current>,
     id: String,
     part: Part,
+    plugin: Option<String>,
     method: String,
     args: String,
 ) -> Result<String, String> {
@@ -532,7 +534,7 @@ async fn plugin_call(
         let path = path.to_owned();
         let (r, reads) = s
             .runner
-            .reading(|r| r.call_ui(&ext, part, &path, &method, &args));
+            .reading(|r| r.call_ui(&ext, part, &path, plugin.as_deref(), &method, &args));
         if part == Part::Thumbnail {
             s.ui_reads.entry(id).or_default().extend(reads);
         }

@@ -301,19 +301,29 @@ impl Runner {
     ) -> Option<Result<R, String>> {
         let (i, format) = self.reg.part(ext, part, by)?;
         let format = format.to_owned();
+        Some(self.run(i, &format, ext, path, f))
+    }
+
+    /// i 番目のプラグインで f を呼ぶ。
+    fn run<R>(
+        &mut self,
+        i: usize,
+        format: &str,
+        ext: &str,
+        path: &Path,
+        f: impl FnOnce(&Plugin, &mut Store<HostState>, &str, File) -> wasmtime::Result<R>,
+    ) -> Result<R, String> {
         let id = self.reg.plugins[i].manifest.id.clone();
         let size = std::fs::metadata(path).map_or(0, |m| m.len());
         if !self.instances.contains_key(&i) {
             let Some(pre) = self.reg.plugins[i].wasm.as_ref() else {
-                return Some(Err(format!(
-                    "プラグイン「{id}」の plugin.wasm が見つかりません"
-                )));
+                return Err(format!("プラグイン「{id}」の plugin.wasm が見つかりません"));
             };
             match pre.0.instantiate(&mut self.store) {
                 Ok(p) => {
                     self.instances.insert(i, p);
                 }
-                Err(e) => return Some(Err(format!("プラグイン「{id}」の起動に失敗しました：{e}"))),
+                Err(e) => return Err(format!("プラグイン「{id}」の起動に失敗しました：{e}")),
             }
         }
         let plugin = &self.instances[&i];
@@ -326,13 +336,13 @@ impl Runner {
             ext: ext.to_owned(),
             size,
         };
-        let r = f(plugin, &mut self.store, &format, file);
+        let r = f(plugin, &mut self.store, format, file);
         self.store.data_mut().files.clear();
-        Some(r.map_err(|e| {
+        r.map_err(|e| {
             // 止まったプラグインは作り直す
             self.instances.remove(&i);
             format!("{id}: {e}")
-        }))
+        })
     }
 
     /// f を呼び、そのあいだにプラグインが読んだ設定も返す。
@@ -385,17 +395,42 @@ impl Runner {
     }
 
     /// part を受け持つ組み込み UI から、そのプラグインの WASM の関数を呼ぶ。
+    /// target があれば、そのプラグインのものを呼ぶ。呼べるのは、使っていて版の下限を満たす依存先だけ。
+    /// format は組み込み UI のプラグインのものをそのまま渡す。
     pub fn call_ui(
         &mut self,
         ext: &str,
         part: Part,
         path: &Path,
+        target: Option<&str>,
         method: &str,
         args: &str,
     ) -> Result<String, String> {
-        self.call(ext, part, By::Ui, path, |p, s, fmt, file| {
+        let (i, format) = self
+            .reg
+            .part(ext, part, By::Ui)
+            .ok_or("UI ファイルで対応するプラグインがありません")?;
+        let format = format.to_owned();
+        let i = match target {
+            None => i,
+            Some(t) => self
+                .reg
+                .reachable(i)
+                .into_iter()
+                .map(|(q, _)| q)
+                .find(|&q| self.reg.plugins[q].manifest.id == t)
+                .ok_or_else(|| {
+                    format!("プラグイン「{t}」は依存先ではないか、有効でないため呼べません")
+                })?,
+        };
+        // 読んだ設定はサムネイルを受け持つプラグインのものとして残すので、依存先が読んだものは残さない
+        let reads = target.and_then(|_| self.store.data_mut().reads.take());
+        let r = self.run(i, &format, ext, path, |p, s, fmt, file| {
             p.call_call(s, fmt, &file, method, args)
-        })
-        .ok_or("UI ファイルで対応するプラグインがありません")??
+        });
+        if reads.is_some() {
+            self.store.data_mut().reads = reads;
+        }
+        r?
     }
 }

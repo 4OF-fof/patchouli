@@ -22,6 +22,11 @@ export interface UiApi {
   read(offset: number, length: number): Promise<ArrayBuffer>
   /** 自分の WASM の call を呼ぶ。method と args の中身はプラグインが決める。 */
   call(method: string, args: string): Promise<string>
+  /**
+   * 依存先（plugin.json の required / optional の plugins）のプラグイン id の WASM を呼ぶ窓口。
+   * 呼べるのは、有効で版の下限を満たすものだけ。そうでなければ call が失敗する。
+   */
+  plugin(id: string): { call(method: string, args: string): Promise<string> }
   /** 自分の設定のいまの値。 */
   settings(): Promise<Record<string, SettingValue>>
   setSetting(key: string, value: SettingValue): Promise<void>

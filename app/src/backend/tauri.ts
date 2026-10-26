@@ -99,6 +99,9 @@ export function tauriBackend(): Backend {
     item,
     read: (offset, length) => invoke<ArrayBuffer>('plugin_read', { id: item.id, offset, length }),
     call: (method, args) => invoke<string>('plugin_call', { id: item.id, part, method, args }),
+    plugin: (dep) => ({
+      call: (method, args) => invoke<string>('plugin_call', { id: item.id, part, plugin: dep, method, args }),
+    }),
     settings: () => invoke('plugin_settings', { plugin }),
     setSetting: (key, value) => setSetting(plugin, key, value),
     getData: async (key) => (await invoke<string | null>('plugin_data', { plugin, key })) ?? undefined,
