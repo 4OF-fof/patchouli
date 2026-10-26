@@ -720,8 +720,13 @@ fn remove_plugins(plugins: Vec<(tidy::Unused, PathBuf)>) -> Result<(), String> {
     Ok(())
 }
 
+/// 保存する。文章がファイルの外での変更と食い違って書かなかったときは、読み直した項目を返す。
 #[tauri::command]
-async fn save_item(cur: State<'_, Current>, id: String, patch: ItemPatch) -> Result<(), String> {
+async fn save_item(
+    cur: State<'_, Current>,
+    id: String,
+    patch: ItemPatch,
+) -> Result<Option<StoredItem>, String> {
     with(&cur, |l| l.save_item(&id, &patch))
 }
 

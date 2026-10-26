@@ -19,7 +19,9 @@ export function sampleBackend(): Backend {
     async open() {
       return { lib, pinnedProjects: PINNED_PROJECTS, pinnedTags: PINNED_TAGS, problems: [] }
     },
-    async saveItem() {},
+    async saveItem() {
+      return undefined
+    },
     async saveState() {},
     async createNote(name, folder) {
       return emptyNote(`new-${++n}`, name, folder)

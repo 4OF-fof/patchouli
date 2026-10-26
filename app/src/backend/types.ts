@@ -16,11 +16,18 @@ export interface LibraryState {
   tagCovers: Record<string, TagCoverPart[]>
 }
 
+/** 一覧（タグ・別名）の変え方。保存するときに、ファイルのいまの中身に当てる。 */
+export interface ListDiff {
+  add?: string[]
+  remove?: string[]
+}
+
 /** 項目の保存する属性。書いたものだけを変える。 */
 export interface ItemPatch {
-  tags?: string[]
-  aliases?: string[]
+  tags?: ListDiff
+  aliases?: ListDiff
   rating?: number
+  /** memo と blocks は、最後に読んだあとにファイルが外で変わっていれば書かない（saveItem）。 */
   memo?: string
   blocks?: NoteBlock[]
 }
@@ -132,7 +139,8 @@ export interface TidyActions {
 
 export interface Backend {
   open(): Promise<Opened>
-  saveItem(id: string, patch: ItemPatch): Promise<void>
+  /** 文章がファイルの外での変更と食い違って書かなかったときは、読み直した項目を返す。 */
+  saveItem(id: string, patch: ItemPatch): Promise<Item | undefined>
   saveState(state: LibraryState): Promise<void>
   /** folder が null のときは、どこにも入れない。 */
   createNote(name: string, folder: string | null): Promise<Item>

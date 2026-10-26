@@ -1,5 +1,5 @@
 import { Match, Show, Switch, createSignal, onCleanup, onMount } from 'solid-js'
-import { type Backend, type Dropped, type Imported, type LibraryState, sampleBackend } from './backend'
+import { type Backend, type Dropped, type Imported, type ItemPatch, type LibraryState, sampleBackend } from './backend'
 import { DropZone } from './components/overlay/DropZone/DropZone'
 import { ImportDialog } from './components/overlay/ImportDialog/ImportDialog'
 import { Toast } from './components/overlay/Toast/Toast'
@@ -129,6 +129,14 @@ export function App(props: AppProps) {
     const s = state()
     persist(() => backend.saveState(s))
   }
+  // 文章が外で変わっていて書かなかったときは、読み直したものに替える
+  const saveItem = (id: string, patch: ItemPatch) =>
+    persist(async () => {
+      const it = await backend.saveItem(id, patch)
+      if (!it) return
+      setLib(withChanged(lib(), [it], []))
+      setNotice('外で変更されたので読み込み直しました')
+    })
 
   const createProject = async () => {
     const name = newProjectName(lib())
@@ -155,7 +163,12 @@ export function App(props: AppProps) {
     setLib(after)
     setPinnedTags([...new Set(pinnedTags().map(re))])
     setStack(stack().map((v) => (v.s === 'tag' ? { ...v, tag: re(v.tag) } : v)))
-    for (const it of retaggedItems(before, after)) persist(() => backend.saveItem(it.id, { tags: it.tags }))
+    for (const it of retaggedItems(before, after)) {
+      const old = before.byId.get(it.id)?.tags ?? []
+      saveItem(it.id, {
+        tags: { add: it.tags.filter((t) => !old.includes(t)), remove: old.filter((t) => !it.tags.includes(t)) },
+      })
+    }
     saveState()
   }
   // ライブラリを替えたら、画面の状態ごと開き直す

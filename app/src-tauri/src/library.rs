@@ -144,15 +144,42 @@ impl Changes {
     }
 }
 
+/// 一覧（タグ・別名）の変え方。保存するときに、ファイルのいまの中身に当てる。
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct ListDiff {
+    pub add: Vec<String>,
+    pub remove: Vec<String>,
+}
+
+impl ListDiff {
+    fn apply(&self, mut list: Vec<String>) -> Vec<String> {
+        list.retain(|x| !self.remove.contains(x));
+        for x in &self.add {
+            if !list.contains(x) {
+                list.push(x.clone());
+            }
+        }
+        list
+    }
+}
+
 /// 保存する属性。書いたものだけを変える。
+/// 文章（memo・blocks）は、アプリが最後に読んだあとにファイルが変わっていれば書かない（Library::save_item）。
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ItemPatch {
-    pub tags: Option<Vec<String>>,
-    pub aliases: Option<Vec<String>>,
+    pub tags: Option<ListDiff>,
+    pub aliases: Option<ListDiff>,
     pub rating: Option<u8>,
     pub memo: Option<String>,
     pub blocks: Option<Vec<Block>>,
+}
+
+impl ItemPatch {
+    fn has_text(&self) -> bool {
+        self.memo.is_some() || self.blocks.is_some()
+    }
 }
 
 struct Entry {
@@ -594,31 +621,26 @@ impl Library {
         })
     }
 
-    /// 書いた項目 id を読み直して、写しに入れる。
-    fn refresh(&mut self, id: &str) {
-        let Ok(e) = self.entry(id) else {
-            return;
-        };
+    /// 項目 id を読み直して写しに入れ、読み直したものを返す。
+    fn refresh(&mut self, id: &str) -> Option<StoredItem> {
+        let e = self.entry(id).ok()?;
         let (path, note) = (e.path.clone(), e.note);
         self.mark(&path);
-        let Some(mut row) = self.cache.row(&path) else {
-            return;
-        };
+        let mut row = self.cache.row(&path)?;
         let read = if note {
             read_note(&path)
         } else {
             read_asset(&path)
         };
-        let Ok(r) = read else {
-            return;
-        };
+        let r = read.ok()?;
         let it = &mut row.item;
         (it.tags, it.rating, it.memo, it.aliases, it.blocks) =
             (r.tags, r.rating, r.memo, r.aliases, r.blocks);
         it.mtime = mtime_of(&path);
         row.saved = true;
         row.sig = Sig::of(&path, note);
-        self.cache.update(&[row], &[]);
+        self.cache.update(std::slice::from_ref(&row), &[]);
+        Some(row.item)
     }
 
     /// 取り込んだり作ったりした項目を写しに入れる。
@@ -648,24 +670,45 @@ impl Library {
         Ok((&e.path, ext))
     }
 
-    pub fn save_item(&mut self, id: &str, patch: &ItemPatch) -> Result<(), String> {
+    /// 保存する。文章を書こうとしたときに、アプリが最後に読んだあとでファイルが外で変わっていたら、
+    /// 文章は書かずに読み直し、読み直したものを返す（ほかの属性は書く）。
+    pub fn save_item(&mut self, id: &str, patch: &ItemPatch) -> Result<Option<StoredItem>, String> {
         let e = self.entry(id)?;
-        if e.note {
-            save_note(&e.path, id, patch)?
+        let (path, note) = (e.path.clone(), e.note);
+        let changed = patch.has_text()
+            && self
+                .cache
+                .row(&path)
+                .is_some_and(|r| r.sig != Sig::of(&path, note));
+        let stripped;
+        let patch = if changed {
+            stripped = ItemPatch {
+                tags: patch.tags.clone(),
+                aliases: patch.aliases.clone(),
+                rating: patch.rating,
+                memo: None,
+                blocks: None,
+            };
+            &stripped
         } else {
-            save_asset(&e.path, id, patch)?
+            patch
+        };
+        if note {
+            save_note(&path, id, patch)?
+        } else {
+            save_asset(&path, id, patch)?
         }
         if let Some(e) = self.entries.get_mut(id) {
             e.saved = true;
         }
-        self.refresh(id);
-        Ok(())
+        let item = self.refresh(id);
+        Ok(item.filter(|_| changed))
     }
 
     /// ID がまだファイルにないときだけ書く。
     fn ensure_saved(&mut self, id: &str) -> Result<(), String> {
         match self.entries.get(id) {
-            Some(e) if !e.saved => self.save_item(id, &ItemPatch::default()),
+            Some(e) if !e.saved => self.save_item(id, &ItemPatch::default()).map(drop),
             _ => Ok(()),
         }
     }
@@ -878,11 +921,14 @@ fn save_note(path: &Path, id: &str, patch: &ItemPatch) -> Result<(), String> {
     let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let parts = note::split(&text);
     let mut front = note::set_key(parts.front.unwrap_or_default(), ID_KEY, &json!(id));
-    if let Some(t) = &patch.tags {
-        front = note::set_key(&front, "tags", &json!(t));
-    }
-    if let Some(a) = &patch.aliases {
-        front = note::set_key(&front, "aliases", &json!(a));
+    let lists = [("tags", &patch.tags), ("aliases", &patch.aliases)];
+    if lists.iter().any(|(_, d)| d.is_some()) {
+        let v = note::front_values(parts.front)?;
+        for (key, diff) in lists {
+            if let Some(d) = diff {
+                front = note::set_key(&front, key, &json!(d.apply(note::list_of(&v, key))));
+            }
+        }
     }
     let body = match &patch.blocks {
         Some(b) => note::body_of(b),
@@ -896,8 +942,9 @@ fn save_asset(path: &Path, id: &str, patch: &ItemPatch) -> Result<(), String> {
     let meta = meta_path(path);
     let mut m = read_json(&meta)?.unwrap_or_default();
     m.insert(ID_KEY.into(), json!(id));
-    if let Some(t) = &patch.tags {
-        m.insert("tags".into(), json!(t));
+    if let Some(d) = &patch.tags {
+        let tags = d.apply(strings(m.get("tags")));
+        m.insert("tags".into(), json!(tags));
     }
     if let Some(r) = patch.rating {
         m.insert("rating".into(), json!(r.min(5)));
