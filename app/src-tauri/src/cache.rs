@@ -72,7 +72,7 @@ pub fn path_for(cache: &Path, root: &Path) -> PathBuf {
 }
 
 /// 開かなくなってからこれだけ経ったライブラリの写しとサムネイルは消す。
-const KEEP: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+const KEEP: Duration = Duration::from_secs(180 * 24 * 60 * 60);
 
 /// 写しの更新日時を今にする。開いた日の目印にする（sweep が見る）。
 pub fn touch(path: &Path) {

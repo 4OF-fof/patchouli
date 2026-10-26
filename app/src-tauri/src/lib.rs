@@ -653,25 +653,27 @@ async fn forget_library(app: tauri::AppHandle, path: PathBuf) -> Result<(), Stri
     settings::forget(&app, &path)
 }
 
+/// 開いているライブラリの分のキャッシュの量。
 #[tauri::command]
-async fn cache_usage(app: tauri::AppHandle) -> Result<tidy::Usage, String> {
-    Ok(tidy::usage(&cache_dir(&app)?))
+async fn cache_usage(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<tidy::Usage, String> {
+    Ok(tidy::usage(&cache_dir(&app)?, &root_of(&cur)?))
 }
 
-/// kind のキャッシュを、すべてのライブラリの分消す。all は未使用のプラグインも消す。
-/// 開いているライブラリも閉じるので、画面は開き直す。
+/// kind のキャッシュを、開いているライブラリの分だけ消す。all は未使用のプラグインも消す。
+/// 開いているライブラリを閉じるので、画面は開き直す。
 #[tauri::command]
 async fn clear_cache(
     app: tauri::AppHandle,
     cur: State<'_, Current>,
     kind: tidy::Kind,
 ) -> Result<(), String> {
+    let root = root_of(&cur)?;
     let unused = match kind {
         tidy::Kind::All => unused_plugins_of(&app, &cur)?,
         _ => Vec::new(),
     };
     drop(cur.0.lock().map_err(|e| e.to_string())?.take());
-    tidy::clear(&cache_dir(&app)?, kind)?;
+    tidy::clear(&cache_dir(&app)?, &root, kind)?;
     remove_plugins(unused)
 }
 

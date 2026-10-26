@@ -122,8 +122,9 @@ export interface UnusedPlugin {
 
 /** キャッシュと使っていないプラグインの片付け。 */
 export interface TidyActions {
+  /** 開いているライブラリの分。 */
   usage(): Promise<CacheUsage>
-  /** すべてのライブラリの分を消す。開いているライブラリも閉じるので、open からやり直す。 */
+  /** 開いているライブラリの分を消す。そのライブラリを閉じるので、open からやり直す。 */
   clear(kind: CacheKind): Promise<void>
   unusedPlugins(): Promise<UnusedPlugin[]>
   removeUnusedPlugins(): Promise<void>

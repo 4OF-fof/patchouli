@@ -8,10 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::plugin::Manifest;
 
-/// キャッシュの置き場（アプリのキャッシュフォルダの下）。
-const LIBRARY: &str = "library";
-const THUMBS: &str = "thumbs";
-
 /// 消すキャッシュの種類。library はライブラリの写し。
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -50,26 +46,50 @@ fn size_of(path: &Path) -> u64 {
     })
 }
 
-pub fn usage(cache: &Path) -> Usage {
+/// ライブラリ root の写しのファイル（-wal なども）。
+fn library_files(cache: &Path, root: &Path) -> Vec<PathBuf> {
+    let main = crate::cache::path_for(cache, root);
+    let (Some(dir), Some(stem)) = (main.parent(), main.file_stem().and_then(|s| s.to_str())) else {
+        return Vec::new();
+    };
+    let Ok(rd) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    rd.filter_map(Result::ok)
+        .filter(|e| e.file_name().to_str().is_some_and(|n| n.starts_with(stem)))
+        .map(|e| e.path())
+        .collect()
+}
+
+/// ライブラリ root の分の使っている量。
+pub fn usage(cache: &Path, root: &Path) -> Usage {
     Usage {
-        library: size_of(&cache.join(LIBRARY)),
-        thumbs: size_of(&cache.join(THUMBS)),
+        library: library_files(cache, root).iter().map(|p| size_of(p)).sum(),
+        thumbs: size_of(&crate::thumb::dir_for(cache, root)),
     }
 }
 
-/// kind のキャッシュをすべてのライブラリの分消す。開いているライブラリの写しは、閉じてから呼ぶ。
-pub fn clear(cache: &Path, kind: Kind) -> Result<(), String> {
-    let dirs: &[&str] = match kind {
-        Kind::Library => &[LIBRARY],
-        Kind::Thumbs => &[THUMBS],
-        Kind::All => &[LIBRARY, THUMBS],
+fn remove(p: &Path) -> Result<(), String> {
+    let r = if p.is_dir() {
+        fs::remove_dir_all(p)
+    } else {
+        fs::remove_file(p)
     };
-    for d in dirs {
-        let p = cache.join(d);
-        match fs::remove_dir_all(&p) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-            Err(e) => return Err(format!("{}: {e}", p.display())),
+    match r {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(format!("{}: {e}", p.display())),
+    }
+}
+
+/// ライブラリ root の分の kind のキャッシュを消す。写しは、ライブラリを閉じてから呼ぶ。
+pub fn clear(cache: &Path, root: &Path, kind: Kind) -> Result<(), String> {
+    if matches!(kind, Kind::Thumbs | Kind::All) {
+        remove(&crate::thumb::dir_for(cache, root))?;
+    }
+    if matches!(kind, Kind::Library | Kind::All) {
+        for p in library_files(cache, root) {
+            remove(&p)?;
         }
     }
     Ok(())
