@@ -45,11 +45,16 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 const errors = (p: PluginStatus) => p.problems.filter((x) => x.level === 'error').length
 
-/** p が k に書いたもの。必須のものを先に並べる。 */
-const needs = (p: PluginStatus, k: keyof Deps) => [
-  ...(p.required[k] ?? []).map((name) => ({ name, need: '必須' })),
-  ...(p.optional[k] ?? []).map((name) => ({ name, need: '任意' })),
+/** p が k に書いたもの。必須のものを先に並べる。commands には、依存先を通して動かせるもの（from）も足す。 */
+const needs = (p: PluginStatus, k: keyof Deps): { name: string; need: string; min?: string; from?: string }[] => [
+  ...Object.entries(p.required[k] ?? {}).map(([name, d]) => ({ name, need: '必須', min: d.min })),
+  ...Object.entries(p.optional[k] ?? {}).map(([name, d]) => ({ name, need: '任意', min: d.min })),
+  ...(k === 'commands' ? p.via.map((v) => ({ name: v.name, need: v.required ? '必須' : '任意', from: v.plugin })) : []),
 ]
+
+/** 「必須」「任意」に、版の下限と、どの依存先を通すかを添える。 */
+const need = (d: { need: string; min?: string; from?: string }) =>
+  [d.need, d.min && `${d.min} 以上`, d.from && `${d.from} から`].filter(Boolean).join('・')
 
 /** p ができること。full は、本体の画面で隔離されずに動くもの。 */
 const perms = (p: PluginStatus) => [
@@ -58,9 +63,7 @@ const perms = (p: PluginStatus) => [
     ? [
         {
           label: '外部ツールの実行',
-          text: needs(p, 'commands')
-            .map((n) => n.name)
-            .join(', '),
+          text: [...new Set(needs(p, 'commands').map((n) => n.name))].join(', '),
           full: false,
         },
       ]
@@ -277,7 +280,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                             </button>
                           )}
                         </Show>
-                        <span class={styles.need}>{d.need}</span>
+                        <span class={styles.need}>{need(d)}</span>
                         <span class={styles.state} data-ok={ok()}>
                           {ok() ? '有効' : q()?.state === 'blocked' ? '無効' : '未導入'}
                         </span>
@@ -317,7 +320,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                             {d.name}
                           </button>
                         </Show>
-                        <span class={styles.need}>{d.need}</span>
+                        <span class={styles.need}>{need(d)}</span>
                         <Show when={props.report?.commands} fallback={<span class={styles.state}>未確認</span>}>
                           <Show
                             when={c()?.path}
@@ -329,7 +332,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                           >
                             {(path) => (
                               <span class={styles.path} title={path()}>
-                                {path()}
+                                {c()?.version ? `${c()?.version}　${path()}` : path()}
                               </span>
                             )}
                           </Show>

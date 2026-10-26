@@ -34,6 +34,7 @@ wasmtime-wasi = { version = "50", default-features = false, features = ["p2"] }
 zip = { version = "9.1.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 rusqlite = { version = "0.41.0", features = ["bundled"] }
 sha2 = "0.11.1"
+regex = { version = "1.13.1", default-features = false, features = ["std", "unicode-perl"] }
 
 # 開発中も画像の読み込みと縮小が遅くならないよう、依存クレートは最適化してビルドする
 [profile.dev.package."*"]

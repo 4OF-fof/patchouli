@@ -30,12 +30,19 @@ pub use runtime::{Runner, ViewOut, read};
 /// 求めるもの。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Deps {
-    /// 手元のコマンドの名前（PATH から探す）。
+    /// 手元のコマンド（名前 → 版の下限など）。PATH から探す。
     #[serde(default)]
-    pub commands: Vec<String>,
-    /// ほかのプラグインの id。
+    pub commands: BTreeMap<String, commands::CommandDep>,
+    /// ほかのプラグイン（id → 版の下限）。
     #[serde(default)]
-    pub plugins: Vec<String>,
+    pub plugins: BTreeMap<String, PluginDep>,
+}
+
+/// 求めるプラグイン 1 つ。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct PluginDep {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min: Option<String>,
 }
 
 /// サムネイルを作るときにプラグインが読んだ設定（key → 値）。値が変わったら作り直す。
@@ -123,13 +130,12 @@ impl Manifest {
         serde_json::from_str(&text).map_err(|e| format!("{}: {e}", p.display()))
     }
 
-    /// required か optional に書いたコマンドか。
-    pub fn declares(&self, command: &str) -> bool {
+    /// required か optional に書いたコマンド。書いていなければ None。
+    pub fn declares(&self, command: &str) -> Option<&commands::CommandDep> {
         self.required
             .commands
-            .iter()
-            .chain(&self.optional.commands)
-            .any(|c| c == command)
+            .get(command)
+            .or_else(|| self.optional.commands.get(command))
     }
 
     fn wants_wasm(&self) -> bool {
@@ -268,21 +274,28 @@ struct Loaded {
     blocked: bool,
 }
 
+/// プラグイン id（いまの版は version）が dep を満たしているか。使っていなければ version は None。
+fn plugin_met(version: Option<&str>, dep: &PluginDep) -> bool {
+    version.is_some_and(|v| !dep.min.as_deref().is_some_and(|m| commands::older(v, m)))
+}
+
 /// 必須の依存が足りないものを止める。止めたものを必須にしているものも止める。
 fn block_unmet(plugins: &mut [Loaded]) {
     loop {
-        let active: HashSet<String> = plugins
+        let active: HashMap<String, String> = plugins
             .iter()
             .filter(|p| !p.blocked)
-            .map(|p| p.manifest.id.clone())
+            .map(|p| (p.manifest.id.clone(), p.manifest.version.clone()))
             .collect();
         let mut changed = false;
         for p in plugins.iter_mut().filter(|p| !p.blocked) {
             let r = &p.manifest.required;
             if r.commands
                 .iter()
-                .any(|c| !commands::valid(c) || commands::find(c).is_none())
-                || r.plugins.iter().any(|id| !active.contains(id))
+                .any(|(c, d)| !commands::valid(c) || commands::check(c, d).is_err())
+                || r.plugins
+                    .iter()
+                    .any(|(id, d)| !plugin_met(active.get(id).map(String::as_str), d))
             {
                 p.blocked = true;
                 changed = true;
@@ -370,6 +383,8 @@ pub struct PluginStatus {
     pub state: State,
     pub required: Deps,
     pub optional: Deps,
+    /// 依存先を通して動かせるコマンド。
+    pub via: Vec<Via>,
     /// 受け持つもの。
     pub caps: Vec<Cap>,
     /// 受け持っている形式。
@@ -385,6 +400,18 @@ pub struct CommandStatus {
     /// 見つけた場所。見つからなければない。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<PathBuf>,
+    /// 見つけたものの版。版の取り方を書いたプラグインがなければない。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+}
+
+/// 依存先のプラグインを通して動かせるコマンド。required は、その依存先が必須か。
+#[derive(Debug, Clone, Serialize)]
+pub struct Via {
+    pub name: String,
+    /// 依存先のプラグインの名前。
+    pub plugin: String,
+    pub required: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -459,6 +486,7 @@ impl Registry {
                     state: State::Missing,
                     required: Deps::default(),
                     optional: Deps::default(),
+                    via: Vec::new(),
                     caps: Vec::new(),
                     formats: Vec::new(),
                     settings: Vec::new(),
@@ -772,33 +800,54 @@ impl Registry {
         out
     }
 
-    pub fn report(&self) -> PluginReport {
-        let mut names: Vec<&String> = self
-            .plugins
-            .iter()
-            .flat_map(|p| {
-                p.manifest
-                    .required
-                    .commands
-                    .iter()
-                    .chain(&p.manifest.optional.commands)
-            })
-            .filter(|c| commands::valid(c))
-            .collect();
-        names.sort();
-        names.dedup();
-        let commands: Vec<CommandStatus> = names
+    /// i 番目のプラグインの組み込み UI から呼べる、依存先のプラグインの位置と、その依存先が必須か。
+    /// 使っていて版の下限を満たすものだけ。
+    fn reachable(&self, i: usize) -> Vec<(usize, bool)> {
+        let m = &self.plugins[i].manifest;
+        [(&m.required, true), (&m.optional, false)]
             .into_iter()
-            .map(|name| CommandStatus {
-                name: name.clone(),
-                path: commands::find(name),
+            .flat_map(|(deps, required)| deps.plugins.iter().map(move |d| (d, required)))
+            .filter_map(|((id, d), required)| {
+                let q = self
+                    .plugins
+                    .iter()
+                    .position(|q| q.manifest.id == *id && !q.blocked)?;
+                plugin_met(Some(&self.plugins[q].manifest.version), d).then_some((q, required))
+            })
+            .collect()
+    }
+
+    pub fn report(&self) -> PluginReport {
+        // コマンドごとに、どれかのプラグインが書いた版の取り方で版も調べる
+        let mut probes: BTreeMap<&String, Option<&commands::Probe>> = BTreeMap::new();
+        for p in &self.plugins {
+            let m = &p.manifest;
+            for (c, d) in m.required.commands.iter().chain(&m.optional.commands) {
+                if commands::valid(c) {
+                    let e = probes.entry(c).or_default();
+                    *e = e.or(d.version.as_ref());
+                }
+            }
+        }
+        let commands: Vec<CommandStatus> = probes
+            .into_iter()
+            .map(|(name, probe)| {
+                let path = commands::find(name);
+                let version = path
+                    .as_deref()
+                    .zip(probe)
+                    .and_then(|(p, probe)| commands::version_of(p, probe).ok());
+                CommandStatus {
+                    name: name.clone(),
+                    path,
+                    version,
+                }
             })
             .collect();
-        let found = |c: &str| commands.iter().any(|s| s.name == c && s.path.is_some());
         let active = |id: &str| {
             self.plugins
                 .iter()
-                .any(|p| p.manifest.id == id && !p.blocked)
+                .find(|p| p.manifest.id == id && !p.blocked)
         };
         let mut plugins: Vec<PluginStatus> = self
             .plugins
@@ -808,36 +857,79 @@ impl Registry {
                 let m = &p.manifest;
                 let mut problems = p.problems.clone();
                 for (deps, required) in [(&m.required, true), (&m.optional, false)] {
-                    for c in &deps.commands {
+                    let level = if required { Level::Error } else { Level::Warning };
+                    let limits = if required {
+                        "利用できません"
+                    } else {
+                        "一部の機能を利用できません"
+                    };
+                    for (c, d) in &deps.commands {
+                        let min = d.min.as_deref().unwrap_or_default();
                         let text = if !commands::valid(c) {
                             format!("外部ツール名「{c}」の形式が正しくありません")
-                        } else if found(c) {
-                            continue;
-                        } else if required {
-                            format!("必須の外部ツール「{c}」が見つかりません")
                         } else {
-                            format!("外部ツール「{c}」が見つからないため、一部の機能を利用できません")
+                            match commands::check(c, d) {
+                                Ok(_) => continue,
+                                Err(commands::Unmet::Missing) if required => {
+                                    format!("必須の外部ツール「{c}」が見つかりません")
+                                }
+                                Err(commands::Unmet::Missing) => format!(
+                                    "外部ツール「{c}」が見つからないため、一部の機能を利用できません"
+                                ),
+                                Err(commands::Unmet::Old(v)) => format!(
+                                    "外部ツール「{c}」のバージョン（{v}）が古いため、{limits}（{min} 以上が必要です）"
+                                ),
+                                Err(commands::Unmet::Unknown(e)) => {
+                                    format!("外部ツール「{c}」のバージョンを確認できません：{e}")
+                                }
+                            }
                         };
                         problems.push(Problem {
-                            level: if required { Level::Error } else { Level::Warning },
+                            level: level.clone(),
                             text,
                         });
                     }
-                    for id in deps.plugins.iter().filter(|id| !active(id)) {
-                        problems.push(if required {
-                            error(format!(
-                                "必須プラグイン「{id}」が有効ではありません"
-                            ))
-                        } else {
-                            Problem {
-                                level: Level::Warning,
-                                text: format!(
-                                    "プラグイン「{id}」が有効でないため、一部の機能を利用できません"
-                                ),
-                            }
+                    for (id, d) in &deps.plugins {
+                        let now = active(id).map(|q| q.manifest.version.as_str());
+                        if plugin_met(now, d) {
+                            continue;
+                        }
+                        let min = d.min.as_deref().unwrap_or_default();
+                        let text = match now {
+                            Some(v) => format!(
+                                "プラグイン「{id}」のバージョン（{v}）が古いため、{limits}（{min} 以上が必要です）"
+                            ),
+                            None if required => format!("必須プラグイン「{id}」が有効ではありません"),
+                            None => format!(
+                                "プラグイン「{id}」が有効でないため、一部の機能を利用できません"
+                            ),
+                        };
+                        problems.push(Problem {
+                            level: level.clone(),
+                            text,
                         });
                     }
                 }
+                // 組み込み UI は依存先の関数を呼べるので、依存先が動かせるコマンドも見せる
+                let via = if m.wants_ui() {
+                    self.reachable(i)
+                        .into_iter()
+                        .flat_map(|(q, required)| {
+                            let qm = &self.plugins[q].manifest;
+                            qm.required
+                                .commands
+                                .keys()
+                                .chain(qm.optional.commands.keys())
+                                .map(move |c| Via {
+                                    name: c.clone(),
+                                    plugin: qm.name.clone(),
+                                    required,
+                                })
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                };
                 if let Some(r) = p.recorded.as_ref().filter(|r| **r != m.version) {
                     problems.push(Problem {
                         level: Level::Warning,
@@ -877,6 +969,7 @@ impl Registry {
                     },
                     required: m.required.clone(),
                     optional: m.optional.clone(),
+                    via,
                     caps: m.caps(),
                     formats,
                     settings,

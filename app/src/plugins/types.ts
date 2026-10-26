@@ -12,12 +12,29 @@ export interface Cap {
   by: By
 }
 
+/** コマンドの版の取り方。args で動かし、出力から pattern で版を拾う（グループがあれば最初のグループ）。 */
+export interface Probe {
+  args?: string[]
+  pattern: string
+}
+
+/** 求めるコマンド 1 つ。min を書くときは、version に版の取り方も書く。 */
+export interface CommandDep {
+  min?: string
+  version?: Probe
+}
+
+/** 求めるプラグイン 1 つ。 */
+export interface PluginDep {
+  min?: string
+}
+
 /** 求めるもの。 */
 export interface Deps {
-  /** 手元のコマンドの名前（PATH から探す）。 */
-  commands?: string[]
-  /** ほかのプラグインの id。 */
-  plugins?: string[]
+  /** 手元のコマンド（名前 → 版の下限など）。PATH から探す。 */
+  commands?: Record<string, CommandDep>
+  /** ほかのプラグイン（id → 版の下限）。 */
+  plugins?: Record<string, PluginDep>
 }
 
 /** サムネイルを決まった形の枠に入れるときの収め方。center 真ん中を残して切り抜く / top 上の端を残して切り抜く / contain 切り抜かずに収める。 */
@@ -112,6 +129,8 @@ export interface PluginStatus {
   state: PluginState
   required: Deps
   optional: Deps
+  /** 依存先を通して動かせるコマンド。 */
+  via: Via[]
   /** 受け持つもの。 */
   caps: Cap[]
   /** 受け持っている形式。 */
@@ -131,6 +150,16 @@ export interface CommandStatus {
   name: string
   /** 見つけた場所。見つからなければない。 */
   path?: string
+  /** 見つけたものの版。版の取り方を書いたプラグインがなければない。 */
+  version?: string
+}
+
+/** 依存先のプラグインを通して動かせるコマンド。required は、その依存先が必須か。 */
+export interface Via {
+  name: string
+  /** 依存先のプラグインの名前。 */
+  plugin: string
+  required: boolean
 }
 
 /**

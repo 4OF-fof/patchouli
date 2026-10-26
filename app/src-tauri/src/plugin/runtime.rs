@@ -62,12 +62,19 @@ impl HostState {
             .reg
             .as_ref()
             .ok_or("現在は外部ツールを実行できません")?;
-        if !reg.plugins[self.index].manifest.declares(name) {
-            return Err(format!(
-                "外部ツール「{name}」が plugin.json の required / optional に記載されていません"
-            ));
-        }
-        commands::find(name).ok_or_else(|| format!("{name} が見つかりません"))
+        let dep = reg.plugins[self.index]
+            .manifest
+            .declares(name)
+            .ok_or_else(|| {
+                format!(
+                    "外部ツール「{name}」が plugin.json の required / optional に記載されていません"
+                )
+            })?;
+        commands::check(name, dep).map_err(|u| match u {
+            commands::Unmet::Missing => format!("{name} が見つかりません"),
+            commands::Unmet::Old(v) => format!("{name} のバージョン（{v}）が古すぎます"),
+            commands::Unmet::Unknown(e) => format!("{name} のバージョンを確認できません：{e}"),
+        })
     }
 
     fn path(&self, f: &File) -> Result<&Path, String> {

@@ -39,7 +39,11 @@ struct Session {
 #[cfg(debug_assertions)]
 fn dev_path(var: &str, dir: &str) -> PathBuf {
     std::env::var_os(var).map_or_else(
-        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../example").join(dir),
+        || {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../example")
+                .join(dir)
+        },
         PathBuf::from,
     )
 }
@@ -698,7 +702,10 @@ async fn forget_library(app: tauri::AppHandle, path: PathBuf) -> Result<(), Stri
 
 /// 開いているライブラリの分のキャッシュの量。
 #[tauri::command]
-async fn cache_usage(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<tidy::Usage, String> {
+async fn cache_usage(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+) -> Result<tidy::Usage, String> {
     Ok(tidy::usage(&cache_dir(&app)?, &root_of(&cur)?))
 }
 

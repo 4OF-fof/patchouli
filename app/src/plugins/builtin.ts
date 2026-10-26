@@ -113,7 +113,7 @@ const capsOf = (m: Manifest): Cap[] => {
   ]
 }
 
-const depsOf = (d?: Deps): Deps => ({ commands: d?.commands ?? [], plugins: d?.plugins ?? [] })
+const depsOf = (d?: Deps): Deps => ({ commands: d?.commands ?? {}, plugins: d?.plugins ?? {} })
 
 /** 使っているプラグインの状態。設定の項目は WASM が返すので、ここでは空にする。 */
 export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStatus => ({
@@ -125,6 +125,7 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
   state: 'active',
   required: depsOf(m.required),
   optional: depsOf(m.optional),
+  via: [],
   caps: capsOf(m),
   formats: [...r.formats.values()]
     .filter((f) => f.plugin === m.id)

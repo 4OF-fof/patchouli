@@ -567,10 +567,7 @@ impl Library {
         // コピーしたファイルは ID が重なる。元のほう（写しでその ID だったもの）に残し、ほかには新しい ID を書く
         let owned = |id: &str| {
             !self.entries.contains_key(id)
-                && self
-                    .owners
-                    .get(id)
-                    .is_none_or(|p| p == path || !p.exists())
+                && self.owners.get(id).is_none_or(|p| p == path || !p.exists())
         };
         let mut saved = r.id.as_deref().is_some_and(owned);
         let id = if saved {

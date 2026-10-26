@@ -1,11 +1,117 @@
 //! プラグインが plugin.json の required / optional に書いた、手元のコマンド（FFmpeg など）。同梱はせず、PATH にあれば使う。
 
+use std::collections::HashMap;
 use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::{Mutex, OnceLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
+
+use serde::{Deserialize, Serialize};
+
+/// コマンドの版の取り方。args で動かし、出力（標準出力と標準エラー）から pattern で版を拾う。
+/// pattern にグループがあれば最初のグループ、なければ合ったところ全体を版にする。
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Probe {
+    #[serde(default)]
+    pub args: Vec<String>,
+    pub pattern: String,
+}
+
+/// 求めるコマンド 1 つ。min を書くときは、version に版の取り方も書く。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct CommandDep {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub min: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version: Option<Probe>,
+}
+
+/// 求めるコマンドが使えないわけ。
+pub enum Unmet {
+    Missing,
+    /// 見つけた版が古い。
+    Old(String),
+    /// 版を確かめられない。
+    Unknown(String),
+}
+
+/// name を探し、dep の版の下限を満たしていれば、その場所を返す。
+pub fn check(name: &str, dep: &CommandDep) -> Result<PathBuf, Unmet> {
+    let path = find(name).ok_or(Unmet::Missing)?;
+    let Some(min) = &dep.min else {
+        return Ok(path);
+    };
+    let probe = dep.version.as_ref().ok_or_else(|| {
+        Unmet::Unknown("plugin.json にバージョンの取得方法（version）がありません".into())
+    })?;
+    let found = version_of(&path, probe).map_err(Unmet::Unknown)?;
+    if older(&found, min) {
+        Err(Unmet::Old(found))
+    } else {
+        Ok(path)
+    }
+}
+
+/// path の版を probe で調べる。一度調べたものは覚えておく。
+pub fn version_of(path: &Path, probe: &Probe) -> Result<String, String> {
+    type Seen = HashMap<(PathBuf, Probe), Result<String, String>>;
+    static SEEN: OnceLock<Mutex<Seen>> = OnceLock::new();
+    let seen = SEEN.get_or_init(|| Mutex::new(HashMap::new()));
+    let key = (path.to_owned(), probe.clone());
+    if let Some(r) = seen.lock().ok().and_then(|s| s.get(&key).cloned()) {
+        return r;
+    }
+    let r = probe_version(path, probe);
+    if let Ok(mut s) = seen.lock() {
+        s.insert(key, r.clone());
+    }
+    r
+}
+
+fn probe_version(path: &Path, probe: &Probe) -> Result<String, String> {
+    let re = regex::Regex::new(&probe.pattern)
+        .map_err(|e| format!("バージョンを取り出す正規表現が正しくありません：{e}"))?;
+    let args: Vec<OsString> = probe.args.iter().map(OsString::from).collect();
+    let out = run(path, &args, TIMEOUT)?;
+    let text = format!("{}\n{}", String::from_utf8_lossy(&out.stdout), out.stderr);
+    let c = re
+        .captures(&text)
+        .ok_or("出力からバージョンが見つかりません")?;
+    Ok(c.get(1)
+        .or_else(|| c.get(0))
+        .map_or("", |m| m.as_str())
+        .to_owned())
+}
+
+/// 版 a が b より古いか。「.」で区切った数字を前から比べる（数字の前後の文字は見ない）。
+pub fn older(a: &str, b: &str) -> bool {
+    let parts = |s: &str| -> Vec<u64> {
+        s.split('.')
+            .map(|p| {
+                let digits: String = p
+                    .trim_start_matches(|c: char| !c.is_ascii_digit())
+                    .chars()
+                    .take_while(char::is_ascii_digit)
+                    .collect();
+                digits.parse().unwrap_or(0)
+            })
+            .collect()
+    };
+    let (a, b) = (parts(a), parts(b));
+    for i in 0..a.len().max(b.len()) {
+        let (x, y) = (
+            a.get(i).copied().unwrap_or(0),
+            b.get(i).copied().unwrap_or(0),
+        );
+        if x != y {
+            return x < y;
+        }
+    }
+    false
+}
 
 /// 1 回の呼び出しで待つ長さ。プラグインが指定しなかったときに使う。
 pub const TIMEOUT: Duration = Duration::from_secs(30);

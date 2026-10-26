@@ -6,7 +6,7 @@ import { sampleReport } from '../../../samples/plugins'
 import { PluginsDialog } from './PluginsDialog'
 
 const ffmpeg: CommandStatus = { name: 'ffmpeg', path: 'C:\\Users\\me\\scoop\\shims\\ffmpeg.exe' }
-const none = { commands: [], plugins: [] }
+const none = { commands: {}, plugins: {} }
 
 /** 外から入れたプラグイン。組み込み UI と設定を持ち、あれば pandoc を使う。 */
 const text: PluginStatus = {
@@ -19,7 +19,8 @@ const text: PluginStatus = {
   builtin: false,
   state: 'active',
   required: none,
-  optional: { commands: ['pandoc'], plugins: [] },
+  optional: { commands: { pandoc: {} }, plugins: {} },
+  via: [],
   caps: [
     { part: 'thumbnail', by: 'ui' },
     { part: 'view', by: 'ui' },
@@ -72,6 +73,7 @@ const external: PluginReport = {
       state: 'missing',
       required: none,
       optional: none,
+      via: [],
       caps: [],
       formats: [],
       settings: [],
@@ -86,7 +88,7 @@ const troubled: PluginReport = {
   plugins: [
     ...builtinReport().plugins.map((p) => ({
       ...p,
-      problems: p.optional.commands?.includes('ffmpeg')
+      problems: p.optional.commands?.ffmpeg
         ? [
             {
               level: 'warning' as const,
@@ -104,8 +106,12 @@ const troubled: PluginReport = {
       description: 'PSD ファイルのサムネイル生成',
       builtin: false,
       state: 'blocked',
-      required: { commands: ['magick'], plugins: ['patchouli.image', 'example.layers'] },
+      required: {
+        commands: { magick: { min: '7.0' } },
+        plugins: { 'patchouli.image': {}, 'example.layers': { min: '0.2.0' } },
+      },
       optional: none,
+      via: [{ name: 'ffmpeg', plugin: '画像', required: true }],
       caps: [{ part: 'thumbnail', by: 'wasm' }],
       formats: [],
       settings: [],
