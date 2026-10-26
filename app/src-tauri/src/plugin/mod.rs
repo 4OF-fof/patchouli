@@ -115,7 +115,7 @@ pub struct Manifest {
     /// あれば使うもの。
     #[serde(default)]
     pub optional: Deps,
-    /// 組み込み UI の ES モジュール（plugin.json からの相対パス）。外のプラグインだけが持てる。
+    /// 組み込み UI の ES モジュール（plugin.json からの相対パス）。組み込みのプラグインでは ui/ の中に置く。
     pub ui: Option<String>,
     pub formats: BTreeMap<String, FormatDecl>,
 }
@@ -678,13 +678,21 @@ impl Registry {
         })
     }
 
-    /// 使っている外のプラグインのフォルダ。
-    pub fn dir_of(&self, id: &str) -> Option<&Path> {
+    /// 入っている外のプラグインか。
+    pub fn installed(&self, id: &str) -> bool {
         self.plugins
             .iter()
-            .find(|p| p.manifest.id == id)?
-            .dir
-            .as_deref()
+            .any(|p| p.manifest.id == id && p.dir.is_some())
+    }
+
+    /// 使っているプラグイン id の、plugin.json からのパスが rel のファイル。
+    pub fn file(&self, id: &str, rel: &str) -> Option<Vec<u8>> {
+        let p = self.plugins.iter().find(|p| p.manifest.id == id)?;
+        match &p.dir {
+            Some(dir) => files::read(dir, rel),
+            None if p.builtin => builtin::file(id, rel).map(<[u8]>::to_vec),
+            None => None,
+        }
     }
 
     /// 記録してある取得先と、取得元の検証値。

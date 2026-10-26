@@ -404,7 +404,7 @@ async fn update_plugin(
     id: String,
 ) -> Result<(), String> {
     let (recorded, installed) = with_session(&cur, |s| {
-        Ok((s.plugins.source_of(&id), s.plugins.dir_of(&id).is_some()))
+        Ok((s.plugins.source_of(&id), s.plugins.installed(&id)))
     })?;
     let (source, hash) = recorded.ok_or_else(|| format!("{id} の取得先が記録されていません"))?;
     let expect = hash.as_deref().filter(|_| !installed);
@@ -623,14 +623,15 @@ fn plugin_file(
     req: &tauri::http::Request<Vec<u8>>,
 ) -> tauri::http::Response<Vec<u8>> {
     let Some((id, rest)) = plugin::files::split(req.uri().path()) else {
-        return plugin::files::serve(None, "");
+        return plugin::files::serve("", None);
     };
     let cur = app.state::<Current>();
-    let dir = cur.0.lock().ok().and_then(|g| {
-        g.as_ref()
-            .and_then(|s| s.plugins.dir_of(&id).map(Path::to_owned))
-    });
-    plugin::files::serve(dir.as_deref(), &rest)
+    let body = cur
+        .0
+        .lock()
+        .ok()
+        .and_then(|g| g.as_ref()?.plugins.file(&id, &rest));
+    plugin::files::serve(&rest, body)
 }
 
 /// フォルダを選ぶ窓を出し、選んだフォルダを次から開くライブラリにする。選ばなければ false。

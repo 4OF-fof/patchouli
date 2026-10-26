@@ -1,25 +1,59 @@
-//! 組み込みのプラグイン。`plugin.json` と、処理の部分の WASM（build.rs が作る）を埋め込む。
+//! 組み込みのプラグイン。`plugin.json` と、処理の部分の WASM（build.rs が作る）と、
+//! 組み込み UI のファイル（`ui/` の中）を埋め込む。
 
 use std::sync::{Arc, OnceLock};
 
-use super::{Loaded, Manifest, error, runtime::Prepared, settings_of};
+use super::{Loaded, Manifest, error, files, runtime::Prepared, settings_of};
 
-/// 読む順。同じ形式を受け持とうとしたときは、先のものを使う。
-const ALL: [(&str, Option<&[u8]>); 4] = [
+/// 読む順（ディレクトリ名、plugin.json、WASM）。同じ形式を受け持とうとしたときは、先のものを使う。
+const ALL: [(&str, &str, Option<&[u8]>); 4] = [
     (
+        "image",
         include_str!("../../../plugins/image/plugin.json"),
         Some(include_bytes!(concat!(env!("OUT_DIR"), "/image.wasm"))),
     ),
     (
+        "video",
         include_str!("../../../plugins/video/plugin.json"),
         Some(include_bytes!(concat!(env!("OUT_DIR"), "/video.wasm"))),
     ),
     (
+        "audio",
         include_str!("../../../plugins/audio/plugin.json"),
         Some(include_bytes!(concat!(env!("OUT_DIR"), "/audio.wasm"))),
     ),
-    (include_str!("../../../plugins/note/plugin.json"), None),
+    (
+        "note",
+        include_str!("../../../plugins/note/plugin.json"),
+        None,
+    ),
 ];
+
+/// 組み込み UI のファイル（ディレクトリ名、plugin.json からのパス、中身）。build.rs が並べる。
+const UI_FILES: &[(&str, &str, &[u8])] = include!(concat!(env!("OUT_DIR"), "/ui_files.rs"));
+
+/// ディレクトリ名が dir のプラグインの、plugin.json からのパスが rel のファイル。
+fn embedded(dir: &str, rel: &str) -> Option<&'static [u8]> {
+    let rel = files::normal(rel)?;
+    UI_FILES
+        .iter()
+        .find(|(d, r, _)| *d == dir && *r == rel)
+        .map(|(_, _, b)| *b)
+}
+
+/// 組み込みのプラグイン id のファイル。
+pub(super) fn file(id: &str, rel: &str) -> Option<&'static [u8]> {
+    static DIRS: OnceLock<Vec<(String, &str)>> = OnceLock::new();
+    let dirs = DIRS.get_or_init(|| {
+        ALL.iter()
+            .filter_map(|(dir, json, _)| {
+                Some((serde_json::from_str::<Manifest>(json).ok()?.id, *dir))
+            })
+            .collect()
+    });
+    let (_, dir) = dirs.iter().find(|(i, _)| i == id)?;
+    embedded(dir, rel)
+}
 
 /// 処理の部分。ないものは None。
 type Slot = Option<Result<Arc<Prepared>, String>>;
@@ -29,7 +63,7 @@ fn prepared() -> &'static [Slot] {
     static P: OnceLock<Vec<Slot>> = OnceLock::new();
     P.get_or_init(|| {
         ALL.iter()
-            .map(|(_, wasm)| wasm.map(|b| Prepared::new(b).map(Arc::new)))
+            .map(|(_, _, wasm)| wasm.map(|b| Prepared::new(b).map(Arc::new)))
             .collect()
     })
 }
@@ -37,7 +71,7 @@ fn prepared() -> &'static [Slot] {
 pub(super) fn load() -> Vec<Loaded> {
     ALL.iter()
         .zip(prepared())
-        .map(|((json, _), pre)| {
+        .map(|((dir, json, _), pre)| {
             let manifest: Manifest =
                 serde_json::from_str(json).expect("組み込みのプラグインの plugin.json が読めない");
             let mut problems = Vec::new();
@@ -49,13 +83,22 @@ pub(super) fn load() -> Vec<Loaded> {
                 }
                 None => None,
             };
+            let ui = manifest.ui.clone().filter(|m| {
+                let ok = embedded(dir, m).is_some();
+                if !ok {
+                    problems.push(error(format!(
+                        "UI ファイル（{m}）が見つかりません（組み込みのプラグインは ui/ の中のものだけ使えます）"
+                    )));
+                }
+                ok
+            });
             let settings = settings_of(wasm.as_deref(), &manifest.id, &mut problems);
             Loaded {
                 manifest,
                 builtin: true,
                 dir: None,
                 wasm,
-                ui: None,
+                ui,
                 settings,
                 problems,
                 source: None,
@@ -68,7 +111,7 @@ pub(super) fn load() -> Vec<Loaded> {
 
 pub(super) fn ids() -> Vec<String> {
     ALL.iter()
-        .filter_map(|(json, _)| serde_json::from_str::<Manifest>(json).ok())
+        .filter_map(|(_, json, _)| serde_json::from_str::<Manifest>(json).ok())
         .map(|m| m.id)
         .collect()
 }

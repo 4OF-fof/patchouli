@@ -4,6 +4,42 @@ use std::{env, fs};
 
 /// 組み込みのプラグイン（ディレクトリ名）。処理部分のないものは WASM を作らない。
 const WASM_PLUGINS: [&str; 3] = ["image", "video", "audio"];
+const PLUGINS: [&str; 4] = ["image", "video", "audio", "note"];
+
+/// 組み込みのプラグインの `ui/` の中のファイルを、src/plugin/builtin.rs が埋め込めるように並べる。
+fn list_ui_files() {
+    let here = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let mut items = String::new();
+    for p in PLUGINS {
+        let dir = here.join("../plugins").join(p);
+        // ui/ がまだないときも、できたら気付けるよう、プラグインのフォルダごと見る
+        println!("cargo:rerun-if-changed={}", dir.display());
+        let mut stack = vec![dir.join("ui")];
+        while let Some(d) = stack.pop() {
+            let Ok(entries) = fs::read_dir(&d) else {
+                continue;
+            };
+            for e in entries.flatten() {
+                let path = e.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                let rel = path
+                    .strip_prefix(&dir)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                items.push_str(&format!(
+                    "    ({p:?}, {rel:?}, include_bytes!({:?})),\n",
+                    path.to_string_lossy()
+                ));
+            }
+        }
+    }
+    let out = PathBuf::from(env::var("OUT_DIR").unwrap());
+    fs::write(out.join("ui_files.rs"), format!("&[\n{items}]\n")).unwrap();
+}
 
 /// 組み込みのプラグインの処理部分を WASM にして OUT_DIR に置く。src/plugin/builtin.rs が埋め込む。
 fn build_plugins() {
@@ -59,5 +95,6 @@ fn build_plugins() {
 
 fn main() {
     build_plugins();
+    list_ui_files();
     tauri_build::build()
 }

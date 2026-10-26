@@ -1,4 +1,4 @@
-//! 使っている外のプラグインのフォルダの中のファイル（`plugin://localhost/<id>/<パス>`）を返す。
+//! 使っているプラグインのファイル（`plugin://localhost/<id>/<パス>`）を返す。
 //! 組み込み UI の ES モジュールと、そこから読むファイルに使う。
 
 use std::fs;
@@ -13,25 +13,35 @@ pub fn split(uri_path: &str) -> Option<(String, String)> {
     Some((id.to_owned(), rest.to_owned()))
 }
 
-/// dir（使っているプラグインのフォルダ）の中の rest を返す。フォルダの外や、ないものは 404。
-pub fn serve(dir: Option<&Path>, rest: &str) -> Response<Vec<u8>> {
-    let not_found = || {
-        Response::builder()
-            .status(StatusCode::NOT_FOUND)
-            .body(Vec::new())
-            .unwrap()
-    };
-    let Some(dir) = dir else { return not_found() };
+/// 「/」区切りのパス rel を、「.」と空の部分を除いて並べ直す。「..」があれば None。
+pub fn normal(rel: &str) -> Option<String> {
+    let parts: Vec<&str> = rel
+        .split(['/', '\\'])
+        .filter(|p| !p.is_empty() && *p != ".")
+        .collect();
+    (!parts.is_empty() && !parts.contains(&"..")).then(|| parts.join("/"))
+}
+
+/// dir（外のプラグインのフォルダ）の中の rest。フォルダの外や、ないものは None。
+pub fn read(dir: &Path, rest: &str) -> Option<Vec<u8>> {
     let file = dir.join(rest);
     let inside = fs::canonicalize(&file)
         .ok()
         .zip(fs::canonicalize(dir).ok())
         .is_some_and(|(f, d)| f.starts_with(d) && f.is_file());
-    let Some(body) = inside.then(|| fs::read(&file).ok()).flatten() else {
-        return not_found();
+    inside.then(|| fs::read(&file).ok()).flatten()
+}
+
+/// rest の中身 body を返す。なければ 404。
+pub fn serve(rest: &str, body: Option<Vec<u8>>) -> Response<Vec<u8>> {
+    let Some(body) = body else {
+        return Response::builder()
+            .status(StatusCode::NOT_FOUND)
+            .body(Vec::new())
+            .unwrap();
     };
     Response::builder()
-        .header(header::CONTENT_TYPE, mime_of(&file))
+        .header(header::CONTENT_TYPE, mime_of(Path::new(rest)))
         // 本体の画面とは origin が違うので、module の script として読めるようにする
         .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
         .body(body)
