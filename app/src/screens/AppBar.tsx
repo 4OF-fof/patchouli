@@ -9,6 +9,7 @@ import { LibrariesDialog } from '../components/dialog/LibrariesDialog/LibrariesD
 import { type Notices, NoticesDialog } from '../components/dialog/NoticesDialog/NoticesDialog'
 import { PluginsDialog } from '../components/dialog/PluginsDialog/PluginsDialog'
 import { SettingsDialog } from '../components/dialog/SettingsDialog/SettingsDialog'
+import { type Activity, ActivityButton } from '../components/nav/ActivityButton/ActivityButton'
 import { NavMenu, type NavMenuEntry } from '../components/nav/NavMenu/NavMenu'
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
 import type { Library } from '../model/library'
@@ -19,7 +20,7 @@ import styles from './AppBar.module.css'
 import { type Row, SearchResults } from '../components/nav/SearchResults/SearchResults'
 
 /** 行き先。 */
-export type Place = 'home' | 'tags' | 'projects' | 'tidy'
+export type Place = 'home' | 'all' | 'tags' | 'projects' | 'tidy'
 /**
  * closed 閉じている / menu メニューを開いた / places いまの場所から開いた画面の一覧 /
  * search 検索に入力中 / prompt プロンプト /
@@ -58,6 +59,8 @@ export interface AppBarProps {
   query?: string
   /** 保存先に書き込めない。タイトルバーに知らせを出す。 */
   readOnly?: boolean
+  /** 裏で動いている処理。あるあいだ、右に印を出す。 */
+  activities?: Activity[]
   onGo?: (to: Place) => void
   onOpenProject?: (name: string) => void
   onOpenItem?: (id: string) => void
@@ -90,7 +93,10 @@ const toggleTheme = () => {
   d.theme = d.theme === 'light' ? 'dark' : 'light'
 }
 
-/** 画面の上のタイトルバー。アプリのアイコン（メニュー）・戻る・いまの場所を置き、メニューと Ctrl P の検索、設定の窓を受け持つ。 */
+/**
+ * 画面の上のタイトルバー。左にアプリのアイコン（メニュー）・戻る・いまの場所、右に裏の処理・新しいノート・検索を置き、
+ * メニューと Ctrl P の検索、設定の窓を受け持つ。
+ */
 export function AppBar(props: AppBarProps) {
   const init = props.initial ?? 'closed'
   const [state, setState] = createSignal<BarState>(init)
@@ -115,6 +121,7 @@ export function AppBar(props: AppBarProps) {
   }
   const commands = (): Row[] => [
     { type: 'cmd', label: '整理を開く', key: 'Ctrl U', run: () => props.onGo?.('tidy') },
+    { type: 'cmd', label: 'すべての項目', key: '', run: () => props.onGo?.('all') },
     { type: 'cmd', label: 'プロジェクト一覧', key: '', run: () => props.onGo?.('projects') },
     { type: 'cmd', label: 'タグ一覧', key: '', run: () => props.onGo?.('tags') },
     { type: 'cmd', label: '新しいノートを作成', key: 'Ctrl N', run: () => props.onCreate?.() },
@@ -208,6 +215,7 @@ export function AppBar(props: AppBarProps) {
 
   const placeItems = (): NavMenuEntry[] => [
     { id: 'home', icon: 'home', label: 'ホーム', current: props.here === 'home' },
+    { id: 'all', icon: 'grid', label: 'すべて', count: lib().items.length, current: props.here === 'all' },
     {
       id: 'projects',
       icon: 'folder',
@@ -218,7 +226,6 @@ export function AppBar(props: AppBarProps) {
     { id: 'tags', icon: 'hash', label: 'タグ', count: lib().tagGroups().size, current: props.here === 'tags' },
   ]
   const menuItems = (): NavMenuEntry[] => [
-    { id: 'search', icon: 'search', label: '検索', kbd: 'Ctrl P' },
     ...(props.onChooseLibrary
       ? [
           {
@@ -239,7 +246,6 @@ export function AppBar(props: AppBarProps) {
   ]
   const onMenu = (id: string) => {
     if (id === 'settings') return setState('settings')
-    if (id === 'search') return setState('search')
     if (id === 'theme') return toggleTheme()
     if (id === 'keys') return setState('help')
     if (id === 'plugins') return setState('plugins')
@@ -250,19 +256,41 @@ export function AppBar(props: AppBarProps) {
       return props.onChooseLibrary?.()
     }
     setState('closed')
-    if (id === 'home' || id === 'tags' || id === 'projects') props.onGo?.(id)
+    if (id === 'home' || id === 'all' || id === 'tags' || id === 'projects') props.onGo?.(id)
   }
 
   return (
     <>
       <TitleBar
         end={
-          <Show when={props.readOnly}>
-            <span class={styles.ro} role="status" title="保存先に書き込めないため、読み取り専用になっています">
-              <b>読み取り専用</b>
-              <button type="button">編集を有効にする</button>
-            </span>
-          </Show>
+          <span class={styles.end}>
+            <Show when={props.readOnly}>
+              <span class={styles.ro} role="status" title="保存先に書き込めないため、読み取り専用になっています">
+                <b>読み取り専用</b>
+                <button type="button">編集を有効にする</button>
+              </span>
+            </Show>
+            <ActivityButton activities={props.activities ?? []} />
+            <button
+              type="button"
+              class={styles.ib}
+              aria-label="新しいノート"
+              title="新しいノート"
+              onClick={() => props.onCreate?.()}
+            >
+              <Icon name="newNote" />
+            </button>
+            <button
+              type="button"
+              class={styles.ib}
+              aria-label="検索"
+              title="検索（Ctrl P）"
+              aria-expanded={searching()}
+              onClick={() => (searching() ? close() : setState('search'))}
+            >
+              <Icon name="search" />
+            </button>
+          </span>
         }
       >
         <div class={styles.menuAt} ref={menuEl}>

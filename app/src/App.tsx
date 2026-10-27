@@ -24,6 +24,9 @@ import {
 import { FormatsProvider } from './plugins/formats'
 import { type HoverHost, HoverHostProvider } from './components/media/HoverPreview/HoverPreview'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
+import type { Activity } from './components/nav/ActivityButton/ActivityButton'
+import { ThumbMakingProvider } from './components/media/Thumb/Thumb'
+import { AllScreen } from './screens/All/AllScreen'
 import { AppBar, type BarRequest, type Place } from './screens/AppBar'
 import type { Blocker } from './components/media/Unsupported/Unsupported'
 import { AssetScreen } from './screens/Asset/AssetScreen'
@@ -38,6 +41,7 @@ import { TidyScreen } from './screens/Tidy/TidyScreen'
 
 type View =
   | { s: 'edition' }
+  | { s: 'all' }
   | { s: 'project'; name: string; editing?: boolean }
   | { s: 'plist' }
   | { s: 'tlist' }
@@ -48,6 +52,7 @@ type View =
 
 const LABEL: Record<View['s'], string> = {
   edition: 'ホーム',
+  all: 'すべて',
   project: 'プロジェクト',
   plist: 'プロジェクト一覧',
   tlist: 'タグ一覧',
@@ -118,7 +123,7 @@ export function App(props: AppProps) {
   // メニューから行く所は一番上の画面として開き、戻る先を持たない
   const onGo = (to: Place) => {
     if (to === 'tidy') go({ s: 'tidy' })
-    else setStack([{ s: to === 'tags' ? 'tlist' : to === 'projects' ? 'plist' : 'edition' }])
+    else setStack([{ s: to === 'all' ? 'all' : to === 'tags' ? 'tlist' : to === 'projects' ? 'plist' : 'edition' }])
   }
 
   // 書き込みは出した順に 1 つずつ流し、失敗したら知らせる
@@ -305,7 +310,15 @@ export function App(props: AppProps) {
     saveState()
   }
   const here = (): Place | undefined =>
-    view().s === 'edition' ? 'home' : view().s === 'tlist' ? 'tags' : view().s === 'plist' ? 'projects' : undefined
+    view().s === 'edition'
+      ? 'home'
+      : view().s === 'all'
+        ? 'all'
+        : view().s === 'tlist'
+          ? 'tags'
+          : view().s === 'plist'
+            ? 'projects'
+            : undefined
 
   const onKey = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [role="dialog"], [role="menu"]'))
@@ -366,8 +379,10 @@ export function App(props: AppProps) {
     const v = view()
     return v.s === 'project' ? v.name : null
   }
+  const [importing, setImporting] = createSignal(0)
   const importDropped = async (projects: number[]) => {
     if (!backend.importDropped) return
+    setImporting(importing() + 1)
     try {
       const r = await backend.importDropped(dropFolder(), projects)
       if (r.failed.length) console.warn('取り込めなかったもの', r.failed)
@@ -375,6 +390,8 @@ export function App(props: AppProps) {
       setNotice(importedNotice(r))
     } catch (e) {
       setNotice(`取り込めませんでした：${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setImporting(importing() - 1)
     }
   }
   const stopDrag =
@@ -389,6 +406,31 @@ export function App(props: AppProps) {
       } else if (e.type === 'leave') setDrag(undefined)
     }) ?? (() => {})
   onCleanup(stopDrag)
+  // 裏でサムネイルや波形を作っている残りの数を見張る。total は作り始めてからいちばん多かった数
+  const [work, setWork] = createSignal({ left: 0, total: 0 })
+  if (backend.pluginWork) {
+    const poll = window.setInterval(() => {
+      void backend.pluginWork?.().then((left) => {
+        const total = left ? Math.max(left, work().total) : 0
+        if (left !== work().left || total !== work().total) setWork({ left, total })
+      })
+    }, 1000)
+    onCleanup(() => clearInterval(poll))
+  }
+  const activities = (): Activity[] => [
+    ...(work().left
+      ? [
+          {
+            key: 'thumbs',
+            icon: 'image' as const,
+            label: 'サムネイルと波形を作成中',
+            done: work().total - work().left,
+            total: work().total,
+          },
+        ]
+      : []),
+    ...(importing() ? [{ key: 'import', icon: 'import' as const, label: 'ファイルを取り込み中' }] : []),
+  ]
   const flatSub = () => {
     const f = dropFolder()
     return f ? `ドロップして「${f}」に追加します` : 'ドロップしてプロジェクト未指定で取り込みます'
@@ -396,172 +438,178 @@ export function App(props: AppProps) {
 
   return (
     <FormatsProvider value={() => lib().formats}>
-      <HoverHostProvider value={hoverHost}>
-        <ScreenFrame
-          bar={
-            <AppBar
-              lib={lib()}
-              here={here()}
-              crumbs={crumbs()}
-              onBack={stack().length > 1 ? goBack : undefined}
-              onCrumb={(i) => setStack(stack().slice(0, i + 1))}
-              onGo={onGo}
-              onOpenProject={(name) => go({ s: 'project', name })}
-              onOpenItem={(id) => openItem(id)}
-              onCreate={createNote}
-              library={props.location}
-              onChooseLibrary={chooseLibrary}
-              libraries={backend.libraries}
-              tidy={backend.tidy}
-              developer={backend.developer}
-              onReopen={() => window.location.reload()}
-              loadPlugins={() => backend.plugins()}
-              pluginActions={backend.pluginActions}
-              onPluginsChanged={reloadPlugins}
-              request={barRequest()}
-            />
-          }
-          toast={notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}
-        >
-          {/* プラグインを読み直したら、組み込み UI を描き直すため、いまの画面を作り直す */}
-          <For each={[plugged()]}>
-            {() => (
-              <Switch>
-                <Match when={view().s === 'edition'}>
-                  <EditionScreen
-                    lib={lib()}
-                    location={props.location}
-                    pinnedProjects={pinnedProjects()}
-                    pinnedTags={pinnedTags()}
-                    onOpenItem={(id) => openItem(id)}
-                    onOpenProject={(name) => go({ s: 'project', name })}
-                    onOpenTag={(tag) => go({ s: 'tag', tag })}
-                    onTidy={(id) => go({ s: 'tidy', id })}
-                  />
-                </Match>
-                <Match when={view().s === 'project' && view()} keyed>
-                  {(v) =>
-                    v.s === 'project' && (
-                      <ProjectScreen
-                        lib={lib()}
-                        name={v.name}
-                        editing={v.editing}
-                        pinned={pinnedProjects().includes(v.name)}
-                        onTogglePin={togglePin}
-                        onToggleProjectPin={() => toggleProjectPin(v.name)}
-                        onOpenItem={openItem}
-                      />
-                    )
-                  }
-                </Match>
-                <Match when={view().s === 'plist'}>
-                  <ProjectListScreen
-                    lib={lib()}
-                    pinned={pinnedProjects()}
-                    onOpenProject={(name) => go({ s: 'project', name })}
-                    onCreate={createProject}
-                  />
-                </Match>
-                <Match when={view().s === 'tlist'}>
-                  <TagListScreen lib={lib()} onOpenTag={(tag) => go({ s: 'tag', tag })} />
-                </Match>
-                <Match when={view().s === 'tag' && view()} keyed>
-                  {(v) =>
-                    v.s === 'tag' && (
-                      <TagScreen
-                        lib={lib()}
-                        tag={v.tag}
-                        pinned={pinnedTags().includes(v.tag)}
-                        onOpenItem={openItem}
-                        onOpenTag={(tag) => go({ s: 'tag', tag })}
-                        onTogglePin={togglePin}
-                        onToggleTagPin={() => toggleTagPin(v.tag)}
-                        onRename={(to) => renameTag(v.tag, to)}
-                      />
-                    )
-                  }
-                </Match>
-                <Match when={view().s === 'note' && view()} keyed>
-                  {(v) =>
-                    v.s === 'note' && (
-                      <NoteScreen lib={lib()} noteId={v.id} onOpenRef={openRef} onTogglePin={togglePin} />
-                    )
-                  }
-                </Match>
-                <Match when={view().s === 'asset' && view()} keyed>
-                  {(v) =>
-                    v.s === 'asset' && (
-                      <AssetScreen
-                        lib={lib()}
-                        list={v.list}
-                        index={assetIndex.get(v) ?? v.index}
-                        onIndex={(i) => assetIndex.set(v, i)}
-                        onOpenNote={(id) => openItem(id)}
-                        onTogglePin={togglePin}
-                        onProject={moveItem}
-                        onTag={tagItem}
-                        onMemo={(id, memo) => editItem(id, { memo }, { memo })}
-                        host={viewHost}
-                        blocker={blockerOf}
-                        onEnablePlugin={enablePlugin}
-                        onOpenPlugins={(p) =>
-                          setBarRequest({ state: 'plugins', plugin: p && { id: p.id, dev: p.dev } })
-                        }
-                        onReveal={backend.revealItem}
-                        onOpenDefault={backend.openItemDefault}
-                      />
-                    )
-                  }
-                </Match>
-                <Match when={view().s === 'tidy' && view()} keyed>
-                  {(v) =>
-                    v.s === 'tidy' && <TidyScreen lib={lib()} currentId={v.id} onOpenItem={(id) => openItem(id)} />
-                  }
-                </Match>
-              </Switch>
-            )}
-          </For>
-          <Show when={reloading()}>
-            {(r) => (
-              <ReloadOverlay
-                step={r().step}
-                work={r().work}
-                onWait={() => answer?.('wait')}
-                onStop={() => (r().step === 'ask' ? answer?.('stop') : void backend.stopPluginWork?.())}
+      <ThumbMakingProvider value={() => work().left > 0}>
+        <HoverHostProvider value={hoverHost}>
+          <ScreenFrame
+            bar={
+              <AppBar
+                lib={lib()}
+                here={here()}
+                crumbs={crumbs()}
+                onBack={stack().length > 1 ? goBack : undefined}
+                onCrumb={(i) => setStack(stack().slice(0, i + 1))}
+                onGo={onGo}
+                onOpenProject={(name) => go({ s: 'project', name })}
+                onOpenItem={(id) => openItem(id)}
+                onCreate={createNote}
+                library={props.location}
+                onChooseLibrary={chooseLibrary}
+                libraries={backend.libraries}
+                tidy={backend.tidy}
+                developer={backend.developer}
+                onReopen={() => window.location.reload()}
+                loadPlugins={() => backend.plugins()}
+                pluginActions={backend.pluginActions}
+                onPluginsChanged={reloadPlugins}
+                request={barRequest()}
+                activities={activities()}
               />
-            )}
-          </Show>
-          <Show when={drag()}>
-            {(d) => (
-              <DropZone
-                title={d().files ? `${d().files} 件のファイルを取り込む` : '取り込めるファイルがありません'}
-                sub={
-                  !d().files
-                    ? 'ライブラリ内のファイルと空のフォルダは取り込めません'
-                    : d().folders.length
-                      ? 'ドロップ後にフォルダごとの取り込み方法を選択できます'
-                      : flatSub()
-                }
-              />
-            )}
-          </Show>
-          <Show when={asking()}>
-            {(d) => (
-              <ImportDialog
-                files={d().files}
-                folders={d().folders}
-                loose={d().loose}
-                into={dropFolder() ?? undefined}
-                onImport={(projects) => {
-                  setAsking(undefined)
-                  void importDropped(projects)
-                }}
-                onClose={() => setAsking(undefined)}
-              />
-            )}
-          </Show>
-        </ScreenFrame>
-      </HoverHostProvider>
+            }
+            toast={notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}
+          >
+            {/* プラグインを読み直したら、組み込み UI を描き直すため、いまの画面を作り直す */}
+            <For each={[plugged()]}>
+              {() => (
+                <Switch>
+                  <Match when={view().s === 'edition'}>
+                    <EditionScreen
+                      lib={lib()}
+                      location={props.location}
+                      pinnedProjects={pinnedProjects()}
+                      pinnedTags={pinnedTags()}
+                      onOpenItem={(id) => openItem(id)}
+                      onOpenProject={(name) => go({ s: 'project', name })}
+                      onOpenTag={(tag) => go({ s: 'tag', tag })}
+                      onTidy={(id) => go({ s: 'tidy', id })}
+                    />
+                  </Match>
+                  <Match when={view().s === 'all'}>
+                    <AllScreen lib={lib()} onOpenItem={openItem} onTogglePin={togglePin} />
+                  </Match>
+                  <Match when={view().s === 'project' && view()} keyed>
+                    {(v) =>
+                      v.s === 'project' && (
+                        <ProjectScreen
+                          lib={lib()}
+                          name={v.name}
+                          editing={v.editing}
+                          pinned={pinnedProjects().includes(v.name)}
+                          onTogglePin={togglePin}
+                          onToggleProjectPin={() => toggleProjectPin(v.name)}
+                          onOpenItem={openItem}
+                        />
+                      )
+                    }
+                  </Match>
+                  <Match when={view().s === 'plist'}>
+                    <ProjectListScreen
+                      lib={lib()}
+                      pinned={pinnedProjects()}
+                      onOpenProject={(name) => go({ s: 'project', name })}
+                      onCreate={createProject}
+                    />
+                  </Match>
+                  <Match when={view().s === 'tlist'}>
+                    <TagListScreen lib={lib()} onOpenTag={(tag) => go({ s: 'tag', tag })} />
+                  </Match>
+                  <Match when={view().s === 'tag' && view()} keyed>
+                    {(v) =>
+                      v.s === 'tag' && (
+                        <TagScreen
+                          lib={lib()}
+                          tag={v.tag}
+                          pinned={pinnedTags().includes(v.tag)}
+                          onOpenItem={openItem}
+                          onOpenTag={(tag) => go({ s: 'tag', tag })}
+                          onTogglePin={togglePin}
+                          onToggleTagPin={() => toggleTagPin(v.tag)}
+                          onRename={(to) => renameTag(v.tag, to)}
+                        />
+                      )
+                    }
+                  </Match>
+                  <Match when={view().s === 'note' && view()} keyed>
+                    {(v) =>
+                      v.s === 'note' && (
+                        <NoteScreen lib={lib()} noteId={v.id} onOpenRef={openRef} onTogglePin={togglePin} />
+                      )
+                    }
+                  </Match>
+                  <Match when={view().s === 'asset' && view()} keyed>
+                    {(v) =>
+                      v.s === 'asset' && (
+                        <AssetScreen
+                          lib={lib()}
+                          list={v.list}
+                          index={assetIndex.get(v) ?? v.index}
+                          onIndex={(i) => assetIndex.set(v, i)}
+                          onOpenNote={(id) => openItem(id)}
+                          onTogglePin={togglePin}
+                          onProject={moveItem}
+                          onTag={tagItem}
+                          onMemo={(id, memo) => editItem(id, { memo }, { memo })}
+                          host={viewHost}
+                          blocker={blockerOf}
+                          onEnablePlugin={enablePlugin}
+                          onOpenPlugins={(p) =>
+                            setBarRequest({ state: 'plugins', plugin: p && { id: p.id, dev: p.dev } })
+                          }
+                          onReveal={backend.revealItem}
+                          onOpenDefault={backend.openItemDefault}
+                        />
+                      )
+                    }
+                  </Match>
+                  <Match when={view().s === 'tidy' && view()} keyed>
+                    {(v) =>
+                      v.s === 'tidy' && <TidyScreen lib={lib()} currentId={v.id} onOpenItem={(id) => openItem(id)} />
+                    }
+                  </Match>
+                </Switch>
+              )}
+            </For>
+            <Show when={reloading()}>
+              {(r) => (
+                <ReloadOverlay
+                  step={r().step}
+                  work={r().work}
+                  onWait={() => answer?.('wait')}
+                  onStop={() => (r().step === 'ask' ? answer?.('stop') : void backend.stopPluginWork?.())}
+                />
+              )}
+            </Show>
+            <Show when={drag()}>
+              {(d) => (
+                <DropZone
+                  title={d().files ? `${d().files} 件のファイルを取り込む` : '取り込めるファイルがありません'}
+                  sub={
+                    !d().files
+                      ? 'ライブラリ内のファイルと空のフォルダは取り込めません'
+                      : d().folders.length
+                        ? 'ドロップ後にフォルダごとの取り込み方法を選択できます'
+                        : flatSub()
+                  }
+                />
+              )}
+            </Show>
+            <Show when={asking()}>
+              {(d) => (
+                <ImportDialog
+                  files={d().files}
+                  folders={d().folders}
+                  loose={d().loose}
+                  into={dropFolder() ?? undefined}
+                  onImport={(projects) => {
+                    setAsking(undefined)
+                    void importDropped(projects)
+                  }}
+                  onClose={() => setAsking(undefined)}
+                />
+              )}
+            </Show>
+          </ScreenFrame>
+        </HoverHostProvider>
+      </ThumbMakingProvider>
     </FormatsProvider>
   )
 }

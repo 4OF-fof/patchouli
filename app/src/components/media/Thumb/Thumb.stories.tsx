@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
-import { Thumb } from './Thumb'
+import { Thumb, ThumbMakingProvider } from './Thumb'
 
 const meta = {
   title: '部品/media/Thumb',
@@ -25,3 +25,16 @@ export const Note: Story = {
   },
 }
 export const Selected: Story = { args: { selected: true } }
+
+/** サムネイルがまだなく、裏で作っているあいだ。 */
+export const Making: Story = {
+  name: '作成中',
+  args: { ext: 'png' },
+  decorators: [
+    (Story) => (
+      <ThumbMakingProvider value={() => true}>
+        <Story />
+      </ThumbMakingProvider>
+    ),
+  ],
+}
