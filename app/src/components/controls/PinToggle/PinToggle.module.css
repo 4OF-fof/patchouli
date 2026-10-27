@@ -7,3 +7,14 @@
 .reveal:focus-visible {
   opacity: 1;
 }
+/* 留めているときは塗りつぶして地にアクセントを敷き、線だけの留めていない形と見分けやすくする */
+.pin[aria-pressed='true'] {
+  background: var(--accent-soft);
+}
+.pin[aria-pressed='true'][data-look='float'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.pin[aria-pressed='true'] > .glyph {
+  fill: currentColor;
+}

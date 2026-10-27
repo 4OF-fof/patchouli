@@ -28,28 +28,45 @@
 .crumbs {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
   min-width: 0;
-  padding: 0 6px;
+  padding: 0 4px;
   white-space: nowrap;
-  overflow: hidden;
 }
 .crumb {
+  height: 26px;
+  min-width: 0;
+  /* かなは字面の中心が高く見えるので、アイコンの中心より 1px 下げる */
+  padding: 2px 6px 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.crumb:hover,
+.crumb[aria-expanded='true'] {
+  background: var(--card);
+  color: var(--ink);
 }
 .crumb[aria-current='page'] {
-  flex: none;
   max-width: 40vw;
   color: var(--ink);
+}
+.placesAt {
+  position: relative;
+  flex: none;
+  display: flex;
 }
 .sep {
   color: var(--disabled);
 }
 /* 狭い窓では、いまの場所だけを出す */
 @media (max-width: 760px) {
-  .crumb:not([aria-current='page']),
+  .crumbs > .crumb,
   .sep {
     display: none;
   }

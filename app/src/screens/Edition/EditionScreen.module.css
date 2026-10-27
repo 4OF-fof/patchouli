@@ -1,6 +1,6 @@
 /* 一番下までスクロールしたとき、最後の段が検索バー（下から 64px）の 12px 上で終わる。段の下の 14px を引く */
 .ed {
-  padding: 18px 28px 62px;
+  padding: 18px 28px 28px;
 }
 .ed > section {
   margin-bottom: 14px;

@@ -19,13 +19,13 @@ export interface PinToggleProps {
 export function PinToggle(props: PinToggleProps) {
   return (
     <IconButton
-      class={`${props.reveal ? styles.reveal : ''} ${props.class ?? ''}`}
+      class={`${styles.pin} ${props.reveal ? styles.reveal : ''} ${props.class ?? ''}`}
       look={props.look}
       label={props.pressed ? 'ピン留めを解除' : `${props.where ?? ''}ピン留めする`}
       aria-pressed={!!props.pressed}
       onClick={() => props.onClick?.()}
     >
-      <Icon name="pin" />
+      <Icon name="pin" class={styles.glyph} />
     </IconButton>
   )
 }

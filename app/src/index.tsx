@@ -25,8 +25,15 @@ void backend
     }),
   )
   .then((o) =>
-    render(() => {
-      const app = <App {...o} backend={backend} />
-      return isTauri() ? <DesktopFrame>{app}</DesktopFrame> : app
-    }, root),
+    render(
+      () =>
+        isTauri() ? (
+          <DesktopFrame>
+            <App {...o} backend={backend} />
+          </DesktopFrame>
+        ) : (
+          <App {...o} backend={backend} />
+        ),
+      root,
+    ),
   )

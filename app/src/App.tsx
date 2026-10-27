@@ -346,6 +346,7 @@ export function App(props: AppProps) {
               here={here()}
               crumbs={crumbs()}
               onBack={stack().length > 1 ? goBack : undefined}
+              onCrumb={(i) => setStack(stack().slice(0, i + 1))}
               onGo={onGo}
               onOpenProject={(name) => go({ s: 'project', name })}
               onOpenItem={(id) => openItem(id)}

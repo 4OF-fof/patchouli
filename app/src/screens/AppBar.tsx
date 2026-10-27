@@ -20,13 +20,15 @@ import { type Row, SearchResults } from '../components/search/SearchResults/Sear
 /** 行き先。 */
 export type Place = 'home' | 'tags' | 'projects' | 'tidy'
 /**
- * closed 閉じている / menu メニューを開いた / settings その先の設定 / search 検索に入力中 / prompt プロンプト /
+ * closed 閉じている / menu メニューを開いた / settings その先の設定 / places いまの場所から開いた画面の一覧 /
+ * search 検索に入力中 / prompt プロンプト /
  * help キー操作の一覧 / plugins プラグイン / notices 権利表示 / libraries ライブラリの切り替え / other その他
  */
 export type BarState =
   | 'closed'
   | 'menu'
   | 'settings'
+  | 'places'
   | 'search'
   | 'prompt'
   | 'help'
@@ -43,6 +45,8 @@ export interface AppBarProps {
   crumbs?: string[]
   /** 渡すと、メニューの右に戻るを出す。 */
   onBack?: () => void
+  /** いまより前の場所を押したとき。i は crumbs の位置。 */
+  onCrumb?: (i: number) => void
   initial?: BarState
   /** 検索欄に最初から入っている語。 */
   query?: string
@@ -85,6 +89,7 @@ export function AppBar(props: AppBarProps) {
   const lib = () => props.lib
   const searching = () => state() === 'search' || state() === 'prompt'
   const menuOpen = () => state() === 'menu' || state() === 'settings'
+  const placesOpen = () => state() === 'places'
   const close = () => {
     setState('closed')
     setQuery('')
@@ -145,11 +150,13 @@ export function AppBar(props: AppBarProps) {
 
   // メニューは外を押すと閉じる
   let menuEl!: HTMLDivElement
+  let placesEl: HTMLSpanElement | undefined
   const away = (e: PointerEvent) => {
-    if (e.target instanceof Node && !menuEl.contains(e.target)) close()
+    const at = placesOpen() ? placesEl : menuEl
+    if (e.target instanceof Node && !at?.contains(e.target)) close()
   }
   createEffect(() => {
-    if (!menuOpen()) return
+    if (!menuOpen() && !placesOpen()) return
     document.addEventListener('pointerdown', away)
     onCleanup(() => document.removeEventListener('pointerdown', away))
   })
@@ -177,6 +184,17 @@ export function AppBar(props: AppBarProps) {
     async () => (await import('../notices/third-party.json')).default as Notices,
   )
 
+  const placeItems = (): NavMenuEntry[] => [
+    { id: 'home', icon: 'home', label: 'ホーム', current: props.here === 'home' },
+    {
+      id: 'projects',
+      icon: 'folder',
+      label: 'プロジェクト',
+      count: lib().projects.length,
+      current: props.here === 'projects',
+    },
+    { id: 'tags', icon: 'hash', label: 'タグ', count: lib().tagGroups().size, current: props.here === 'tags' },
+  ]
   const menuItems = (): NavMenuEntry[] =>
     state() === 'settings'
       ? [
@@ -200,15 +218,7 @@ export function AppBar(props: AppBarProps) {
           { id: 'notices', icon: 'notices', label: '権利表示' },
         ]
       : [
-          { id: 'home', icon: 'home', label: 'ホーム', current: props.here === 'home' },
-          {
-            id: 'projects',
-            icon: 'folder',
-            label: 'プロジェクト',
-            count: lib().projects.length,
-            current: props.here === 'projects',
-          },
-          { id: 'tags', icon: 'hash', label: 'タグ', count: lib().tagGroups().size, current: props.here === 'tags' },
+          ...placeItems(),
           { id: 'search', icon: 'search', label: '検索', kbd: 'Ctrl P' },
           'separator',
           { id: 'settings', icon: 'settings', label: '設定' },
@@ -281,13 +291,32 @@ export function AppBar(props: AppBarProps) {
                     /
                   </span>
                 </Show>
-                <span
-                  class={styles.crumb}
-                  aria-current={i() === (props.crumbs?.length ?? 0) - 1 ? 'page' : undefined}
-                  data-tauri-drag-region
+                <Show
+                  when={i() === (props.crumbs?.length ?? 0) - 1}
+                  fallback={
+                    <button type="button" class={styles.crumb} onClick={() => props.onCrumb?.(i())}>
+                      {c}
+                    </button>
+                  }
                 >
-                  {c}
-                </span>
+                  <span class={styles.placesAt} ref={placesEl}>
+                    <button
+                      type="button"
+                      class={styles.crumb}
+                      aria-current="page"
+                      aria-haspopup="menu"
+                      aria-expanded={placesOpen()}
+                      onClick={() => (placesOpen() ? close() : setState('places'))}
+                    >
+                      {c}
+                    </button>
+                    <Show when={placesOpen()}>
+                      <div class={styles.menu}>
+                        <NavMenu focusFirst items={placeItems()} onSelect={onMenu} onClose={close} />
+                      </div>
+                    </Show>
+                  </span>
+                </Show>
               </>
             )}
           </For>

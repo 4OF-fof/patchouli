@@ -15,7 +15,7 @@
 /* プロジェクト・一覧の紙 */
 .page {
   position: relative;
-  padding: 28px 28px 100px;
+  padding: 28px;
 }
 .mast {
   display: flex;
