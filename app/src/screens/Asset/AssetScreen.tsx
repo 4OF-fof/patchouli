@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createResource, createSignal } from 'solid-js'
+import { For, Match, Show, Switch, createEffect, createResource, createSignal, onCleanup } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
@@ -36,8 +36,42 @@ export interface AssetScreenProps {
   onOpenNote?: (id: string) => void
   /** ピン留めを切り替える。プロジェクトに入っていればその上に、入っていなければホームに出る。 */
   onTogglePin?: (id: string) => void
+  /** タグを付ける（on）か外す。 */
+  onTag?: (id: string, tag: string, on: boolean) => void
+  /** メモを書き換える。書いている間は、手が止まってから呼ぶ。 */
+  onMemo?: (id: string, memo: string) => void
   /** 省略すると、サムネイルを大きく出す。 */
   host?: AssetViewHost
+}
+
+/** 書いている間は、保存した値で書き換えない。手が止まったとき、離れたとき、閉じたときに onChange を呼ぶ。 */
+function MemoField(props: { value: string; onChange: (memo: string) => void }) {
+  let el!: HTMLTextAreaElement
+  let timer = 0
+  let saved = props.value
+  const flush = () => {
+    clearTimeout(timer)
+    if (el.value === saved) return
+    saved = el.value
+    props.onChange(saved)
+  }
+  createEffect(() => {
+    const v = props.value
+    if (document.activeElement === el) return
+    el.value = saved = v
+  })
+  onCleanup(flush)
+  return (
+    <textarea
+      ref={el}
+      placeholder="メモ"
+      onInput={() => {
+        clearTimeout(timer)
+        timer = window.setTimeout(flush, 500)
+      }}
+      onBlur={flush}
+    />
+  )
 }
 
 /** 04 素材。暗い舞台に 1 つだけ大きく出し、操作は浮かべる。 */
@@ -66,6 +100,13 @@ export function AssetScreen(props: AssetScreenProps) {
     const make = props.host?.ui
     if (v?.kind !== 'ui' || !a || !make) return undefined
     return { url: v.url, api: make({ id: a.id, name: a.name, ext: a.ext, url: a.src }, 'view', v.plugin) }
+  }
+  const addTag = (e: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
+    const a = it()
+    if (e.key !== 'Enter' || e.isComposing || !a) return
+    const tag = e.currentTarget.value.trim().replace(/^#\s*/, '')
+    e.currentTarget.value = ''
+    if (tag && !a.tags.includes(tag)) props.onTag?.(a.id, tag, true)
   }
   return (
     <section class={`${shared.screen} ${styles.root}`} data-idle={!!props.idle} aria-label="素材">
@@ -139,13 +180,21 @@ export function AssetScreen(props: AssetScreenProps) {
                     <div class={styles.fl}>
                       <span class={styles.k}>タグ</span>
                       <div class={styles.tags}>
-                        <For each={a().tags}>{(t) => <Chip aria-label={`# ${t} を削除`}># {t} ✕</Chip>}</For>
-                        <input type="text" placeholder="＋ タグ" aria-label="タグを追加" />
+                        <For each={a().tags}>
+                          {(t) => (
+                            <Chip aria-label={`# ${t} を削除`} onClick={() => props.onTag?.(a().id, t, false)}>
+                              # {t} ✕
+                            </Chip>
+                          )}
+                        </For>
+                        <input type="text" placeholder="＋ タグ" aria-label="タグを追加" onKeyDown={addTag} />
                       </div>
                     </div>
                     <label class={styles.fl}>
                       <span class={styles.k}>メモ</span>
-                      <textarea placeholder="メモ" value={a().memo} />
+                      <Show when={a().id} keyed>
+                        {(id) => <MemoField value={a().memo} onChange={(memo) => props.onMemo?.(id, memo)} />}
+                      </Show>
                     </label>
                     <div class={styles.fl}>
                       <span class={styles.k}>この素材へのリンク {lib().backOf(a()).length}</span>

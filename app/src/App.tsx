@@ -4,6 +4,7 @@ import { DropZone } from './components/overlay/DropZone/DropZone'
 import { ImportDialog } from './components/overlay/ImportDialog/ImportDialog'
 import { Toast } from './components/overlay/Toast/Toast'
 import {
+  type Item,
   type Library,
   newNoteName,
   newProjectName,
@@ -137,6 +138,21 @@ export function App(props: AppProps) {
       setLib(withChanged(lib(), [it], []))
       setNotice('外で変更されたので読み込み直しました')
     })
+
+  const editItem = (id: string, change: Partial<Item>, patch: ItemPatch) => {
+    const it = lib().byId.get(id)
+    if (!it) return
+    setLib(withChanged(lib(), [{ ...it, ...change }], []))
+    saveItem(id, patch)
+  }
+  const tagItem = (id: string, tag: string, on: boolean) => {
+    const tags = lib().byId.get(id)?.tags ?? []
+    editItem(
+      id,
+      { tags: on ? [...tags, tag] : tags.filter((t) => t !== tag) },
+      { tags: on ? { add: [tag] } : { remove: [tag] } },
+    )
+  }
 
   const createProject = async () => {
     const name = newProjectName(lib())
@@ -372,6 +388,8 @@ export function App(props: AppProps) {
                   onBack={goBack}
                   onOpenNote={(id) => openItem(id)}
                   onTogglePin={togglePin}
+                  onTag={tagItem}
+                  onMemo={(id, memo) => editItem(id, { memo }, { memo })}
                   host={viewHost}
                 />
               )
