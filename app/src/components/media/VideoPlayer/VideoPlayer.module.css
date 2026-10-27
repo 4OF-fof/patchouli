@@ -21,10 +21,15 @@
   object-fit: contain;
   cursor: pointer;
 }
+/* 置き場所の側で、--player-bar-width で幅を変えられる */
 .bar {
-  width: min(100%, 880px);
+  width: var(--player-bar-width, min(100%, 880px));
 }
 .root:fullscreen {
   padding: 0 0 16px;
   background: #000;
+}
+/* 全画面では「情報」が出ないので、置き場所の幅の指定によらず広げる */
+.root:fullscreen .bar {
+  width: min(100%, 880px);
 }

@@ -29,6 +29,7 @@
 .done {
   color: var(--sage);
 }
+/* 置き場所の側で、--player-bar-width で幅を変えられる */
 .bar {
-  width: min(100%, 880px);
+  width: var(--player-bar-width, min(100%, 880px));
 }

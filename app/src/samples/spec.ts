@@ -25,6 +25,8 @@ export type SpecItem = Item & {
   size?: [number, number]
   /** 動画と音声の長さ（秒）。 */
   sec?: number
+  /** 音声にジャケット（画像）を埋め込む。 */
+  jacket?: boolean
   /** テキストの中身。 */
   text?: string
 }
@@ -417,6 +419,7 @@ const LOOSE: [name: string, ext: string, moved: number, like: string | null, mai
   ['capture', 'png', 6, null, ['UI']],
   ['voice-1019', 'mp3', 3, 'インタビュー', ['音']],
   ['clip-0412', 'mp4', 11, 'インタビュー', ['動画']],
+  ['theme-demo', 'mp3', 2, 'インタビュー', ['音']],
 ]
 const TAG_POOL: Record<string, string[]> = {
   秋の企画: ['写真', '配色', '秋', '参考'],
@@ -425,6 +428,9 @@ const TAG_POOL: Record<string, string[]> = {
   インタビュー: ['音', '動画', '取材'],
   資料: ['参考', '資料', '写真'],
 }
+
+/** ジャケットを埋め込む音声。ほかの音声は、波形がサムネイルになる。 */
+const JACKETS = ['theme-demo']
 
 /** プロジェクトに入っていない、ピン留めした素材。 */
 const PINNED_ITEMS = ['ref-a', 'IMG_3316']
@@ -483,6 +489,7 @@ export function sampleSpec(): Spec {
       memo: '',
       ...(size && { size }),
       ...(sec && { sec }),
+      ...(media === 'audio' && JACKETS.includes(it.name) && { jacket: true }),
       ...(media === 'text' && { text: TEXTS[it.name] ?? '' }),
     }
     items.push(full)

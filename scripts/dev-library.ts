@@ -91,7 +91,16 @@ function ffmpegArgs(it: SpecItem, out: string): string[] {
     : `aevalsrc=sin(2*PI*${220 + it.hue}*t)*(0.15+0.85*abs(sin(PI*t/${3 + (it.hue % 5)}))):d=${sec}`
   if (it.media === 'audio') {
     const codec = it.ext === 'mp3' ? ['-c:a', 'libmp3lame'] : []
-    return [...base, '-f', 'lavfi', '-i', tone, ...codec, out]
+    if (!it.jacket) return [...base, '-f', 'lavfi', '-i', tone, ...codec, out]
+    const vf = label(it, 600)
+    return [
+      ...base,
+      ...['-f', 'lavfi', '-i', tone],
+      ...['-f', 'lavfi', '-i', `gradients=s=600x600:c0=${c0}:c1=${c1}:n=2:seed=${it.hue}`],
+      ...(vf.length ? ['-filter:v', vf.join(',')] : []),
+      ...['-map', '0:a', '-map', '1:v', '-frames:v', '1', ...codec, '-c:v', 'mjpeg', '-q:v', '3'],
+      ...['-disposition:v', 'attached_pic', '-id3v2_version', '3', '-metadata:s:v', 'comment=Cover (front)', out],
+    ]
   }
   // 再生できているか分かるよう、右上に経過時間を出す
   const clock = `drawtext=fontfile=FONT:text='%{pts\\:hms}':fontsize=${Math.round(h / 20)}:fontcolor=white@0.9:x=w-tw-${Math.round(h / 20)}:y=${Math.round(h / 20)}`
