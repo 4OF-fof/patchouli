@@ -140,3 +140,8 @@
     width: auto;
   }
 }
+.unsupported {
+  margin: 0;
+  font-size: var(--fs-list);
+  opacity: 0.7;
+}

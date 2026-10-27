@@ -134,7 +134,15 @@ export function AssetScreen(props: AssetScreenProps) {
   }
   return (
     <section class={`${shared.screen} ${styles.root}`} data-idle={!!props.idle} aria-label="素材">
-      <Show when={it()}>
+      {/* TODO: 未対応ファイルを開いたときの表示に差し替える（画面は設計中） */}
+      <Show
+        when={it()}
+        fallback={
+          <div class={styles.stage}>
+            <p class={styles.unsupported}>このファイルの形式に対応したプラグインがありません</p>
+          </div>
+        }
+      >
         {(a) => (
           <>
             <div class={styles.stage}>
