@@ -20,6 +20,10 @@
   color: var(--ink-2);
   cursor: pointer;
 }
+.appIcon {
+  width: 16px;
+  height: 16px;
+}
 .ib:hover,
 .ib[aria-expanded='true'] {
   background: var(--card);

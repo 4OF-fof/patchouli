@@ -4,7 +4,6 @@ import styles from './TitleBar.module.css'
 /** デスクトップの窓を動かす操作。web では無い。 */
 export interface WindowControls {
   /** 左に出すアプリのアイコン。 */
-  icon?: string
   maximized: Accessor<boolean>
   onMinimize: () => void
   onToggleMaximize: () => void
@@ -30,7 +29,6 @@ export function TitleBar(props: TitleBarProps) {
   const win = () => props.window ?? fromFrame
   return (
     <header class={styles.root} data-tauri-drag-region>
-      <Show when={win()?.icon}>{(src) => <img class={styles.icon} src={src()} alt="" data-tauri-drag-region />}</Show>
       <div class={styles.start}>{props.children}</div>
       <span class={styles.drag} data-tauri-drag-region />
       {props.end}

@@ -4,17 +4,12 @@
   gap: 2px;
   height: var(--title-bar);
   flex: none;
-  padding-left: 10px;
+  padding-left: 4px;
   border-bottom: 1px solid var(--line);
   background: var(--desk);
   color: var(--ink-2);
   font-size: var(--fs-list);
   user-select: none;
-}
-.icon {
-  width: 16px;
-  height: 16px;
-  margin-right: 6px;
 }
 .start {
   display: flex;

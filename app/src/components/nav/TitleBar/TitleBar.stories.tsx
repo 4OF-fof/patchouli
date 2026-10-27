@@ -1,10 +1,8 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { createSignal } from 'solid-js'
-import icon from '../../../../src-tauri/icons/32x32.png'
 import { TitleBar } from './TitleBar'
 
 const controls = (maximized: boolean) => ({
-  icon,
   maximized: createSignal(maximized)[0],
   onMinimize: () => {},
   onToggleMaximize: () => {},

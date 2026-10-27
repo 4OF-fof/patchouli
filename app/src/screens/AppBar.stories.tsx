@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import type { JSX } from 'solid-js'
-import icon from '../../src-tauri/icons/32x32.png'
 import { WindowProvider } from '../components/nav/TitleBar/TitleBar'
 import { PINNED_PROJECTS, PINNED_TAGS, sampleLibrary } from '../samples/library'
 import { AppBar, type AppBarProps } from './AppBar'
@@ -26,7 +25,7 @@ const bar = (o: Partial<AppBarProps> = {}) => {
 
 const desktop = (Story: () => JSX.Element) => (
   <WindowProvider
-    value={{ icon, maximized: () => false, onMinimize: () => {}, onToggleMaximize: () => {}, onClose: () => {} }}
+    value={{ maximized: () => false, onMinimize: () => {}, onToggleMaximize: () => {}, onClose: () => {} }}
   >
     <Story />
   </WindowProvider>

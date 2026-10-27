@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import { version } from '../../package.json'
+import appIcon from '../../src-tauri/icons/32x32.png'
 import type { LibraryActions, TidyActions } from '../backend/types'
 import { Icon } from '../components/base/Icon/Icon'
 import { TitleBar } from '../components/nav/TitleBar/TitleBar'
@@ -80,7 +81,7 @@ const toggleTheme = () => {
   d.theme = d.theme === 'light' ? 'dark' : 'light'
 }
 
-/** 画面の上のタイトルバー。メニュー・戻る・いまの場所を置き、メニューと Ctrl P の検索、設定の窓を受け持つ。 */
+/** 画面の上のタイトルバー。アプリのアイコン（メニュー）・戻る・いまの場所を置き、メニューと Ctrl P の検索、設定の窓を受け持つ。 */
 export function AppBar(props: AppBarProps) {
   const init = props.initial ?? 'closed'
   const [state, setState] = createSignal<BarState>(init)
@@ -218,9 +219,7 @@ export function AppBar(props: AppBarProps) {
           { id: 'notices', icon: 'notices', label: '権利表示' },
         ]
       : [
-          ...placeItems(),
           { id: 'search', icon: 'search', label: '検索', kbd: 'Ctrl P' },
-          'separator',
           { id: 'settings', icon: 'settings', label: '設定' },
         ]
   const onMenu = (id: string) => {
@@ -263,7 +262,7 @@ export function AppBar(props: AppBarProps) {
             aria-expanded={menuOpen()}
             onClick={() => (menuOpen() ? close() : setState('menu'))}
           >
-            <Icon name="menu" />
+            <img class={styles.appIcon} src={appIcon} alt="" />
           </button>
           <Show when={menuOpen()}>
             <div class={styles.menu}>

@@ -11,10 +11,5 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Main: Story = {}
-export const OnTagList: Story = {
-  args: {
-    items: MAIN_ITEMS.map((it) => (it === 'separator' ? it : { ...it, current: it.id === 'tags' })),
-  },
-}
 export const Settings: Story = { args: { items: SETTINGS_ITEMS } }
 export const Places: Story = { name: '画面の一覧（いまの場所から）', args: { items: PLACE_ITEMS } }

@@ -2,11 +2,7 @@ import type { NavMenuEntry } from './NavMenu'
 
 /** ストーリー用の見本。 */
 export const MAIN_ITEMS: NavMenuEntry[] = [
-  { id: 'home', icon: 'home', label: 'ホーム', current: true },
-  { id: 'projects', icon: 'folder', label: 'プロジェクト', count: 8 },
-  { id: 'tags', icon: 'hash', label: 'タグ', count: 14 },
   { id: 'search', icon: 'search', label: '検索', kbd: 'Ctrl P' },
-  'separator',
   { id: 'settings', icon: 'settings', label: '設定' },
 ]
 
