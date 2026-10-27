@@ -18,14 +18,18 @@ export interface AllScreenProps {
   onTogglePin?: (id: string) => void
 }
 
-/** すべての項目（素材とノート）を、区切らずに新しい順で並べる。 */
+/** すべての項目（素材とノート）を、区切らずに並べる。ピン留めしたものが先、ほかは新しい順。 */
 export function AllScreen(props: AllScreenProps) {
   let scroll!: HTMLDivElement
   let more: HTMLDivElement | undefined
   const lib = () => props.lib
   const preview = useHoverPreview()
-  const all = createMemo(() => lib().items.toSorted((a, b) => a.moved - b.moved))
-  const notes = () => all().filter((i) => i.note).length
+  // ピン留めしたものを留めた順で先に、ほかは新しい順
+  const all = createMemo(() => {
+    const pins = new Map(lib().pins.map((id, i) => [id, i]))
+    const rank = (id: string) => pins.get(id) ?? pins.size
+    return lib().items.toSorted((a, b) => rank(a.id) - rank(b.id) || a.moved - b.moved)
+  })
   const [shown, setShown] = createSignal(FIRST)
   const visible = () => all().slice(0, shown())
 
@@ -53,9 +57,7 @@ export function AllScreen(props: AllScreenProps) {
         <div class={shared.page}>
           <header class={shared.mast}>
             <h1>すべて</h1>
-            <span class={shared.meta}>
-              {all().length} 件 · 素材 {all().length - notes()} · ノート {notes()}
-            </span>
+            <span class={shared.meta}>{all().length} 件</span>
           </header>
           <Show
             when={all().length}

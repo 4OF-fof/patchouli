@@ -6,7 +6,15 @@ const done = async () => {}
 const meta = {
   title: '部品/media/Unsupported',
   component: Unsupported,
-  args: { ext: 'psd', label: 'PSD', onOpenPlugins: () => {}, onReveal: done, onOpenDefault: done, onEnable: done },
+  args: {
+    name: 'ポスター案',
+    ext: 'psd',
+    label: 'PSD',
+    onOpenPlugins: () => {},
+    onReveal: done,
+    onOpenDefault: done,
+    onEnable: done,
+  },
   decorators: [
     (Story) => (
       <div style={{ background: 'var(--stage)', padding: '40px 20px' }}>

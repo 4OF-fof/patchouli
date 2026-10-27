@@ -8,6 +8,8 @@ import styles from './Unsupported.module.css'
 export type Blocker = Pick<PluginStatus, 'id' | 'name' | 'dev' | 'state'>
 
 export interface UnsupportedProps {
+  /** ファイルの名前（拡張子なし）。 */
+  name: string
   /** 拡張子（「.」なし）。 */
   ext: string
   /** 形式の呼び名。 */
@@ -25,7 +27,7 @@ export interface UnsupportedProps {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-/** 対応するプラグインがない素材の、詳細の代わり。形式の札と理由、ほかで開く操作を出す。暗い舞台の上に置く。 */
+/** 対応するプラグインがない素材の、詳細の代わり。ファイル名と理由、ほかで開く操作を出す。暗い舞台の上に置く。 */
 export function Unsupported(props: UnsupportedProps) {
   const [busy, setBusy] = createSignal(false)
   const [error, setError] = createSignal<string>()
@@ -54,12 +56,11 @@ export function Unsupported(props: UnsupportedProps) {
   }
   return (
     <div class={`${styles.root} ${props.class ?? ''}`} role="status">
-      <div class={styles.tile} aria-hidden="true">
-        <Icon name={props.blocker ? 'plugin' : 'file'} size={24} />
-        <Show when={props.ext}>
-          <span class={styles.ext}>.{props.ext}</span>
-        </Show>
-      </div>
+      <Icon name="unknownFile" size={72} class={styles.icon} />
+      <b class={styles.name}>
+        {props.name}
+        <Show when={props.ext}>.{props.ext}</Show>
+      </b>
       <p class={styles.text}>{text()}</p>
       <div class={styles.actions}>
         <Show when={enable()}>

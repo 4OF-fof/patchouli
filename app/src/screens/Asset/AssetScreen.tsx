@@ -170,6 +170,7 @@ export function AssetScreen(props: AssetScreenProps) {
                 <Match when={unsupported()}>
                   <Show when={!blocker.loading}>
                     <Unsupported
+                      name={a().name}
                       ext={a().ext}
                       label={lib().formatLabel(a())}
                       blocker={blocker() ?? undefined}
