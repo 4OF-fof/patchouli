@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::UNIX_EPOCH;
 
@@ -331,8 +331,37 @@ pub fn place(png: &[u8], original: Option<(u32, u32)>, out: &Path) -> Result<(u3
     Ok(original.filter(|(w, h)| *w > 0 && *h > 0).unwrap_or((w, h)))
 }
 
-/// 新しいものから順に、手の空いた数だけ並べて作る。できたものごとに done を呼ぶ。
-pub fn make_all(reg: &Arc<Registry>, mut jobs: Vec<Job>, done: impl Fn(&Job, Placed) + Sync) {
+/// プラグインにサムネイルを作らせている元の場所。作り終わるまでは、波形をサムネイルにしない（ジャケットを先にする）。
+fn making() -> &'static Mutex<HashSet<PathBuf>> {
+    static M: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
+    M.get_or_init(Default::default)
+}
+
+/// src のサムネイルを、プラグインに作らせることにした。
+pub fn start_making(src: &Path) {
+    if let Ok(mut m) = making().lock() {
+        m.insert(src.to_owned());
+    }
+}
+
+/// src のサムネイルを、プラグインが作り終えた（作らなかったときも）。
+pub fn end_making(src: &Path) {
+    if let Ok(mut m) = making().lock() {
+        m.remove(src);
+    }
+}
+
+/// src のサムネイルを、プラグインが作っているところか。
+pub fn is_making(src: &Path) -> bool {
+    making().lock().is_ok_and(|m| m.contains(src))
+}
+
+/// 新しいものから順に、手の空いた数だけ並べて作る。仕事ごとに done を呼ぶ（作らなかったときと失敗したときは None）。
+pub fn make_all(
+    reg: &Arc<Registry>,
+    mut jobs: Vec<Job>,
+    done: impl Fn(&Job, Option<Placed>) + Sync,
+) {
     jobs.sort_by(|a, b| b.mtime.total_cmp(&a.mtime));
     let next = AtomicUsize::new(0);
     let width = std::thread::available_parallelism().map_or(2, |n| (n.get() / 2).max(1));
@@ -341,11 +370,11 @@ pub fn make_all(reg: &Arc<Registry>, mut jobs: Vec<Job>, done: impl Fn(&Job, Pla
             s.spawn(|| {
                 let mut runner = Runner::new(Arc::clone(reg));
                 while let Some(job) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
-                    match make(&mut runner, job) {
-                        Ok(Some(placed)) => done(job, placed),
-                        Ok(None) => {}
-                        Err(e) => log::warn!("サムネイルを作れない: {e}"),
-                    }
+                    let placed = make(&mut runner, job).unwrap_or_else(|e| {
+                        log::warn!("サムネイルを作れない: {e}");
+                        None
+                    });
+                    done(job, placed);
                 }
             });
         }

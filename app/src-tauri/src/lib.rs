@@ -189,6 +189,7 @@ fn plan_thumbs<'a>(
             }
             it.thumb = Some(out);
         } else if by == Some(By::Wasm) {
+            thumb::start_making(&it.file);
             jobs.push(thumb::Job {
                 id: it.id.clone(),
                 src: it.file.clone(),
@@ -202,6 +203,7 @@ fn plan_thumbs<'a>(
 }
 
 /// 裏でサムネイルを作り、できたものから画面へ知らせる。
+/// プラグインが作らなかったもので、波形がもうあれば、波形をサムネイルにする。
 fn make_thumbs(
     app: &tauri::AppHandle,
     plugins: &Arc<Registry>,
@@ -209,8 +211,43 @@ fn make_thumbs(
     jobs: Vec<thumb::Job>,
 ) {
     thumb::make_all(plugins, jobs, |j, p| {
-        tell_thumb(app, cache, &j.id, &j.src, &p.out, p.size, &p.reads)
+        thumb::end_making(&j.src);
+        let made = match p {
+            Some(p) => {
+                tell_thumb(app, cache, &j.id, &j.src, &p.out, p.size, &p.reads);
+                Ok(())
+            }
+            None => wave_thumb(app, cache, plugins, &j.dir, &j.id, &j.src, &j.ext),
+        };
+        if let Err(e) = made {
+            log::warn!("波形をサムネイルにできない: {e}");
+        }
     })
+}
+
+/// 残してある波形を描いてサムネイルにし、画面へ知らせる。波形がないときや、サムネイルがもうあるときは何もしない。
+fn wave_thumb(
+    app: &tauri::AppHandle,
+    cache: &Cache,
+    plugins: &Registry,
+    thumbs: &Path,
+    id: &str,
+    src: &Path,
+    ext: &str,
+) -> Result<(), String> {
+    let err = || format!("{} の読み込みに失敗しました", src.display());
+    let Some(wave) = thumb::wave_path(thumbs, src).and_then(|p| std::fs::read(p).ok()) else {
+        return Ok(());
+    };
+    let reads = reads_now(plugins, cache.thumb_reads().get(src), ext);
+    let out = thumb::path_for(thumbs, src, &reads).ok_or_else(err)?;
+    if out.exists() {
+        return Ok(());
+    }
+    let png = thumb::draw_wave(&wave, plugins.ratio_of(ext))?;
+    let size = thumb::place(&png, None, &out).map_err(|e| format!("{}: {e}", src.display()))?;
+    tell_thumb(app, cache, id, src, &out, size, &reads);
+    Ok(())
 }
 
 /// src のサムネイル file ができたことを、写しに書いて画面へ知らせる。
@@ -707,6 +744,7 @@ async fn waveform(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Res
 
 /// 組み込み UI が作った波形（本文が、区間ごとの音の大きさを 0〜255 にしたもの）を置く。見出しの id は素材。
 /// サムネイルがまだなければ、波形を描いてサムネイルにし、画面へ知らせる。
+/// プラグインがサムネイル（ジャケットなど）を作っているところなら、作り終わるのを待つ（make_thumbs が続きをする）。
 #[tauri::command]
 async fn put_waveform(
     app: tauri::AppHandle,
@@ -740,15 +778,10 @@ async fn put_waveform(
     })?;
     let err = || format!("{} の読み込みに失敗しました", src.display());
     thumb::keep(&thumb::wave_path(&thumbs, &src).ok_or_else(err)?, wave);
-    let reads = reads_now(&plugins, cache.thumb_reads().get(&src), &ext);
-    let out = thumb::path_for(&thumbs, &src, &reads).ok_or_else(err)?;
-    // ジャケットなど、プラグインが作ったサムネイルがあれば、そちらを使う
-    if !out.exists() {
-        let png = thumb::draw_wave(wave, plugins.ratio_of(&ext))?;
-        let size = thumb::place(&png, None, &out).map_err(|e| format!("{}: {e}", src.display()))?;
-        tell_thumb(&app, &cache, &id, &src, &out, size, &reads);
+    if thumb::is_making(&src) {
+        return Ok(());
     }
-    Ok(())
+    wave_thumb(&app, &cache, &plugins, &thumbs, &id, &src, &ext)
 }
 
 /// 使っているプラグインのフォルダの中のファイルを返す。
