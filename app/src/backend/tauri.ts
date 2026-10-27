@@ -1,4 +1,3 @@
-/* デスクトップ（Tauri）の窓口。ファイルの読み書きとサムネイル作りは Rust 側（src-tauri/src/）がする。 */
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
@@ -20,7 +19,6 @@ import { ThumbnailTimeout, type UiApi, type UiItem, uiThumbnail, uiWaveform } fr
 import errorThumb from './thumb-error.svg'
 import type { Backend, CacheUsage, Changed, Developer, Dropped, FileDrag, KnownLibrary, UnusedPlugin } from './types'
 
-/** Rust から届く項目。file はファイルの場所、thumb はできているサムネイルの場所。 */
 type TauriItem = StoredItem & { file: string; thumb?: string }
 
 const urlsOf = (it: TauriItem): ItemUrls => ({
@@ -28,17 +26,14 @@ const urlsOf = (it: TauriItem): ItemUrls => ({
   thumb: it.thumb && convertFileSrc(it.thumb),
 })
 
-/** Rust から届く、詳細に出すもの。ui はプラグインの id と、そのフォルダの中の ES モジュールのパス。decoded は item_decoded で PNG を受け取る。 */
 type TauriView = { kind: 'image' | 'video' | 'audio' | 'decoded' } | { kind: 'ui'; plugin: string; module: string }
 
 /** プラグインを読み直した回数。組み込み UI の ES モジュールは URL ごとに使い回すので、URL に付けて読み直させる。 */
 let uiVersion = 0
 
-/** プラグインのフォルダの中のファイルの URL（src-tauri/src/plugin/files.rs が返す）。 */
 const pluginUrl = (plugin: string, path: string) =>
   `${convertFileSrc('', 'plugin') + [plugin, ...path.split('/')].map(encodeURIComponent).join('/')}?v=${uiVersion}`
 
-/** 読んだ key を read に足していく設定の値。 */
 const watched = (s: Record<string, SettingValue>, read: Set<string>) =>
   new Proxy(s, {
     get(t, k) {
@@ -60,10 +55,8 @@ const uiItemOf = (it: TauriItem): UiItem => ({ id: it.id, name: it.name, ext: it
 /** 波形を作る時間の上限（秒）の設定の key。src-tauri/src/plugin/mod.rs の WAVEFORM_LIMIT_KEY と合わせる。 */
 const WAVE_LIMIT = '@waveformLimit'
 
-/** 画面の位置（物理 px）を CSS の px にする。 */
 const at = (p: { x: number; y: number }) => ({ x: p.x / devicePixelRatio, y: p.y / devicePixelRatio })
 
-// 組み込み UI の call。引数と戻り値は JSON で受け渡す。WASM が何も返さなければ undefined
 const callerOf = <M extends object>(item: UiItem, part: Part, plugin?: string): Caller<M> => ({
   call: async (method: string, ...args: unknown[]) => {
     const r = await invoke<string>('plugin_call', {
@@ -77,11 +70,12 @@ const callerOf = <M extends object>(item: UiItem, part: Part, plugin?: string): 
   },
 })
 
+const idsOf = (xs: (TauriItem | undefined)[]) => xs.flatMap((it) => (it ? [it.id] : []))
+
 export function tauriBackend(): Backend {
   // 開いた直後からサムネイルが届くので、画面が受け取れるようになるまで溜めておく
   const ready: [string, Thumbnail][] = []
   const subs = new Set<(id: string, thumb: Thumbnail) => void>()
-  // サムネイルを送った素材。波形を作れなかったときに、エラー用のサムネイルを出すかを決めるのに使う
   const thumbed = new Set<string>()
   const sendThumb = (id: string, t: Thumbnail) => {
     thumbed.add(id)
@@ -107,16 +101,13 @@ export function tauriBackend(): Backend {
       if (changeSubs.size) for (const cb of changeSubs) cb(c)
       else changes.push(c)
     }))
-  // 開いたライブラリで扱える形式。あとから足す項目にも使う
   let formats = new Map<string, FormatInfo>()
 
-  // WASM が PNG にした詳細の画像。次の素材を開くときに捨てる
   let decoded: string | undefined
 
   // 落としたもののパスは画面に渡さず、取り込むときまでここで持つ
   let dropped: string[] = []
 
-  // 設定を変えると、その設定を読んで作ったサムネイルのうち、組み込み UI が作るものが返ってくる
   const setSetting = async (plugin: string, key: string, value: SettingValue) => {
     void makeUiThumbs(await invoke<TauriItem[]>('set_plugin_setting', { id: plugin, key, value }))
   }
@@ -133,7 +124,6 @@ export function tauriBackend(): Backend {
     setData: (key, value) => invoke('set_plugin_data', { plugin, key, value: value ?? null }),
   })
 
-  // 読んだ設定を Rust に渡し、その値が変わったときに作り直せるようにする
   const makeUiThumb = async (it: TauriItem, ui: UiRef) => {
     const read = new Set<string>()
     const api = uiApi(uiItemOf(it), 'thumbnail', ui.plugin)
@@ -142,7 +132,6 @@ export function tauriBackend(): Backend {
       settings: async () => watched(await api.settings(), read),
     }).catch((e: unknown) => {
       if (!(e instanceof ThumbnailTimeout)) throw e
-      // 過ぎたらエラー用のサムネイルを出し、次へ進む
       console.warn(`サムネイルが ${e.ms / 1000} 秒で作り終わらない: ${it.name}.${it.ext}`)
       sendThumb(it.id, { url: errorThumb, ratio: formats.get(it.ext)?.ratio ?? 1 })
       return null
@@ -225,7 +214,6 @@ export function tauriBackend(): Backend {
     void makeWaves(items)
     return toOpened(s, new Date(), urlsOf)
   }
-  // 組み込み UI に作らせる予定のものを捨てる。作っている 1 件は、終わるまで待つ
   const stopFront = () => {
     uiQueue.length = 0
     for (const it of waveQueue.splice(0)) waveIds.delete(it.id)
@@ -238,16 +226,17 @@ export function tauriBackend(): Backend {
   return {
     async open() {
       await Promise.all([listenThumbs(), listenChanges()])
-      // 前のライブラリの素材のものは、もう作らない
       for (const it of waveQueue.splice(0)) waveIds.delete(it.id)
       return openedOf(await invoke<StoredLibrary<TauriItem>>('open_library'))
     },
     async pluginWork() {
-      const front = [...uiQueue, ...waveQueue, making, waving].flatMap((it) => (it ? [it.id] : []))
-      return [...new Set([...front, ...(await invoke<string[]>('plugin_work'))])]
+      const thumbnails = [...new Set([...idsOf([...uiQueue, making]), ...(await invoke<string[]>('plugin_work'))])]
+      return { thumbnails, waveforms: idsOf([...waveQueue, waving]) }
     },
-    async stopPluginWork() {
-      stopFront()
+    async stopPluginWork(part) {
+      if (part !== 'thumbnail') for (const it of waveQueue.splice(0)) waveIds.delete(it.id)
+      if (part === 'waveform') return
+      uiQueue.length = 0
       await invoke('stop_plugin_work')
     },
     checking: () => invoke<boolean>('checking'),

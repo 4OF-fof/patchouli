@@ -1,12 +1,10 @@
 import type { NavMenuEntry } from './NavMenu'
 
-/** ストーリー用の見本。 */
 export const MAIN_ITEMS: NavMenuEntry[] = [
   { id: 'search', icon: 'search', label: '検索', kbd: 'Ctrl P' },
   { id: 'settings', icon: 'settings', label: '設定' },
 ]
 
-/** いまの場所の文字から開く、画面だけの一覧。 */
 export const PLACE_ITEMS: NavMenuEntry[] = [
   { id: 'home', icon: 'home', label: 'ホーム' },
   { id: 'projects', icon: 'folder', label: 'プロジェクト', count: 8, current: true },

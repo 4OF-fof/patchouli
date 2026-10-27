@@ -1,5 +1,3 @@
-//! WASM のプラグインを動かす。ファイルには直に触れさせず、ホストの関数を通して読ませる。
-
 use std::collections::HashMap;
 use std::fs::File as FsFile;
 use std::io::{Read, Seek, SeekFrom};
@@ -21,7 +19,6 @@ wasmtime::component::bindgen!({ world: "plugin", path: "../plugins/sdk/wit" });
 use patchouli::plugin::host::{CommandArg, CommandOutput};
 use patchouli::plugin::types;
 
-/// 一度に読ませる量の上限。
 pub const READ_MAX: u32 = 16 << 20;
 
 /// WASM が続けて動いてよい長さ。外部ツールを動かしている時間は数えない。
@@ -29,7 +26,6 @@ const SETTINGS_LIMIT: Duration = Duration::from_secs(2);
 const THUMBNAIL_LIMIT: Duration = Duration::from_secs(10);
 const VIEW_LIMIT: Duration = Duration::from_secs(30);
 
-/// 長さを確かめる間隔。
 const TICK: Duration = Duration::from_millis(100);
 
 fn engine() -> &'static Engine {
@@ -49,7 +45,6 @@ fn engine() -> &'static Engine {
     })
 }
 
-/// WASM が limit のうちに終わらなかった。
 #[derive(Debug)]
 struct TimedOut(Duration);
 
@@ -61,7 +56,6 @@ impl std::fmt::Display for TimedOut {
 
 impl std::error::Error for TimedOut {}
 
-/// limit を過ぎたら止める store を作る。
 fn store(state: HostState) -> Store<HostState> {
     let mut store = Store::new(engine(), state);
     store.epoch_deadline_callback(|s| {
@@ -74,7 +68,6 @@ fn store(state: HostState) -> Store<HostState> {
     store
 }
 
-/// ここから limit の長さだけ動かせるようにする。
 fn start(store: &mut Store<HostState>, limit: Duration) {
     let st = store.data_mut();
     st.limit = limit;
@@ -83,7 +76,6 @@ fn start(store: &mut Store<HostState>, limit: Duration) {
     store.set_epoch_deadline(1);
 }
 
-/// プラグイン id の呼び出しが失敗したときの文。
 fn failed(id: &str, e: &wasmtime::Error) -> String {
     match e.downcast_ref::<TimedOut>() {
         Some(t) => format!(
@@ -97,16 +89,11 @@ fn failed(id: &str, e: &wasmtime::Error) -> String {
 pub struct HostState {
     wasi: WasiCtx,
     table: ResourceTable,
-    /// いまの呼び出しで渡したファイル。File の handle はこの位置。
     files: Vec<PathBuf>,
-    /// いま動いているプラグインの id（ログ用）と、登録の中での位置。
     current: String,
     index: usize,
-    /// 設定の値を読むところ。設定の項目を聞いている間はない。
     reg: Option<Arc<Registry>>,
-    /// Runner::reading のあいだに読んだ設定。
     reads: Option<Reads>,
-    /// いまの呼び出しを始めた時刻と、動かしてよい長さ、そのうち外部ツールを動かしていた長さ。
     started: Instant,
     limit: Duration,
     outside: Duration,
@@ -129,7 +116,6 @@ impl HostState {
         }
     }
 
-    /// いま動いているプラグインが plugin.json に書いたコマンドの場所。
     fn command(&self, name: &str) -> Result<PathBuf, String> {
         let reg = self
             .reg
@@ -244,7 +230,6 @@ impl patchouli::plugin::host::Host for HostState {
     }
 }
 
-/// path の中身を offset から最大 len バイト読む。
 pub fn read(path: &Path, offset: u64, len: u32) -> Result<Vec<u8>, String> {
     let mut file = FsFile::open(path).map_err(|e| e.to_string())?;
     file.seek(SeekFrom::Start(offset))
@@ -303,7 +288,6 @@ fn decl(s: types::Setting) -> SettingDecl {
     }
 }
 
-/// 読み込んで、すぐ動かせるようにしたプラグイン。
 pub struct Prepared(PluginPre<HostState>);
 
 impl Prepared {
@@ -320,7 +304,6 @@ impl Prepared {
         Ok(Prepared(PluginPre::new(pre).map_err(|e| e.to_string())?))
     }
 
-    /// 設定の項目を聞く。
     pub fn settings(&self, id: &str) -> Result<Vec<SettingDecl>, String> {
         let mut store = store(HostState::new(None));
         store.data_mut().current = id.to_owned();
@@ -331,23 +314,18 @@ impl Prepared {
     }
 }
 
-/// できたサムネイルの PNG と、素材そのものの大きさ、作るときに読んだ設定。
 pub type Made = (Vec<u8>, Option<(u32, u32)>, Reads);
 
-/// 素材の詳細に出すもの。
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ViewOut {
     Image,
     Video,
     Audio,
-    /// WASM が PNG にしたもの（Runner::decode）を画像として出す。
     Decoded,
-    /// 組み込み UI が描く。
     Ui(UiRef),
 }
 
-/// プラグインを呼ぶ窓口。スレッドごとに 1 つ作る。動かしたプラグインは使い回す。
 pub struct Runner {
     reg: Arc<Registry>,
     store: Store<HostState>,
@@ -367,7 +345,6 @@ impl Runner {
         &self.reg
     }
 
-    /// part を by で受け持つプラグインで f を呼ぶ。受け持つものがなければ None。
     fn call<R>(
         &mut self,
         ext: &str,
@@ -382,7 +359,6 @@ impl Runner {
         Some(self.run(i, &format, ext, path, limit, f))
     }
 
-    /// i 番目のプラグインで f を呼ぶ。起動から数えて limit のうちに終わらなければ止める。
     fn run<R>(
         &mut self,
         i: usize,
@@ -436,14 +412,12 @@ impl Runner {
         self.instances.clear();
     }
 
-    /// f を呼び、そのあいだにプラグインが読んだ設定も返す。
     pub fn reading<R>(&mut self, f: impl FnOnce(&mut Runner) -> R) -> (R, Reads) {
         self.store.data_mut().reads = Some(Reads::new());
         let r = f(self);
         (r, self.store.data_mut().reads.take().unwrap_or_default())
     }
 
-    /// サムネイルの PNG と、素材そのものの大きさ。受け持つプラグインがない、または作らなかったときは None。
     pub fn thumbnail(&mut self, ext: &str, path: &Path, edge: u32) -> Result<Option<Made>, String> {
         let (t, reads) = self.reading(|r| {
             r.call(
@@ -459,7 +433,6 @@ impl Runner {
         Ok(t.map(|t| (t.png, t.size.map(|d| (d.width, d.height)), reads)))
     }
 
-    /// 詳細に出すもの。受け持つプラグインがない、または出さないときは None。
     pub fn view(&mut self, ext: &str, path: &Path) -> Option<ViewOut> {
         if let Some(ui) = self.reg.ui_of(ext, Part::View) {
             return Some(ViewOut::Ui(ui));
@@ -487,7 +460,6 @@ impl Runner {
         })
     }
 
-    /// 詳細に出す PNG。view が decoded を返した形式で使う。
     pub fn decode(&mut self, ext: &str, path: &Path) -> Result<Vec<u8>, String> {
         self.call(
             ext,
@@ -500,9 +472,6 @@ impl Runner {
         .ok_or("詳細表示に対応するプラグインがありません")??
     }
 
-    /// part を受け持つ組み込み UI から、そのプラグインの WASM の関数を呼ぶ。
-    /// target があれば、そのプラグインのものを呼ぶ。呼べるのは、使っていて版の下限を満たす依存先だけ。
-    /// format は組み込み UI のプラグインのものをそのまま渡す。
     pub fn call_ui(
         &mut self,
         ext: &str,

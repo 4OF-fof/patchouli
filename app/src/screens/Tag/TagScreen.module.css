@@ -3,7 +3,6 @@
   align-items: center;
   gap: 10px;
 }
-/* 入力欄の幅は、名前の前の # と並べて決める */
 .title input {
   width: 440px;
   max-width: 100%;

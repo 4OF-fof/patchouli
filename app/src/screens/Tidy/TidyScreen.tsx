@@ -11,14 +11,11 @@ import { Icon } from '../../components/base/Icon/Icon'
 
 export interface TidyScreenProps {
   lib: Library
-  /** 最初に見るもの。省略すると列の先頭。 */
   currentId?: string
-  /** もう承認したもの（列に ✓ を付ける）。 */
   approved?: string[]
   onOpenItem?: (id: string) => void
 }
 
-/** 02 整理。自動分類が出したタグの候補を、取り込んだ順に 1 件ずつ承認する。 */
 export function TidyScreen(props: TidyScreenProps) {
   const lib = () => props.lib
   const queue = createMemo(() =>
@@ -39,7 +36,6 @@ export function TidyScreen(props: TidyScreenProps) {
     if (c) return c
     return pending().find((i) => !later().includes(i.id)) ?? pending()[0]
   })
-  /** 承認待ちの中で 1 つ右。右端からは左端に戻る。 */
   const nextAfter = (id: string) => {
     const q = pending()
     return q[(q.findIndex((x) => x.id === id) + 1) % q.length]?.id

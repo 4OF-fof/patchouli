@@ -1,5 +1,3 @@
-//! OS のサムネイル。プラグインが、FFmpeg などのコマンドがないときに代わりに使う。
-
 use std::path::Path;
 
 #[cfg(windows)]

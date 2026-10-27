@@ -6,29 +6,20 @@ import styles from './PlayerBar.module.css'
 export interface PlayerBarProps {
   /** 操る動画や音声。描いたあとに決まるので、関数で渡す。 */
   media: () => HTMLMediaElement | undefined
-  /** 全画面にする要素。渡したときだけ、全画面のボタンを出す。 */
   fullscreen?: () => HTMLElement | undefined
   class?: string
 }
 
-/** 速さのボタンを押すたびに、この順で切り替える。 */
 const RATES = [1, 1.5, 2, 0.5]
 
-/** Shift ＋ ← → で動く秒数。 */
 const SKIP = 5
 
-/** シークバーなどの塗る割合。 */
 const pct = (v: number, max: number) => `${max > 0 ? Math.min(100, (v / max) * 100) : 0}%`
 
-/** 打っている途中の入力欄や、開いているダイアログとメニューでは、キーを奪わない。 */
 const typing = (t: EventTarget | null) =>
   t instanceof HTMLElement &&
   !!t.closest('input:not([type="range"]), select, textarea, [contenteditable], [role="dialog"], [role="menu"]')
 
-/**
- * 動画と音声の操作の帯。再生・経過時間・シークバー・全体の長さ・速さ・音量・全画面を並べる。
- * 開いているあいだは、Space で再生と一時停止、Shift ＋ ← → で 5 秒戻る・進む、M で消音を切り替える。
- */
 export function PlayerBar(props: PlayerBarProps) {
   const [playing, setPlaying] = createSignal(false)
   const [at, setAt] = createSignal(0)

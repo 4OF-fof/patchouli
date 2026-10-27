@@ -9,13 +9,9 @@ export interface NavMenuItem {
   label: string
   count?: number
   kbd?: string
-  /** 右に薄く添える文字（例：開いているライブラリの名前）。 */
   hint?: string
-  /** ホバーで出す説明。 */
   title?: string
-  /** いま開いている画面の項目。 */
   current?: boolean
-  /** 見出しとして薄く出す（例：設定を開いたときの「設定」）。 */
   heading?: boolean
 }
 
@@ -24,13 +20,10 @@ export type NavMenuEntry = NavMenuItem | 'separator'
 export interface NavMenuProps {
   items: NavMenuEntry[]
   onSelect?: (id: string) => void
-  /** Esc で閉じるとき。 */
   onClose?: () => void
-  /** 開いたときと項目が差し替わったときに、先頭の項目へフォーカスする。 */
   focusFirst?: boolean
 }
 
-/** タイトルバーの左のメニューのボタンから開くメニュー。画面が増えたら項目を足す。 */
 export function NavMenu(props: NavMenuProps) {
   let el!: HTMLDivElement
   const buttons = () => [...el.querySelectorAll<HTMLButtonElement>('button')]

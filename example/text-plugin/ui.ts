@@ -1,4 +1,3 @@
-// 動作確認用の組み込み UI。詳細では本文を出し、サムネイルは最初の数行を canvas に描く。
 import { definePlugin } from '@patchouli/plugin'
 
 interface Stats {

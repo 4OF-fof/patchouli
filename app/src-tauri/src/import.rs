@@ -1,10 +1,3 @@
-//! ファイルの取り込み。元のファイルは残し、ライブラリへコピーする。
-//!
-//! - 名前が重なるときは「名前 2」「名前 3」…と番号を付ける
-//! - フォルダは、ひとつずつ、中のファイルを平らに入れるか、新しいプロジェクトにするかを選ぶ
-//! - 対応するプラグインのない形式のファイルも取り込む。ライブラリで読まないもの（`.` で始まるもの、隠しファイル、`.meta`）と、
-//!   ライブラリの中にあるファイルは取り込まない
-
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -13,26 +6,20 @@ use serde::Serialize;
 
 use crate::library::{Library, StoredItem, StoredProject, check_name, dunce, listed, meta_path};
 
-/// 落とそうとしているものの中身。
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DropInfo {
-    /// 取り込めるファイルの数（フォルダの中も数える）。
     pub files: usize,
     pub folders: Vec<FolderInfo>,
-    /// フォルダに入っていない、取り込めるファイルの数。
     pub loose: usize,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FolderInfo {
-    /// 落としたものの中での位置。取り込むときに、どのフォルダをプロジェクトにするかをこれで指す。
     pub key: usize,
     pub name: String,
-    /// 中の取り込めるファイルの数（下の階層も数える）。
     pub files: usize,
-    /// 下の階層にあるフォルダの数。
     pub subfolders: usize,
 }
 
@@ -41,14 +28,10 @@ pub struct FolderInfo {
 pub struct Imported {
     pub items: Vec<StoredItem>,
     pub projects: Vec<StoredProject>,
-    /// 取り込まなかったファイルの数（ライブラリで読まないもの、ライブラリの中にあるもの）。
     pub skipped: usize,
-    /// コピーできなかったもの（「パス: 理由」）。
     pub failed: Vec<String>,
 }
 
-/// フォルダの中のファイル（下の階層も）のうち、ライブラリで読むもの（listed）を名前順に。
-/// 返すのは、下の階層にあったフォルダの数。
 fn files_in(dir: &Path, out: &mut Vec<PathBuf>) -> usize {
     let Ok(rd) = fs::read_dir(dir) else { return 0 };
     let mut paths: Vec<PathBuf> = rd
@@ -68,7 +51,6 @@ fn files_in(dir: &Path, out: &mut Vec<PathBuf>) -> usize {
     dirs
 }
 
-/// 取り込めるものを数える。root（開いているライブラリ）の中にあるものは数えない。
 pub fn inspect(paths: &[PathBuf], root: Option<&Path>) -> DropInfo {
     let mut folders = Vec::new();
     let mut loose = 0;
@@ -102,7 +84,6 @@ pub fn inspect(paths: &[PathBuf], root: Option<&Path>) -> DropInfo {
     }
 }
 
-/// 「名前」「名前 2」「名前 3」…のうち、taken でない最初のもの。
 fn numbered(base: &str, taken: impl Fn(&str) -> bool) -> String {
     let mut name = base.to_owned();
     for n in 2.. {
@@ -114,7 +95,6 @@ fn numbered(base: &str, taken: impl Fn(&str) -> bool) -> String {
     name
 }
 
-/// 取り込んだものは、いま動いたものとして扱う。
 fn touch(p: &Path) -> std::io::Result<()> {
     File::options()
         .write(true)
@@ -123,8 +103,6 @@ fn touch(p: &Path) -> std::io::Result<()> {
 }
 
 impl Library {
-    /// paths を取り込む。ファイルとフォルダの中身は folder（None はどこにも入れない）へ入れる。
-    /// projects に位置があるフォルダは、新しいプロジェクトを作ってそこへ入れる。
     pub fn import(
         &mut self,
         paths: &[PathBuf],

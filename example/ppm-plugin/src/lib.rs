@@ -1,5 +1,3 @@
-//! PPM 画像（宣言型の例）。アプリが読めない PPM（P6）を WASM で読み、サムネイルと詳細の画像を PNG にして返す。
-
 wit_bindgen::generate!({ world: "plugin", path: "../../app/plugins/sdk/wit" });
 
 use patchouli::plugin::host;
@@ -7,7 +5,6 @@ use patchouli::plugin::types::Dimensions;
 
 struct Ppm;
 
-/// 8 ビットの RGB にした絵。
 struct Rgb {
     width: u32,
     height: u32,
@@ -29,7 +26,6 @@ fn read_all(f: &File) -> Result<Vec<u8>, String> {
     Ok(out)
 }
 
-/// 頭の数を 1 つ読む。空白と # からの行は飛ばす。
 fn number(b: &[u8], pos: &mut usize) -> Result<u32, String> {
     loop {
         match b.get(*pos) {
@@ -63,7 +59,6 @@ fn parse(b: &[u8]) -> Result<Rgb, String> {
     if width == 0 || height == 0 || max == 0 || max > 65535 {
         return Err("PPM のサイズまたは最大値が正しくありません".into());
     }
-    // 最大値のあとの空白 1 つまでが頭
     pos += 1;
     let wide = max > 255;
     let samples = width as usize * height as usize * 3;
@@ -87,7 +82,6 @@ fn parse(b: &[u8]) -> Result<Rgb, String> {
     })
 }
 
-/// 長いほうの辺が edge 以下になるよう、区画ごとの平均で縮める。
 fn shrink(img: &Rgb, edge: u32) -> Rgb {
     let long = img.width.max(img.height);
     if long <= edge {

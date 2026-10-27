@@ -1,5 +1,3 @@
-//! キャッシュと、どのライブラリでも使っていないプラグインの片付け。
-
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::plugin::Manifest;
 
-/// 消すキャッシュの種類。library はライブラリの写し。
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
@@ -17,14 +14,12 @@ pub enum Kind {
     All,
 }
 
-/// キャッシュの使っている量（バイト）。
 #[derive(Debug, Clone, Serialize)]
 pub struct Usage {
     pub library: u64,
     pub thumbs: u64,
 }
 
-/// どのライブラリでも使っていないプラグイン。
 #[derive(Debug, Clone, Serialize)]
 pub struct Unused {
     pub id: String,
@@ -46,7 +41,6 @@ fn size_of(path: &Path) -> u64 {
     })
 }
 
-/// ライブラリ root の写しのファイル（-wal なども）。
 fn library_files(cache: &Path, root: &Path) -> Vec<PathBuf> {
     let main = crate::cache::path_for(cache, root);
     let (Some(dir), Some(stem)) = (main.parent(), main.file_stem().and_then(|s| s.to_str())) else {
@@ -61,7 +55,6 @@ fn library_files(cache: &Path, root: &Path) -> Vec<PathBuf> {
         .collect()
 }
 
-/// ライブラリ root の分の使っている量。
 pub fn usage(cache: &Path, root: &Path) -> Usage {
     Usage {
         library: library_files(cache, root).iter().map(|p| size_of(p)).sum(),
@@ -82,7 +75,6 @@ fn remove(p: &Path) -> Result<(), String> {
     }
 }
 
-/// ライブラリ root の分の kind のキャッシュを消す。写しは、ライブラリを閉じてから呼ぶ。
 pub fn clear(cache: &Path, root: &Path, kind: Kind) -> Result<(), String> {
     if matches!(kind, Kind::Thumbs | Kind::All) {
         remove(&crate::thumb::dir_for(cache, root))?;
@@ -95,7 +87,6 @@ pub fn clear(cache: &Path, root: &Path, kind: Kind) -> Result<(), String> {
     Ok(())
 }
 
-/// プラグインの置き場 dir にあるもののうち、used にないもの。作業中のもの（「.」で始まる）は除く。
 pub fn unused(dir: &Path, used: &HashSet<String>) -> Vec<(Unused, PathBuf)> {
     let Ok(rd) = fs::read_dir(dir) else {
         return Vec::new();

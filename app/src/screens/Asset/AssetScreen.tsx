@@ -20,7 +20,6 @@ import shared from '../screen.module.css'
 import styles from './AssetScreen.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
 
-/** 詳細に出すものを受け持つプラグインに聞き、組み込み UI に窓口を渡す。 */
 export interface AssetViewHost {
   view: (id: string) => Promise<ItemView | null>
   ui?: (item: UiItem, part: Part, plugin: string) => UiApi
@@ -29,35 +28,21 @@ export interface AssetViewHost {
 
 export interface AssetScreenProps {
   lib: Library
-  /** 前後に送れる並び（開いた所の並び）。 */
   list: string[]
-  /** list の何番目を見ているか。 */
   index?: number
-  /** 情報のカードを開いている。 */
   infoOpen?: boolean
-  /** しばらく触っていない。上の帯と情報のボタンを隠す。 */
   idle?: boolean
   onOpenNote?: (id: string) => void
-  /** ピン留めを切り替える。プロジェクトに入っていればその上に、入っていなければホームに出る。 */
   onTogglePin?: (id: string) => void
-  /** プロジェクト folder（null はどこにも入れない）へ移す。 */
   onProject?: (id: string, folder: string | null) => void
-  /** タグを付ける（on）か外す。 */
   onTag?: (id: string, tag: string, on: boolean) => void
-  /** メモを書き換える。書いている間は、手が止まってから呼ぶ。 */
   onMemo?: (id: string, memo: string) => void
-  /** 省略すると、サムネイルを大きく出す。 */
   host?: AssetViewHost
-  /** 前後に送ったとき。i は list の位置。 */
   onIndex?: (i: number) => void
-  /** 形式に対応するプラグインがないとき、受け持つはずで使えないプラグインを探す。 */
   blocker?: (ext: string) => Promise<Blocker | undefined>
   onEnablePlugin?: (p: Blocker) => Promise<void>
-  /** プラグインの一覧を開く。p があれば、それを選んでおく。 */
   onOpenPlugins?: (p?: Blocker) => void
-  /** 素材のファイルを選んだ状態で、入っているフォルダを開く。 */
   onReveal?: (id: string) => Promise<void>
-  /** 素材のファイルを既定のアプリで開く。 */
   onOpenDefault?: (id: string) => Promise<void>
 }
 
@@ -91,7 +76,6 @@ function MemoField(props: { value: string; onChange: (memo: string) => void }) {
   )
 }
 
-/** 04 素材。暗い舞台に 1 つだけ大きく出し、操作は浮かべる。 */
 export function AssetScreen(props: AssetScreenProps) {
   const lib = () => props.lib
   const [i, setI] = createSignal(props.index ?? 0)
@@ -99,7 +83,6 @@ export function AssetScreen(props: AssetScreenProps) {
   const it = () => lib().byId.get(props.list[i()] ?? '')
   const step = (d: number) => setI((i() + d + props.list.length) % props.list.length)
   createEffect(() => props.onIndex?.(i()))
-  /** 形式に対応するプラグインがない。 */
   const unsupported = () => {
     const a = it()
     return !!a && !a.note && !lib().formats.has(a.ext)
@@ -123,7 +106,6 @@ export function AssetScreen(props: AssetScreenProps) {
   /** いまの素材について決まったもの。決まるまでは、前の素材のものもサムネイルも出さない。 */
   const settled = () => !props.host || view.state === 'ready'
   const current = () => (view.state === 'ready' ? view() : undefined)
-  /** 本体が描くもの。中身の URL がなければ（見本など）描かない。 */
   const media = () => {
     const v = current()
     const src = (v?.kind === 'image' && v.url) || it()?.src

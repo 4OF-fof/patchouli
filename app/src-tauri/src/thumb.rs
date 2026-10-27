@@ -1,5 +1,3 @@
-//! サムネイル。作り方はプラグインが決める。ライブラリには置かず、端末のキャッシュに作る（消してもまた作れる）。
-
 use std::collections::HashSet;
 use std::fs;
 use std::io::Cursor;
@@ -12,15 +10,12 @@ use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader};
 
 use crate::plugin::{Reads, Registry, Runner};
 
-/// 長いほうの辺の長さ（px）。
 const EDGE: u32 = 512;
 
 pub struct Job {
     pub id: String,
     pub src: PathBuf,
-    /// 拡張子（小文字）。
     pub ext: String,
-    /// 置き場所。名前は作ったあとで、読んだ設定も入れて決める。
     pub dir: PathBuf,
     pub mtime: f64,
 }
@@ -36,7 +31,6 @@ pub(crate) fn fnv(parts: &[&[u8]]) -> u64 {
     h
 }
 
-/// ライブラリごとのサムネイルの置き場所。
 pub fn dir_for(cache: &Path, root: &Path) -> PathBuf {
     cache.join("thumbs").join(format!(
         "{:016x}",
@@ -44,8 +38,6 @@ pub fn dir_for(cache: &Path, root: &Path) -> PathBuf {
     ))
 }
 
-/// 取っておく詳細用の画像の置き場所。プラグイン id の形式 format ごとに分ける。
-/// サムネイルの置き場所の中に置き、名前の形はサムネイルと同じ（読んだ設定はない）。
 pub fn decoded_dir(thumbs: &Path, id: &str, format: &str) -> PathBuf {
     thumbs.join(DECODED).join(format!(
         "{:016x}",
@@ -55,14 +47,12 @@ pub fn decoded_dir(thumbs: &Path, id: &str, format: &str) -> PathBuf {
 
 const DECODED: &str = "decoded";
 
-/// 波形の置き場所。名前の形はサムネイルと同じ（読んだ設定はない）で、拡張子は .wave。
 pub fn wave_path(thumbs: &Path, src: &Path) -> Option<PathBuf> {
     path_for(&thumbs.join(WAVES), src, &Reads::new()).map(|p| p.with_extension("wave"))
 }
 
 const WAVES: &str = "waves";
 
-/// 詳細用の画像や波形 bytes を out に置き、同じ元の前の版を消す。
 pub fn keep(out: &Path, bytes: &[u8]) {
     let (Some(dir), Some(name)) = (out.parent(), out.file_name().and_then(|n| n.to_str())) else {
         return;
@@ -91,8 +81,6 @@ pub fn keep(out: &Path, bytes: &[u8]) {
     }
 }
 
-/// 「<元の場所のハッシュ>-<更新日時と大きさ、作るときに読んだ設定のハッシュ>.png」。
-/// 元か、読んだ設定の値が変わると後ろ半分が変わる。
 pub fn path_for(dir: &Path, src: &Path, reads: &Reads) -> Option<PathBuf> {
     let m = fs::metadata(src).ok()?;
     let t = m
@@ -112,7 +100,6 @@ pub fn path_for(dir: &Path, src: &Path, reads: &Reads) -> Option<PathBuf> {
     Some(dir.join(format!("{place:016x}-{version:016x}.png")))
 }
 
-/// 名前の前半（元の場所のハッシュ）。いまの名前の形でなければ None。
 fn place_of(name: &str) -> Option<&str> {
     let stem = name
         .strip_suffix(".png")
@@ -159,8 +146,6 @@ pub fn prune(dir: &Path, current: &[PathBuf], all_found: bool) {
     }
 }
 
-/// 取っておいた詳細用の画像のうち、ライブラリにもう素材がないものを消す。
-/// places は、いまの素材のサムネイルの名前の前半。サムネイルを作らない素材のものも消える。
 fn prune_decoded(dir: &Path, places: &HashSet<&str>) {
     for d in fs::read_dir(dir)
         .into_iter()
@@ -171,7 +156,6 @@ fn prune_decoded(dir: &Path, places: &HashSet<&str>) {
     }
 }
 
-/// dir の中の、ライブラリにもう素材がないもの（名前の前半が places にないもの）を消す。
 fn prune_gone(dir: &Path, places: &HashSet<&str>) {
     for e in fs::read_dir(dir)
         .into_iter()
@@ -189,7 +173,6 @@ fn prune_gone(dir: &Path, places: &HashSet<&str>) {
     }
 }
 
-/// 画像を、長いほうの辺が edge 以下になるよう縮めた PNG。写真の向き（EXIF）を反映する。
 pub fn shrink(src: &Path, edge: u32) -> Result<Vec<u8>, String> {
     let err = |e: &dyn std::fmt::Display| format!("{}: {e}", src.display());
     let mut dec = ImageReader::open(src)
@@ -204,7 +187,6 @@ pub fn shrink(src: &Path, edge: u32) -> Result<Vec<u8>, String> {
     encode(img, edge).map_err(|e| err(&e))
 }
 
-/// 長いほうの辺が edge より長ければ縮めて、PNG にする。
 pub fn encode(mut img: DynamicImage, edge: u32) -> Result<Vec<u8>, String> {
     if img.width() > edge || img.height() > edge {
         img = img.thumbnail(edge, edge);
@@ -222,9 +204,6 @@ const WAVE_BARS: usize = 48;
 const WAVE_BAR: f32 = 3.0;
 const WAVE_GAP: f32 = 1.0;
 
-/// 波形 wave（区間ごとの音の大きさを、0〜255 にしたもの）を、縦横比 ratio（幅 / 高さ）の枠に描いた PNG。
-/// 幅を棒の数で分け、棒ごとに区間の大きさの二乗平均の平方根を、真ん中から上下に同じ長さで伸ばした角丸の棒にする。
-/// いちばん大きい棒を枠の高さに合わせる。
 pub fn draw_wave(wave: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
     if wave.is_empty() {
         return Err("波形のデータが空です".into());
@@ -276,7 +255,6 @@ pub fn draw_wave(wave: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
     encode(DynamicImage::ImageRgba8(img), EDGE)
 }
 
-/// 波形を n 本の棒に分けた、棒ごとの大きさ（いちばん大きい棒を 1 とする）。
 fn bar_levels(wave: &[u8], n: usize) -> Vec<f32> {
     let len = wave.len();
     let bars: Vec<f32> = (0..n)
@@ -293,14 +271,12 @@ fn bar_levels(wave: &[u8], n: usize) -> Vec<f32> {
         .collect()
 }
 
-/// 置いたサムネイルの場所と素材の大きさ（わからなければサムネイルの大きさ）、作るときに読んだ設定。
 pub struct Placed {
     pub out: PathBuf,
     pub size: (u32, u32),
     pub reads: Reads,
 }
 
-/// プラグインにサムネイルを作らせて置く。プラグインが作らなければ None。
 fn make(runner: &mut Runner, job: &Job) -> Result<Option<Placed>, String> {
     let err = |e: &dyn std::fmt::Display| format!("{}: {e}", job.src.display());
     let Some((png, original, reads)) = runner.thumbnail(&job.ext, &job.src, EDGE)? else {
@@ -311,9 +287,7 @@ fn make(runner: &mut Runner, job: &Job) -> Result<Option<Placed>, String> {
     Ok(Some(Placed { out, size, reads }))
 }
 
-/// プラグインが作ったサムネイルを確かめて out に置く。返すのは素材の大きさ（わからなければサムネイルの大きさ）。
 pub fn place(png: &[u8], original: Option<(u32, u32)>, out: &Path) -> Result<(u32, u32), String> {
-    // PNG でないものや、大きすぎるものは置かない
     let size = imagesize::blob_size(png).map_err(|e| e.to_string())?;
     let (w, h) = (size.width as u32, size.height as u32);
     if imagesize::image_type(png).ok() != Some(imagesize::ImageType::Png)
@@ -337,37 +311,31 @@ fn making() -> &'static Mutex<HashSet<PathBuf>> {
     M.get_or_init(Default::default)
 }
 
-/// src のサムネイルを、プラグインに作らせることにした。
 pub fn start_making(src: &Path) {
     if let Ok(mut m) = making().lock() {
         m.insert(src.to_owned());
     }
 }
 
-/// src のサムネイルを、プラグインが作り終えた（作らなかったときも）。
 pub fn end_making(src: &Path) {
     if let Ok(mut m) = making().lock() {
         m.remove(src);
     }
 }
 
-/// src のサムネイルを、プラグインが作っているところか。
 pub fn is_making(src: &Path) -> bool {
     making().lock().is_ok_and(|m| m.contains(src))
 }
 
-/// 裏で作るサムネイルの、まだできていない素材の id。
 fn pending_ids() -> &'static Mutex<HashSet<String>> {
     static P: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
     P.get_or_init(Default::default)
 }
 
-/// 裏で作っているサムネイルの、残りの数。
 pub fn pending() -> usize {
     pending_ids().lock().map_or(0, |p| p.len())
 }
 
-/// 裏でサムネイルを作っている素材の id。
 pub fn pending_items() -> Vec<String> {
     pending_ids()
         .lock()
@@ -378,7 +346,6 @@ pub fn pending_items() -> Vec<String> {
 /// stop を呼んだ回数。make_all は始めたときと違っていたら打ち切る。
 static STOPS: AtomicUsize = AtomicUsize::new(0);
 
-/// いま裏で作っているサムネイルを、作っている 1 件で打ち切らせる。あとから頼んだものは作る。
 pub fn stop() {
     STOPS.fetch_add(1, Ordering::Relaxed);
 }
@@ -395,8 +362,6 @@ fn set_pending<'a>(ids: impl IntoIterator<Item = &'a String>, on: bool) {
     }
 }
 
-/// 新しいものから順に、手の空いた数だけ並べて作る。仕事ごとに done を呼ぶ（作らなかったときと失敗したときは None）。
-/// reg が止められたか stop が呼ばれたら、作っているものを終えたところで、残りは作らずに戻る。
 pub fn make_all(
     reg: &Arc<Registry>,
     mut jobs: Vec<Job>,

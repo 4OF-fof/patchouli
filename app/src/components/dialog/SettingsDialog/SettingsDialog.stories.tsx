@@ -51,7 +51,6 @@ export const Loading: Story = {
   name: '読み込み中',
   args: { usage: undefined, unused: undefined, developer: undefined },
 }
-/** 片付けられない環境（画面の見本など）では、版だけを出す。 */
 export const VersionOnly: Story = {
   name: '版だけ',
   args: { onClear: undefined, onRemoveUnused: undefined, onDeveloperChange: undefined },

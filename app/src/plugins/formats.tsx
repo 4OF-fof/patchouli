@@ -1,4 +1,3 @@
-/* 開いているライブラリで扱える形式を、画面の部品に渡す。 */
 import { createContext, useContext } from 'solid-js'
 import { BUILTIN_FORMATS } from './builtin'
 import type { FormatInfo } from './types'

@@ -2,6 +2,7 @@ import {
   ArrowDown,
   ArrowLeftRight,
   ArrowUp,
+  AudioWaveform,
   Check,
   CircleStop,
   ChevronLeft,
@@ -79,6 +80,7 @@ const ICONS = {
   grid: LayoutGrid,
   sync: FolderSync,
   stop: CircleStop,
+  audio: AudioWaveform,
   file: File,
   check: Check,
   up: ArrowUp,
@@ -90,13 +92,10 @@ export const ICON_NAMES = Object.keys(ICONS).filter((n): n is IconName => n in I
 
 export interface IconProps {
   name: IconName
-  /** 一辺の大きさ。既定は 16。 */
   size?: number
-  /** 置き場所の側で大きさや向きを決めるとき。 */
   class?: string
 }
 
-/** Lucide の線のアイコン。色は文字色に合わせる。小さいほど線を太くして、見た目の濃さをそろえる。 */
 export function Icon(props: IconProps) {
   const size = () => props.size ?? 16
   return (

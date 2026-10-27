@@ -1,11 +1,3 @@
-//! ライブラリに残すプラグインの記録。
-//!
-//! - `.patchouli/library.json` の `plugins`: 使うプラグインの版と取得先、取得元の検証値、無効にしたか。
-//!   ここにないプラグインは、アプリに入っていても使わない
-//! - `.patchouli/library.json` の `devPlugins`: 有効にした開発版（開発者モードのフォルダの中のもの）の id。
-//!   見つからなくなったものは、ライブラリを開いたときに外す
-//! - `.patchouli/plugins/<id>.json`: 設定の値（`settings`）と、プラグインが自分で読み書きする値（`data`）
-
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
@@ -14,26 +6,21 @@ use serde_json::{Map, Value};
 
 use crate::library::{read_json, write_json};
 
-/// プラグインの取得先。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Source {
-    /// 手元の zip。
     Local(PathBuf),
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Entry {
-    /// 入れた版。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<Source>,
-    /// 取得元の検証値（zip は「sha256:<16 進>」）。取り直したときに同じものかを確かめる。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
-    /// 無効にした。記録は残すが使わない。
     #[serde(default, skip_serializing_if = "is_false")]
     pub disabled: bool,
 }
@@ -45,7 +32,6 @@ fn is_false(b: &bool) -> bool {
 #[derive(Debug, Clone, Default)]
 pub struct Record {
     pub plugins: BTreeMap<String, Entry>,
-    /// 有効にした開発版の id。
     pub dev: BTreeSet<String>,
 }
 
@@ -92,7 +78,6 @@ impl Record {
     }
 }
 
-/// root のライブラリの記録を読んで f で変え、書き戻す。
 pub fn update(root: &Path, f: impl FnOnce(&mut Record)) -> Result<(), String> {
     let p = path(root);
     let mut r = Record::read(&p)?;
@@ -100,7 +85,6 @@ pub fn update(root: &Path, f: impl FnOnce(&mut Record)) -> Result<(), String> {
     r.write(&p)
 }
 
-/// プラグインごとに残す値。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Stored {
     #[serde(default, skip_serializing_if = "Map::is_empty")]
@@ -135,7 +119,6 @@ impl Stored {
     }
 }
 
-/// root のライブラリから、プラグイン id の値を消す。
 pub fn forget(root: &Path, id: &str) -> Result<(), String> {
     let p = stored_path(root, id);
     match std::fs::remove_file(&p) {

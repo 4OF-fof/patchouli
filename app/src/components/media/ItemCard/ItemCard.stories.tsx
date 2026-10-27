@@ -33,12 +33,10 @@ export const Unsaved: Story = {
 export const NameHidden: Story = { args: { showName: false } }
 export const Pin: Story = { name: 'ピンを重ねる', args: { onPin: () => {} } }
 export const Pinned: Story = { name: 'ピン留めしている', args: { pinned: true, onPin: () => {} } }
-/** 動画はカーソルを合わせると、音を消して頭から再生する。中身は動作確認用のライブラリ（scripts/dev-library.ts が作る）のもの。 */
 export const VideoHovered: Story = {
   name: '動画にカーソルを合わせる',
   args: { ratio: 16 / 9, preview: () => <VideoHover src="/dev-library/clip-0412.mp4" /> },
 }
-/** 小さいカードでは時刻を出さず、下の帯だけにする。 */
 export const VideoHoveredSmall: Story = {
   name: '小さい動画にカーソルを合わせる',
   args: {

@@ -17,21 +17,16 @@ import styles from './PluginsDialog.module.css'
 import { IconButton } from '../../controls/IconButton/IconButton'
 
 export interface PluginsDialogProps {
-  /** ないあいだは読み込み中と出す。 */
   report?: PluginReport
-  /** 開いたときに選んでおくプラグイン。 */
   pick?: { id: string; dev: boolean }
   actions?: PluginActions
-  /** 使うプラグインが変わったとき（入れた・アンインストールしたなど）。ライブラリを開き直す。 */
   onChanged?: () => void | Promise<void>
-  /** 設定を変えたとき。一覧を読み直す。 */
   onRefresh?: () => void
   onClose?: () => void
 }
 
 const PART: Record<Part, string> = { thumbnail: 'サムネイル', view: '詳細表示', waveform: '波形', hover: 'ホバー表示' }
 
-/** 左の一覧の段。プラグインは、提供するものの種類ごとに分け、開発版はまとめて別の段にする。 */
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [
   { label: 'ファイル形式', has: (p) => !p.dev && p.formats.length > 0 },
   { label: 'その他', has: (p) => !p.dev && p.formats.length === 0 },
@@ -40,15 +35,12 @@ const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [
 
 const TOOLS = '外部ツール'
 
-/** 左の一覧で外部ツールを選んだときの、選んだものの頭に付ける印。 */
 const CMD = ':command:'
 
-/** 左の一覧で開発版を選んだときの、選んだものの頭に付ける印。同じ id の通常のものと見分ける。 */
 const DEV = ':dev:'
 
 const keyOf = (p: PluginStatus) => (p.dev ? DEV : '') + p.id
 
-/** 状態の札。使っているものには出さない。 */
 const STATE_LABEL: Partial<Record<PluginStatus['state'], string>> = {
   missing: '未導入',
   blocked: '使用不可',
@@ -61,18 +53,15 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 const errors = (p: PluginStatus) => p.problems.filter((x) => x.level === 'error').length
 
-/** p が k に書いたもの。必須のものを先に並べる。commands には、依存先を通して動かせるもの（from）も足す。 */
 const needs = (p: PluginStatus, k: keyof Deps): { name: string; need: string; min?: string; from?: string }[] => [
   ...Object.entries(p.required[k] ?? {}).map(([name, d]) => ({ name, need: '必須', min: d.min })),
   ...Object.entries(p.optional[k] ?? {}).map(([name, d]) => ({ name, need: '任意', min: d.min })),
   ...(k === 'commands' ? p.via.map((v) => ({ name: v.name, need: v.required ? '必須' : '任意', from: v.plugin })) : []),
 ]
 
-/** 「必須」「任意」に、版の下限と、どの依存先を通すかを添える。 */
 const need = (d: { need: string; min?: string; from?: string }) =>
   [d.need, d.min && `${d.min} 以上`, d.from && `${d.from} から`].filter(Boolean).join('・')
 
-/** p ができること。full は、本体の画面で隔離されずに動くもの。 */
 const perms = (p: PluginStatus) => [
   ...(p.formats.length ? [{ label: 'ファイルの読み取り', text: '対応形式のファイルのみ', full: false }] : []),
   ...(needs(p, 'commands').length
@@ -89,14 +78,8 @@ const perms = (p: PluginStatus) => [
     : []),
 ]
 
-/** f のいまの値。なくなったら、最後にあった値のままにする。 */
 const latest = <T,>(f: () => T | undefined) => createMemo<T>((prev) => f() ?? prev, f()!)
 
-/**
- * プラグインの一覧。左でプラグインか外部ツールを選び、右に詳細を出す。
- * プラグインの詳細には、扱うファイルと対象、求めるアプリとプラグイン、権限、エラーと警告、設定を出し、更新する・アンインストールするの操作を受け付ける。
- * 置き場所の要素に position: relative を付けておく。
- */
 export function PluginsDialog(props: PluginsDialogProps) {
   let el!: HTMLDivElement
   const [busy, setBusy] = createSignal<string>()
@@ -113,7 +96,6 @@ export function PluginsDialog(props: PluginsDialogProps) {
   })
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
-  /** label を出しているあいだに job を動かす（空なら出さない）。changed なら、終わったあとプラグインを読み直す。 */
   const run = async (label: string, job: () => Promise<boolean | void>, changed = true) => {
     setBusy(label)
     setError(undefined)
@@ -130,17 +112,14 @@ export function PluginsDialog(props: PluginsDialogProps) {
   const a = () => props.actions ?? {}
   const plugins = () => props.report?.plugins ?? []
   const commands = () => props.report?.commands ?? []
-  /** id のプラグイン。開発版と通常のものがあれば、使っているほう。 */
   const byId = (id: string) =>
     plugins().find((p) => p.id === id && p.state === 'active') ?? plugins().find((p) => p.id === id)
   const byName = (name: string) => commands().find((c) => c.name === name)
-  /** 選んでいるもの。選んだものがなくなったら、最初のものにする。 */
   const current = createMemo(() => {
     const k = picked()
     if (k?.startsWith(CMD)) return byName(k.slice(CMD.length)) ?? plugins()[0]
     return (k && plugins().find((p) => keyOf(p) === k)) || plugins()[0] || commands()[0]
   })
-  /** 検索欄の言葉をどれも含むもの。 */
   const hit = (...texts: string[]) => {
     const t = texts.join(' ').toLowerCase()
     return query()
@@ -164,7 +143,6 @@ export function PluginsDialog(props: PluginsDialogProps) {
     const p = pickedPlugin()
     return p ? keyOf(p) : pickedCommand() && CMD + pickedCommand()!.name
   })
-  /** name を求めるプラグイン。 */
   const users = (name: string) =>
     plugins().flatMap((p) => needs(p, 'commands').flatMap((n) => (n.name === name ? [{ p, need: n.need }] : [])))
 
@@ -181,7 +159,6 @@ export function PluginsDialog(props: PluginsDialogProps) {
 
   const install = () => void run('', () => a().install!())
 
-  /** 左の一覧の、開け閉めできる段。 */
   const group = (label: string, count: number, body: () => JSX.Element) => {
     const open = () => !closed().includes(label)
     return (

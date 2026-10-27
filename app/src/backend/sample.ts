@@ -1,11 +1,9 @@
-/* 保存先のないときの窓口。見本のライブラリを開き、書き込みは捨てる（ブラウザでの確認と Storybook 用）。 */
 import { emptyNote, emptyProject } from '../model/library'
 import type { ItemView } from '../plugins/types'
 import { PINNED_PROJECTS, PINNED_TAGS, sampleLibrary } from '../samples/library'
 import { sampleReport } from '../samples/plugins'
 import type { Backend } from './types'
 
-/** 組み込みのプラグインが詳細に出すもの（WASM が返すものと同じ）。 */
 const VIEW: Record<string, ItemView> = {
   'patchouli.image': { kind: 'image' },
   'patchouli.video': { kind: 'video' },

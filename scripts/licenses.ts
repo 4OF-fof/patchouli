@@ -1,10 +1,3 @@
-// アプリと、アプリに同梱するもののうち権利表示が要るものの一覧（app/src/notices/third-party.json）を作り直す。
-// 設定の「権利表示」で出す。
-// 対象は、フロントの dependencies のうち JS を持つものと、Rust のふつうの依存のうちビルド先に入るもの（ビルドだけに使うものと proc-macro は除く）。
-// Rust は、アプリと、組み込みのプラグインの処理部分（app/plugins、WASM）の両方。
-// 複数のライセンスから選べるものは、義務のいちばん軽いものを選ぶ。選んだライセンスで権利表示が要らないものは載せない。
-// 選んだライセンスごとにまとめる。文面はライセンスごとの標準のものを 1 つだけ持ち、パッケージごとには著作権の行だけを持つ。
-// 使い方: node scripts/licenses.ts [ビルド先のターゲット]（省略するとこの PC。依存を足したり上げたりしたら流し直す）
 import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -18,21 +11,16 @@ const target =
     throw new Error('ビルド先のターゲットがわからない')
   })()
 
-/** 同梱している文面の 1 つ。 */
 interface Notice {
-  /** どのライセンスの文面か。NOTICE など、決められないものはない。 */
   kind?: string
   copyright: string[]
-  /** 著作権の行と題の行を除いた残り。 */
   body: string
 }
 
 interface Entry {
   name: string
   version: string
-  /** 選んだライセンス。 */
   license: string
-  /** 標準の文面で済ませられないときに見に行く先。 */
   url?: string
   notices: Notice[]
 }
@@ -62,7 +50,6 @@ const WEIGHT: Record<string, number> = {
 const UNKNOWN = 9
 const weightOf = (id: string) => WEIGHT[id] ?? UNKNOWN
 
-/** 文面がどのライセンスのものか。 */
 const KIND_OF_TEXT: [string, RegExp][] = [
   ['MIT', /Permission is hereby granted, free of charge/i],
   ['Apache-2.0', /Apache License[\s\S]*Version 2\.0/i],
@@ -74,10 +61,6 @@ const KIND_OF_TEXT: [string, RegExp][] = [
   ['MPL-2.0', /Mozilla Public License/i],
 ]
 
-/**
- * SPDX の式から、義務のいちばん軽い組み合わせを選ぶ。AND は全部、OR は 1 つ。
- * 古い書き方の「MIT/Apache-2.0」も OR とみなす。
- */
 function choose(expr: string): string[] {
   const s = expr.replaceAll(/[()]/g, ' ').replaceAll('/', ' OR ').trim()
   return s.split(/\s+AND\s+/).flatMap((clause) => {
@@ -87,16 +70,13 @@ function choose(expr: string): string[] {
 }
 
 const NOTICE_FILE = /^(licen[cs]e|copying|notice)/i
-/** 頭のほうの著作権の行。 */
 const COPYRIGHT = /^(copyright\b|\(c\)|©|all rights reserved)/i
-/** 文面の途中の著作権の行。「Copyright [yyyy] [name of copyright owner]」のような雛形の行は除く。 */
 const COPYRIGHT_IN_BODY = /^(copyright\s*(\(c\)|©|\d)|\(c\)\s*\d|©\s*\d)/i
 const RESERVED = /^all rights reserved\.?$/i
 const TITLE = /^(the )?mit license( \(mit\))?\s*/i
 
 const readText = (file: string) => fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n').trim()
 
-/** 著作権の行を分ける。題の行は、グループの名前で足りるので落とす。 */
 function split(raw: string, kind?: string): Notice {
   const lines = raw.split('\n')
   const copyright: string[] = []
@@ -117,10 +97,8 @@ function split(raw: string, kind?: string): Notice {
   return { kind, copyright, body: body.join('\n').trim() }
 }
 
-/** 文面を比べるときの形。空白や記号、大文字小文字の違いは見ない。 */
 const shape = (body: string) => body.toLowerCase().replaceAll(/[^a-z0-9]/g, '')
 
-/** パッケージのフォルダにある文面のうち、選んだライセンスのものと NOTICE。どれとも決められなければ全部。 */
 function noticesIn(dir: string, chosen: string[]): Notice[] {
   if (!fs.existsSync(dir)) return []
   const files = fs
@@ -133,7 +111,6 @@ function noticesIn(dir: string, chosen: string[]): Notice[] {
   return (wanted.length ? wanted : files).map(({ f, t }) => split(t, /^notice/i.test(f) ? undefined : kindOf(t)))
 }
 
-/** 権利表示が要るなら、載せる形にする。 */
 function entry(name: string, version: string, license: string, dir: string, url?: string): Entry[] {
   const chosen = choose(license)
   if (chosen.every((id) => weightOf(id) === 0)) return []
@@ -219,10 +196,6 @@ const all = unique([
   .filter((e) => !own.has(e.name))
   .toSorted(byName)
 
-/**
- * ライセンスごとの標準の文面。そのライセンスの文面のうち、いちばん多い形のもの。
- * 同じ形の文面を持つものは著作権の行だけを、違う形のもの（ほかの表記を足してあるものなど）と見つからないものは見に行く先を載せる。
- */
 function standards(es: Entry[]) {
   const forms = new Map<string, Map<string, { body: string; n: number }>>()
   for (const { kind, body } of es.flatMap((e) => e.notices)) {
@@ -238,11 +211,9 @@ function standards(es: Entry[]) {
 const texts = standards(all)
 const isStandard = (n: Notice) => !!n.kind && shape(n.body) === shape(texts.get(n.kind) ?? '')
 
-/** リポジトリの根元。中のファイルやフォルダを指す部分と、.git・#readme などは落とす。 */
 const repoUrl = (url: string) =>
   /^(?:git\+)?(https?:\/\/[^/]+\/[^/?#]+\/[^/?#]+?)(?:\.git)?(?:[/?#].*)?$/.exec(url)?.[1] ?? url
 
-/** ライセンスごとにまとめる。件数の多い順。 */
 function group(es: Entry[]) {
   const groups = new Map<string, object[]>()
   for (const { license, notices, url, ...e } of es) {

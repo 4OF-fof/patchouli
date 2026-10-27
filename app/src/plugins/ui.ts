@@ -5,7 +5,6 @@
  */
 import type { Api, Item, PluginModule } from '../../plugins/sdk'
 
-/** 本体が組み込み UI に渡す窓口。型は plugins/sdk で決める。 */
 export type UiApi = Api
 export type UiItem = Item
 export type UiModule = PluginModule
@@ -13,7 +12,6 @@ export type UiModule = PluginModule
 const THUMB_LIMIT = 10_000
 const THUMB_LIMIT_MAX = 30_000
 
-/** サムネイルが待つ長さのうちに作り終わらなかった。 */
 export class ThumbnailTimeout extends Error {
   readonly ms: number
   constructor(ms: number) {
@@ -30,10 +28,8 @@ const limitOf = (mod: UiModule) => {
 /** サムネイルの長いほうの辺の長さ（px）。src-tauri/src/thumb.rs と合わせる。 */
 export const EDGE = 512
 
-/** 波形の区間の数。音をこの数に等分して、区間ごとの大きさを残す。 */
 export const WAVE_POINTS = 4000
 
-/** 波形が時間の上限のうちに作り終わらなかった。 */
 export class WaveformTimeout extends Error {
   readonly ms: number
   constructor(ms: number) {
@@ -50,7 +46,6 @@ const isModule = (m: unknown): m is UiModule =>
   m !== null &&
   ['mount', 'thumbnail', 'waveform', 'hover'].every((k) => isFn(Reflect.get(m, k)))
 
-/** url の ES モジュールを読む。一度読んだものは使い回す。 */
 export const loadUi = (url: string): Promise<UiModule> => {
   let m = loaded.get(url)
   if (!m) {
@@ -66,7 +61,6 @@ export const loadUi = (url: string): Promise<UiModule> => {
   return m
 }
 
-/** UI にサムネイルを作らせ、PNG の中身にする。UI の決めた長さのうちに作り終わらなければ ThumbnailTimeout を投げる。 */
 export async function uiThumbnail(
   url: string,
   api: UiApi,
@@ -85,7 +79,6 @@ export async function uiThumbnail(
   return { png, width: t.width, height: t.height }
 }
 
-/** UI に波形を作らせ、各区間の大きさを 8 bit（0〜255）にする。limit（ms）を過ぎたら止めて WaveformTimeout を投げる。0 なら待ち続ける。 */
 export async function uiWaveform(url: string, api: UiApi, limit: number): Promise<Uint8Array | null> {
   const mod = await loadUi(url)
   if (!mod.waveform) throw new Error('波形を作成する関数（waveform）が見つかりません')

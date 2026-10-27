@@ -22,42 +22,34 @@ import {
 import shared from '../screen.module.css'
 import styles from './EditionScreen.module.css'
 
-/** 動いた日で分ける段。新しいほど大きく出す。clock は動画のホバー再生で時刻を出すか。 */
 const TIERS: { name: string; until: number; size: CardSize; h: number; gap: number; clock: boolean }[] = [
   { name: '今週', until: 7, size: 'M', h: 118, gap: 6, clock: true },
   { name: '今月', until: 30, size: 'S', h: 76, gap: 5, clock: false },
   { name: 'それ以前', until: Infinity, size: 'X', h: 56, gap: 4, clock: false },
 ]
 
-/** ピン留めの 1 枚。素材のときは thumb にその素材が入る。moved は中でいちばん新しく動いてからの日数。 */
 type Pin = { key: string; name: string; meta: string; moved: number; tiles: Item[]; thumb?: Item; open: () => void }
 const FIRST = 36
 const MORE = 30
 
 export interface EditionScreenProps {
   lib: Library
-  /** 開いたライブラリの場所。空のときに出す。 */
   location?: string
   pinnedProjects?: string[]
   pinnedTags?: string[]
-  /** ピン留めを 2 行で切らず、全件を出している。 */
   pinsOpen?: boolean
-  /** 開いたときのスクロール位置（スクロール後の見た目を確かめる）。 */
   scrollTop?: number
   onOpenItem?: (id: string) => void
   onOpenProject?: (name: string) => void
   onOpenTag?: (tag: string) => void
-  /** 整理を開く。id を渡すと、その項目から見る。 */
   onTidy?: (id?: string) => void
 }
 
-/** 00 ホーム。承認待ちの最近追加したもの、ピン留め、動いた日で分けた段。 */
 export function EditionScreen(props: EditionScreenProps) {
   let scroll!: HTMLDivElement
   let more: HTMLDivElement | undefined
   const lib = () => props.lib
   const recent = createMemo(() => lib().pending())
-  // 最後に動いたのが新しい順。同じなら留めた種類と順のまま
   const pins = createMemo<Pin[]>(() =>
     [
       ...(props.pinnedProjects ?? []).flatMap((n) => {
@@ -91,7 +83,6 @@ export function EditionScreen(props: EditionScreenProps) {
           },
         ]
       }),
-      // プロジェクトに入っていないものだけ出す
       ...lib().pins.flatMap((id) => {
         const it = lib().byId.get(id)
         if (!it || it.folder) return []
@@ -109,7 +100,6 @@ export function EditionScreen(props: EditionScreenProps) {
       }),
     ].toSorted((a, b) => a.moved - b.moved),
   )
-  // 段ごとに、重みの大きい順 → 新しい順に並べて、先頭から続けて出す
   const feed = createMemo(() =>
     TIERS.flatMap((tier, k) => {
       const from = k ? (TIERS[k - 1]?.until ?? 0) : -Infinity
@@ -119,7 +109,6 @@ export function EditionScreen(props: EditionScreenProps) {
       return list.map((it) => ({ tier, it, n: list.length }))
     }),
   )
-  // ピン留めは 2 行までにし、入りきらないときは最後の枠を「すべて表示」の札にする。3 列以上あれば、先頭を 2 列 2 行の大きさにする
   const preview = useHoverPreview()
   const [cols, setCols] = createSignal(3)
   const [pinsOpen, setPinsOpen] = createSignal(!!props.pinsOpen)

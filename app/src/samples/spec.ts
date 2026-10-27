@@ -5,29 +5,20 @@
  */
 import type { Item, NoteBlock, Project, Suggestion, TagCoverPart } from '../model/library'
 
-/** 見本の「今日」。日記の名前と、何日前に動いたかの起点。 */
 export const TODAY = new Date(2026, 9, 22, 12)
 
-/** ホームにピン留めしているプロジェクトとタグ。 */
 export const PINNED_PROJECTS = ['秋の企画', '日記']
 export const PINNED_TAGS = ['写真', 'UI', '参考']
 
-/** 見本のファイルの作り方。text は中身をそのまま書く。other は中身のないファイルにする。 */
 export type Media = 'image' | 'video' | 'audio' | 'text' | 'note' | 'other'
 
-/** 動作確認用のライブラリで使う、例のプラグイン（example/ の下のフォルダ）。 */
 export const EXAMPLE_PLUGINS = ['text-plugin', 'ppm-plugin']
 
-/** 見本の項目。素材はファイルを作るための大きさか長さを持つ。 */
 export type SpecItem = Item & {
   media: Media
-  /** 画像と動画の幅と高さ（px）。 */
   size?: [number, number]
-  /** 動画と音声の長さ（秒）。 */
   sec?: number
-  /** 音声にジャケット（画像）を埋め込む。 */
   jacket?: boolean
-  /** テキストの中身。 */
   text?: string
 }
 
@@ -35,7 +26,6 @@ export interface Spec {
   items: SpecItem[]
   projects: Project[]
   tagCovers: Map<string, TagCoverPart[]>
-  /** ピン留めした項目の id。 */
   pins: string[]
 }
 
@@ -56,7 +46,6 @@ const MEDIA_OF: Record<string, Media> = {
   psd: 'other',
 }
 
-/** タグの表紙。ここにないタグは表紙が空。 */
 const TAG_COVERS: Record<string, TagCoverPart[]> = {
   写真: [
     { type: 'desc', text: 'カメラで撮ったもの。旅行や街は下の階層に分ける。' },
@@ -68,7 +57,6 @@ const TAG_COVERS: Record<string, TagCoverPart[]> = {
 }
 
 type RawBlock = [NoteBlock['type'], string]
-/** 名前、拡張子、タグ、何日前に動いたか。 */
 type RawAsset = [name: string, ext: string, tags: string[], moved: number]
 type RawNote = [name: string, moved: number, tags: string[], blocks: RawBlock[]]
 
@@ -160,7 +148,6 @@ const PROJECTS: (Project & { pinNames: string[] })[] = [
   },
 ]
 
-/** テキストの素材の中身。 */
 const TEXTS: Record<string, string> = {
   読み方: [
     '読み方のメモ',
@@ -397,7 +384,6 @@ const DAILY = [
   'ポスターの文字組みを見直す。',
 ]
 
-/* どこにも入っていない取り込み。自動分類がタグを出す（プロジェクトは出さない）。 */
 const LOOSE: [name: string, ext: string, moved: number, like: string | null, main: string[]][] = [
   ['IMG_3310', 'jpg', 19, '秋の企画', ['写真', '配色']],
   ['IMG_3311', 'jpg', 19, '秋の企画', ['写真']],
@@ -431,10 +417,8 @@ const TAG_POOL: Record<string, string[]> = {
   資料: ['参考', '資料', '写真'],
 }
 
-/** ジャケットを埋め込む音声。ほかの音声は、波形がサムネイルになる。 */
 const JACKETS = ['theme-demo']
 
-/** プロジェクトに入っていない、ピン留めした素材。 */
 const PINNED_ITEMS = ['ref-a', 'IMG_3316']
 
 const charSum = (s: string) => {
@@ -443,7 +427,6 @@ const charSum = (s: string) => {
   return n
 }
 
-/** 画像と動画の大きさ。名前から、よくある大きさを選ぶ。 */
 function sizeOf(media: Media, ext: string, name: string): [number, number] | undefined {
   const odd = charSum(name) % 3 === 0
   if (media === 'video') return name.includes('vertical') ? [1080, 1920] : [1920, 1080]
@@ -465,7 +448,6 @@ const ratioOf = (media: Media, size?: [number, number]) =>
 
 const blocks = (raw: RawBlock[]): NoteBlock[] => raw.map(([type, text]) => ({ type, text }))
 
-/** 見本の中身を作る。呼ぶたびに同じ中身の新しいものを返す。 */
 export function sampleSpec(): Spec {
   let seed = 20261022
   const rnd = () => ((seed = (seed * 16807) % 2147483647), (seed - 1) / 2147483646)

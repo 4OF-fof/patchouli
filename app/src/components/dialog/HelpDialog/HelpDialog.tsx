@@ -4,7 +4,6 @@ import styles from './HelpDialog.module.css'
 import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 
-/** キーと、そのキーでできること。 */
 export const SHORTCUTS: [string, string][] = [
   ['Ctrl P', '検索バーを開く'],
   ['Ctrl Enter', '検索バーの入力内容でノートを作成'],
@@ -23,7 +22,6 @@ export interface HelpDialogProps {
   onClose?: () => void
 }
 
-/** キー操作の一覧。後ろを暗くして上に重ねる。置き場所の要素に position: relative を付けておく。 */
 export function HelpDialog(props: HelpDialogProps) {
   let el!: HTMLDivElement
   const onKey = (e: KeyboardEvent) => {

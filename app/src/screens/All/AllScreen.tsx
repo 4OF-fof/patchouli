@@ -18,13 +18,11 @@ export interface AllScreenProps {
   onTogglePin?: (id: string) => void
 }
 
-/** すべての項目（素材とノート）を、区切らずに並べる。ピン留めしたものが先、ほかは新しい順。 */
 export function AllScreen(props: AllScreenProps) {
   let scroll!: HTMLDivElement
   let more: HTMLDivElement | undefined
   const lib = () => props.lib
   const preview = useHoverPreview()
-  // ピン留めしたものを留めた順で先に、ほかは新しい順
   const all = createMemo(() => {
     const pins = new Map(lib().pins.map((id, i) => [id, i]))
     const rank = (id: string) => pins.get(id) ?? pins.size
@@ -33,7 +31,6 @@ export function AllScreen(props: AllScreenProps) {
   const [shown, setShown] = createSignal(FIRST)
   const visible = () => all().slice(0, shown())
 
-  // 下の端から 1 画面分先までを、待たずに埋める（ホームと同じ）
   const fill = () => {
     const end = more
     if (!end) return

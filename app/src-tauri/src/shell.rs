@@ -1,9 +1,6 @@
-//! ファイルを、OS のファイルマネージャーや既定のアプリで開く。
-
 use std::path::Path;
 use std::process::Command;
 
-/// path を選んだ状態で、入っているフォルダを開く。
 pub fn reveal(path: &Path) -> Result<(), String> {
     #[cfg(windows)]
     let c = {
@@ -27,7 +24,6 @@ pub fn reveal(path: &Path) -> Result<(), String> {
     spawn(c, path)
 }
 
-/// path を、その形式の既定のアプリで開く。
 pub fn open(path: &Path) -> Result<(), String> {
     #[cfg(windows)]
     let name = "explorer";

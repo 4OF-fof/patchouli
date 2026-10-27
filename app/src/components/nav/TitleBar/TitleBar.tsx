@@ -1,9 +1,7 @@
 import { type Accessor, type JSX, Show, createContext, useContext } from 'solid-js'
 import styles from './TitleBar.module.css'
 
-/** デスクトップの窓を動かす操作。web では無い。 */
 export interface WindowControls {
-  /** 左に出すアプリのアイコン。 */
   maximized: Accessor<boolean>
   onMinimize: () => void
   onToggleMaximize: () => void
@@ -15,15 +13,11 @@ export const WindowProvider = WindowContext.Provider
 export const useWindowControls = () => useContext(WindowContext)
 
 export interface TitleBarProps {
-  /** 左に並べるもの（メニュー・戻る・いまの場所）。 */
   children?: JSX.Element
-  /** 窓のボタンの左に置くもの。 */
   end?: JSX.Element
-  /** 省略すると、デスクトップの窓から受け取る。 */
   window?: WindowControls
 }
 
-/** 画面の上の段。空いている所をつかむと窓を動かせ、右に最小化・最大化・閉じるを置く。 */
 export function TitleBar(props: TitleBarProps) {
   const fromFrame = useWindowControls()
   const win = () => props.window ?? fromFrame

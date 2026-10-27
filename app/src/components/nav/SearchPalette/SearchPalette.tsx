@@ -4,7 +4,6 @@ import { Kbd } from '../../base/Kbd/Kbd'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import styles from './SearchPalette.module.css'
 
-/** search 検索 / prompt AI へのプロンプト / link ノートにつなぐ先を探す */
 export type SearchMode = 'search' | 'prompt' | 'link'
 
 const MODES: Record<SearchMode, { label: string; placeholder: string; hints: [string, string][] }> = {
@@ -40,14 +39,12 @@ const MODES: Record<SearchMode, { label: string; placeholder: string; hints: [st
 export interface SearchPaletteProps {
   mode?: SearchMode
   query?: string
-  /** ResultRow / ResultHeading を並べる。 */
   results?: JSX.Element
   onClose?: () => void
   onQueryInput?: (query: string) => void
   onInputKeyDown?: (e: KeyboardEvent) => void
 }
 
-/** Ctrl P で開く検索。画面の上のほうに浮かべ、後ろを暗くする。 */
 export function SearchPalette(props: SearchPaletteProps) {
   let input: HTMLInputElement | undefined
   const mode = () => MODES[props.mode ?? 'search']

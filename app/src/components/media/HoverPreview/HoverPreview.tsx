@@ -6,7 +6,6 @@ import { type UiApi, loadUi } from '../../../plugins/ui'
 import { clock } from '../PlayerBar/clock'
 import styles from './HoverPreview.module.css'
 
-/** 組み込み UI の hover を描くのに要るもの。渡さなければ、本体が見せるもの（動画など）だけにする。 */
 export interface HoverHost {
   ui?: (item: Item, ui: UiRef) => { url: string; api: UiApi }
 }
@@ -15,12 +14,10 @@ const Host = createContext<HoverHost>({})
 
 export const HoverHostProvider = Host.Provider
 
-/** 重ねる表示の出し方。clock を false にすると、動画の時刻を出さず、下の帯だけにする（小さいサムネイル向け）。 */
 export interface HoverOptions {
   clock?: boolean
 }
 
-/** 素材にカーソルを合わせたときに、サムネイルの上に重ねる表示を返す関数。重ねるものがなければ undefined を返す。 */
 export function useHoverPreview() {
   const formats = useFormats()
   const host = useContext(Host)
@@ -39,7 +36,6 @@ export function useHoverPreview() {
   }
 }
 
-/** 元のファイルを音を消して頭から再生する。再生が始まるまでは透かして、下のサムネイルを見せておく。 */
 export function VideoHover(props: { src: string; fit?: Fit; clock?: boolean }) {
   const [ready, setReady] = createSignal(false)
   const [at, setAt] = createSignal(0)
@@ -83,7 +79,6 @@ export function VideoHover(props: { src: string; fit?: Fit; clock?: boolean }) {
   )
 }
 
-/** 組み込み UI の hover。失敗しても、下のサムネイルが見えたままになるだけにする。 */
 function PluginHover(props: { url: string; api: UiApi }) {
   let el!: HTMLSpanElement
   let off: (() => void) | undefined

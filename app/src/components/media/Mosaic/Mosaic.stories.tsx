@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { Mosaic } from './Mosaic'
 
-/** プラグインが作るサムネイルの代わり。例のテキストのプラグインと同じく、縦長の紙に頭から数行を描く。 */
 function textThumb(lines: string[]) {
   const c = document.createElement('canvas')
   c.width = 410
@@ -16,7 +15,6 @@ function textThumb(lines: string[]) {
   return c.toDataURL()
 }
 
-/** 横長の画像の代わり。 */
 function wideThumb(hue: number) {
   const c = document.createElement('canvas')
   c.width = 512
@@ -64,7 +62,6 @@ export const Five: Story = {}
 export const Three: Story = { args: { tiles: [{ hue: 205 }, { hue: 20 }, { hue: 150 }] } }
 const DIARY = '午前：リファレンス整理。素材を 20 件プロジェクトに入れた。午後は配色を見直し、差し色を一点に絞った。'
 
-/** ノートだけ。名前は切らずに折り返し、本文は枠に入るところまで出す。 */
 export const Notes: Story = {
   args: {
     tiles: ['2026-10-22', '2026-10-21', '2026-10-20', '2026-10-19', '2026-10-18'].map((title) => ({
@@ -74,7 +71,6 @@ export const Notes: Story = {
     })),
   },
 }
-/** 素材とノートが混ざったもの。素材が先に並ぶ。 */
 export const Mixed: Story = {
   args: {
     tiles: [
@@ -86,7 +82,6 @@ export const Mixed: Story = {
     ],
   },
 }
-/** プラグインが作ったサムネイル。枠に合わないものは、形式ごとの収め方（fit）で入れる。 */
 export const PluginThumbnails: Story = {
   args: {
     tiles: [

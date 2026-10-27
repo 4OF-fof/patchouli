@@ -8,7 +8,6 @@ export interface FloatingCardProps {
   children?: JSX.Element
 }
 
-/** ノートの見出し・つながり、素材の情報など、画面の端に浮かべるカード。 */
 export function FloatingCard(props: FloatingCardProps) {
   return (
     <section class={styles.root}>

@@ -1,5 +1,13 @@
 import { For, Match, Show, Switch, createSignal, onCleanup, onMount } from 'solid-js'
-import { type Backend, type Dropped, type Imported, type ItemPatch, type LibraryState, sampleBackend } from './backend'
+import {
+  type Backend,
+  type Dropped,
+  type Imported,
+  type ItemPatch,
+  type LibraryState,
+  type PluginWork,
+  sampleBackend,
+} from './backend'
 import { DropZone } from './components/overlay/DropZone/DropZone'
 import { ReloadOverlay } from './components/overlay/ReloadOverlay/ReloadOverlay'
 import { ImportDialog } from './components/dialog/ImportDialog/ImportDialog'
@@ -25,6 +33,7 @@ import { FormatsProvider } from './plugins/formats'
 import { type HoverHost, HoverHostProvider } from './components/media/HoverPreview/HoverPreview'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import type { Activity } from './components/nav/ActivityButton/ActivityButton'
+import type { IconName } from './components/base/Icon/Icon'
 import { ThumbMakingProvider } from './components/media/Thumb/Thumb'
 import { AllScreen } from './screens/All/AllScreen'
 import { AppBar, type BarRequest, type Place } from './screens/AppBar'
@@ -64,17 +73,13 @@ const LABEL: Record<View['s'], string> = {
 
 export interface AppProps {
   lib: Library
-  /** 変更を書き込む先。省略すると書き込まない（見本）。 */
   backend?: Backend
   pinnedProjects?: string[]
   pinnedTags?: string[]
-  /** 開いたライブラリの場所（設定に出す）。 */
   location?: string
-  /** 開いたときに出す知らせ。 */
   notice?: string
 }
 
-/** 取り込んだあとに出す知らせ。 */
 const importedNotice = (r: Imported) => {
   const n = r.items.length
   const parts = [n ? `${n} 件を取り込みました` : '取り込めるファイルがありませんでした']
@@ -84,7 +89,23 @@ const importedNotice = (r: Imported) => {
   return parts.join('、')
 }
 
-/** 画面をつないで行き来できるようにしたもの。変更は backend に書き込む。 */
+const workCount = (w?: PluginWork) => (w ? w.thumbnails.length + w.waveforms.length : 0)
+
+// 作り始めてから頼まれた素材を覚えておき、途中で増えたら total も増やす
+function progress() {
+  const [ids, setIds] = createSignal<ReadonlySet<string>>(new Set())
+  const [seen, setSeen] = createSignal(0)
+  let all = new Set<string>()
+  const update = (now: string[]) => {
+    if (!now.length) all = new Set()
+    for (const id of now) all.add(id)
+    if (now.length !== ids().size || now.some((id) => !ids().has(id))) setIds(new Set(now))
+    setSeen(all.size)
+  }
+  return { ids, done: () => seen() - ids().size, total: seen, update }
+}
+type Progress = ReturnType<typeof progress>
+
 export function App(props: AppProps) {
   const backend = props.backend ?? sampleBackend()
   const [lib, setLib] = createSignal(props.lib)
@@ -120,13 +141,11 @@ export function App(props: AppProps) {
     const it = lib().byName.get(name)
     if (it) openItem(it.id)
   }
-  // メニューから行く所は一番上の画面として開き、戻る先を持たない
   const onGo = (to: Place) => {
     if (to === 'tidy') go({ s: 'tidy' })
     else setStack([{ s: to === 'all' ? 'all' : to === 'tags' ? 'tlist' : to === 'projects' ? 'plist' : 'edition' }])
   }
 
-  // 書き込みは出した順に 1 つずつ流し、失敗したら知らせる
   let queue = Promise.resolve()
   const fail = (e: unknown) => {
     setNotice(`保存できませんでした：${e instanceof Error ? e.message : String(e)}`)
@@ -220,7 +239,6 @@ export function App(props: AppProps) {
     }
     saveState()
   }
-  // ライブラリを替えたら、画面の状態ごと開き直す
   const chooseLibrary =
     backend.chooseLibrary &&
     (async () => {
@@ -230,14 +248,13 @@ export function App(props: AppProps) {
         setNotice(`ライブラリを切り替えられませんでした：${e instanceof Error ? e.message : String(e)}`)
       }
     })
-  // プラグインだけを読み直す。いまいる画面は保ち、ライブラリと形式を差し替える
   const [plugged, setPlugged] = createSignal(0)
   const [reloading, setReloading] = createSignal<{ step: 'ask' | 'wait' | 'load'; work?: number }>()
   let answer: ((a: 'wait' | 'stop') => void) | undefined
   const reloadPlugins = async () => {
     if (!backend.reloadPlugins) return window.location.reload()
     if (reloading()) return
-    const work = (await backend.pluginWork?.())?.length ?? 0
+    const work = workCount(await backend.pluginWork?.())
     let wait = true
     if (work > 0) {
       setReloading({ step: 'ask', work })
@@ -250,7 +267,7 @@ export function App(props: AppProps) {
       if (reloading()?.step === 'wait')
         void backend
           .pluginWork?.()
-          .then((ids) => reloading()?.step === 'wait' && setReloading({ step: 'wait', work: ids.length }))
+          .then((w) => reloading()?.step === 'wait' && setReloading({ step: 'wait', work: workCount(w) }))
     }, 500)
     try {
       const o = await backend.reloadPlugins(wait)
@@ -269,10 +286,8 @@ export function App(props: AppProps) {
       setReloading(undefined)
     }
   }
-  /** 素材の画面で、最後に見ていた位置。画面を作り直したときに戻す。 */
   const assetIndex = new WeakMap<View, number>()
   const [barRequest, setBarRequest] = createSignal<BarRequest>()
-  /** 形式 ext を受け持つはずで、使えないプラグイン。無効にしたものを先に探す。 */
   const blockerOf = async (ext: string): Promise<Blocker | undefined> => {
     const of = (await backend.plugins()).plugins.filter((p) => p.formats.includes(ext))
     return (
@@ -350,7 +365,6 @@ export function App(props: AppProps) {
     clearTimeout(flush)
   })
 
-  // 写しから開いたときは、裏でファイルと突き合わせた違いがあとから届く
   const stopChanged =
     backend.onChanged?.((c) => {
       const s = c.state
@@ -373,10 +387,8 @@ export function App(props: AppProps) {
     }) ?? (() => {})
   onCleanup(stopChanged)
 
-  // ファイルを持ってきたら受け口を出す。フォルダを含むものは、落としたあとにフォルダごとの入れ方を選ぶ
   const [drag, setDrag] = createSignal<Dropped>()
   const [asking, setAsking] = createSignal<Dropped>()
-  /** 落とした先のプロジェクト。プロジェクトの画面ならそこ、ほかはどこにも入れない。 */
   const dropFolder = () => {
     const v = view()
     return v.s === 'project' ? v.name : null
@@ -408,38 +420,27 @@ export function App(props: AppProps) {
       } else if (e.type === 'leave') setDrag(undefined)
     }) ?? (() => {})
   onCleanup(stopDrag)
-  // seen は作り始めてから頼まれた素材。途中で増えたら total も増やす
-  const [making, setMaking] = createSignal<ReadonlySet<string>>(new Set())
-  const [seen, setSeen] = createSignal(0)
+  const making = progress()
+  const waves = progress()
   const [checking, setChecking] = createSignal(false)
-  let seenIds = new Set<string>()
   if (backend.pluginWork || backend.checking) {
     const poll = window.setInterval(() => {
-      void backend.pluginWork?.().then((ids) => {
-        if (!ids.length) seenIds = new Set()
-        for (const id of ids) seenIds.add(id)
-        const now = making()
-        if (ids.length !== now.size || ids.some((id) => !now.has(id))) setMaking(new Set(ids))
-        setSeen(seenIds.size)
+      void backend.pluginWork?.().then((w) => {
+        making.update(w.thumbnails)
+        waves.update(w.waveforms)
       })
       void backend.checking?.().then(setChecking)
     }, 1000)
     onCleanup(() => clearInterval(poll))
   }
+  const working = (key: string, icon: IconName, label: string, p: Progress, part: 'thumbnail' | 'waveform') =>
+    p.ids().size
+      ? [{ key, icon, label, done: p.done(), total: p.total(), onStop: () => void backend.stopPluginWork?.(part) }]
+      : []
   const activities = (): Activity[] => [
-    ...(checking() ? [{ key: 'check', icon: 'sync' as const, label: 'ライブラリとファイルを突き合わせ中' }] : []),
-    ...(making().size
-      ? [
-          {
-            key: 'thumbs',
-            icon: 'image' as const,
-            label: 'サムネイルと波形を作成中',
-            done: seen() - making().size,
-            total: seen(),
-            onStop: () => void backend.stopPluginWork?.(),
-          },
-        ]
-      : []),
+    ...(checking() ? [{ key: 'check', icon: 'sync' as const, label: 'ライブラリの整合性を確認中' }] : []),
+    ...working('thumbs', 'image', 'サムネイルを作成中', making, 'thumbnail'),
+    ...working('waves', 'audio', '音声を解析中', waves, 'waveform'),
     ...(importing() ? [{ key: 'import', icon: 'import' as const, label: 'ファイルを取り込み中' }] : []),
   ]
   const flatSub = () => {
@@ -449,7 +450,7 @@ export function App(props: AppProps) {
 
   return (
     <FormatsProvider value={() => lib().formats}>
-      <ThumbMakingProvider value={(id) => making().has(id)}>
+      <ThumbMakingProvider value={(id) => making.ids().has(id) || waves.ids().has(id)}>
         <HoverHostProvider value={hoverHost}>
           <ScreenFrame
             bar={

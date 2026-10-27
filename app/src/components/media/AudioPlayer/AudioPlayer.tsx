@@ -4,10 +4,8 @@ import styles from './AudioPlayer.module.css'
 
 export interface AudioPlayerProps {
   src: string
-  /** 波形（区間ごとの音の大きさを、0〜255 にしたもの）。なければ、真ん中に小さな点を並べる。 */
   wave?: Uint8Array | null
   name: string
-  /** 置き場所の側で大きさを決めるとき。 */
   class?: string
 }
 
@@ -15,10 +13,6 @@ export interface AudioPlayerProps {
 const BAR = 3
 const GAP = 1
 
-/**
- * 枠の幅いっぱいに、波形を要素の color で描く。幅を棒に分け、棒ごとに区間の大きさの二乗平均の平方根を、
- * 真ん中から上下に同じ長さで伸ばした角丸の棒にする。いちばん大きい棒を枠の高さに合わせる。
- */
 function draw(canvas: HTMLCanvasElement, wave: Uint8Array | null | undefined, w: number, h: number) {
   const dpr = window.devicePixelRatio || 1
   const cw = Math.max(1, Math.round(w * dpr))
@@ -50,7 +44,6 @@ function draw(canvas: HTMLCanvasElement, wave: Uint8Array | null | undefined, w:
   }
 }
 
-/** 音声の波形と、その下に続けて置く操作の帯。波形を押すか引くと、その位置へ移る。 */
 export function AudioPlayer(props: AudioPlayerProps) {
   let area!: HTMLDivElement
   let base!: HTMLCanvasElement

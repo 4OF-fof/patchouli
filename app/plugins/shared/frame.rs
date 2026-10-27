@@ -1,10 +1,6 @@
-//! コマ（音声ならジャケット）を PNG にする。FFmpeg があれば FFmpeg で、なければ OS の機能で作る。
-//! 画像・動画・音声のプラグインが `#[path]` で読み込む。
-
 use crate::File;
 use crate::patchouli::plugin::host::{self, CommandArg};
 
-/// at 秒目のコマを、長いほうの辺が edge 以下の PNG にする。
 pub fn frame(f: &File, at: f64, edge: u32) -> Result<Vec<u8>, String> {
     if !host::command_available("ffmpeg") {
         return host::os_thumbnail(f, edge);

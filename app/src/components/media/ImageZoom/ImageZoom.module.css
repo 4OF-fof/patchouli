@@ -33,7 +33,6 @@
 .img[data-ready] {
   visibility: visible;
 }
-/* 暗い舞台の上に、画像の下に続けて置く帯 */
 .bar {
   display: flex;
   align-items: center;

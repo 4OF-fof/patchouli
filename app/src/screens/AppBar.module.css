@@ -68,15 +68,12 @@
 .sep {
   color: var(--disabled);
 }
-/* 狭い窓では、いまの場所だけを出す */
 @media (max-width: 760px) {
   .crumbs > .crumb,
   .sep {
     display: none;
   }
 }
-/* 書き込めない保存先 */
-/* 右の操作。窓のボタンとのあいだを少し空ける */
 .end {
   flex: none;
   display: flex;

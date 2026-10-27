@@ -62,7 +62,6 @@ export const Typed: Story = {
 }
 export const Prompt: Story = { args: { mode: 'prompt' } }
 
-/** 触って確かめる：Tab で検索とプロンプトを切り替える。 */
 export const Interactive: Story = {
   render: () => {
     const [mode, setMode] = createSignal<SearchMode>('search')

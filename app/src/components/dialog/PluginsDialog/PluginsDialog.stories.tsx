@@ -9,7 +9,6 @@ import { PluginsDialog } from './PluginsDialog'
 const ffmpeg: CommandStatus = { name: 'ffmpeg', path: 'C:\\Users\\me\\scoop\\shims\\ffmpeg.exe' }
 const none = { commands: {}, plugins: {} }
 
-/** 外から入れたプラグイン。組み込み UI と設定を持ち、あれば pandoc を使う。 */
 const text: PluginStatus = {
   id: 'example.text',
   name: 'テキスト',
@@ -87,7 +86,6 @@ const external: PluginReport = {
   ],
 }
 
-/** コマンドとプラグインが足りないとき。必須のものが足りない Photoshop は読み込まない。 */
 const troubled: PluginReport = {
   commands: [{ name: 'ffmpeg' }, { name: 'magick' }],
   plugins: [
@@ -145,7 +143,6 @@ const actions = {
   setEnabled: wait,
 }
 
-/** 開発者モードのフォルダの中のもの。テキストは通常版も入っていて、開発版のほうを使う。CSV は検出した直後で無効。 */
 const developing: PluginReport = {
   commands: [ffmpeg],
   plugins: [
@@ -220,7 +217,6 @@ export const Failed: Story = {
     },
   },
 }
-/** 設定を変えると、アプリと同じように一覧を読み直す（中身は同じでも、別のものになる）。 */
 export const Refresh: Story = {
   name: '設定を変えて読み直す',
   render: (args) => {
@@ -258,7 +254,6 @@ export const Developing: Story = {
     await expect(args.actions?.setEnabled).toHaveBeenCalledWith('example.csv', true, true)
   },
 }
-/** 無効にした通常のプラグイン。 */
 export const Disabled: Story = {
   name: '無効にしたもの',
   args: { report: { ...found, plugins: [...builtinReport().plugins, { ...text, state: 'disabled', enabled: false }] } },

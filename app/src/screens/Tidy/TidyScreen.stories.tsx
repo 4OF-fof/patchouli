@@ -17,7 +17,6 @@ export const Default: Story = {
     </ScreenFrame>
   ),
 }
-/** 先頭の 3 件を承認したあと、別の候補（UI）の 1 件を見ている。 */
 export const Next: Story = {
   name: '別の 1 件',
   render: () => {

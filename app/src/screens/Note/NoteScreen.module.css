@@ -101,7 +101,6 @@
   text-decoration-style: dashed;
 }
 
-/* 上の帯：何も触っていないときは消える */
 .bar {
   --top-bar-z: 6;
   transition:
@@ -126,7 +125,6 @@
   pointer-events: auto;
 }
 
-/* 見出しは左上、つながりは右下。ボタンの場所にカードが開く */
 .l {
   left: 20px;
   top: 66px;

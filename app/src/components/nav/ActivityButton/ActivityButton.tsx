@@ -4,24 +4,20 @@ import { ProgressBar } from '../../base/ProgressBar/ProgressBar'
 import { Spinner } from '../../base/Spinner/Spinner'
 import styles from './ActivityButton.module.css'
 
-/** 裏で動いている処理の 1 つ。total があれば、done と合わせて進み具合を出す。 */
 export interface Activity {
   key: string
   icon: IconName
   label: string
   done?: number
   total?: number
-  /** 止められる処理だけに渡す。 */
   onStop?: () => void
 }
 
 export interface ActivityButtonProps {
   activities: Activity[]
-  /** 最初から一覧を開いておく（見本）。 */
   open?: boolean
 }
 
-/** 裏で処理が動いているあいだ、回る印を出す。押すと処理の一覧を開く。すべて終わると消える。 */
 export function ActivityButton(props: ActivityButtonProps) {
   const [open, setOpen] = createSignal(!!props.open)
   const [stopping, setStopping] = createSignal<ReadonlySet<string>>(new Set())
@@ -53,8 +49,8 @@ export function ActivityButton(props: ActivityButtonProps) {
         <button
           type="button"
           class={styles.button}
-          aria-label="裏で動いている処理"
-          title="裏で動いている処理"
+          aria-label="処理中"
+          title="処理中"
           aria-haspopup="dialog"
           aria-expanded={open()}
           onClick={() => setOpen(!open())}
@@ -63,8 +59,8 @@ export function ActivityButton(props: ActivityButtonProps) {
         </button>
       </Show>
       <Show when={busy() && open()}>
-        <div class={styles.panel} role="dialog" aria-label="裏で動いている処理">
-          <div class={styles.head}>裏で動いている処理</div>
+        <div class={styles.panel} role="dialog" aria-label="処理中">
+          <div class={styles.head}>処理中</div>
           <For each={props.activities}>
             {(a) => (
               <div class={styles.row}>

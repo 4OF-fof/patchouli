@@ -8,30 +8,20 @@ import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 
 export interface SettingsDialogProps {
-  /** アプリの版。 */
   version: string
-  /** ないあいだは読み込み中と出す。 */
   usage?: CacheUsage
-  /** どのライブラリでも使っていないプラグイン。ないあいだは読み込み中と出す。 */
   unused?: UnusedPlugin[]
-  /** キャッシュを消す。all は未使用のプラグインも消す。ないときはキャッシュの行を出さない。 */
   onClear?: (kind: CacheKind) => Promise<void>
-  /** 使っていないプラグインをまとめて消す。ないときはその行を出さない。 */
   onRemoveUnused?: () => Promise<void>
-  /** 開発者モードの設定。ないあいだは読み込み中と出す。 */
   developer?: Developer
-  /** 開発者モードの設定を変える。ないときは開発者モードの欄を出さない。 */
   onDeveloperChange?: (d: Developer) => Promise<void>
-  /** 開発版の場所を選ぶ窓を出す。選ばなかったときは undefined。 */
   onPickDevPath?: (kind: 'dir' | 'repo') => Promise<string | undefined>
-  /** プラグインを読み直す。開発版を作り直したときに使う。 */
   onReload?: () => void
   onClose?: () => void
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-/** 「12.3 MB」のような大きさ。 */
 const bytesLabel = (n: number) => {
   const units = ['B', 'KB', 'MB', 'GB']
   let i = 0
@@ -53,7 +43,6 @@ const PLACES = {
   repo: { key: 'repos', label: 'プラグインのリポジトリ', noun: 'リポジトリ' },
 } as const
 
-/** 設定。アプリの版、キャッシュ・使っていないプラグインの削除、開発者モード。置き場所の要素に position: relative を付けておく。 */
 export function SettingsDialog(props: SettingsDialogProps) {
   let el!: HTMLDivElement
   const [busy, setBusy] = createSignal<string>()

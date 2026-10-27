@@ -15,7 +15,6 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-/** アプリを開いたときの見た目。タイトルバーの状態は「画面/タイトルバー」にある。 */
 const edition = (
   o: {
     scrollTop?: number
@@ -48,7 +47,6 @@ export const Scrolled: Story = {
   name: 'スクロール後',
   render: () => edition({ scrollTop: 1100 }),
 }
-/** 2 列以下では、先頭のピン留めを大きくしない。 */
 export const Narrow: Story = {
   name: '狭い窓',
   decorators: [

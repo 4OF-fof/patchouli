@@ -2,17 +2,12 @@ import { type JSX, type Ref, createSignal, onCleanup, onMount, splitProps } from
 import styles from './ScrollArea.module.css'
 
 export interface ScrollAreaProps extends Omit<JSX.HTMLAttributes<HTMLDivElement>, 'ref' | 'class'> {
-  /** 外側の箱。大きさや置き場所を決める。 */
   class?: string
-  /** スクロールする中身の箱。余白や並べ方を決める。 */
   viewClass?: string
-  /** スクロールする中身の箱を受け取る。 */
   ref?: Ref<HTMLDivElement>
-  /** スクロールの向き。 */
   axis?: 'y' | 'x'
 }
 
-/** つまみが動かしたとき・近づいたときだけ出るスクロールバーを付けた、スクロールする箱。 */
 export function ScrollArea(props: ScrollAreaProps) {
   const [local, rest] = splitProps(props, ['class', 'viewClass', 'ref', 'axis', 'children'])
   let view!: HTMLDivElement
@@ -76,7 +71,6 @@ export function ScrollArea(props: ScrollAreaProps) {
     el.addEventListener('pointerup', up)
     el.addEventListener('pointercancel', up)
   }
-  // つまみの外を押したら、その向きへ 1 画面ぶん動かす
   const onTrackDown = (e: PointerEvent) => {
     const r = track.getBoundingClientRect()
     const at = (x() ? e.clientX - r.left : e.clientY - r.top) < thumb().at ? -1 : 1

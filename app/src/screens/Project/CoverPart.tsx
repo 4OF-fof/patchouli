@@ -7,7 +7,6 @@ import { DetailPart } from '../Detail/DetailPart'
 import styles from './CoverPart.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
 
-/** プロジェクトの表紙に足せる部品の名前と説明。 */
 export const PARTS: Record<CoverPart['type'], { label: string; note: string }> = {
   desc: { label: '説明', note: 'テキスト' },
   todo: { label: 'タスク', note: 'チェックリストと期日' },
@@ -20,7 +19,6 @@ export interface CoverPartViewProps {
   editing?: boolean
 }
 
-/** プロジェクトの表紙の部品 1 つ。編集中は入力欄を出す。 */
 export function CoverPartView(props: CoverPartViewProps) {
   const lib = () => props.lib
   const body = (): JSX.Element => {

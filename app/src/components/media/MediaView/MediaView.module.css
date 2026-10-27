@@ -14,7 +14,6 @@
   border-radius: var(--radius-md);
   background: var(--stage-btn) center / cover no-repeat;
 }
-/* ジャケットがないときは、音声の印を出す */
 .cover[data-empty='true'] {
   background-image: repeating-linear-gradient(90deg, var(--glyph) 0 3px, transparent 3px 7px);
   background-size: 68% 34%;

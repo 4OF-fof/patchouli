@@ -22,7 +22,6 @@ use serde_json::Value;
 use tauri::{Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
-/// 開いているライブラリと、そのサムネイルの置き場所、使うプラグイン。開く前は None。
 #[derive(Default)]
 struct Current(Mutex<Option<Session>>);
 
@@ -34,12 +33,9 @@ struct Session {
     plugins: Arc<Registry>,
     /// 詳細の表示に使う。プラグインが長く動いてもほかの操作を止めないよう、Session のロックを放してから使う。
     runner: Arc<Mutex<Runner>>,
-    /// 組み込み UI がサムネイルを作るあいだに、WASM が読んだ設定（素材の id → 設定）。put_thumbnail で使う。
     ui_reads: HashMap<String, Reads>,
 }
 
-/// 開発中に使う、動作確認のための場所。環境変数 var があればそこ、なければ example/ の下の dir。
-/// リリースビルドには入れない。
 #[cfg(debug_assertions)]
 fn dev_path(var: &str, dir: &str) -> PathBuf {
     std::env::var_os(var).map_or_else(
@@ -52,7 +48,6 @@ fn dev_path(var: &str, dir: &str) -> PathBuf {
     )
 }
 
-/// 外のプラグインの本体を置くところ。開発中は、例のプラグインを入れた置き場（scripts/dev-library.ts が作る）。
 fn plugin_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     #[cfg(debug_assertions)]
     {
@@ -67,18 +62,15 @@ fn plugin_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .join("plugins"))
 }
 
-/// Session の id。
 fn next_session() -> u64 {
     static N: AtomicU64 = AtomicU64::new(0);
     N.fetch_add(1, Ordering::Relaxed)
 }
 
-/// 開発版のリポジトリの zip を広げる場所。
 fn dev_unpack_dir(app: &tauri::AppHandle) -> Option<PathBuf> {
     Some(cache_dir(app).ok()?.join("dev-plugins"))
 }
 
-/// 開発者モードで、開発版を探す場所。オフのときはない。
 fn dev_places(app: &tauri::AppHandle) -> Option<plugin::Dev> {
     let d = settings::developer(app)
         .inspect_err(|e| log::warn!("開発者モードの設定を読めない: {e}"))
@@ -95,7 +87,6 @@ fn cache_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.path().app_cache_dir().map_err(|e| e.to_string())
 }
 
-/// ライブラリ root に記録してあるプラグインの id。読めなければ None。
 fn plugin_ids(root: &Path) -> Option<Vec<String>> {
     if !root.is_dir() {
         return None;
@@ -104,7 +95,6 @@ fn plugin_ids(root: &Path) -> Option<Vec<String>> {
     Some(r.plugins.into_keys().collect())
 }
 
-/// 開くライブラリの場所。設定で選んだ場所か、まだ選んでいなければ、開発中は動作確認用のライブラリを開く。
 fn library_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     #[cfg(debug_assertions)]
     if let Some(p) = std::env::var_os("PATCHOULI_LIBRARY") {
@@ -135,7 +125,6 @@ fn with_session<T>(
     f(s)
 }
 
-/// 素材と、それを受け持つプラグインを呼ぶのに要るもの。Session のロックを放してから使う。
 struct Target {
     path: PathBuf,
     ext: String,
@@ -171,7 +160,6 @@ impl Target {
     }
 }
 
-/// 前に作ったときに読んだ設定（ext の素材）を、いまの値で埋めたもの。
 fn reads_now(plugins: &Registry, before: Option<&Reads>, ext: &str) -> Reads {
     before.map_or_else(Reads::new, |r| {
         r.keys()
@@ -180,10 +168,6 @@ fn reads_now(plugins: &Registry, before: Option<&Reads>, ext: &str) -> Reads {
     })
 }
 
-/// サムネイルを作れるもののうち、できているものは thumb に入れ、まだのもので WASM が作るものは作る仕事にする。
-/// 組み込み UI が作るものは、画面が作って put_thumbnail で渡す。
-/// できているものの大きさは、サムネイルの大きさで代える（縦横比が同じなので）。
-/// 返すのは、作る仕事、いまのサムネイルすべての場所、すべての場所を決められたか。
 fn plan_thumbs<'a>(
     plugins: &Registry,
     thumbs: &Path,
@@ -253,7 +237,6 @@ fn make_thumbs(
     })
 }
 
-/// 残してある波形を描いてサムネイルにし、画面へ知らせる。波形がないときや、サムネイルがもうあるときは何もしない。
 fn wave_thumb(
     app: &tauri::AppHandle,
     cache: &Cache,
@@ -278,7 +261,6 @@ fn wave_thumb(
     Ok(())
 }
 
-/// src のサムネイル file ができたことを、写しに書いて画面へ知らせる。
 fn tell_thumb(
     app: &tauri::AppHandle,
     cache: &Cache,
@@ -300,8 +282,6 @@ fn tell_thumb(
     );
 }
 
-/// ライブラリを開く。前に開いたときの写しがあればそれを返し、裏でファイルと突き合わせて、違いを library-changed で知らせる。
-/// 写しがなければ、ファイルを読み終えてから返す。
 #[tauri::command]
 async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<Opened, String> {
     let root = library::canonical(&library_root(&app)?)?;
@@ -366,8 +346,6 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
     Ok(opened)
 }
 
-/// ライブラリを開き直さずに、プラグインだけを読み直す。素材は扱える形式によらないので、写しから返す。
-/// wait なら裏のサムネイル作りが終わるのを待ち、でなければいまの 1 件で打ち切らせる。
 #[tauri::command]
 async fn reload_plugins(
     app: tauri::AppHandle,
@@ -401,28 +379,23 @@ async fn reload_plugins(
     Ok(opened)
 }
 
-/// 裏でサムネイルを作っている素材の id。
 #[tauri::command]
 fn plugin_work() -> Vec<String> {
     thumb::pending_items()
 }
 
-/// 裏でプラグインを使う処理を、いまの 1 件で打ち切らせる。あとから頼んだものは作る。
 #[tauri::command]
 fn stop_plugin_work() {
     thumb::stop();
 }
 
-/// 写しから開いたライブラリを、ファイルと突き合わせている数。
 static CHECKING: AtomicUsize = AtomicUsize::new(0);
 
-/// 写しから開いたライブラリを、ファイルと突き合わせているところか。
 #[tauri::command]
 fn checking() -> bool {
     CHECKING.load(Ordering::Relaxed) > 0
 }
 
-/// 裏でサムネイルの要らなくなったものを消し、足りないものを作る。
 fn spawn_thumbs(
     app: &tauri::AppHandle,
     plugins: &Arc<Registry>,
@@ -443,7 +416,6 @@ fn spawn_thumbs(
     });
 }
 
-/// 写しから開いたライブラリを、ファイルと突き合わせる。開き直していたら（Session の id が替わっていたら）何もしない。
 fn check(
     app: &tauri::AppHandle,
     id: u64,
@@ -478,7 +450,6 @@ fn check(
     spawn_thumbs(app, plugins, cache, thumbs, job, all_found);
 }
 
-/// 落とそうとしているものの中身を数える。
 #[tauri::command]
 async fn inspect_drop(
     cur: State<'_, Current>,
@@ -491,7 +462,6 @@ async fn inspect_drop(
     })
 }
 
-/// paths を取り込み、取り込んだ画像のサムネイルを裏で作る。projects は、プロジェクトにするフォルダの paths の中での位置。
 #[tauri::command]
 async fn import_files(
     app: tauri::AppHandle,
@@ -515,17 +485,14 @@ async fn import_files(
     Ok(out)
 }
 
-/// サムネイルができたときに画面へ送る知らせ。
 #[derive(Clone, Serialize)]
 struct ThumbReady<'a> {
     id: &'a str,
     file: &'a Path,
-    /// 素材の大きさ（わからなければサムネイルの大きさ）。縦横比を決めるのに使う。
     width: u32,
     height: u32,
 }
 
-/// プラグインの一覧と、それぞれの問題。
 #[tauri::command]
 async fn plugins(cur: State<'_, Current>) -> Result<plugin::PluginReport, String> {
     with_session(&cur, |s| Ok(s.plugins.report()))
@@ -535,8 +502,6 @@ fn root_of(cur: &State<Current>) -> Result<PathBuf, String> {
     with(cur, |l| Ok(l.root().to_owned()))
 }
 
-/// プラグインを取得先から入れて、開いているライブラリに記録する。expect は取得元の検証値。
-/// enable なら有効にする（入れ直すときは、有効・無効をそのままにする）。入れたあとは、画面がライブラリを開き直す。
 fn install_from(
     app: &tauri::AppHandle,
     cur: &State<Current>,
@@ -567,7 +532,6 @@ async fn install_plugin(
     install_from(&app, &cur, source, None, true)
 }
 
-/// 記録してある取得先から入れ直す。この端末に入っていないものは、取得元が記録と同じときだけ入れる。
 #[tauri::command]
 async fn update_plugin(
     app: tauri::AppHandle,
@@ -582,8 +546,6 @@ async fn update_plugin(
     install_from(&app, &cur, source, expect, false)
 }
 
-/// プラグインの有効・無効を、開いているライブラリに記録する。dev は開発版のほうか。
-/// 変えたあとは、画面がライブラリを開き直す。
 #[tauri::command]
 async fn set_plugin_enabled(
     cur: State<'_, Current>,
@@ -614,13 +576,11 @@ async fn set_plugin_enabled(
     })
 }
 
-/// 開発者モードの設定。
 #[tauri::command]
 async fn developer(app: tauri::AppHandle) -> Result<settings::Developer, String> {
     settings::developer(&app)
 }
 
-/// 開発者モードの設定を変える。変えたあとは、画面がプラグインを読み直す。
 #[tauri::command]
 async fn set_developer(
     app: tauri::AppHandle,
@@ -629,8 +589,6 @@ async fn set_developer(
     settings::set_developer(&app, &developer)
 }
 
-/// 開発版の場所を選ぶ窓を出す。repo なら plugin.json を直下に持つリポジトリ、でなければ開発版を入れたフォルダ。
-/// 選ばなければ None。
 #[tauri::command]
 async fn pick_dev_path(app: tauri::AppHandle, repo: bool) -> Result<Option<PathBuf>, String> {
     let title = if repo {
@@ -652,7 +610,6 @@ async fn pick_dev_path(app: tauri::AppHandle, repo: bool) -> Result<Option<PathB
     Ok(Some(p))
 }
 
-/// 開いているライブラリの記録と設定から外す。ほかのどのライブラリでも使っていなければ、アプリからも消す。
 #[tauri::command]
 async fn remove_plugin(
     app: tauri::AppHandle,
@@ -668,7 +625,6 @@ async fn remove_plugin(
     remove_plugins(unused.into_iter().filter(|(u, _)| u.id == id).collect())
 }
 
-/// プラグインを入れるフォルダか zip を選ぶ窓を出す。選ばなければ None。
 #[tauri::command]
 async fn pick_plugin(app: tauri::AppHandle) -> Result<Option<PathBuf>, String> {
     app.dialog()
@@ -734,13 +690,11 @@ async fn set_plugin_setting(
     Ok(items)
 }
 
-/// 素材の詳細に出すもの。受け持つプラグインが決める。
 #[tauri::command]
 async fn item_view(cur: State<'_, Current>, id: String) -> Result<Option<ViewOut>, String> {
     Ok(Target::of(&cur, &id)?.run(|r, ext, path| r.view(ext, path)))
 }
 
-/// 詳細に出す画像を、詳細を受け持つ WASM が PNG にしたもの。
 #[tauri::command]
 async fn item_decoded(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Response, String> {
     let t = Target::of(&cur, &id)?;
@@ -761,21 +715,18 @@ async fn item_decoded(cur: State<'_, Current>, id: String) -> Result<tauri::ipc:
     Ok(tauri::ipc::Response::new(png))
 }
 
-/// 素材のファイルを選んだ状態で、入っているフォルダを開く。
 #[tauri::command]
 async fn reveal_item(cur: State<'_, Current>, id: String) -> Result<(), String> {
     let path = with(&cur, |l| Ok(l.asset(&id)?.0.to_owned()))?;
     shell::reveal(&path)
 }
 
-/// 素材のファイルを、その形式の既定のアプリで開く。
 #[tauri::command]
 async fn open_item_default(cur: State<'_, Current>, id: String) -> Result<(), String> {
     let path = with(&cur, |l| Ok(l.asset(&id)?.0.to_owned()))?;
     shell::open(&path)
 }
 
-/// 組み込み UI から、開いている素材の中身を読む。
 #[tauri::command]
 async fn plugin_read(
     cur: State<'_, Current>,
@@ -789,8 +740,6 @@ async fn plugin_read(
     )?))
 }
 
-/// 素材 id の part を受け持つ組み込み UI から、そのプラグインの WASM の関数を呼ぶ。
-/// plugin があれば、依存先のそのプラグインのものを呼ぶ。
 #[tauri::command]
 async fn plugin_call(
     cur: State<'_, Current>,
@@ -815,7 +764,6 @@ async fn plugin_call(
     r
 }
 
-/// 組み込み UI のプラグインが自分で残した値。
 #[tauri::command]
 async fn plugin_data(
     cur: State<'_, Current>,
@@ -825,7 +773,6 @@ async fn plugin_data(
     with_session(&cur, |s| s.plugins.data_of(&plugin, &key))
 }
 
-/// 組み込み UI のプラグインが値を残す。value がなければ消す。
 #[tauri::command]
 async fn set_plugin_data(
     cur: State<'_, Current>,
@@ -836,7 +783,6 @@ async fn set_plugin_data(
     with_session(&cur, |s| s.plugins.set_data_of(&plugin, &key, value))
 }
 
-/// 使っているプラグインの、設定のいまの値。
 #[tauri::command]
 async fn plugin_settings(
     cur: State<'_, Current>,
@@ -849,9 +795,6 @@ async fn plugin_settings(
     })
 }
 
-/// 組み込み UI が作ったサムネイル（本文が PNG）を置いて、画面へ知らせる。
-/// 見出しの id は素材、width と height は素材の大きさ（わからなければ付けない）、
-/// settings は作るときに読んだ設定の key の JSON の配列（ASCII にしたもの）。
 #[tauri::command]
 async fn put_thumbnail(
     app: tauri::AppHandle,
@@ -892,7 +835,6 @@ async fn put_thumbnail(
     Ok(())
 }
 
-/// ids の素材のうち、組み込み UI が波形を作るもので、まだできていないもの。
 #[tauri::command]
 async fn missing_waveforms(
     cur: State<'_, Current>,
@@ -911,7 +853,6 @@ async fn missing_waveforms(
     })
 }
 
-/// 残してある波形（区間ごとの音の大きさを、0〜255 にしたもの）。まだなければ空を返す。
 #[tauri::command]
 async fn waveform(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Response, String> {
     let path = with_session(&cur, |s| {
@@ -922,9 +863,6 @@ async fn waveform(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Res
     Ok(tauri::ipc::Response::new(bytes))
 }
 
-/// 組み込み UI が作った波形（本文が、区間ごとの音の大きさを 0〜255 にしたもの）を置く。見出しの id は素材。
-/// サムネイルがまだなければ、波形を描いてサムネイルにし、画面へ知らせる。
-/// プラグインがサムネイル（ジャケットなど）を作っているところなら、作り終わるのを待つ（make_thumbs が続きをする）。
 #[tauri::command]
 async fn put_waveform(
     app: tauri::AppHandle,
@@ -964,7 +902,6 @@ async fn put_waveform(
     wave_thumb(&app, &cache, &plugins, &thumbs, &id, &src, &ext)
 }
 
-/// 使っているプラグインのフォルダの中のファイルを返す。
 fn plugin_file(
     app: &tauri::AppHandle,
     req: &tauri::http::Request<Vec<u8>>,
@@ -981,7 +918,6 @@ fn plugin_file(
     plugin::files::serve(&rest, body)
 }
 
-/// フォルダを選ぶ窓を出し、選んだフォルダを次から開くライブラリにする。選ばなければ false。
 #[tauri::command]
 async fn choose_library(app: tauri::AppHandle) -> Result<bool, String> {
     let Some(picked) = app
@@ -1000,18 +936,15 @@ async fn choose_library(app: tauri::AppHandle) -> Result<bool, String> {
     Ok(true)
 }
 
-/// 開いたことのあるライブラリ。
 #[derive(Serialize)]
 struct KnownLibrary {
     path: PathBuf,
     name: String,
-    /// 最後に開いた日時（UNIX ミリ秒）。
     opened: f64,
     exists: bool,
     current: bool,
 }
 
-/// 開いたことのあるライブラリ。最後に開いた順。
 #[tauri::command]
 async fn libraries(
     app: tauri::AppHandle,
@@ -1033,7 +966,6 @@ async fn libraries(
         .collect())
 }
 
-/// path を次から開くライブラリにする。開き直すのは画面。
 #[tauri::command]
 async fn switch_library(app: tauri::AppHandle, path: PathBuf) -> Result<(), String> {
     if !path.is_dir() {
@@ -1042,13 +974,11 @@ async fn switch_library(app: tauri::AppHandle, path: PathBuf) -> Result<(), Stri
     settings::set_library(&app, &path)
 }
 
-/// 開いたことのあるライブラリの一覧から外す。
 #[tauri::command]
 async fn forget_library(app: tauri::AppHandle, path: PathBuf) -> Result<(), String> {
     settings::forget(&app, &path)
 }
 
-/// 開いているライブラリの分のキャッシュの量。
 #[tauri::command]
 async fn cache_usage(
     app: tauri::AppHandle,
@@ -1057,8 +987,6 @@ async fn cache_usage(
     Ok(tidy::usage(&cache_dir(&app)?, &root_of(&cur)?))
 }
 
-/// kind のキャッシュを、開いているライブラリの分だけ消す。all は未使用のプラグインも消す。
-/// 開いているライブラリを閉じるので、画面は開き直す。
 #[tauri::command]
 async fn clear_cache(
     app: tauri::AppHandle,
@@ -1075,8 +1003,6 @@ async fn clear_cache(
     remove_plugins(unused)
 }
 
-/// どのライブラリでも使っていないプラグインと、その場所。
-/// 開いたことのあるライブラリの記録を読み、読めないものは最後に開いたときの記録で代える。
 fn unused_plugins_of(
     app: &tauri::AppHandle,
     cur: &State<Current>,
@@ -1102,7 +1028,6 @@ async fn unused_plugins(
         .collect())
 }
 
-/// どのライブラリでも使っていないプラグインを、アプリから消す。
 #[tauri::command]
 async fn remove_unused_plugins(
     app: tauri::AppHandle,
@@ -1118,7 +1043,6 @@ fn remove_plugins(plugins: Vec<(tidy::Unused, PathBuf)>) -> Result<(), String> {
     Ok(())
 }
 
-/// 保存する。文章がファイルの外での変更と食い違って書かなかったときは、読み直した項目を返す。
 #[tauri::command]
 async fn save_item(
     cur: State<'_, Current>,
@@ -1128,7 +1052,6 @@ async fn save_item(
     with(&cur, |l| l.save_item(&id, &patch))
 }
 
-/// 項目をプロジェクト folder（None はどこにも入れない）へ移し、移したあとの項目を返す。
 #[tauri::command]
 async fn move_item(
     cur: State<'_, Current>,

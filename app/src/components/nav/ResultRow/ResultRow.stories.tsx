@@ -59,7 +59,6 @@ export const Selected: Story = {
   },
 }
 
-/** 結果の並び */
 export const List: Story = {
   render: () => (
     <div role="listbox">

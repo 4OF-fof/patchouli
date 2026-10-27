@@ -20,7 +20,6 @@ type Story = StoryObj<typeof meta>
 
 export const Loading: Story = { name: '読み込み中' }
 
-/** 裏の処理が残っているときは、待つか中止するかを選ぶ。 */
 export const Ask: Story = {
   name: '処理が残っている',
   args: { step: 'ask', work: 12 },

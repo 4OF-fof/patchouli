@@ -9,19 +9,15 @@ import { type Api, definePlugin } from '@patchouli/plugin'
 type Bytes = Uint8Array<ArrayBuffer>
 type Read = (offset: number, length: number) => Promise<Bytes>
 
-/** 分け方。start から（end があればそこまで）が音の中身で、cut で区切ってよい位置を探し、head を付け直してデコードする。 */
 interface Layout {
   start: number
   end?: number
   rate: number
   align?: number
-  /** 中身が n バイトのときの頭。 */
   head(n: number): Bytes
-  /** a の終わり近くの、区切ってよい位置。 */
   cut(a: Bytes): number
 }
 
-/** 一度に読む長さの目安（バイト）。 */
 const STEP = { mp3: 2 << 20, flac: 8 << 20, wav: 8 << 20 }
 
 const ascii = (a: Bytes, i: number, s: string) => {
@@ -40,8 +36,6 @@ const concat = (...parts: Bytes[]) => {
   return out
 }
 
-/* ---- mp3 ---- */
-
 const MP3_KBPS = [
   // MPEG-1 Layer III
   [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],
@@ -55,7 +49,6 @@ const MP3_RATES = [
   [44100, 48000, 32000],
 ]
 
-/** i から始まる Layer III のフレームの長さと標本化周波数。フレームの頭でなければ null。 */
 function mp3Frame(a: Bytes, i: number) {
   if (a[i] !== 0xff || (a[i + 1] & 0xe0) !== 0xe0) return null
   const version = (a[i + 1] >> 3) & 3
@@ -70,7 +63,6 @@ function mp3Frame(a: Bytes, i: number) {
   return { len: Math.floor(((v1 ? 144 : 72) * kbps * 1000) / rate) + pad, rate }
 }
 
-/** a の中で、i から始まるフレームが本物らしいか（次のフレームも続いているか）。 */
 const mp3At = (a: Bytes, i: number) => {
   const f = mp3Frame(a, i)
   if (!f) return null
@@ -96,15 +88,12 @@ async function mp3(read: Read): Promise<Layout> {
     start,
     rate,
     head: () => new Uint8Array(0),
-    /** a の終わり近くの、最後のフレームの頭。 */
     cut(a: Bytes) {
       for (let i = a.length - 4; i > 0; i--) if (mp3At(a, i)) return i
       return a.length
     },
   }
 }
-
-/* ---- flac ---- */
 
 const crc8 = (a: Bytes, from: number, to: number) => {
   let c = 0
@@ -115,7 +104,6 @@ const crc8 = (a: Bytes, from: number, to: number) => {
   return c
 }
 
-/** i から始まるのが FLAC のフレームの頭か（頭の CRC-8 まで確かめる）。 */
 function flacFrame(a: Bytes, i: number) {
   if (a[i] !== 0xff || (a[i + 1] & 0xfe) !== 0xf8) return false
   const bs = a[i + 2] >> 4
@@ -159,7 +147,6 @@ async function flac(read: Read): Promise<Layout> {
   info[13] &= 0xf0
   info.fill(0, 14, 18)
   const rate = (info[10] << 12) | (info[11] << 4) | (info[12] >> 4)
-  // ジャケットなど、ほかの情報は読み飛ばす
   let at = 4
   for (;;) {
     const b = await read(at, 4)
@@ -178,8 +165,6 @@ async function flac(read: Read): Promise<Layout> {
     },
   }
 }
-
-/* ---- wav ---- */
 
 async function wav(read: Read): Promise<Layout> {
   const h = await read(0, 12)
@@ -221,10 +206,6 @@ const LAYOUTS = { mp3, flac, wav }
 
 const isFormat = (ext: string): ext is keyof typeof LAYOUTS => Object.hasOwn(LAYOUTS, ext)
 
-/**
- * 音を頭から同じ長さの区切りに分け、区切りごとに二乗の和を足していく（チャンネルは平均する）。区切りが増えすぎたら隣どうしをまとめ、長さを倍にする。
- * 区間の端と区切りの端のずれが小さくなるよう、区間 1 つに区切りが 8〜16 入るだけ持つ。
- */
 class Meter {
   limit: number
   sums: number[]
@@ -258,7 +239,6 @@ class Meter {
     }
   }
 
-  /** points 個の区間ごとの、二乗平均の平方根。 */
   finish(points: number) {
     const sums = [...this.sums]
     const sizes = sums.map(() => this.size)

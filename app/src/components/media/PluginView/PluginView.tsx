@@ -3,7 +3,6 @@ import { type UiApi, loadUi } from '../../../plugins/ui'
 import styles from './PluginView.module.css'
 
 export interface PluginViewProps {
-  /** 組み込み UI の ES モジュールの URL。 */
   url: string
   api: UiApi
   class?: string
@@ -11,7 +10,6 @@ export interface PluginViewProps {
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-/** 組み込み UI の詳細の表示（mount）を、隔離せずに描く。中の素の要素には本体と同じ見た目を付ける。 */
 export function PluginView(props: PluginViewProps) {
   let el!: HTMLDivElement
   const [error, setError] = createSignal<string>()

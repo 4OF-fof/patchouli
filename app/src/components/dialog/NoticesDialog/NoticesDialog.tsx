@@ -4,35 +4,25 @@ import styles from './NoticesDialog.module.css'
 import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 
-/** アプリに同梱しているものの 1 つ。 */
 export interface NoticeEntry {
   name: string
   version: string
-  /** 標準の文面に付く著作権の行。 */
   copyright: string[]
-  /** 標準の文面と形が違うか、文面が見つからないときの、見に行く先。 */
   url?: string
 }
 
-/** ライセンスが同じものの集まり。 */
 export interface NoticeGroup {
-  /** 「MIT」や「Apache-2.0 AND MIT」。 */
   license: string
-  /** 名前順。 */
   entries: NoticeEntry[]
 }
 
-/** scripts/licenses.ts が作る権利表示。 */
 export interface Notices {
   self: { name: string; license: string; text: string }
-  /** ライセンスごとの標準の文面。 */
   texts: Record<string, string>
-  /** 件数の多い順。 */
   groups: NoticeGroup[]
 }
 
 export interface NoticesDialogProps {
-  /** ないあいだは読み込み中と出す。 */
   notices?: Notices
   onClose?: () => void
 }
@@ -73,7 +63,6 @@ function Group(props: { group: NoticeGroup; texts: Record<string, string> }) {
   )
 }
 
-/** 権利表示。アプリと、同梱しているもののライセンスを並べる。置き場所の要素に position: relative を付けておく。 */
 export function NoticesDialog(props: NoticesDialogProps) {
   let el!: HTMLDivElement
   // 一覧は長いので、開いたグループだけ描く

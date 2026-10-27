@@ -3,22 +3,16 @@ import { Thumb, type ThumbProps } from '../Thumb/Thumb'
 import styles from './PinnedCard.module.css'
 
 export interface PinnedCardProps {
-  /** 例「秋の企画」「# 写真」。 */
   name: string
-  /** 例「プロジェクト · 32 件」。 */
   meta?: string
-  /** プロジェクトやタグの中身。 */
   tiles?: MosaicTile[]
-  /** 素材 1 つを留めたとき。tiles の代わりにこの絵を出す。 */
   thumb?: ThumbProps
   height?: number
-  /** 大きく出す 1 枚。表紙が置き場所の高さいっぱいに伸び、中身を 5 枚まで並べる。 */
   large?: boolean
   class?: string
   onClick?: () => void
 }
 
-/** ホームのいちばん上に並べる、ピン留めしたプロジェクト・タグ・素材。 */
 export function PinnedCard(props: PinnedCardProps) {
   return (
     <button

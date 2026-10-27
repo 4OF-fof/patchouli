@@ -1,9 +1,7 @@
 import { type Item, type Library, plainText } from './library'
 
-/** 検索欄の文字を語に分ける。小文字にし、「#」は外す。 */
 export const searchTerms = (q: string) => q.trim().toLowerCase().replace(/#\s*/g, '').split(/\s+/).filter(Boolean)
 
-/** すべての語に当たる項目。名前・タグ・プロジェクト・本文の順に重く数え、重い順 → 新しい順に並べる。where は当たった所。 */
 export function findItems(lib: Library, terms: string[]): { it: Item; where: string }[] {
   const found: { it: Item; sc: number; where: string }[] = []
   for (const it of lib.items) {

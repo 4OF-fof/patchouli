@@ -13,7 +13,6 @@ import { DetailScreen } from '../Detail/DetailScreen'
 import shared from '../screen.module.css'
 import styles from './TagScreen.module.css'
 
-/** タグの表紙に足せる部品の名前と説明。 */
 export const TAG_PARTS: Record<TagCoverPart['type'], { label: string; note: string }> = {
   desc: { label: '説明', note: 'テキスト' },
   kids: { label: 'サブタグ', note: '階層下のタグで絞り込み' },
@@ -21,10 +20,8 @@ export const TAG_PARTS: Record<TagCoverPart['type'], { label: string; note: stri
   together: { label: '関連タグ', note: 'よく併用されるタグ' },
 }
 
-/** 同じタグか、上や下の階層。よく一緒に付くタグには数えない。 */
 const near = (tag: string, t: string) => t === tag || t.startsWith(tag + '/') || tag.startsWith(t + '/')
 
-/** 値ごとの数を、多い順に。 */
 const count = (xs: string[]) => {
   const m = new Map<string, number>()
   for (const x of xs) m.set(x, (m.get(x) ?? 0) + 1)
@@ -33,26 +30,18 @@ const count = (xs: string[]) => {
 
 export interface TagScreenProps {
   lib: Library
-  /** 例「写真」「写真/旅行」。 */
   tag: string
-  /** ホームにピン留めしている。 */
   pinned?: boolean
-  /** 下の階層で絞り込んでいる（例「写真/旅行」）。 */
   sub?: string
-  /** 表紙を編集している。 */
   editing?: boolean
-  /** 編集中に「＋ 部品を足す」の一覧を開いている。 */
   addOpen?: boolean
   onOpenItem?: (id: string, list: string[]) => void
   onOpenTag?: (tag: string) => void
   onTogglePin?: (id: string) => void
-  /** このタグのホームへのピン留めを切り替える。 */
   onToggleTagPin?: () => void
-  /** 編集を終えたとき、名前が変わっていれば呼ぶ。付いている項目と下の階層の付け替えは呼んだ側でする。 */
   onRename?: (to: string) => void
 }
 
-/** 13 タグ。左に表紙の部品、右にピン留めとすべての項目。 */
 export function TagScreen(props: TagScreenProps) {
   const lib = () => props.lib
   const [pinned, setPinned] = createSignal(!!props.pinned)

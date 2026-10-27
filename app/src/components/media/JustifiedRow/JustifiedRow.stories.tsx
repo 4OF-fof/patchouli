@@ -44,10 +44,7 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-/** ホーム「今週」 */
 export const ThisWeek: Story = {}
-/** ホーム「今月」 */
 export const ThisMonth: Story = { args: { height: 76, gap: 5 } }
-/** ホーム「静かなもの」 */
 export const Quiet: Story = { args: { height: 56, gap: 4 } }
 export const SingleLine: Story = { args: { height: 196, singleLine: true } }

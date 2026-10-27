@@ -1,15 +1,3 @@
-//! プラグイン。形式（拡張子）ごとに、サムネイルの生成と、素材の詳細に出すものを受け持つ。受け持ち方は 2 層ある。
-//!
-//! - 宣言型: 処理は WASM のコンポーネント（`app/plugins/sdk/wit/plugin.wit`）で動かす。表示や設定は記述を返し、本体の部品が描く
-//! - 組み込み UI: `plugin.json` の `ui` の ES モジュールを、隔離せずに本体の画面で動かす（`src/plugins/ui.ts`）
-//! - 形式はほかの形式を引き継いで（extends）、一部（parts）だけを自分で受け持てる
-//! - 同じ形式を 2 つのプラグインが受け持つときは、先に読んだほうを使い、両方にエラーを付ける
-//! - 外のプラグインの本体はアプリのデータフォルダに置き、ライブラリに記録したものだけを使う。
-//!   設定の値と、プラグインが自分で読み書きする値も、ライブラリに置く（record.rs）。記録したものは無効にもできる
-//! - 開発者モードで登録したフォルダの中のものと、リポジトリの zip は、開発版として一覧に出し、ライブラリで有効にしたものを使う。
-//!   同じ id の通常のものより開発版を使う
-//! - 手元のコマンドとほかのプラグインを、必須（required）か、あれば使う（optional）として求められる
-
 mod builtin;
 pub mod commands;
 pub mod files;
@@ -30,69 +18,51 @@ use serde_json::Value;
 use record::{Record, Source, Stored};
 pub use runtime::{Runner, ViewOut, read};
 
-/// 求めるもの。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Deps {
-    /// 手元のコマンド（名前 → 版の下限など）。PATH から探す。
     #[serde(default)]
     pub commands: BTreeMap<String, commands::CommandDep>,
-    /// ほかのプラグイン（id → 版の下限）。
     #[serde(default)]
     pub plugins: BTreeMap<String, PluginDep>,
 }
 
-/// 求めるプラグイン 1 つ。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PluginDep {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min: Option<String>,
 }
 
-/// サムネイルを作るときにプラグインが読んだ設定（key → 値）。値が変わったら作り直す。
 pub type Reads = BTreeMap<String, Value>;
 
-/// 形式ごとに受け持つもの。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Part {
     Thumbnail,
     View,
-    /// 音の波形。組み込み UI だけが作れる。
     Waveform,
-    /// カーソルを合わせたときに、サムネイルの上に重ねる表示。組み込み UI だけが描ける。
     Hover,
-    /// この版のアプリが知らないもの。読み飛ばす。
     #[serde(other)]
     Unknown,
 }
 
-/// カーソルを合わせたときに、本体がサムネイルの上で見せるもの。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Hover {
-    /// 元のファイルを、音を消して動画として再生する。
     Video,
-    /// この版のアプリが知らないもの。書いていないものとして扱う。
     #[serde(other)]
     Unknown,
 }
 
-/// サムネイルを決まった形の枠に入れるときの収め方。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Fit {
-    /// 真ん中を残して切り抜く。
     Center,
-    /// 上の端を残して切り抜く。
     Top,
-    /// 切り抜かずに収め、空いたところは地の色にする。
     Contain,
-    /// この版のアプリが知らないもの。書いていないものとして扱う。
     #[serde(other)]
     Unknown,
 }
 
-/// 受け持ち方。wasm は宣言型、ui は組み込み UI。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum By {
@@ -103,33 +73,23 @@ pub enum By {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FormatDecl {
-    /// 引き継ぐ形式。自分で受け持たないものと、書いていない呼び名などはそちらのものを使う。
     pub extends: Option<String>,
     pub label: Option<String>,
-    /// 縦横比（幅 / 高さ）の既定。サムネイルができるまで使う。
     pub ratio: Option<f64>,
-    /// サムネイルの枠への収め方。書かなければ真ん中を切り抜く。
     pub fit: Option<Fit>,
-    /// カーソルを合わせたときに、本体が見せるもの。組み込み UI の hover があれば、そちらを使う。
     pub hover: Option<Hover>,
-    /// WASM で受け持つもの。
     #[serde(default)]
     pub parts: Vec<Part>,
-    /// 組み込み UI で受け持つもの。
     #[serde(default)]
     pub ui: Vec<Part>,
-    /// 詳細に出すために WASM が PNG にしたもの（decode）を、取っておけるようにする。
-    /// 取っておくかは、本体がこのプラグインの設定に足す項目で選ぶ（既定は取っておかない）。
     #[serde(default)]
     pub keep_decoded: bool,
 }
 
-/// 形式 format の、詳細用の画像を取っておくかの設定の key。
 pub fn keep_decoded_key(format: &str) -> String {
     format!("@keepDecoded:{format}")
 }
 
-/// keepDecoded を書いた形式ごとに、本体が足す設定の項目。
 fn keep_decoded_settings(m: &Manifest) -> impl Iterator<Item = SettingDecl> + '_ {
     m.formats
         .iter()
@@ -143,10 +103,8 @@ fn keep_decoded_settings(m: &Manifest) -> impl Iterator<Item = SettingDecl> + '_
         })
 }
 
-/// 波形を作る時間の上限（秒）の設定の key。0 は上限なし。
 pub const WAVEFORM_LIMIT_KEY: &str = "@waveformLimit";
 
-/// 組み込み UI で波形を作るプラグインに、本体が足す設定の項目。
 fn waveform_settings(m: &Manifest) -> Option<SettingDecl> {
     m.formats
         .values()
@@ -164,7 +122,6 @@ fn waveform_settings(m: &Manifest) -> Option<SettingDecl> {
         })
 }
 
-/// `plugin.json`。処理の部分は同じフォルダの `plugin.wasm`。
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Manifest {
@@ -173,13 +130,10 @@ pub struct Manifest {
     pub version: String,
     #[serde(default)]
     pub description: String,
-    /// ないと動かないもの。
     #[serde(default)]
     pub required: Deps,
-    /// あれば使うもの。
     #[serde(default)]
     pub optional: Deps,
-    /// 組み込み UI の ES モジュール（plugin.json からの相対パス）。組み込みのプラグインのものは build.rs がビルドする。
     pub ui: Option<String>,
     pub formats: BTreeMap<String, FormatDecl>,
 }
@@ -194,7 +148,6 @@ impl Manifest {
         serde_json::from_str(&text).map_err(|e| format!("{}: {e}", p.display()))
     }
 
-    /// required か optional に書いたコマンド。書いていなければ None。
     pub fn declares(&self, command: &str) -> Option<&commands::CommandDep> {
         self.required
             .commands
@@ -210,7 +163,6 @@ impl Manifest {
         self.formats.values().any(|d| !d.ui.is_empty())
     }
 
-    /// 受け持つもの（形式をまたいでまとめる）。
     fn caps(&self) -> Vec<Cap> {
         let mut out: Vec<Cap> = self
             .formats
@@ -227,7 +179,6 @@ impl Manifest {
     }
 }
 
-/// プラグインのフォルダの中を指す、相対のパスか。
 fn inside(rel: &str) -> bool {
     !rel.is_empty()
         && Path::new(rel)
@@ -255,7 +206,6 @@ fn error(text: String) -> Problem {
     }
 }
 
-/// 設定の項目の種類。
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SettingKind {
@@ -277,7 +227,6 @@ pub struct Choice {
     pub label: String,
 }
 
-/// プラグインが返した設定の項目。
 #[derive(Debug, Clone, Serialize)]
 pub struct SettingDecl {
     pub key: String,
@@ -290,7 +239,6 @@ pub struct SettingDecl {
 }
 
 impl SettingDecl {
-    /// 種類に合う値にする。合わなければ None。
     fn accept(&self, v: &Value) -> Option<Value> {
         match (&self.kind, v) {
             (SettingKind::Toggle, Value::Bool(_)) => Some(v.clone()),
@@ -313,7 +261,6 @@ impl SettingDecl {
     }
 }
 
-/// 画面に渡す設定の項目。value はいまの値。
 #[derive(Debug, Clone, Serialize)]
 pub struct SettingStatus {
     #[serde(flatten)]
@@ -324,28 +271,21 @@ pub struct SettingStatus {
 struct Loaded {
     manifest: Manifest,
     builtin: bool,
-    /// 外のプラグインのフォルダ。
     dir: Option<PathBuf>,
     wasm: Option<Arc<runtime::Prepared>>,
-    /// 組み込み UI の ES モジュール。フォルダの中にあると確かめたもの。
     ui: Option<String>,
     settings: Vec<SettingDecl>,
     problems: Vec<Problem>,
     source: Option<Source>,
-    /// ライブラリに記録した版。
     recorded: Option<String>,
-    /// 必須の依存が足りないので、何も受け持たせない（読み込まないのと同じ）。
     blocked: bool,
-    /// 開発者モードのフォルダの中の開発版。
     dev: bool,
 }
 
-/// プラグイン id（いまの版は version）が dep を満たしているか。使っていなければ version は None。
 fn plugin_met(version: Option<&str>, dep: &PluginDep) -> bool {
     version.is_some_and(|v| !dep.min.as_deref().is_some_and(|m| commands::older(v, m)))
 }
 
-/// 必須の依存が足りないものを止める。止めたものを必須にしているものも止める。
 fn block_unmet(plugins: &mut [Loaded]) {
     loop {
         let active: HashMap<String, String> = plugins
@@ -373,7 +313,6 @@ fn block_unmet(plugins: &mut [Loaded]) {
     }
 }
 
-/// 引き継ぎをたどったあとの形式。
 #[derive(Debug, Clone)]
 struct Resolved {
     owner: usize,
@@ -384,7 +323,6 @@ struct Resolved {
     parts: HashMap<Part, Handler>,
 }
 
-/// 受け持つプラグインと、その中での形式、受け持ち方。
 #[derive(Debug, Clone)]
 struct Handler {
     plugin: usize,
@@ -392,21 +330,18 @@ struct Handler {
     by: By,
 }
 
-/// 組み込み UI の場所。module はプラグインのフォルダの中のパス。
 #[derive(Debug, Clone, Serialize)]
 pub struct UiRef {
     pub plugin: String,
     pub module: String,
 }
 
-/// 受け持つもの 1 つ。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Cap {
     pub part: Part,
     pub by: By,
 }
 
-/// 画面に渡す形式。
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FormatInfo {
@@ -414,25 +349,18 @@ pub struct FormatInfo {
     pub label: String,
     pub ratio: f64,
     pub fit: Fit,
-    /// 受け持つプラグインの id。
     pub plugin: String,
     pub thumbnail: bool,
-    /// サムネイルを組み込み UI が作るときの、その UI。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_thumbnail: Option<UiRef>,
-    /// 波形を作る組み込み UI。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_waveform: Option<UiRef>,
-    /// カーソルを合わせたときに、本体が見せるもの。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub hover: Option<Hover>,
-    /// カーソルを合わせたときの表示を描く組み込み UI。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_hover: Option<UiRef>,
 }
 
-/// active 使っている / missing ライブラリに記録してあるがアプリに入っていない /
-/// blocked 必須の依存が足りないので読み込んでいない / disabled 無効にしてある、または同じ id の開発版を使っている
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum State {
@@ -447,50 +375,38 @@ pub enum State {
 pub struct PluginStatus {
     pub id: String,
     pub name: String,
-    /// アプリに入っている版。入っていなければない。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
-    /// ライブラリに記録した版。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub recorded: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<Source>,
     pub description: String,
     pub builtin: bool,
-    /// 開発者モードのフォルダの中の開発版。
     pub dev: bool,
-    /// 有効にしてある。組み込みのものはいつも有効。
     pub enabled: bool,
     pub state: State,
     pub required: Deps,
     pub optional: Deps,
-    /// 依存先を通して動かせるコマンド。
     pub via: Vec<Via>,
-    /// 受け持つもの。
     pub caps: Vec<Cap>,
-    /// 受け持っている形式。
     pub formats: Vec<String>,
     pub settings: Vec<SettingStatus>,
     pub problems: Vec<Problem>,
 }
 
-/// 使っているプラグインが求めるコマンド。
 #[derive(Debug, Clone, Serialize)]
 pub struct CommandStatus {
     pub name: String,
-    /// 見つけた場所。見つからなければない。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<PathBuf>,
-    /// 見つけたものの版。版の取り方を書いたプラグインがなければない。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
 }
 
-/// 依存先のプラグインを通して動かせるコマンド。required は、その依存先が必須か。
 #[derive(Debug, Clone, Serialize)]
 pub struct Via {
     pub name: String,
-    /// 依存先のプラグインの名前。
     pub plugin: String,
     pub required: bool,
 }
@@ -499,34 +415,26 @@ pub struct Via {
 #[serde(rename_all = "camelCase")]
 pub struct PluginReport {
     pub plugins: Vec<PluginStatus>,
-    /// 名前順。
     pub commands: Vec<CommandStatus>,
 }
 
 pub struct Registry {
     plugins: Vec<Loaded>,
     formats: HashMap<String, Resolved>,
-    /// 記録してあるのに入っていないもの。
     others: Vec<PluginStatus>,
-    /// ライブラリの記録。
     record: Record,
-    /// プラグインごとの設定の値と、プラグインが読み書きする値（id → 値）。変えるとライブラリに書く。
     stored: RwLock<HashMap<String, Stored>>,
-    /// 開いているライブラリ。組み込みだけのときはない。
     root: Option<PathBuf>,
-    /// 読み直すために、裏の処理を打ち切った。
     stopped: AtomicBool,
 }
 
 const DEFAULT_RATIO: f64 = 1.6;
 
-/// 組み込みのプラグインの id。外のプラグインには使えない。
 pub fn builtin_ids() -> Vec<String> {
     builtin::ids()
 }
 
 impl Registry {
-    /// 組み込みのプラグインだけ。ライブラリを開く前に使う。
     pub fn builtin() -> Registry {
         let mut r = Registry {
             plugins: builtin::load(),
@@ -541,9 +449,6 @@ impl Registry {
         r
     }
 
-    /// 組み込みのプラグインと、ライブラリ root に記録してあるプラグイン（本体は dir の下）を読む。
-    /// dev で見つけたものは開発版として一覧に出し、ライブラリで有効にしたものを使う。見つからなくなった開発版は、記録から外す。
-    /// 記録を読めなかったときは、組み込みのものだけにして、その理由を返す。
     pub fn open(root: &Path, dir: &Path, dev: Option<&Dev>) -> (Registry, Vec<String>) {
         let mut problems = Vec::new();
         let mut record = Record::read(&record::path(root)).unwrap_or_else(|e| {
@@ -651,7 +556,6 @@ impl Registry {
         (r, problems)
     }
 
-    /// 裏でこのプラグインを使う処理を、いまの 1 件で打ち切らせる。
     pub fn stop(&self) {
         self.stopped.store(true, Ordering::Relaxed);
     }
@@ -661,7 +565,6 @@ impl Registry {
     }
 
     fn resolve(&mut self) {
-        // 形式ごとに、受け持つプラグインを決める
         let mut claim: HashMap<String, usize> = HashMap::new();
         let mut conflicts = Vec::new();
         for (i, p) in self.plugins.iter().enumerate().filter(|(_, p)| !p.blocked) {
@@ -729,7 +632,6 @@ impl Registry {
                 };
                 (at, fmt) = (next, base.clone());
             }
-            // 処理の部分や組み込み UI がなければ、受け持てない
             parts.retain(|_, h| match h.by {
                 By::Wasm => self.plugins[h.plugin].wasm.is_some(),
                 By::Ui => self.plugins[h.plugin].ui.is_some(),
@@ -772,48 +674,40 @@ impl Registry {
         &self.plugins[i].manifest.name
     }
 
-    /// part をどう受け持つか。受け持つものがなければ None。
     pub fn handles(&self, ext: &str, part: Part) -> Option<By> {
         Some(self.formats.get(ext)?.parts.get(&part)?.by)
     }
 
-    /// part を by で受け持つプラグインと、その中での形式。
     fn part(&self, ext: &str, part: Part, by: By) -> Option<(usize, &str)> {
         let h = self.formats.get(ext)?.parts.get(&part)?;
         (h.by == by).then_some((h.plugin, h.format.as_str()))
     }
 
-    /// ext の縦横比（幅 / 高さ）の既定。
     pub fn ratio_of(&self, ext: &str) -> f64 {
         self.formats.get(ext).map_or(DEFAULT_RATIO, |f| f.ratio)
     }
 
-    /// ext のサムネイルを受け持つプラグインの位置。
     fn thumb_plugin(&self, ext: &str) -> Option<usize> {
         let by = self.handles(ext, Part::Thumbnail)?;
         Some(self.part(ext, Part::Thumbnail, by)?.0)
     }
 
-    /// ext のサムネイルを受け持つプラグインの id。
     pub fn thumb_owner(&self, ext: &str) -> Option<&str> {
         Some(&self.plugins[self.thumb_plugin(ext)?].manifest.id)
     }
 
-    /// ext のサムネイルを受け持つプラグインの、設定 key のいまの値。読めなければ Null。
     pub fn thumb_setting(&self, ext: &str, key: &str) -> Value {
         self.thumb_plugin(ext)
             .and_then(|i| self.setting(i, key))
             .unwrap_or(Value::Null)
     }
 
-    /// ext の詳細用の画像を取っておくなら、decode するプラグインの id と形式。
     pub fn keeps_decoded(&self, ext: &str) -> Option<(&str, &str)> {
         let (i, format) = self.part(ext, Part::View, By::Wasm)?;
         let on = self.setting(i, &keep_decoded_key(format)) == Some(Value::Bool(true));
         on.then(|| (self.plugins[i].manifest.id.as_str(), format))
     }
 
-    /// part を受け持つ組み込み UI。
     pub fn ui_of(&self, ext: &str, part: Part) -> Option<UiRef> {
         let (i, _) = self.part(ext, part, By::Ui)?;
         let p = &self.plugins[i];
@@ -823,7 +717,6 @@ impl Registry {
         })
     }
 
-    /// 使っているプラグイン id の、plugin.json からのパスが rel のファイル。
     pub fn file(&self, id: &str, rel: &str) -> Option<Vec<u8>> {
         let p = self.plugins.iter().find(|p| p.manifest.id == id)?;
         match &p.dir {
@@ -833,13 +726,11 @@ impl Registry {
         }
     }
 
-    /// 記録してある取得先と、取得元の検証値。
     pub fn source_of(&self, id: &str) -> Option<(Source, Option<String>)> {
         let e = self.record.plugins.get(id)?;
         Some((e.source.clone()?, e.hash.clone()))
     }
 
-    /// i 番目のプラグインの設定 key のいまの値。変えていなければ既定の値。
     fn setting(&self, i: usize, key: &str) -> Option<Value> {
         let p = &self.plugins[i];
         let decl = p.settings.iter().find(|s| s.key == key)?;
@@ -853,7 +744,6 @@ impl Registry {
         Some(stored.unwrap_or_else(|| decl.default.clone()))
     }
 
-    /// i 番目のプラグインの残す値を f で変えて、ライブラリに書く。
     fn store(&self, i: usize, f: impl FnOnce(&mut Stored)) -> Result<(), String> {
         let root = self.root.as_ref().ok_or("ライブラリが開かれていません")?;
         let id = &self.plugins[i].manifest.id;
@@ -863,14 +753,12 @@ impl Registry {
         s.write(&record::stored_path(root, id))
     }
 
-    /// i 番目のプラグインが自分で残した値。
     fn data(&self, i: usize, key: &str) -> Option<String> {
         let all = self.stored.read().ok()?;
         let v = all.get(&self.plugins[i].manifest.id)?.data.get(key)?;
         v.as_str().map(str::to_owned)
     }
 
-    /// i 番目のプラグインが値を残す。None なら消す。
     fn set_data(&self, i: usize, key: &str, value: Option<String>) -> Result<(), String> {
         self.store(i, |s| match value {
             Some(v) => {
@@ -882,7 +770,6 @@ impl Registry {
         })
     }
 
-    /// 使っているプラグインの、設定のいまの値すべて。
     pub fn settings_of(&self, id: &str) -> Option<serde_json::Map<String, Value>> {
         let i = self.plugins.iter().position(|p| p.manifest.id == id)?;
         Some(
@@ -901,17 +788,14 @@ impl Registry {
             .ok_or_else(|| format!("プラグイン「{id}」は有効ではありません"))
     }
 
-    /// 使っているプラグインが自分で残した値。
     pub fn data_of(&self, id: &str, key: &str) -> Result<Option<String>, String> {
         Ok(self.data(self.index_of(id)?, key))
     }
 
-    /// 使っているプラグインが値を残す。None なら消す。
     pub fn set_data_of(&self, id: &str, key: &str, value: Option<String>) -> Result<(), String> {
         self.set_data(self.index_of(id)?, key, value)
     }
 
-    /// 設定を変えて、ライブラリに書く。
     pub fn set_setting(&self, id: &str, key: &str, value: &Value) -> Result<(), String> {
         let i = self.index_of(id)?;
         let decl = self.plugins[i]
@@ -949,8 +833,6 @@ impl Registry {
         out
     }
 
-    /// i 番目のプラグインの組み込み UI から呼べる、依存先のプラグインの位置と、その依存先が必須か。
-    /// 使っていて版の下限を満たすものだけ。
     fn reachable(&self, i: usize) -> Vec<(usize, bool)> {
         let m = &self.plugins[i].manifest;
         [(&m.required, true), (&m.optional, false)]
@@ -1088,7 +970,6 @@ impl Registry {
                         ),
                     });
                 }
-                // 使えないものは、受け持つはずだった形式を出す
                 let mut formats: Vec<String> = if p.blocked {
                     m.formats.keys().cloned().collect()
                 } else {
@@ -1137,7 +1018,6 @@ impl Registry {
     }
 }
 
-/// 外のプラグインを読み、処理の部分を動かせるようにして、設定の項目を聞いておく。
 fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loaded {
     let mut problems = Vec::new();
     let wasm_path = dir.join(WASM);
@@ -1178,19 +1058,13 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
     }
 }
 
-/// 開発者モードで、開発版を探す場所。
 pub struct Dev {
-    /// 中の `<名前>/plugin.json` を読むフォルダ。
     pub dirs: Vec<PathBuf>,
-    /// plugin.json を直下に持つリポジトリ。ビルドした `<id>-<版>.zip` を unpack の下に広げて読む。
-    /// 前に広げたものを使っていることがあるので、読むたびに別のフォルダに広げる。
     pub repos: Vec<PathBuf>,
     pub unpack: PathBuf,
 }
 
 impl Dev {
-    /// 見つけた開発版と、その本体の場所（使えないときはその理由）。登録した順、フォルダの中は名前順。
-    /// plugin.json を読めなかったものは、problems に足す。
     fn plugins(&self, problems: &mut Vec<String>) -> Vec<(Manifest, Result<PathBuf, Problem>)> {
         let mut out = Vec::new();
         for dir in &self.dirs {
@@ -1244,7 +1118,6 @@ impl Dev {
     }
 }
 
-/// 使っていないプラグインの、一覧の項目。plugin.json に書いてあることだけ出す。
 fn idle(
     m: &Manifest,
     dev: bool,
@@ -1273,7 +1146,6 @@ fn idle(
     }
 }
 
-/// WASM が返す設定の項目と、本体が足すもの。
 fn settings_of(
     wasm: Option<&runtime::Prepared>,
     m: &Manifest,

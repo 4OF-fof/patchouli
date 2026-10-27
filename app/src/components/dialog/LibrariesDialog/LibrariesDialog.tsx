@@ -8,22 +8,16 @@ import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 
 export interface LibrariesDialogProps {
-  /** 最後に開いた順。ないあいだは読み込み中と出す。 */
   libraries?: KnownLibrary[]
-  /** 開いた日の言い方の基準。省略すると今。 */
   today?: Date
-  /** 履歴のライブラリに切り替える。 */
   onOpen?: (path: string) => Promise<void>
-  /** 履歴から外す。 */
   onForget?: (path: string) => Promise<void>
-  /** フォルダを選んで切り替える。 */
   onChoose?: () => Promise<void>
   onClose?: () => void
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
-/** 開いたことのあるライブラリの一覧。選ぶと切り替える。置き場所の要素に position: relative を付けておく。 */
 export function LibrariesDialog(props: LibrariesDialogProps) {
   let el!: HTMLDivElement
   const [busy, setBusy] = createSignal<string>()

@@ -1,6 +1,3 @@
-// プラグインのテンプレート（plugin-template/）に、SDK（app/plugins/sdk/）を写して plugin-template/patchouli/ にする。
-// SDK を直したら動かす。plugin-template/patchouli/ は作り直すたびに消えるので、手で直さない。
-// 使い方: node scripts/plugin-template.ts
 import fs from 'node:fs'
 import path from 'node:path'
 

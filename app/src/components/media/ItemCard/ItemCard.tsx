@@ -5,25 +5,18 @@ import styles from './ItemCard.module.css'
 
 export interface ItemCardProps extends Omit<ThumbProps, 'title' | 'class'> {
   name: string
-  /** 名前の下の一言（例「つながり 3 · 2 日前」）。JustifiedRow の中では出さない。 */
   why?: string
-  /** false で名前を隠す（ホーム）。隠しても読み上げには名前が入る。 */
   showName?: boolean
-  /** 縦横比（幅 / 高さ）。JustifiedRow の中で幅を決める。 */
   ratio?: number
-  /** ピン留めしている。 */
   pinned?: boolean
-  /** 渡すと右上にピンを重ねる。ピンはホバーで出し、留めていると出たままにする。 */
   onPin?: () => void
   onClick?: () => void
-  /** カーソルを合わせているあいだ、サムネイルの上に重ねるもの（動画の再生など）。 */
   preview?: () => JSX.Element
 }
 
 /** カーソルが通り過ぎただけのカードでは、重ねるものを作らない。 */
 const HOVER_DELAY = 200
 
-/** 素材やノートを一つ表すカード。押すと開く。 */
 export function ItemCard(props: ItemCardProps) {
   const [local, thumb] = splitProps(props, [
     'name',

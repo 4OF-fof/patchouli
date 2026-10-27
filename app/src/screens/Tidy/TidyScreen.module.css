@@ -30,7 +30,6 @@
   padding: 66px 28px 18px;
 }
 
-/* 左：大きな絵と確認の列 */
 .view {
   flex: 1;
   min-width: 0;

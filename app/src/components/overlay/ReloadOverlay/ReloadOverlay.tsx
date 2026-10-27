@@ -4,15 +4,12 @@ import { Button } from '../../controls/Button/Button'
 import styles from './ReloadOverlay.module.css'
 
 export interface ReloadOverlayProps {
-  /** ask 裏の処理が残っていて、待つか中止するかを選ぶ / wait 処理が終わるのを待っている / load 読み直している */
   step: 'ask' | 'wait' | 'load'
-  /** 裏の処理の、残りの数。 */
   work?: number
   onWait?: () => void
   onStop?: () => void
 }
 
-/** プラグインを読み直すあいだ、窓全体を覆って操作できなくする。 */
 export function ReloadOverlay(props: ReloadOverlayProps) {
   const left = () => (props.work ? `（残り ${props.work} 件）` : '')
   return (

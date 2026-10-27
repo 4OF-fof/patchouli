@@ -1,10 +1,7 @@
-//! 組み込みのプラグイン。`plugin.json` と、処理の部分の WASM と、組み込み UI のファイル（どちらも build.rs が作る）を埋め込む。
-
 use std::sync::{Arc, OnceLock};
 
 use super::{Loaded, Manifest, error, files, runtime::Prepared, settings_of};
 
-/// 読む順（ディレクトリ名、plugin.json、WASM）。同じ形式を受け持とうとしたときは、先のものを使う。
 const ALL: [(&str, &str, Option<&[u8]>); 4] = [
     (
         "image",
@@ -28,10 +25,8 @@ const ALL: [(&str, &str, Option<&[u8]>); 4] = [
     ),
 ];
 
-/// 組み込み UI のファイル（ディレクトリ名、plugin.json からのパス、中身）。build.rs がビルドして並べる。
 const UI_FILES: &[(&str, &str, &[u8])] = include!(concat!(env!("OUT_DIR"), "/ui_files.rs"));
 
-/// ディレクトリ名が dir のプラグインの、plugin.json からのパスが rel のファイル。
 fn embedded(dir: &str, rel: &str) -> Option<&'static [u8]> {
     let rel = files::normal(rel)?;
     UI_FILES
@@ -40,7 +35,6 @@ fn embedded(dir: &str, rel: &str) -> Option<&'static [u8]> {
         .map(|(_, _, b)| *b)
 }
 
-/// 組み込みのプラグイン id のファイル。
 pub(super) fn file(id: &str, rel: &str) -> Option<&'static [u8]> {
     static DIRS: OnceLock<Vec<(String, &str)>> = OnceLock::new();
     let dirs = DIRS.get_or_init(|| {
@@ -54,7 +48,6 @@ pub(super) fn file(id: &str, rel: &str) -> Option<&'static [u8]> {
     embedded(dir, rel)
 }
 
-/// 処理の部分。ないものは None。
 type Slot = Option<Result<Arc<Prepared>, String>>;
 
 /// WASM を動かせるようにするのは時間がかかるので、最初の一度だけにする。

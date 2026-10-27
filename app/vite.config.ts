@@ -51,7 +51,6 @@ export default defineConfig({
     environment: 'node',
     projects: [
       {
-        // 画面に依存しない処理のテスト（src/**/*.test.ts）
         extends: true,
         test: {
           name: 'unit',
@@ -59,7 +58,6 @@ export default defineConfig({
         },
       },
       {
-        // Storybook のストーリーを Chromium で描画できるか確かめる
         extends: true,
         plugins: [storybookTest({ configDir: path.join(import.meta.dirname, '.storybook') })],
         test: {

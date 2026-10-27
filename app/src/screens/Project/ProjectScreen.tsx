@@ -10,20 +10,14 @@ import { CoverPartView, PARTS } from './CoverPart'
 export interface ProjectScreenProps {
   lib: Library
   name: string
-  /** ホームにピン留めしている。 */
   pinned?: boolean
-  /** 表紙を編集している。 */
   editing?: boolean
-  /** 編集中に「＋ 部品を足す」の一覧を開いている。 */
   addOpen?: boolean
-  /** 戻る先の名前。 */
   onTogglePin?: (id: string) => void
-  /** このプロジェクトのホームへのピン留めを切り替える。 */
   onToggleProjectPin?: () => void
   onOpenItem?: (id: string, list: string[]) => void
 }
 
-/** 10 プロジェクト。表紙の部品、ピン留め、すべての項目。 */
 export function ProjectScreen(props: ProjectScreenProps) {
   const lib = () => props.lib
   const p = () => lib().projectBy.get(props.name)

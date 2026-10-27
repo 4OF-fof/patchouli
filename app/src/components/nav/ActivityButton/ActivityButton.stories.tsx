@@ -6,8 +6,9 @@ const meta = {
   component: ActivityButton,
   args: {
     activities: [
-      { key: 'check', icon: 'sync', label: 'ライブラリとファイルを突き合わせ中' },
-      { key: 'thumbs', icon: 'image', label: 'サムネイルと波形を作成中', done: 28, total: 40, onStop: () => {} },
+      { key: 'check', icon: 'sync', label: 'ライブラリの整合性を確認中' },
+      { key: 'thumbs', icon: 'image', label: 'サムネイルを作成中', done: 28, total: 40, onStop: () => {} },
+      { key: 'waves', icon: 'audio', label: '音声を解析中', done: 3, total: 12, onStop: () => {} },
       { key: 'import', icon: 'import', label: 'ファイルを取り込み中' },
     ],
   },

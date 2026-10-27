@@ -5,32 +5,22 @@ import { Icon } from '../../base/Icon/Icon'
 export interface ImageZoomProps {
   src: string
   name: string
-  /** 置き場所の側で大きさを決めるとき。 */
   class?: string
 }
 
-/** 倍率の上限。 */
 const MAX = 16
-/** − ＋ のボタン 1 回で変える割合。 */
 const STEP = 1.25
 
-/** 1 つの向きの位置 v を、大きさ size のものが幅 room の枠に見えるように直す。 */
 const fitIn = (v: number, size: number, room: number) =>
   size <= room ? (room - size) / 2 : Math.min(0, Math.max(room - size, v))
 
-/**
- * 画像を、倍率を変えて見る。ホイールでカーソルの位置を中心に拡大・縮小し、枠からはみ出しているときはドラッグで動かす。
- * 下に続けて置く帯で、倍率の確認と「全体」「等倍」の切り替えができる。src が変わると「全体」に戻る。
- */
 export function ImageZoom(props: ImageZoomProps) {
   let view!: HTMLDivElement
   const [box, setBox] = createSignal({ w: 0, h: 0 })
   const [natural, setNatural] = createSignal({ w: 0, h: 0 })
-  /** null は「全体」（枠に収める）。 */
   const [zoom, setZoom] = createSignal<number | null>(null)
   const [pos, setPos] = createSignal({ x: 0, y: 0 })
   const [dragging, setDragging] = createSignal(false)
-  /** 枠に収まる倍率。小さい画像は引き伸ばさない。 */
   const fit = () => {
     const n = natural()
     const b = box()
@@ -38,14 +28,12 @@ export function ImageZoom(props: ImageZoomProps) {
   }
   const scale = () => zoom() ?? fit()
   const min = () => Math.min(fit(), 1)
-  /** 枠より小さい向きは真ん中に寄せ、大きい向きは端が枠の内側に入らないようにする。 */
   const clamp = (p: { x: number; y: number }, s: number) => {
     const n = natural()
     const b = box()
     return { x: fitIn(p.x, n.w * s, b.w), y: fitIn(p.y, n.h * s, b.h) }
   }
   const shown = () => clamp(pos(), scale())
-  /** 枠の中の点 (cx, cy) を動かさずに、倍率を s にする。 */
   const zoomAt = (s: number, cx: number, cy: number) => {
     const next = Math.min(MAX, Math.max(min(), s))
     const now = scale()

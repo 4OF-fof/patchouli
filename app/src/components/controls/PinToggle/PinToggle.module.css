@@ -7,7 +7,6 @@
 .reveal:focus-visible {
   opacity: 1;
 }
-/* 留めているときはピンの形の内側を塗り、線だけの留めていない形と見分けやすくする */
 .pin[aria-pressed='true'] > .glyph {
   fill: currentColor;
 }

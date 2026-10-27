@@ -1,9 +1,3 @@
-// 動作確認用のライブラリ（example/dev-library/）を作り直す。中身は app/src/samples/spec.ts で、画面の見本と同じ。
-// 例のプラグイン（example/ の下）も SDK の CLI（app/plugins/sdk/cli.ts）でビルドして example/dev-plugins/ に入れ、ライブラリに記録する。
-// 取得先には、同じ中身を zip にしたもの（example/dev-zips/）を記録する。
-// 開発中のアプリは、どちらも既定で使う。自動分類の候補は置き場所が決まっていないので書かない。
-// 使い方: node scripts/dev-library.ts（Node 24 以上と ffmpeg、cargo と wasm32-wasip2、app の pnpm install が要る。
-// example/dev-library/ と example/dev-plugins/、example/dev-zips/ は消してから作る）
 import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import fs from 'node:fs'
@@ -38,10 +32,8 @@ const FONTS = [
 const font = FONTS.find((f) => fs.existsSync(f))
 if (!font) console.warn('日本語のフォントが見つからないので、絵に名前を入れない')
 
-/** ffmpeg のフィルタに渡すパス。: と \ を逃がす。 */
 const filterPath = (p: string) => `'${p.replaceAll('\\', '/').replaceAll(':', '\\:')}'`
 
-/** 色相と彩度（0〜100）から、ffmpeg の 0xRRGGBB。 */
 function hex(h: number, s: number, l: number) {
   const a = (s / 100) * Math.min(l / 100, 1 - l / 100)
   const f = (n: number) => {
@@ -128,11 +120,6 @@ function run(args: string[], cmd = 'ffmpeg', cwd = tmp) {
   })
 }
 
-/**
- * 例のプラグインを SDK の CLI でビルドして zip にし、ビルドしたもの（<例>/dist/）をアプリのプラグインの置き場と同じ形で
- * pluginDir/<id>/ に入れる。取得先は、その zip を zipDir に置いたもの。
- * 返すのはライブラリに残す記録（library.json の plugins）。
- */
 async function installExamples() {
   for (const d of [pluginDir, zipDir]) {
     fs.rmSync(d, { recursive: true, force: true })
@@ -150,7 +137,6 @@ async function installExamples() {
   return record
 }
 
-/** ノートの本文を Markdown にする。続いた li の間は空けない。 */
 function markdown(it: SpecItem) {
   const front = [
     '---',
@@ -181,7 +167,6 @@ spec.projects.forEach((p, i) => {
   fs.writeFileSync(path.join(root, `${p.name}.meta`), json({ [ID_KEY]: `p${i + 1}`, cover: p.cover }))
 })
 
-// ピン留めとタグの表紙、使うプラグインはライブラリ全体で 1 つ
 fs.mkdirSync(path.join(root, '.patchouli'))
 fs.writeFileSync(
   path.join(root, '.patchouli', 'library.json'),

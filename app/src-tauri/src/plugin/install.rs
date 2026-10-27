@@ -1,6 +1,3 @@
-//! 外のプラグインを取得先から取り込み、アプリのデータフォルダ（`<dir>/<id>/`）に入れる。
-//! どこから入れたかは、使うライブラリの記録にだけ残す。
-
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
@@ -23,8 +20,6 @@ fn check_id(id: &str) -> Result<(), String> {
     }
 }
 
-/// 取得先から取り込んで、dir に入れる。builtin は組み込みのプラグインの id（同じ id では入れられない）。
-/// expect があれば、取得元の検証値がそれと同じときだけ入れる。返すのは、入れたものと取得元の検証値。
 pub fn install(
     source: &Source,
     dir: &Path,
@@ -39,7 +34,6 @@ pub fn install(
     r
 }
 
-/// 取得先の zip を work に広げ、そのフォルダと取得元の検証値を返す。plugin.json は zip の根元に置く。
 fn fetch(source: &Source, work: &Path, expect: Option<&str>) -> Result<(PathBuf, String), String> {
     let out = work.join("x");
     let Source::Local(p) = source;
@@ -66,7 +60,6 @@ fn fetch(source: &Source, work: &Path, expect: Option<&str>) -> Result<(PathBuf,
     }
 }
 
-/// 開発版の zip を out に広げる。
 pub fn unpack(zip: &Path, out: &Path) -> Result<(), String> {
     let bytes = fs::read(zip).map_err(|e| format!("{}: {e}", zip.display()))?;
     unzip(&bytes, out).map_err(|e| format!("{}: {e}", zip.display()))?;
@@ -85,7 +78,6 @@ fn unzip(bytes: &[u8], out: &Path) -> Result<(), String> {
     z.extract(out).map_err(|e| e.to_string())
 }
 
-/// 広げたものを確かめて dir/<id> に置く。
 fn place(root: &Path, dir: &Path, builtin: &[String]) -> Result<Manifest, String> {
     let m = Manifest::read(root)?;
     check_id(&m.id)?;

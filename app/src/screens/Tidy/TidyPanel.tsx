@@ -9,17 +9,12 @@ import { Icon } from '../../components/base/Icon/Icon'
 export interface TidyPanelProps {
   lib: Library
   it: Item
-  /** 画面の中で書き換えている候補。 */
   tags: TagCandidate[]
   project: string
-  /** 承認待ちの中で何番目か（1 から）と、全部で何件か。 */
   pos: number
   total: number
-  /** あとでにしたもの。 */
   later?: boolean
-  /** もう承認した件数。 */
   approved: number
-  /** 一緒に取り込んだもの（何件のうち、何件に同じタグを承認したか）。 */
   batch?: { size: number; ok: number }
   onTag: (k: number, on: boolean) => void
   onProject: (name: string) => void
@@ -27,7 +22,6 @@ export interface TidyPanelProps {
   onApprove: () => void
 }
 
-/** 整理画面の右の欄。タグとプロジェクトの候補、近いもの、候補になった理由、承認とあとで。 */
 export function TidyPanel(props: TidyPanelProps) {
   const lib = () => props.lib
   const onTags = () => props.tags.filter((t) => t.on)

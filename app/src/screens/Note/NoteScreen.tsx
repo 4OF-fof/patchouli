@@ -13,21 +13,14 @@ import { Icon } from '../../components/base/Icon/Icon'
 export interface NoteScreenProps {
   lib: Library
   noteId: string
-  /** 見出しのカードを開いている（広い窓では最初から開く）。 */
   headsOpen?: boolean
-  /** つながりのカードを開いている。 */
   linksOpen?: boolean
-  /** タグなどの欄を開いている。 */
   propsOpen?: boolean
-  /** しばらく触っていない。上の帯とボタンを隠す。 */
   idle?: boolean
-  /** [[名前]] のリンクや、つながりの行を押したとき。 */
   onOpenRef?: (name: string) => void
-  /** ピン留めを切り替える。プロジェクトに入っていればその上に出る。 */
   onTogglePin?: (id: string) => void
 }
 
-/** 01 ノート。本文を真ん中に置き、見出しとつながりは端に浮かべる。 */
 export function NoteScreen(props: NoteScreenProps) {
   const lib = () => props.lib
   const note = () => lib().byId.get(props.noteId)
@@ -60,7 +53,6 @@ export function NoteScreen(props: NoteScreenProps) {
       }
     </For>
   )
-  // 続いた li を 1 つの ul にまとめる
   const groups = () => {
     const out: (NoteBlock | NoteBlock[])[] = []
     for (const b of blocks()) {

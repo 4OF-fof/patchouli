@@ -10,14 +10,11 @@ import styles from './ProjectListScreen.module.css'
 
 export interface ProjectListScreenProps {
   lib: Library
-  /** ホームにピン留めしているプロジェクト。先に並べる。 */
   pinned?: string[]
   onOpenProject?: (name: string) => void
-  /** 空のプロジェクトを作る。 */
   onCreate?: () => void
 }
 
-/** 11 プロジェクト一覧。ピン留め、最近のもの、しばらく触っていないもの。 */
 export function ProjectListScreen(props: ProjectListScreenProps) {
   const lib = () => props.lib
   const pins = () => props.pinned ?? []

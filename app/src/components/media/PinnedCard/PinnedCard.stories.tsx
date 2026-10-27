@@ -46,7 +46,6 @@ export const Note: Story = {
   decorators: [single],
 }
 
-/** ホームの先頭の 1 枚。置き場所の高さいっぱいに伸びる。 */
 export const Large: Story = {
   name: '大きく出す 1 枚',
   args: { large: true },

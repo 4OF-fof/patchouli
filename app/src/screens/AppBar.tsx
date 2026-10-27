@@ -19,13 +19,7 @@ import { findItems, searchTerms } from '../model/search'
 import styles from './AppBar.module.css'
 import { type Row, SearchResults } from '../components/nav/SearchResults/SearchResults'
 
-/** 行き先。 */
 export type Place = 'home' | 'all' | 'tags' | 'projects' | 'tidy'
-/**
- * closed 閉じている / menu メニューを開いた / places いまの場所から開いた画面の一覧 /
- * search 検索に入力中 / prompt プロンプト /
- * help キー操作の一覧 / plugins プラグイン / notices 権利表示 / libraries ライブラリの切り替え / settings 設定
- */
 export type BarState =
   | 'closed'
   | 'menu'
@@ -38,7 +32,6 @@ export type BarState =
   | 'libraries'
   | 'settings'
 
-/** 外から開く窓。plugin は、プラグインの一覧で選んでおくもの。 */
 export interface BarRequest {
   state: BarState
   plugin?: { id: string; dev: boolean }
@@ -46,45 +39,27 @@ export interface BarRequest {
 
 export interface AppBarProps {
   lib: Library
-  /** いまいる所。メニューで印を付ける。 */
   here?: Place
-  /** いまの場所までの道のり。最後がいまの画面。 */
   crumbs?: string[]
-  /** 渡すと、メニューの右に戻るを出す。 */
   onBack?: () => void
-  /** いまより前の場所を押したとき。i は crumbs の位置。 */
   onCrumb?: (i: number) => void
   initial?: BarState
-  /** 検索欄に最初から入っている語。 */
   query?: string
-  /** 保存先に書き込めない。タイトルバーに知らせを出す。 */
   readOnly?: boolean
-  /** 裏で動いている処理。あるあいだ、右に印を出す。 */
   activities?: Activity[]
   onGo?: (to: Place) => void
   onOpenProject?: (name: string) => void
   onOpenItem?: (id: string) => void
-  /** 新しいノート。名前を入れていればその名前で。 */
   onCreate?: (name?: string) => void
-  /** 開いているライブラリの場所。設定に出す。 */
   library?: string
-  /** 渡すと、設定にライブラリを選ぶ項目を出す。 */
   onChooseLibrary?: () => void | Promise<void>
-  /** 開いたことのあるライブラリ。渡すと、ライブラリを選ぶ項目で履歴の窓を開く。 */
   libraries?: LibraryActions
-  /** キャッシュと使っていないプラグインの片付け。渡すと設定に出す。 */
   tidy?: TidyActions
-  /** 開発者モードの設定。渡すと設定に出す。 */
   developer?: DeveloperActions
-  /** 開くライブラリを替えたときや、キャッシュを消したとき。ライブラリを開き直す。 */
   onReopen?: () => void
-  /** プラグインの一覧を読む。省略すると組み込みのものだけを出す。 */
   loadPlugins?: () => Promise<PluginReport>
-  /** プラグインを入れる・外すなどの操作。 */
   pluginActions?: PluginActions
-  /** 使うプラグインが変わったとき。ライブラリを開き直す。 */
   onPluginsChanged?: () => void | Promise<void>
-  /** 変わるたびに、その窓を開く。 */
   request?: BarRequest
 }
 
@@ -93,10 +68,6 @@ const toggleTheme = () => {
   d.theme = d.theme === 'light' ? 'dark' : 'light'
 }
 
-/**
- * 画面の上のタイトルバー。左にアプリのアイコン（メニュー）・戻る・いまの場所、右に裏の処理・新しいノート・検索を置き、
- * メニューと Ctrl P の検索、設定の窓を受け持つ。
- */
 export function AppBar(props: AppBarProps) {
   const init = props.initial ?? 'closed'
   const [state, setState] = createSignal<BarState>(init)
@@ -173,7 +144,6 @@ export function AppBar(props: AppBarProps) {
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
-  // メニューは外を押すと閉じる
   let menuEl!: HTMLDivElement
   let placesEl: HTMLSpanElement | undefined
   const away = (e: PointerEvent) => {

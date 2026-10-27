@@ -16,13 +16,11 @@ interface Row {
 
 export interface TagListScreenProps {
   lib: Library
-  /** 下の階層を開いているタグ。 */
   expanded?: string[]
   sort?: Sort
   onOpenTag?: (tag: string) => void
 }
 
-/** 12 タグ一覧。「写真/旅行」は「写真」の下に入り、親は下の分も数える。 */
 export function TagListScreen(props: TagListScreenProps) {
   const lib = () => props.lib
   const [sort, setSort] = createSignal<Sort>(props.sort ?? 'count')

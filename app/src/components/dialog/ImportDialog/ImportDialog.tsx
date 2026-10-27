@@ -7,12 +7,9 @@ import styles from './ImportDialog.module.css'
 import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 
-/** 落としたフォルダの 1 つ。 */
 export interface DropFolder {
-  /** 取り込むときに、プロジェクトにするフォルダをこれで指す。 */
   key: number
   name: string
-  /** 中の取り込めるファイルの数（下の階層も数える）。 */
   files: number
   subfolders: number
 }
@@ -25,19 +22,14 @@ const MODES: { key: Mode; label: string }[] = [
 ]
 
 export interface ImportDialogProps {
-  /** 取り込めるファイルの数（フォルダの中も数える）。 */
   files: number
   folders: DropFolder[]
-  /** フォルダに入っていないファイルの数。 */
   loose: number
-  /** 平らに入れたものとフォルダの外のファイルを入れるプロジェクト。ないときはどこにも入れない。 */
   into?: string
-  /** プロジェクトにするフォルダの key を渡す。 */
   onImport?: (projects: number[]) => void
   onClose?: () => void
 }
 
-/** フォルダを含むものを落としたあとに、フォルダごとの入れ方を選ぶ窓。置き場所の要素に position: relative を付けておく。 */
 export function ImportDialog(props: ImportDialogProps) {
   let el!: HTMLDivElement
   const [modes, setModes] = createSignal<Record<number, Mode>>({})
@@ -46,7 +38,6 @@ export function ImportDialog(props: ImportDialogProps) {
   const run = () => props.onImport?.(props.folders.filter((f) => modeOf(f.key) === 'project').map((f) => f.key))
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape') props.onClose?.()
-    // ボタンの上では、そのボタンを押す
     else if (e.key === 'Enter' && !(e.target instanceof HTMLButtonElement)) {
       e.preventDefault()
       run()

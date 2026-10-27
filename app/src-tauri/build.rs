@@ -2,13 +2,10 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::{env, fs};
 
-/// 組み込みのプラグイン（ディレクトリ名）。処理部分のないものは WASM を作らない。
 const WASM_PLUGINS: [&str; 3] = ["image", "video", "audio"];
 
-/// 組み込み UI（plugin.json の ui）のあるプラグイン。
 const UI_PLUGINS: [&str; 1] = ["audio"];
 
-/// 組み込み UI を plugins/sdk/cli.ts でビルドし、できたファイルを src/plugin/builtin.rs が埋め込めるように並べる。
 fn build_ui() {
     let here = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let plugins = here.join("../plugins");
@@ -65,7 +62,6 @@ fn build_ui() {
     .unwrap();
 }
 
-/// 組み込みのプラグインの処理部分を WASM にして OUT_DIR に置く。src/plugin/builtin.rs が埋め込む。
 fn build_plugins() {
     let here = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let plugins = here.join("../plugins");

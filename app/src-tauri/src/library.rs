@@ -1,16 +1,3 @@
-//! ライブラリのフォルダの読み書き。
-//!
-//! - 直下のフォルダがプロジェクト。フォルダの属性は同じ階層の `<名前>.meta`（JSON）に置く
-//! - 素材の属性は `<ファイル名>.meta`（JSON）、ノートの属性は frontmatter に置く
-//! - ピン留めとタグの表紙は `.patchouli/library.json` に置く（同じファイルにプラグインの記録もある。plugin/record.rs）
-//! - `.` で始まるものは読まない（ほかのツールの設定や、書き込み途中のファイル）。Windows の隠しファイルとシステムファイルも読まない
-//! - 扱える形式のないファイルも項目にする（開くと、対応するプラグインがないことを出す）
-//!
-//! ID のない素材やノートと、コピーで ID が重なったもののあとから見つけたほうには、読んだときに新しい ID を書く。
-//! 書けなかったものには仮の ID を渡し、最初に保存するときに書く。
-//!
-//! 開いた結果は写し（`cache.rs`）に取っておき、次はまずそれを返してから、裏でファイルと突き合わせる。
-
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::BufReader;
@@ -30,10 +17,8 @@ pub const ID_KEY: &str = "patchouli-id";
 const STATE_DIR: &str = ".patchouli";
 const STATE_FILE: &str = "library.json";
 
-/// ノートの拡張子。ノートはアプリが特別に扱う（本文とリンクを読み、frontmatter に属性を置く）。
 pub const NOTE_EXT: &str = "md";
 
-/// 画像の見た目の大きさ。写真の向き（EXIF）が 90 度回す指定なら、縦と横を入れ替える。
 pub(crate) fn image_size(path: &Path) -> Option<(u32, u32)> {
     let s = imagesize::size(path).ok()?;
     let (w, h) = (s.width as u32, s.height as u32);
@@ -68,14 +53,12 @@ pub struct StoredItem {
     pub aliases: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocks: Option<Vec<Block>>,
-    /// 更新日時（UNIX ミリ秒）。
     pub mtime: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub width: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub height: Option<u32>,
     pub file: PathBuf,
-    /// サムネイルの場所。まだできていなければない。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thumb: Option<PathBuf>,
 }
@@ -85,11 +68,9 @@ pub struct StoredItem {
 pub struct StoredProject {
     pub name: String,
     pub cover: Value,
-    /// フォルダと中身のうち、いちばん新しい更新日時（UNIX ミリ秒）。
     pub mtime: f64,
 }
 
-/// ライブラリ全体にかかわる状態。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct LibraryState {
@@ -106,13 +87,10 @@ pub struct Opened {
     pub items: Vec<StoredItem>,
     pub projects: Vec<StoredProject>,
     pub state: LibraryState,
-    /// 扱える形式。
     pub formats: Vec<FormatInfo>,
-    /// 読めなかったもの（「パス: 理由」）。
     pub problems: Vec<String>,
 }
 
-/// ファイルを読んだ結果。
 pub struct Scan {
     pub items: Vec<Row>,
     pub projects: Vec<StoredProject>,
@@ -120,15 +98,11 @@ pub struct Scan {
     pub problems: Vec<String>,
 }
 
-/// 写しから開いたあとに、ファイルと突き合わせて見つかった違い。
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Changes {
-    /// 足されたものと変わったもの。
     pub items: Vec<StoredItem>,
-    /// なくなったものの ID。
     pub removed: Vec<String>,
-    /// 変わったときだけ、全部を入れる。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub projects: Option<Vec<StoredProject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -146,7 +120,6 @@ impl Changes {
     }
 }
 
-/// 一覧（タグ・別名）の変え方。保存するときに、ファイルのいまの中身に当てる。
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default)]
 pub struct ListDiff {
@@ -166,8 +139,6 @@ impl ListDiff {
     }
 }
 
-/// 保存する属性。書いたものだけを変える。
-/// 文章（memo・blocks）は、アプリが最後に読んだあとにファイルが変わっていれば書かない（Library::save_item）。
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct ItemPatch {
@@ -187,7 +158,6 @@ impl ItemPatch {
 struct Entry {
     path: PathBuf,
     note: bool,
-    /// ID がファイルに書いてある。
     saved: bool,
 }
 
@@ -261,7 +231,6 @@ fn strings(v: Option<&Value>) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// ファイルやフォルダの名前に使えるか。
 pub fn check_name(name: &str) -> Result<(), String> {
     let bad = name.trim().is_empty()
         || name.starts_with('.')
@@ -289,7 +258,6 @@ impl Library {
         self.plugins = plugins;
     }
 
-    /// いまの写しを、開いた結果にする。
     pub fn snapshot(&self) -> Opened {
         let snap = self.cache.load().unwrap_or_else(|| crate::cache::Snapshot {
             rows: Vec::new(),
@@ -325,7 +293,6 @@ impl Library {
         self.root.join(STATE_DIR).join(STATE_FILE)
     }
 
-    /// 写しから開く。まだ写しがなければ None。root は canonical で正規化したもの。
     pub fn cached(
         root: &Path,
         plugins: Arc<Registry>,
@@ -363,7 +330,6 @@ impl Library {
         ))
     }
 
-    /// ファイルを読む。更新日時が写しと同じものは、写しの中身を使う。
     pub fn scan(root: &Path, plugins: Arc<Registry>, cache: Arc<Cache>) -> (Library, Scan) {
         let known = cache.rows();
         let mut lib = Library::new(root.to_owned(), plugins, cache);
@@ -428,7 +394,6 @@ impl Library {
         )
     }
 
-    /// 読んだ結果で写しを作り直し、開いた結果にする。
     pub fn opened(&self, scan: Scan) -> Opened {
         self.cache.replace(&scan.items, &scan.projects, &scan.state);
         Opened {
@@ -441,8 +406,6 @@ impl Library {
         }
     }
 
-    /// 写しから開いたあとに、裏で読んだ結果（fresh と scan）を取り込み、写しとの違いを返す。
-    /// 読んでいるあいだに書いたものは、書いたほうを残す。
     pub fn apply(&mut self, fresh: Library, scan: Scan) -> Changes {
         let touched = self.touched.take().unwrap_or_default();
         let before = self.cache.rows();
@@ -514,7 +477,6 @@ impl Library {
         changes
     }
 
-    /// 裏で突き合わせているあいだなら、書いたことを覚えておく。
     fn mark(&mut self, path: &Path) {
         if let Some(t) = &mut self.touched {
             t.insert(path.to_owned());
@@ -538,7 +500,6 @@ impl Library {
         }
     }
 
-    /// ファイルを読む。扱えない形式のものも、項目にする。known は写しにある、このファイルの行。
     pub(crate) fn read_item(
         &mut self,
         path: &Path,
@@ -637,7 +598,6 @@ impl Library {
         })
     }
 
-    /// 項目 id を読み直して写しに入れ、読み直したものを返す。
     fn refresh(&mut self, id: &str) -> Option<StoredItem> {
         let e = self.entry(id).ok()?;
         let (path, note) = (e.path.clone(), e.note);
@@ -659,7 +619,6 @@ impl Library {
         Some(row.item)
     }
 
-    /// 取り込んだり作ったりした項目を写しに入れる。
     pub(crate) fn remember(&mut self, row: &Row) {
         self.mark(&row.item.file);
         self.cache.update(std::slice::from_ref(row), &[]);
@@ -671,7 +630,6 @@ impl Library {
             .ok_or_else(|| format!("ID「{id}」の項目が見つかりません"))
     }
 
-    /// 素材のファイルと、拡張子（小文字）。
     pub fn asset(&self, id: &str) -> Result<(&Path, String), String> {
         let e = self.entry(id)?;
         if e.note {
@@ -686,8 +644,6 @@ impl Library {
         Ok((&e.path, ext))
     }
 
-    /// 保存する。文章を書こうとしたときに、アプリが最後に読んだあとでファイルが外で変わっていたら、
-    /// 文章は書かずに読み直し、読み直したものを返す（ほかの属性は書く）。
     pub fn save_item(&mut self, id: &str, patch: &ItemPatch) -> Result<Option<StoredItem>, String> {
         let e = self.entry(id)?;
         let (path, note) = (e.path.clone(), e.note);
@@ -721,8 +677,6 @@ impl Library {
         Ok(item.filter(|_| changed))
     }
 
-    /// 項目 id のファイルを、プロジェクト folder（None はどこにも入れない）の直下へ移す。素材は .meta も一緒に移す。
-    /// サムネイルは、置き場所 thumbs の中で新しい場所の名前に付け替える。移し先に同じ名前があれば移さない。
     pub fn move_item(
         &mut self,
         id: &str,
@@ -786,7 +740,6 @@ impl Library {
         Ok(row.item)
     }
 
-    /// ID がまだファイルにないときだけ書く。
     fn ensure_saved(&mut self, id: &str) -> Result<(), String> {
         match self.entries.get(id) {
             Some(e) if !e.saved => self.save_item(id, &ItemPatch::default()).map(drop),
@@ -914,13 +867,11 @@ impl Library {
     }
 }
 
-/// 開くライブラリの場所を、写しやサムネイルの置き場所を決めるのに使う形にする。
 pub fn canonical(root: &Path) -> Result<PathBuf, String> {
     let p = fs::canonicalize(root).map_err(|e| format!("{}: {e}", root.display()))?;
     Ok(dunce(p))
 }
 
-/// ID をファイルに書く。
 fn write_id(path: &Path, note: bool, id: &str) -> Result<(), String> {
     if note {
         save_note(path, id, &ItemPatch::default())
@@ -937,7 +888,6 @@ pub(crate) fn dunce(p: PathBuf) -> PathBuf {
     }
 }
 
-/// Windows の隠しファイルかシステムファイル（desktop.ini や Thumbs.db など）。
 #[cfg(windows)]
 fn hidden(path: &Path) -> bool {
     use std::os::windows::fs::MetadataExt;
@@ -951,13 +901,11 @@ fn hidden(_: &Path) -> bool {
     false
 }
 
-/// ライブラリで読むものか。`.` で始まるもの、隠しファイル、`.meta` は読まない。
 pub(crate) fn listed(path: &Path) -> bool {
     let n = path.file_name().unwrap_or_default().to_string_lossy();
     !n.starts_with('.') && !n.ends_with(".meta") && !hidden(path)
 }
 
-/// フォルダの中身のうち、読むもの（listed）を名前順に。
 fn list_dir(dir: &Path, problems: &mut Vec<String>) -> Vec<(PathBuf, bool)> {
     let rd = match fs::read_dir(dir) {
         Ok(rd) => rd,

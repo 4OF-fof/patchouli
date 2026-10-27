@@ -1,5 +1,3 @@
-//! この端末だけの設定。アプリの設定フォルダの settings.json に置き、ライブラリには入れない。
-
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -34,7 +32,6 @@ fn write(app: &AppHandle, m: &Map<String, Value>) -> Result<(), String> {
     write_json(&p, m)
 }
 
-/// 選んだライブラリの場所。
 pub fn library(app: &AppHandle) -> Result<Option<PathBuf>, String> {
     Ok(read(app)?
         .get(LIBRARY)
@@ -48,18 +45,14 @@ pub fn set_library(app: &AppHandle, dir: &Path) -> Result<(), String> {
     write(app, &m)
 }
 
-/// 開いたことのあるライブラリ。plugins は、最後に開いたときに記録してあったプラグイン
-/// （ライブラリを読めないときに、使っているプラグインを見分けるのに使う）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Recent {
     pub path: PathBuf,
-    /// 最後に開いた日時（UNIX ミリ秒）。
     pub opened: f64,
     #[serde(default)]
     pub plugins: Vec<String>,
 }
 
-/// 開いたことのあるライブラリ。最後に開いた順。
 pub fn recent(app: &AppHandle) -> Result<Vec<Recent>, String> {
     Ok(read(app)?
         .get(RECENT)
@@ -77,7 +70,6 @@ fn set_recent(app: &AppHandle, list: &[Recent]) -> Result<(), String> {
     write(app, &m)
 }
 
-/// root を開いたことを、いま記録してあるプラグインと一緒に残す。
 pub fn remember(app: &AppHandle, root: &Path, plugins: Vec<String>) -> Result<(), String> {
     let opened = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -95,15 +87,12 @@ pub fn remember(app: &AppHandle, root: &Path, plugins: Vec<String>) -> Result<()
     set_recent(app, &list)
 }
 
-/// 履歴から外す。
 pub fn forget(app: &AppHandle, root: &Path) -> Result<(), String> {
     let mut list = recent(app)?;
     list.retain(|r| r.path != root);
     set_recent(app, &list)
 }
 
-/// 開発者モード。場所はオフのあいだも残す。
-/// plugin_dirs は中の `<名前>/plugin.json` を開発版として読むフォルダ、repos は plugin.json を直下に持つプラグインのリポジトリ。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Developer {

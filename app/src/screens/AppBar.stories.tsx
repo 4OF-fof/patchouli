@@ -15,7 +15,6 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-/** ホームの上にタイトルバーを置いた見た目。メニューや検索はホームに重ねて出す。 */
 const bar = (o: Partial<AppBarProps> = {}) => {
   const lib = sampleLibrary()
   return (
@@ -50,12 +49,12 @@ export const Prompt: Story = { name: 'プロンプト', render: () => bar({ init
 export const Help: Story = { name: 'キー操作の一覧', render: () => bar({ initial: 'help' }) }
 
 const working: Activity[] = [
-  { key: 'check', icon: 'sync', label: 'ライブラリとファイルを突き合わせ中' },
-  { key: 'thumbs', icon: 'image', label: 'サムネイルと波形を作成中', done: 28, total: 40, onStop: () => {} },
+  { key: 'check', icon: 'sync', label: 'ライブラリの整合性を確認中' },
+  { key: 'thumbs', icon: 'image', label: 'サムネイルを作成中', done: 28, total: 40, onStop: () => {} },
+  { key: 'waves', icon: 'audio', label: '音声を解析中', done: 3, total: 12, onStop: () => {} },
 ]
-/** 裏で処理が動いているあいだ。サムネイルを作っている素材には、仮の絵に回る印が出る。押すと一覧を開く。 */
 export const Working: Story = {
-  name: '裏で処理中',
+  name: '処理中',
   render: () => {
     const making = new Set(
       sampleLibrary()
@@ -73,7 +72,6 @@ const developer: AppBarProps['developer'] = {
   set: async () => {},
   pick: async () => undefined,
 }
-/** デスクトップでは、設定に開発者モードが出る。 */
 export const Settings: Story = {
   name: '設定',
   decorators: [desktop],

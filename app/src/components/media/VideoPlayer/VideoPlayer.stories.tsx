@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { VideoPlayer } from './VideoPlayer'
 
-/** 中身は動作確認用のライブラリ（scripts/dev-library.ts が作る）のもの。なければ再生できない。 */
 const meta = {
   title: '部品/media/VideoPlayer',
   component: VideoPlayer,

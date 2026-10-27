@@ -28,7 +28,6 @@ export const All: Story = {
   ),
 }
 
-/** 小さいほど線を太くする。 */
 export const Sizes: Story = {
   name: '大きさと線の太さ',
   render: () => (

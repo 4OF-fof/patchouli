@@ -1,12 +1,8 @@
-//! 使っているプラグインのファイル（`plugin://localhost/<id>/<パス>`）を返す。
-//! 組み込み UI の ES モジュールと、そこから読むファイルに使う。
-
 use std::fs;
 use std::path::Path;
 
 use tauri::http::{Response, StatusCode, header};
 
-/// URL のパスの先頭（プラグインの id）と、残り（プラグインのフォルダの中のパス）。
 pub fn split(uri_path: &str) -> Option<(String, String)> {
     let path = percent_decode(uri_path.trim_start_matches('/'));
     let (id, rest) = path.split_once('/')?;
@@ -32,7 +28,6 @@ pub fn read(dir: &Path, rest: &str) -> Option<Vec<u8>> {
     inside.then(|| fs::read(&file).ok()).flatten()
 }
 
-/// rest の中身 body を返す。なければ 404。
 pub fn serve(rest: &str, body: Option<Vec<u8>>) -> Response<Vec<u8>> {
     let Some(body) = body else {
         return Response::builder()

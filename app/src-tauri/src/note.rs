@@ -1,5 +1,3 @@
-//! ノートの Markdown。frontmatter の読み書きと、本文と段（p / h2 / li）の変換。
-
 use pulldown_cmark::{Event, Parser, Tag, TagEnd};
 use serde::{Deserialize, Serialize};
 use serde_yaml_ng::Value;
@@ -19,7 +17,6 @@ pub enum BlockKind {
     Li,
 }
 
-/// frontmatter と、その後ろの本文。
 pub struct NoteText<'a> {
     pub front: Option<&'a str>,
     pub body: &'a str,
@@ -50,7 +47,6 @@ pub fn split(text: &str) -> NoteText<'_> {
     none
 }
 
-/// frontmatter の値。読めないときは空として扱う。
 pub fn front_values(front: Option<&str>) -> Result<Value, String> {
     match front {
         None => Ok(Value::Null),
@@ -68,7 +64,6 @@ pub fn str_of(v: &Value, key: &str) -> Option<String> {
     }
 }
 
-/// 文字の並び。1 つだけ書かれていても並びとして読む。
 pub fn list_of(v: &Value, key: &str) -> Vec<String> {
     match v.get(key) {
         Some(Value::Sequence(s)) => s
@@ -80,8 +75,6 @@ pub fn list_of(v: &Value, key: &str) -> Vec<String> {
     }
 }
 
-/// frontmatter の key の行を value に置き換える。ほかの行は書かれたまま残す。
-/// value は JSON で書く（YAML としても読める）。
 pub fn set_key(front: &str, key: &str, value: &serde_json::Value) -> String {
     let line = format!("{key}: {value}");
     let lines: Vec<&str> = front.lines().collect();
@@ -113,7 +106,6 @@ pub fn join(front: &str, body: &str) -> String {
     format!("---\n{front}---\n{body}")
 }
 
-/// 本文を段に分ける。見出しはどの深さも h2、項目は li、ほかは p にし、飾りは外して文字だけ残す。
 pub fn blocks_of(body: &str) -> Vec<Block> {
     let mut out = Vec::new();
     let mut cur: Option<Block> = None;
@@ -164,7 +156,6 @@ pub fn blocks_of(body: &str) -> Vec<Block> {
     out
 }
 
-/// 段を本文にする。続いた li の間は空けない。
 pub fn body_of(blocks: &[Block]) -> String {
     let mut body = String::new();
     let mut prev = None;

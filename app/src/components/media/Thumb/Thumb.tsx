@@ -5,28 +5,20 @@ import styles from './Thumb.module.css'
 
 const Making = createContext<(id: string) => boolean>(() => false)
 
-/** 素材の id を受け、裏でその素材のサムネイルを作っているあいだ true を返す関数を渡す。 */
 export const ThumbMakingProvider = Making.Provider
 
 export interface ThumbProps {
-  /** ノート。名前と本文の書き出しを出す。 */
   note?: boolean
-  /** 色相 0–360。画像がないときの仮の絵に使う。 */
   hue?: number
-  /** 彩度（%）。省略すると 28。 */
   sat?: number
   src?: string
-  /** 素材の id。src がなく、この素材のサムネイルを裏で作っているあいだは、回る印を出す。 */
   id?: string
-  /** 枠と縦横比が合わない src の収め方。省略すると center。 */
   fit?: Fit
   title?: string
   excerpt?: string
   height?: number
   selected?: boolean
-  /** 保存していない変更がある（右上に点）。 */
   dirty?: boolean
-  /** 置き場所の側で大きさなどを整えるとき。 */
   class?: string
 }
 

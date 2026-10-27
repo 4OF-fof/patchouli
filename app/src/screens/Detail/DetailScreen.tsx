@@ -12,25 +12,19 @@ import styles from './DetailScreen.module.css'
 type Sort = 'moved' | 'name' | 'kind'
 
 export interface DetailScreenProps {
-  /** 画面の読み上げ名（例「プロジェクト」「タグ」）。 */
   label: string
   title: JSX.Element
   meta: JSX.Element
-  /** 名前の右に置く操作。 */
   actions?: JSX.Element
-  /** 左の列に積む部品。何もなければ右の列が全幅になる。 */
   side?: JSX.Element
   sideLabel?: string
   items: Item[]
-  /** items が空のときの一言。 */
   empty?: JSX.Element
-  /** ピン留めした項目の id（ライブラリ全体）。items に入っているものを「すべて」より前に出す。 */
   pins?: string[]
   onTogglePin?: (id: string) => void
   onOpenItem?: (id: string, list: string[]) => void
 }
 
-/** プロジェクトやタグの中身を見る画面の枠。上に名前、その下を左右 1:2 に分け、右にピン留めとすべての項目を並べる。 */
 export function DetailScreen(props: DetailScreenProps) {
   const [sort, setSort] = createSignal<Sort>('moved')
   const formats = useFormats()

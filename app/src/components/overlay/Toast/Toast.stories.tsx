@@ -13,7 +13,6 @@ export const Default: Story = {}
 export const WithAction: Story = {
   args: { message: '3 件の素材にタグを付けました', actionLabel: '元に戻す', onAction: () => {} },
 }
-/** 08 · 一部を読み込めない */
 export const LoadError: Story = {
   args: {
     message: '3 件のノートを読み込めませんでした',

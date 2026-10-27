@@ -11,7 +11,6 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-/** 秋の企画の素材を並びにして、moodboard-01 を開く。 */
 const asset = (o: Partial<AssetScreenProps> = {}) => {
   const lib = sampleLibrary()
   const list = lib.inProject('秋の企画').filter((i) => !i.note)
@@ -28,7 +27,6 @@ export const Idle: Story = { name: '何も触っていない', render: () => ass
 
 const done = async () => {}
 
-/** 秋の企画の、対応するプラグインのない素材（ポスター案.psd）を開く。 */
 const unsupported = (o: Partial<AssetScreenProps> = {}) => {
   const lib = sampleLibrary()
   const list = lib.inProject('秋の企画').filter((i) => !i.note)
@@ -56,10 +54,6 @@ export const Disabled: Story = {
     unsupported({ blocker: async () => ({ id: 'photoshop', name: 'Photoshop', dev: false, state: 'disabled' }) }),
 }
 
-/**
- * 中身を出すときの見た目。中身は動作確認用のライブラリ（scripts/dev-library.ts が作る）のもので、なければ出ない。
- * 見本の項目に、そのファイルの URL を付けて開く。
- */
 const withFile = (name: string, file: string, view: ItemView, waveform?: AssetViewHost['waveform']) => {
   const lib = sampleLibrary()
   const it = lib.items.find((i) => i.name === name)

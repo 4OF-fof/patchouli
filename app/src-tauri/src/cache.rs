@@ -1,8 +1,3 @@
-//! ライブラリを開いた結果の写し。端末のキャッシュに SQLite で置き、次に開くときはまずこれを返す（消してもまた作れる）。
-//!
-//! 素材とノートはファイルごとの行に持つ。更新日時が前と同じファイルは、確かめるときに読み直さない。
-//! 書けなくても開くのは止めない。
-
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -16,7 +11,6 @@ use crate::plugin::Reads;
 /// 中身の形を変えたら上げる。違う版の写しは捨てて作り直す。
 const VERSION: i32 = 1;
 
-/// 読んだときのファイルの更新日時（UNIX ミリ秒）。素材は .meta のものも見る（ないときは 0）。
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Sig {
     file: f64,
@@ -39,13 +33,11 @@ impl Sig {
 #[derive(Debug, Clone)]
 pub struct Row {
     pub item: StoredItem,
-    /// ID がファイルに書いてある。
     pub saved: bool,
     pub sig: Sig,
 }
 
 impl Row {
-    /// 画面に渡す中身が同じか。
     pub fn same_item(&self, other: &Row) -> bool {
         serde_json::to_value(&self.item).ok() == serde_json::to_value(&other.item).ok()
     }
@@ -63,7 +55,6 @@ fn warn(what: &str, e: impl std::fmt::Display) {
     log::warn!("ライブラリの写しを{what}: {e}");
 }
 
-/// ライブラリごとの写しの場所。
 pub fn path_for(cache: &Path, root: &Path) -> PathBuf {
     cache.join("library").join(format!(
         "{:016x}.sqlite",
@@ -71,10 +62,8 @@ pub fn path_for(cache: &Path, root: &Path) -> PathBuf {
     ))
 }
 
-/// 開かなくなってからこれだけ経ったライブラリの写しとサムネイルは消す。
 const KEEP: Duration = Duration::from_secs(180 * 24 * 60 * 60);
 
-/// 写しの更新日時を今にする。開いた日の目印にする（sweep が見る）。
 pub fn touch(path: &Path) {
     if let Ok(f) = std::fs::File::options().write(true).open(path)
         && let Err(e) = f.set_modified(SystemTime::now())
@@ -83,8 +72,6 @@ pub fn touch(path: &Path) {
     }
 }
 
-/// 開いているライブラリ（root）のほかで、KEEP より長く開いていないものの写しとサムネイルの置き場を消す。
-/// 開いた日は写しの更新日時で見る。写しがなければ、サムネイルの置き場の更新日時で見る。
 pub fn sweep(cache: &Path, root: &Path) {
     let current = path_for(cache, root);
     let Some(current) = current.file_stem().and_then(|s| s.to_str()) else {
@@ -236,7 +223,6 @@ impl Cache {
         })
     }
 
-    /// 前に開いたときの写し。まだ一度も最後まで読んでいなければ None。
     pub fn load(&self) -> Option<Snapshot> {
         let state = self.with("読めない", |c| {
             let s: Option<String> = c
@@ -255,7 +241,6 @@ impl Cache {
         })
     }
 
-    /// 素材とノートの行（ファイルの場所 → 行）。読めない行は除く。
     pub fn rows(&self) -> HashMap<PathBuf, Row> {
         self.with("読めない", |c| {
             let mut st = c
@@ -341,7 +326,6 @@ impl Cache {
         })
     }
 
-    /// 全部を入れ替える。
     pub fn replace(&self, rows: &[Row], projects: &[StoredProject], state: &LibraryState) {
         self.with("書けない", |c| {
             let tx = c.transaction().map_err(|e| e.to_string())?;
@@ -354,7 +338,6 @@ impl Cache {
         })
     }
 
-    /// 行を足すか書き換え、gone の場所の行を消す。
     pub fn update(&self, rows: &[Row], gone: &[PathBuf]) {
         if rows.is_empty() && gone.is_empty() {
             return;
@@ -381,7 +364,6 @@ impl Cache {
         })
     }
 
-    /// プロジェクトを全部入れ替える。
     pub fn replace_projects(&self, projects: &[StoredProject]) {
         self.with("書けない", |c| {
             let tx = c.transaction().map_err(|e| e.to_string())?;
@@ -396,7 +378,6 @@ impl Cache {
         self.with("書けない", |c| put_state(c, state))
     }
 
-    /// src のサムネイルができたことを、作るときに読んだ設定と一緒に書く。大きさは、わからなかったときだけ size で埋める。
     pub fn set_thumb(&self, src: &Path, thumb: &Path, (width, height): (u32, u32), reads: &Reads) {
         let Some(mut row) = self.row(src) else {
             return;
@@ -422,7 +403,6 @@ impl Cache {
         })
     }
 
-    /// サムネイルを作るときに読んだ設定（素材の場所 → 設定）。設定を読まなかったものは入れない。
     pub fn thumb_reads(&self) -> HashMap<PathBuf, Reads> {
         self.with("読めない", |c| {
             let mut st = c

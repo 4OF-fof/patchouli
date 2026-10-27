@@ -57,7 +57,6 @@
   border-radius: var(--radius-sm);
   background: var(--unsaved);
 }
-/* サムネイルを作っているあいだ、仮の絵の真ん中で回す */
 .making {
   position: absolute;
   inset: 0;

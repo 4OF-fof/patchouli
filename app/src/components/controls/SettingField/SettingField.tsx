@@ -3,14 +3,11 @@ import type { Setting, SettingValue } from '../../../plugins/types'
 import styles from './SettingField.module.css'
 
 export interface SettingFieldProps {
-  /** プラグインが返した記述。 */
   setting: Setting
-  /** 値を変えたとき。文字は入力を終えたときに呼ぶ。 */
   onChange?: (value: SettingValue) => void
   disabled?: boolean
 }
 
-/** プラグインの設定の項目を 1 つ描く。プラグインは記述だけを返し、この部品が描く。 */
 export function SettingField(props: SettingFieldProps) {
   const id = createUniqueId()
   const s = () => props.setting

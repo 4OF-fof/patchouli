@@ -8,7 +8,6 @@ import note from '../../plugins/note/plugin.json'
 import video from '../../plugins/video/plugin.json'
 import type { Cap, Deps, Fit, FormatInfo, Hover, Manifest, Part, PluginReport, PluginStatus, Problem } from './types'
 
-/** JSON のままの plugin.json。 */
 export interface RawManifest extends Omit<Manifest, 'formats'> {
   formats: Record<
     string,
@@ -31,7 +30,6 @@ const HOVERS: readonly Hover[] = ['video']
 
 const partsOf = (raw?: string[]) => (raw ?? []).flatMap((p) => PARTS.find((x) => x === p) ?? [])
 
-/** 知らない値は捨てる。 */
 export const readManifest = (raw: RawManifest): Manifest => ({
   ...raw,
   formats: Object.fromEntries(
@@ -48,7 +46,6 @@ export const readManifest = (raw: RawManifest): Manifest => ({
   ),
 })
 
-/** 読む順。同じ形式を受け持とうとしたときは、先のものを使う。 */
 export const BUILTIN_MANIFESTS = [image, video, audio, note].map(readManifest)
 
 const DEFAULT_RATIO = 1.6
@@ -127,7 +124,6 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
 
 const resolvedBuiltin = resolveFormats(BUILTIN_MANIFESTS)
 
-/** 受け持つもの（形式をまたいでまとめる）。 */
 const capsOf = (m: Manifest): Cap[] => {
   const has = (p: Part, k: 'parts' | 'ui') => Object.values(m.formats).some((d) => d[k]?.includes(p))
   return [
@@ -138,7 +134,6 @@ const capsOf = (m: Manifest): Cap[] => {
 
 const depsOf = (d?: Deps): Deps => ({ commands: d?.commands ?? {}, plugins: d?.plugins ?? {} })
 
-/** 使っているプラグインの状態。設定の項目は WASM が返すので、ここでは空にする。 */
 export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStatus => ({
   id: m.id,
   name: m.name,
@@ -160,10 +155,8 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
   problems: r.problems.get(m.id) ?? [],
 })
 
-/** 組み込みのプラグインだけのときの形式。 */
 export const BUILTIN_FORMATS: ReadonlyMap<string, FormatInfo> = resolvedBuiltin.formats
 
-/** コマンドを探さない環境での、組み込みのプラグインの一覧。 */
 export const builtinReport = (): PluginReport => ({
   plugins: BUILTIN_MANIFESTS.map((m) => statusOf(m, resolvedBuiltin, true)),
 })

@@ -1,5 +1,3 @@
-//! プラグインが plugin.json の required / optional に書いた、手元のコマンド（FFmpeg など）。同梱はせず、PATH にあれば使う。
-
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::io::Read;
@@ -11,8 +9,6 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-/// コマンドの版の取り方。args で動かし、出力（標準出力と標準エラー）から pattern で版を拾う。
-/// pattern にグループがあれば最初のグループ、なければ合ったところ全体を版にする。
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Probe {
     #[serde(default)]
@@ -20,7 +16,6 @@ pub struct Probe {
     pub pattern: String,
 }
 
-/// 求めるコマンド 1 つ。min を書くときは、version に版の取り方も書く。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct CommandDep {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -29,16 +24,12 @@ pub struct CommandDep {
     pub version: Option<Probe>,
 }
 
-/// 求めるコマンドが使えないわけ。
 pub enum Unmet {
     Missing,
-    /// 見つけた版が古い。
     Old(String),
-    /// 版を確かめられない。
     Unknown(String),
 }
 
-/// name を探し、dep の版の下限を満たしていれば、その場所を返す。
 pub fn check(name: &str, dep: &CommandDep) -> Result<PathBuf, Unmet> {
     let path = find(name).ok_or(Unmet::Missing)?;
     let Some(min) = &dep.min else {
@@ -55,7 +46,6 @@ pub fn check(name: &str, dep: &CommandDep) -> Result<PathBuf, Unmet> {
     }
 }
 
-/// path の版を probe で調べる。一度調べたものは覚えておく。
 pub fn version_of(path: &Path, probe: &Probe) -> Result<String, String> {
     type Seen = HashMap<(PathBuf, Probe), Result<String, String>>;
     static SEEN: OnceLock<Mutex<Seen>> = OnceLock::new();
@@ -86,7 +76,6 @@ fn probe_version(path: &Path, probe: &Probe) -> Result<String, String> {
         .to_owned())
 }
 
-/// 版 a が b より古いか。「.」で区切った数字を前から比べる（数字の前後の文字は見ない）。
 pub fn older(a: &str, b: &str) -> bool {
     let parts = |s: &str| -> Vec<u64> {
         s.split('.')
@@ -113,7 +102,6 @@ pub fn older(a: &str, b: &str) -> bool {
     false
 }
 
-/// 1 回の呼び出しで待つ長さ。プラグインが指定しなかったときに使う。
 pub const TIMEOUT: Duration = Duration::from_secs(30);
 
 /// コマンドの名前に使えるのは、英数字と「. _ + -」だけ（パスは書けない）。
@@ -128,7 +116,6 @@ pub fn valid(name: &str) -> bool {
             .is_some_and(|b| b.is_ascii_alphanumeric())
 }
 
-/// PATH から name を探す。Windows では .exe と .com を足して探す。
 pub fn find(name: &str) -> Option<PathBuf> {
     if !valid(name) {
         return None;
@@ -148,9 +135,7 @@ pub fn find(name: &str) -> Option<PathBuf> {
         .find(|p| p.is_file())
 }
 
-/// コマンドが終わったときの結果。
 pub struct Output {
-    /// 終わったときの番号。止めたときなどはない。
     pub code: Option<i32>,
     pub stdout: Vec<u8>,
     pub stderr: String,
@@ -166,7 +151,6 @@ fn drain(r: Option<impl Read + Send + 'static>) -> JoinHandle<Vec<u8>> {
     })
 }
 
-/// path を args で動かす。標準入力は空にし、timeout で終わらなければ止める。
 pub fn run(path: &Path, args: &[OsString], timeout: Duration) -> Result<Output, String> {
     let name = path
         .file_stem()

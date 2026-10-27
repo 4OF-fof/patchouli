@@ -4,16 +4,13 @@ import { Kbd } from '../../base/Kbd/Kbd'
 import { Thumb, type ThumbProps } from '../../media/Thumb/Thumb'
 import styles from './ResultRow.module.css'
 
-/** command 操作 / project プロジェクト / note ノート / asset 素材 / create 「〜という名前でノートを作る」 */
 export type ResultKind = 'command' | 'project' | 'note' | 'asset' | 'create'
 
 export interface ResultRowProps {
   kind: ResultKind
-  /** 一致したところは <mark> で囲む。 */
   title: JSX.Element
   sub?: JSX.Element
   kbd?: string
-  /** 素材のときの絵。 */
   thumb?: ThumbProps
   selected?: boolean
   onClick?: () => void
@@ -26,7 +23,6 @@ const ICON: Record<Exclude<ResultKind, 'asset'>, IconName> = {
   create: 'plus',
 }
 
-/** 検索バーの結果の 1 行。 */
 export function ResultRow(props: ResultRowProps) {
   let el!: HTMLDivElement
   createEffect(() => {
@@ -56,7 +52,6 @@ export function ResultRow(props: ResultRowProps) {
   )
 }
 
-/** 結果のまとまりの見出し（「操作」「プロジェクト」「項目」）。 */
 export function ResultHeading(props: { children: JSX.Element }) {
   return <div class={styles.sec}>{props.children}</div>
 }

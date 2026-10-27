@@ -26,7 +26,6 @@ export const Note: Story = {
 }
 export const Selected: Story = { args: { selected: true } }
 
-/** サムネイルがまだなく、裏で作っているあいだ。 */
 export const Making: Story = {
   name: '作成中',
   args: { id: 'a' },
