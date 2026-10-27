@@ -92,7 +92,7 @@ export function AssetScreen(props: AssetScreenProps) {
     async (id) => (await props.host?.view(id).catch(() => null)) ?? null,
   )
   // 波形はサムネイルと一緒にできるので、サムネイルが変わったら読み直す
-  const [peaks] = createResource(
+  const [wave] = createResource(
     () => {
       const a = it()
       return props.host?.waveform && a ? { id: a.id, thumb: a.thumb } : undefined
@@ -159,7 +159,7 @@ export function AssetScreen(props: AssetScreenProps) {
                   {(m) => (
                     <AudioPlayer
                       src={m().src}
-                      peaks={peaks.state === 'ready' ? peaks() : null}
+                      wave={wave.state === 'ready' ? wave() : null}
                       name={a().name}
                       class={styles.player}
                     />

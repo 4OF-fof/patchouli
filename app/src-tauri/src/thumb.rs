@@ -215,10 +215,14 @@ pub fn encode(mut img: DynamicImage, edge: u32) -> Result<Vec<u8>, String> {
     Ok(png)
 }
 
-/// 波形 peaks（各点の音の大きさを 0〜255 にしたもの）を、縦横比 ratio（幅 / 高さ）の枠に描いた PNG。
-/// 大きさは、いちばん大きいところでそろえる。
-pub fn draw_wave(peaks: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
-    if peaks.is_empty() {
+/// 波形の 1 区間の幅（px）。src/components/media/AudioPlayer と合わせる。
+const WAVE_STEP: u32 = 2;
+
+/// 波形 wave（等間隔に拾った音の値を、符号付き 8 bit にしたもの）を、縦横比 ratio（幅 / 高さ）の枠に描いた PNG。
+/// 幅を WAVE_STEP ずつの区間に分け、区間ごとの最大を上、最小を下として、隣の区間と線でつないで塗る。
+/// 大きさは、いちばん大きく振れたところでそろえる。
+pub fn draw_wave(wave: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
+    if wave.is_empty() {
         return Err("波形のデータが空です".into());
     }
     let ratio = ratio.clamp(0.25, 4.0);
@@ -228,21 +232,44 @@ pub fn draw_wave(peaks: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
         ((f64::from(EDGE) * ratio).round() as u32, EDGE)
     };
     // 背景は透かし、暗い地にも明るい地にも見える中間の灰色（tokens.css の --muted）で描く
-    let color = image::Rgba([0x8e, 0x92, 0x9a, 0xff]);
+    let [r, g, b] = [0x8e, 0x92, 0x9a];
     let mut img = image::RgbaImage::new(w, h);
-    let (n, mid) = (peaks.len(), h as f32 / 2.0);
-    // 小さい音のものも見分けられるよう、いちばん大きいところを高さいっぱいにする
-    let top = f32::from(peaks.iter().copied().max().unwrap_or(0).max(1));
-    for x in 0..w as usize {
-        let from = x * n / w as usize;
-        let to = ((x + 1) * n / w as usize).clamp(from + 1, n);
-        let a = f32::from(peaks[from..to].iter().copied().max().unwrap_or(0)) / top;
+    let vals: Vec<f32> = wave.iter().map(|&b| f32::from(b as i8)).collect();
+    let (n, mid) = (vals.len(), h as f32 / 2.0);
+    // 小さい音のものも見分けられるよう、いちばん大きく振れたところを高さいっぱいにする
+    let scale = vals.iter().fold(1.0f32, |m, v| m.max(v.abs())) / mid;
+    let parts = (w / WAVE_STEP).max(1) as usize;
+    let (his, los): (Vec<f32>, Vec<f32>) = (0..parts)
+        .map(|k| {
+            let from = (k * n / parts).min(n - 1);
+            let to = ((k + 1) * n / parts).clamp(from + 1, n);
+            let (lo, hi) = vals[from..to]
+                .iter()
+                .fold((f32::MAX, f32::MIN), |(lo, hi), &v| (lo.min(v), hi.max(v)));
+            (mid - hi / scale, mid - lo / scale)
+        })
+        .unzip();
+    // 区間の真ん中どうしを線でつないだときの、x での高さ
+    let width = w as f32 / parts as f32;
+    let at = |ys: &[f32], x: f32| {
+        let p = (x / width - 0.5).clamp(0.0, (parts - 1) as f32);
+        let i = (p as usize).min(parts.saturating_sub(2));
+        let t = p - i as f32;
+        ys.get(i + 1).map_or(ys[i], |&next| ys[i] * (1.0 - t) + next * t)
+    };
+    for x in 0..w {
+        let cx = x as f32 + 0.5;
+        let (mut top, mut bottom) = (at(&his, cx), at(&los, cx));
         // 無音でも線は残す
-        let half = (a * mid * 0.9).max(0.5);
-        let top = (mid - half).floor().max(0.0) as u32;
-        let bottom = ((mid + half).ceil() as u32).min(h);
-        for y in top..bottom {
-            img.put_pixel(x as u32, y, color);
+        if bottom - top < 1.0 {
+            let c = (top + bottom) / 2.0;
+            (top, bottom) = (c - 0.5, c + 0.5);
+        }
+        // 上下の端は、覆う割合で薄くする
+        for y in top.floor().max(0.0) as u32..(bottom.ceil() as u32).min(h) {
+            let cover = (y as f32 + 1.0).min(bottom) - (y as f32).max(top);
+            let a = (cover.clamp(0.0, 1.0) * 255.0).round() as u8;
+            img.put_pixel(x, y, image::Rgba([r, g, b, a]));
         }
     }
     encode(DynamicImage::ImageRgba8(img), EDGE)

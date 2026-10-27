@@ -694,7 +694,7 @@ async fn missing_waveforms(
     })
 }
 
-/// 残してある波形（各点の音の大きさを 0〜255 にしたもの）。まだなければ空を返す。
+/// 残してある波形（等間隔に拾った音の値を、符号付き 8 bit にしたもの）。まだなければ空を返す。
 #[tauri::command]
 async fn waveform(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Response, String> {
     let path = with_session(&cur, |s| {
@@ -705,7 +705,7 @@ async fn waveform(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Res
     Ok(tauri::ipc::Response::new(bytes))
 }
 
-/// 組み込み UI が作った波形（本文が、各点の音の大きさを 0〜255 にしたもの）を置く。見出しの id は素材。
+/// 組み込み UI が作った波形（本文が、等間隔に拾った音の値を符号付き 8 bit にしたもの）を置く。見出しの id は素材。
 /// サムネイルがまだなければ、波形を描いてサムネイルにし、画面へ知らせる。
 #[tauri::command]
 async fn put_waveform(
@@ -713,11 +713,11 @@ async fn put_waveform(
     cur: State<'_, Current>,
     request: tauri::ipc::Request<'_>,
 ) -> Result<(), String> {
-    let tauri::ipc::InvokeBody::Raw(peaks) = request.body() else {
+    let tauri::ipc::InvokeBody::Raw(wave) = request.body() else {
         return Err("リクエスト本文が波形のデータではありません".into());
     };
-    if peaks.is_empty() || peaks.len() > 1 << 16 {
-        return Err(format!("波形のデータの長さ（{}）が不正です", peaks.len()));
+    if wave.is_empty() || wave.len() > 1 << 16 {
+        return Err(format!("波形のデータの長さ（{}）が不正です", wave.len()));
     }
     let id = request
         .headers()
@@ -739,12 +739,12 @@ async fn put_waveform(
         ))
     })?;
     let err = || format!("{} の読み込みに失敗しました", src.display());
-    thumb::keep(&thumb::wave_path(&thumbs, &src).ok_or_else(err)?, peaks);
+    thumb::keep(&thumb::wave_path(&thumbs, &src).ok_or_else(err)?, wave);
     let reads = reads_now(&plugins, cache.thumb_reads().get(&src), &ext);
     let out = thumb::path_for(&thumbs, &src, &reads).ok_or_else(err)?;
     // ジャケットなど、プラグインが作ったサムネイルがあれば、そちらを使う
     if !out.exists() {
-        let png = thumb::draw_wave(peaks, plugins.ratio_of(&ext))?;
+        let png = thumb::draw_wave(wave, plugins.ratio_of(&ext))?;
         let size = thumb::place(&png, None, &out).map_err(|e| format!("{}: {e}", src.display()))?;
         tell_thumb(&app, &cache, &id, &src, &out, size, &reads);
     }

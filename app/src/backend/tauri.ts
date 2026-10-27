@@ -165,12 +165,12 @@ export function tauriBackend(): Backend {
   const makeWave = async (it: TauriItem, ui: UiRef) => {
     const limit = (await invoke<Record<string, SettingValue>>('plugin_settings', { plugin: ui.plugin }))[WAVE_LIMIT]
     const api = uiApi(uiItemOf(it), 'waveform', ui.plugin)
-    const peaks = await uiWaveform(
+    const wave = await uiWaveform(
       pluginUrl(ui.plugin, ui.module),
       api,
       typeof limit === 'number' ? limit * 1000 : 60_000,
     )
-    if (peaks) await invoke('put_waveform', peaks, { headers: { id: it.id } })
+    if (wave) await invoke('put_waveform', wave, { headers: { id: it.id } })
   }
   const makeWaves = async (items: TauriItem[]) => {
     const want = items.filter((it) => !it.note && !waveIds.has(it.id) && formats.get(it.ext)?.uiWaveform)
@@ -307,8 +307,8 @@ export function tauriBackend(): Backend {
       return { kind: 'image', url: decoded }
     },
     async waveform(id) {
-      const peaks = new Uint8Array(await invoke<ArrayBuffer>('waveform', { id }))
-      return peaks.length > 0 ? peaks : null
+      const wave = new Uint8Array(await invoke<ArrayBuffer>('waveform', { id }))
+      return wave.length > 0 ? wave : null
     },
     uiApi,
     uiUrl: (ui) => pluginUrl(ui.plugin, ui.module),

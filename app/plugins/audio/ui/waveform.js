@@ -201,51 +201,37 @@ async function wav(read) {
 
 const LAYOUTS = { mp3, flac, wav }
 
-/** 区間ごとの最大を、細かい区間で溜めていく。溜まりすぎたら隣どうしをまとめて半分にする。 */
-class Envelope {
+/** 音を頭から等間隔に拾う（チャンネルは平均する）。拾いすぎたら 1 つおきに捨て、間隔を倍にする。 */
+class Sampler {
   constructor(points) {
-    this.limit = points * 4
+    this.limit = points * 2
     this.vals = []
-    this.size = 64
-    this.cur = 0
-    this.n = 0
+    this.every = 1
+    this.next = 0
   }
 
   push(channels) {
     const len = channels[0]?.length ?? 0
-    let { cur, n, size } = this
-    for (let i = 0; i < len; i++) {
-      for (const c of channels) {
-        const v = c[i] < 0 ? -c[i] : c[i]
-        if (v > cur) cur = v
-      }
-      if (++n >= size) {
-        this.vals.push(cur)
-        cur = 0
-        n = 0
-        if (this.vals.length >= this.limit) {
-          const v = this.vals
-          this.vals = []
-          for (let k = 0; k < v.length; k += 2) this.vals.push(Math.max(v[k], v[k + 1] ?? 0))
-          this.size = size *= 2
-        }
-      }
+    let i = this.next
+    while (i < len) {
+      let v = 0
+      for (const c of channels) v += c[i]
+      this.vals.push(v / channels.length)
+      if (this.vals.length >= this.limit) {
+        this.vals = this.vals.filter((_, k) => k % 2 === 0)
+        // 捨てたのは最後の 1 つなので、次に拾う所は前の間隔のまま
+        i += this.every
+        this.every *= 2
+      } else i += this.every
     }
-    Object.assign(this, { cur, n })
+    this.next = i - len
   }
 
   finish(points) {
-    const vals = this.n ? [...this.vals, this.cur] : this.vals
     const out = new Float32Array(points)
-    const len = vals.length
+    const len = this.vals.length
     if (!len) return out
-    for (let p = 0; p < points; p++) {
-      const from = Math.floor((p * len) / points)
-      const to = Math.max(from + 1, Math.floor(((p + 1) * len) / points))
-      let m = 0
-      for (let k = from; k < to && k < len; k++) if (vals[k] > m) m = vals[k]
-      out[p] = m
-    }
+    for (let p = 0; p < points; p++) out[p] = this.vals[Math.floor((p * len) / points)]
     return out
   }
 }
@@ -257,7 +243,7 @@ export async function waveform(api) {
   const read = reader(api)
   const f = await layout(read)
   const rate = Math.min(192000, Math.max(8000, f.rate || 44100))
-  const env = new Envelope(api.points)
+  const picked = new Sampler(api.points)
   const step = STEP[ext] - (f.align ? STEP[ext] % f.align : 0)
   let pos = f.start
   let carry = new Uint8Array(0)
@@ -275,7 +261,7 @@ export async function waveform(api) {
     if (body.length) {
       try {
         const buf = await new OfflineAudioContext(1, 1, rate).decodeAudioData(concat(f.head(body.length), body).buffer)
-        env.push(Array.from({ length: buf.numberOfChannels }, (_, i) => buf.getChannelData(i)))
+        picked.push(Array.from({ length: buf.numberOfChannels }, (_, i) => buf.getChannelData(i)))
         decoded++
       } catch (e) {
         // 途中の一切れが読めなくても、ほかは描く
@@ -285,5 +271,5 @@ export async function waveform(api) {
     if (last) break
   }
   if (!decoded) throw new Error('音声のデコードに失敗しました')
-  return env.finish(api.points)
+  return picked.finish(api.points)
 }
