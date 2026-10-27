@@ -47,8 +47,8 @@ pub fn decoded_dir(thumbs: &Path, id: &str, format: &str) -> PathBuf {
 
 const DECODED: &str = "decoded";
 
-pub fn wave_path(thumbs: &Path, src: &Path) -> Option<PathBuf> {
-    path_for(&thumbs.join(WAVES), src, &Reads::new()).map(|p| p.with_extension("wave"))
+pub fn wave_path(thumbs: &Path, id: &str, src: &Path) -> Option<PathBuf> {
+    path_for(&thumbs.join(WAVES), id, src, &Reads::new()).map(|p| p.with_extension("wave"))
 }
 
 const WAVES: &str = "waves";
@@ -81,7 +81,8 @@ pub fn keep(out: &Path, bytes: &[u8]) {
     }
 }
 
-pub fn path_for(dir: &Path, src: &Path, reads: &Reads) -> Option<PathBuf> {
+/// 置き場所の名前は項目の ID から決め、名前を変えたり移したりしても同じものを使う。中身の版は元の更新日時と大きさで決める。
+pub fn path_for(dir: &Path, id: &str, src: &Path, reads: &Reads) -> Option<PathBuf> {
     let m = fs::metadata(src).ok()?;
     let t = m
         .modified()
@@ -89,7 +90,7 @@ pub fn path_for(dir: &Path, src: &Path, reads: &Reads) -> Option<PathBuf> {
         .duration_since(UNIX_EPOCH)
         .ok()?
         .as_nanos();
-    let place = fnv(&[src.as_os_str().as_encoded_bytes()]);
+    let place = fnv(&[id.as_bytes()]);
     // 設定を読まないものは、前の版と同じ名前になる
     let settings = if reads.is_empty() {
         Vec::new()
@@ -282,7 +283,8 @@ fn make(runner: &mut Runner, job: &Job) -> Result<Option<Placed>, String> {
     let Some((png, original, reads)) = runner.thumbnail(&job.ext, &job.src, EDGE)? else {
         return Ok(None);
     };
-    let out = path_for(&job.dir, &job.src, &reads).ok_or_else(|| err(&"読み込みに失敗しました"))?;
+    let out = path_for(&job.dir, &job.id, &job.src, &reads)
+        .ok_or_else(|| err(&"読み込みに失敗しました"))?;
     let size = place(&png, original, &out).map_err(|e| err(&e))?;
     Ok(Some(Placed { out, size, reads }))
 }

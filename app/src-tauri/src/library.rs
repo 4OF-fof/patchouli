@@ -11,7 +11,6 @@ use serde_json::{Map, Value, json};
 use crate::cache::{Cache, Row, Sig};
 use crate::note::{self, Block};
 use crate::plugin::{FormatInfo, Registry};
-use crate::thumb;
 
 pub const ID_KEY: &str = "patchouli-id";
 const STATE_DIR: &str = ".patchouli";
@@ -677,12 +676,9 @@ impl Library {
         Ok(item.filter(|_| changed))
     }
 
-    pub fn move_item(
-        &mut self,
-        id: &str,
-        folder: Option<&str>,
-        thumbs: &Path,
-    ) -> Result<StoredItem, String> {
+    pub fn move_item(&mut self, id: &str, folder: Option<&str>) -> Result<StoredItem, String> {
+        // 生成物は ID で引くので、ID をメタ情報に書いてから動かす
+        self.ensure_saved(id)?;
         let from = self.entry(id)?.path.clone();
         let row = self.row_of(&from)?;
         if row.item.folder.as_deref() == folder {
@@ -705,17 +701,12 @@ impl Library {
             name.to_string_lossy()
         );
         let to = dir.join(name);
-        self.relocate(id, row, &to, thumbs, taken, |it| {
+        self.relocate(id, row, &to, taken, |it| {
             it.folder = folder.map(str::to_owned);
         })
     }
 
-    pub fn rename_item(
-        &mut self,
-        id: &str,
-        name: &str,
-        thumbs: &Path,
-    ) -> Result<StoredItem, String> {
+    pub fn rename_item(&mut self, id: &str, name: &str) -> Result<StoredItem, String> {
         let name = name.trim();
         if name.is_empty() {
             return Err("名前を入れてください".into());
@@ -729,6 +720,8 @@ impl Library {
                 r#"名前に使えない文字（\ / : * ? " < > | と末尾の .）が入っています"#.into(),
             );
         }
+        // 生成物は ID で引くので、ID をメタ情報に書いてから動かす
+        self.ensure_saved(id)?;
         let from = self.entry(id)?.path.clone();
         let row = self.row_of(&from)?;
         if row.item.name == name {
@@ -740,7 +733,7 @@ impl Library {
         };
         let to = from.with_file_name(&file);
         let taken = format!("同じ名前のファイル（{file}）があるため、名前を変えられません");
-        self.relocate(id, row, &to, thumbs, taken, |it| it.name = name.to_owned())
+        self.relocate(id, row, &to, taken, |it| it.name = name.to_owned())
     }
 
     fn row_of(&self, path: &Path) -> Result<Row, String> {
@@ -749,13 +742,12 @@ impl Library {
             .ok_or_else(|| format!("{} が見つかりません", path.display()))
     }
 
-    /// ファイルとメタ情報を to に移し、キャッシュとサムネイルを付け替える。
+    /// ファイルとメタ情報を to に移し、キャッシュを付け替える。サムネイルなどは ID で引くので、そのまま使える。
     fn relocate(
         &mut self,
         id: &str,
         mut row: Row,
         to: &Path,
-        thumbs: &Path,
         taken: String,
         change: impl FnOnce(&mut StoredItem),
     ) -> Result<StoredItem, String> {
@@ -779,18 +771,12 @@ impl Library {
             e.path = to.to_owned();
         }
         let reads = self.cache.thumb_reads().remove(&from).unwrap_or_default();
-        let thumb = row.item.thumb.take().and_then(|old| {
-            let new = thumb::path_for(thumbs, to, &reads)?;
-            fs::rename(&old, &new).ok()?;
-            Some(new)
-        });
         row.item.file = to.to_owned();
         change(&mut row.item);
         self.cache.update(std::slice::from_ref(&row), &[from]);
-        if let Some(t) = &thumb {
+        if let Some(t) = &row.item.thumb {
             let size = row.item.width.zip(row.item.height).unwrap_or_default();
             self.cache.set_thumb(to, t, size, &reads);
-            row.item.thumb = thumb;
         }
         Ok(row.item)
     }

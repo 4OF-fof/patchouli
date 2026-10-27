@@ -237,7 +237,7 @@ export function AssetScreen(props: AssetScreenProps) {
   )
   const [fileOpen, setFileOpen] = createSignal(false)
   const [details] = createResource(
-    () => (info() && fileOpen() && props.host?.details ? it()?.id : undefined),
+    () => (props.host?.details ? it()?.id : undefined),
     async (id) => (await props.host?.details?.(id).catch(() => null)) ?? null,
   )
   const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))

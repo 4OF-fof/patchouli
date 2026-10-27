@@ -12,10 +12,10 @@
   white-space: nowrap;
   cursor: pointer;
 }
-/* 和文の字面は行の真ん中より少し下に寄るので、アイコンも合わせて下げる */
+/* 和文は字面の中心がそろっていても下が重く見えるので、アイコンを少し下げる */
 .root > svg {
   flex: none;
-  translate: 0 0.05em;
+  translate: 0 0.1em;
 }
 .root[aria-pressed='false'] {
   background: var(--side);

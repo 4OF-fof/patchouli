@@ -126,6 +126,7 @@ fn with_session<T>(
 }
 
 struct Target {
+    id: String,
     path: PathBuf,
     ext: String,
     runner: Arc<Mutex<Runner>>,
@@ -138,6 +139,7 @@ impl Target {
         with_session(cur, |s| {
             let (path, ext) = s.lib.asset(id)?;
             Ok(Target {
+                id: id.to_owned(),
                 path: path.to_owned(),
                 ext,
                 runner: Arc::clone(&s.runner),
@@ -188,7 +190,7 @@ fn plan_thumbs<'a>(
         }
         // 値が変わっていれば、場所が変わって作り直しになる
         let now = reads_now(plugins, reads.get(&it.file), &it.ext);
-        let Some(out) = thumb::path_for(thumbs, &it.file, &now) else {
+        let Some(out) = thumb::path_for(thumbs, &it.id, &it.file, &now) else {
             all = false;
             continue;
         };
@@ -247,11 +249,11 @@ fn wave_thumb(
     ext: &str,
 ) -> Result<(), String> {
     let err = || format!("{} の読み込みに失敗しました", src.display());
-    let Some(wave) = thumb::wave_path(thumbs, src).and_then(|p| std::fs::read(p).ok()) else {
+    let Some(wave) = thumb::wave_path(thumbs, id, src).and_then(|p| std::fs::read(p).ok()) else {
         return Ok(());
     };
     let reads = reads_now(plugins, cache.thumb_reads().get(src), ext);
-    let out = thumb::path_for(thumbs, src, &reads).ok_or_else(err)?;
+    let out = thumb::path_for(thumbs, id, src, &reads).ok_or_else(err)?;
     if out.exists() {
         return Ok(());
     }
@@ -736,7 +738,7 @@ async fn item_decoded(cur: State<'_, Current>, id: String) -> Result<tauri::ipc:
         .keeps_decoded(&t.ext)
         .and_then(|(plugin, format)| {
             let dir = thumb::decoded_dir(&t.thumbs, plugin, format);
-            thumb::path_for(&dir, &t.path, &Reads::new())
+            thumb::path_for(&dir, &t.id, &t.path, &Reads::new())
         });
     if let Some(png) = keep.as_ref().and_then(|p| std::fs::read(p).ok()) {
         return Ok(tauri::ipc::Response::new(png));
@@ -859,7 +861,7 @@ async fn put_thumbnail(
             let v = s.plugins.thumb_setting(&ext, &k);
             reads.insert(k, v);
         }
-        let out = thumb::path_for(&s.thumbs, path, &reads)
+        let out = thumb::path_for(&s.thumbs, &id, path, &reads)
             .ok_or_else(|| format!("{} の読み込みに失敗しました", path.display()))?;
         Ok((path.to_owned(), out, s.lib.cache(), reads))
     })?;
@@ -879,7 +881,7 @@ async fn missing_waveforms(
             .filter(|id| {
                 s.lib.asset(id).is_ok_and(|(path, ext)| {
                     s.plugins.ui_of(&ext, Part::Waveform).is_some()
-                        && thumb::wave_path(&s.thumbs, path).is_some_and(|p| !p.exists())
+                        && thumb::wave_path(&s.thumbs, id, path).is_some_and(|p| !p.exists())
                 })
             })
             .collect())
@@ -890,7 +892,7 @@ async fn missing_waveforms(
 async fn waveform(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Response, String> {
     let path = with_session(&cur, |s| {
         let (path, _) = s.lib.asset(&id)?;
-        Ok(thumb::wave_path(&s.thumbs, path))
+        Ok(thumb::wave_path(&s.thumbs, &id, path))
     })?;
     let bytes = path.and_then(|p| std::fs::read(p).ok()).unwrap_or_default();
     Ok(tauri::ipc::Response::new(bytes))
@@ -928,7 +930,7 @@ async fn put_waveform(
         ))
     })?;
     let err = || format!("{} の読み込みに失敗しました", src.display());
-    thumb::keep(&thumb::wave_path(&thumbs, &src).ok_or_else(err)?, wave);
+    thumb::keep(&thumb::wave_path(&thumbs, &id, &src).ok_or_else(err)?, wave);
     if thumb::is_making(&src) {
         return Ok(());
     }
@@ -1091,7 +1093,7 @@ async fn move_item(
     id: String,
     folder: Option<String>,
 ) -> Result<StoredItem, String> {
-    with_session(&cur, |s| s.lib.move_item(&id, folder.as_deref(), &s.thumbs))
+    with(&cur, |l| l.move_item(&id, folder.as_deref()))
 }
 
 #[tauri::command]
@@ -1100,7 +1102,7 @@ async fn rename_item(
     id: String,
     name: String,
 ) -> Result<StoredItem, String> {
-    with_session(&cur, |s| s.lib.rename_item(&id, &name, &s.thumbs))
+    with(&cur, |l| l.rename_item(&id, &name))
 }
 
 #[tauri::command]
