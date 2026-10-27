@@ -23,6 +23,7 @@ use serde_json::{Map, Value, json};
 use crate::cache::{Cache, Row, Sig};
 use crate::note::{self, Block};
 use crate::plugin::{FormatInfo, Registry};
+use crate::thumb;
 
 pub const ID_KEY: &str = "patchouli-id";
 const STATE_DIR: &str = ".patchouli";
@@ -700,6 +701,71 @@ impl Library {
         }
         let item = self.refresh(id);
         Ok(item.filter(|_| changed))
+    }
+
+    /// 項目 id のファイルを、プロジェクト folder（None はどこにも入れない）の直下へ移す。素材は .meta も一緒に移す。
+    /// サムネイルは、置き場所 thumbs の中で新しい場所の名前に付け替える。移し先に同じ名前があれば移さない。
+    pub fn move_item(
+        &mut self,
+        id: &str,
+        folder: Option<&str>,
+        thumbs: &Path,
+    ) -> Result<StoredItem, String> {
+        let e = self.entry(id)?;
+        let (from, note) = (e.path.clone(), e.note);
+        let mut row = self
+            .cache
+            .row(&from)
+            .ok_or_else(|| format!("{} が見つかりません", from.display()))?;
+        if row.item.folder.as_deref() == folder {
+            return Ok(row.item);
+        }
+        let dir = match folder {
+            Some(f) => {
+                let d = self.project_dir(f)?;
+                if !d.is_dir() {
+                    return Err(format!("プロジェクト「{f}」が見つかりません"));
+                }
+                d
+            }
+            None => self.root.clone(),
+        };
+        let name = from.file_name().ok_or("ファイル名がありません")?;
+        let to = dir.join(name);
+        let (meta_from, meta_to) = (meta_path(&from), meta_path(&to));
+        let has_meta = !note && meta_from.exists();
+        if to.exists() || (has_meta && meta_to.exists()) {
+            let place = folder.unwrap_or("プロジェクトなし");
+            return Err(format!(
+                "「{place}」に同じ名前のファイル（{}）があるため、移動できません",
+                name.to_string_lossy()
+            ));
+        }
+        fs::rename(&from, &to).map_err(|e| format!("{}: {e}", from.display()))?;
+        if has_meta && let Err(e) = fs::rename(&meta_from, &meta_to) {
+            let _ = fs::rename(&to, &from);
+            return Err(format!("{}: {e}", meta_from.display()));
+        }
+        self.mark(&from);
+        self.mark(&to);
+        if let Some(e) = self.entries.get_mut(id) {
+            e.path = to.clone();
+        }
+        let reads = self.cache.thumb_reads().remove(&from).unwrap_or_default();
+        let thumb = row.item.thumb.take().and_then(|old| {
+            let new = thumb::path_for(thumbs, &to, &reads)?;
+            fs::rename(&old, &new).ok()?;
+            Some(new)
+        });
+        row.item.file = to.clone();
+        row.item.folder = folder.map(str::to_owned);
+        self.cache.update(std::slice::from_ref(&row), &[from]);
+        if let Some(t) = &thumb {
+            let size = row.item.width.zip(row.item.height).unwrap_or_default();
+            self.cache.set_thumb(&to, t, size, &reads);
+            row.item.thumb = thumb;
+        }
+        Ok(row.item)
     }
 
     /// ID がまだファイルにないときだけ書く。

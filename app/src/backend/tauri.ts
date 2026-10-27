@@ -162,6 +162,10 @@ export function tauriBackend(): Backend {
       const it = await invoke<TauriItem | null>('save_item', { id, patch })
       return it ? toItem(it, new Date(), formats, urlsOf(it)) : undefined
     },
+    async moveItem(id, folder) {
+      const it = await invoke<TauriItem>('move_item', { id, folder })
+      return toItem(it, new Date(), formats, urlsOf(it))
+    },
     saveState: (state) => invoke('save_state', { state }),
     async createNote(name, folder) {
       const it = await invoke<TauriItem>('create_note', { name, folder })

@@ -141,6 +141,8 @@ export interface Backend {
   open(): Promise<Opened>
   /** 文章がファイルの外での変更と食い違って書かなかったときは、読み直した項目を返す。 */
   saveItem(id: string, patch: ItemPatch): Promise<Item | undefined>
+  /** 項目のファイルをプロジェクト folder（null はどこにも入れない）へ移し、移したあとの項目を返す。ファイルのない環境では返さない。 */
+  moveItem(id: string, folder: string | null): Promise<Item | undefined>
   saveState(state: LibraryState): Promise<void>
   /** folder が null のときは、どこにも入れない。 */
   createNote(name: string, folder: string | null): Promise<Item>

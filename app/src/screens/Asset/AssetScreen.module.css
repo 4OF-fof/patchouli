@@ -40,33 +40,11 @@
   opacity: 0.72;
   white-space: nowrap;
 }
-.arw {
-  position: absolute;
-  top: 50%;
-  z-index: 4;
-  width: 44px;
-  height: 44px;
-  margin-top: -22px;
-  border: 0;
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.06);
-  color: #8e929a;
-  font-size: 20px;
-  cursor: pointer;
-}
-.l {
-  left: 18px;
-}
-.r {
-  right: 18px;
-}
 .bar,
-.arw,
 .pill {
   transition: opacity 0.2s ease;
 }
 [data-idle='true'] .bar,
-[data-idle='true'] .arw,
 [data-idle='true'] .pill {
   opacity: 0;
   pointer-events: none;

@@ -22,6 +22,9 @@ export function sampleBackend(): Backend {
     async saveItem() {
       return undefined
     },
+    async moveItem() {
+      return undefined
+    },
     async saveState() {},
     async createNote(name, folder) {
       return emptyNote(`new-${++n}`, name, folder)

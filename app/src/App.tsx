@@ -153,6 +153,25 @@ export function App(props: AppProps) {
       { tags: on ? { add: [tag] } : { remove: [tag] } },
     )
   }
+  // 先に画面を移しておき、移せなかったら元のプロジェクトに戻す
+  const moveItem = (id: string, folder: string | null) => {
+    const it = lib().byId.get(id)
+    if (!it || it.folder === folder) return
+    const put = (change: Partial<Item>) => {
+      const now = lib().byId.get(id)
+      if (now) setLib(withChanged(lib(), [{ ...now, ...change }], []))
+    }
+    put({ folder })
+    persist(async () => {
+      try {
+        const moved = await backend.moveItem(id, folder)
+        if (moved) setLib(withChanged(lib(), [moved], []))
+      } catch (e) {
+        put({ folder: it.folder })
+        throw e
+      }
+    })
+  }
 
   const createProject = async () => {
     const name = newProjectName(lib())
@@ -388,6 +407,7 @@ export function App(props: AppProps) {
                   onBack={goBack}
                   onOpenNote={(id) => openItem(id)}
                   onTogglePin={togglePin}
+                  onProject={moveItem}
                   onTag={tagItem}
                   onMemo={(id, memo) => editItem(id, { memo }, { memo })}
                   host={viewHost}

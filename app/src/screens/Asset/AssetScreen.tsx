@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createEffect, createResource, createSignal, onCleanup } from 'solid-js'
+import { For, Match, Show, Switch, createEffect, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
@@ -29,13 +29,15 @@ export interface AssetScreenProps {
   index?: number
   /** 情報のカードを開いている。 */
   infoOpen?: boolean
-  /** しばらく触っていない。上の帯と矢印を隠す。 */
+  /** しばらく触っていない。上の帯と情報のボタンを隠す。 */
   idle?: boolean
   backLabel?: string
   onBack?: () => void
   onOpenNote?: (id: string) => void
   /** ピン留めを切り替える。プロジェクトに入っていればその上に、入っていなければホームに出る。 */
   onTogglePin?: (id: string) => void
+  /** プロジェクト folder（null はどこにも入れない）へ移す。 */
+  onProject?: (id: string, folder: string | null) => void
   /** タグを付ける（on）か外す。 */
   onTag?: (id: string, tag: string, on: boolean) => void
   /** メモを書き換える。書いている間は、手が止まってから呼ぶ。 */
@@ -101,6 +103,16 @@ export function AssetScreen(props: AssetScreenProps) {
     if (v?.kind !== 'ui' || !a || !make) return undefined
     return { url: v.url, api: make({ id: a.id, name: a.name, ext: a.ext, url: a.src }, 'view', v.plugin) }
   }
+  const onKey = (e: KeyboardEvent) => {
+    if (e.ctrlKey || e.metaKey || e.altKey) return
+    if (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, [role="dialog"], [role="menu"]'))
+      return
+    if (e.key === 'ArrowLeft') step(-1)
+    else if (e.key === 'ArrowRight') step(1)
+    else if (e.key.toLowerCase() === 'i') setInfo(!info())
+  }
+  onMount(() => window.addEventListener('keydown', onKey))
+  onCleanup(() => window.removeEventListener('keydown', onKey))
   const addTag = (e: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
     const a = it()
     if (e.key !== 'Enter' || e.isComposing || !a) return
@@ -149,14 +161,6 @@ export function AssetScreen(props: AssetScreenProps) {
                 {props.list.length > 1 && ` · ${i() + 1} / ${props.list.length}`}
               </span>
             </TopBar>
-            <Show when={props.list.length > 1}>
-              <button type="button" class={`${styles.arw} ${styles.l}`} aria-label="前へ" onClick={() => step(-1)}>
-                ‹
-              </button>
-              <button type="button" class={`${styles.arw} ${styles.r}`} aria-label="次へ" onClick={() => step(1)}>
-                ›
-              </button>
-            </Show>
             <Show
               when={info()}
               fallback={
@@ -170,11 +174,12 @@ export function AssetScreen(props: AssetScreenProps) {
                   <FloatingCard title="ⓘ 情報" onClose={() => setInfo(false)}>
                     <label class={styles.fl}>
                       <span class={styles.k}>プロジェクト</span>
-                      <select>
+                      <select
+                        value={a().folder ?? ''}
+                        onChange={(e) => props.onProject?.(a().id, e.currentTarget.value || null)}
+                      >
                         <option value="">プロジェクトなし</option>
-                        <For each={lib().projects}>
-                          {(p) => <option selected={p.name === a().folder}>{p.name}</option>}
-                        </For>
+                        <For each={lib().projects}>{(p) => <option value={p.name}>{p.name}</option>}</For>
                       </select>
                     </label>
                     <div class={styles.fl}>

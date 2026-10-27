@@ -837,6 +837,16 @@ async fn save_item(
     with(&cur, |l| l.save_item(&id, &patch))
 }
 
+/// 項目をプロジェクト folder（None はどこにも入れない）へ移し、移したあとの項目を返す。
+#[tauri::command]
+async fn move_item(
+    cur: State<'_, Current>,
+    id: String,
+    folder: Option<String>,
+) -> Result<StoredItem, String> {
+    with_session(&cur, |s| s.lib.move_item(&id, folder.as_deref(), &s.thumbs))
+}
+
 #[tauri::command]
 async fn save_state(cur: State<'_, Current>, state: LibraryState) -> Result<(), String> {
     with(&cur, |l| l.save_state(&state))
@@ -877,6 +887,7 @@ pub fn run() {
             inspect_drop,
             import_files,
             save_item,
+            move_item,
             save_state,
             create_note,
             create_project,
