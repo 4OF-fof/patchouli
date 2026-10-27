@@ -5,6 +5,7 @@ import {
   Show,
   Switch,
   createEffect,
+  createMemo,
   createResource,
   createSignal,
   onCleanup,
@@ -162,13 +163,15 @@ export function AssetScreen(props: AssetScreenProps) {
     async (id) => (await props.host?.view(id).catch(() => null)) ?? null,
   )
   // 波形はサムネイルと一緒にできるので、サムネイルが変わったら読み直す
-  const [wave] = createResource(
+  const waveOf = createMemo(
     () => {
       const a = it()
       return props.host?.waveform && a ? { id: a.id, thumb: a.thumb } : undefined
     },
-    async ({ id }) => (await props.host?.waveform?.(id).catch(() => null)) ?? null,
+    undefined,
+    { equals: (x, y) => x?.id === y?.id && x?.thumb === y?.thumb },
   )
+  const [wave] = createResource(waveOf, async ({ id }) => (await props.host?.waveform?.(id).catch(() => null)) ?? null)
   /** いまの素材について決まったもの。決まるまでは、前の素材のものもサムネイルも出さない。 */
   const settled = () => !props.host || view.state === 'ready'
   const current = () => (view.state === 'ready' ? view() : undefined)
