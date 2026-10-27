@@ -26,6 +26,36 @@ export const Default: Story = { render: () => asset() }
 export const Info: Story = { name: '情報を開く', render: () => asset({ infoOpen: true }) }
 export const Idle: Story = { name: '何も触っていない', render: () => asset({ idle: true }) }
 
+const done = async () => {}
+
+/** 秋の企画の、対応するプラグインのない素材（ポスター案.psd）を開く。 */
+const unsupported = (o: Partial<AssetScreenProps> = {}) => {
+  const lib = sampleLibrary()
+  const list = lib.inProject('秋の企画').filter((i) => !i.note)
+  const at = list.findIndex((i) => i.ext === 'psd')
+  return (
+    <ScreenFrame>
+      <AssetScreen
+        lib={lib}
+        list={list.map((i) => i.id)}
+        index={at}
+        onOpenPlugins={() => {}}
+        onReveal={done}
+        onOpenDefault={done}
+        onEnablePlugin={done}
+        {...o}
+      />
+    </ScreenFrame>
+  )
+}
+
+export const Unsupported: Story = { name: '対応するプラグインがない', render: () => unsupported() }
+export const Disabled: Story = {
+  name: '対応するプラグインが無効',
+  render: () =>
+    unsupported({ blocker: async () => ({ id: 'photoshop', name: 'Photoshop', dev: false, state: 'disabled' }) }),
+}
+
 /**
  * 中身を出すときの見た目。中身は動作確認用のライブラリ（scripts/dev-library.ts が作る）のもので、なければ出ない。
  * 見本の項目に、そのファイルの URL を付けて開く。

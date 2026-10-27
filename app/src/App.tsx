@@ -24,7 +24,8 @@ import {
 import { FormatsProvider } from './plugins/formats'
 import { type HoverHost, HoverHostProvider } from './components/media/HoverPreview/HoverPreview'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
-import { AppBar, type Place } from './screens/AppBar'
+import { AppBar, type BarRequest, type Place } from './screens/AppBar'
+import type { Blocker } from './components/media/Unsupported/Unsupported'
 import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
 import { NoteScreen } from './screens/Note/NoteScreen'
@@ -262,6 +263,25 @@ export function App(props: AppProps) {
       setReloading(undefined)
     }
   }
+  /** 素材の画面で、最後に見ていた位置。画面を作り直したときに戻す。 */
+  const assetIndex = new WeakMap<View, number>()
+  const [barRequest, setBarRequest] = createSignal<BarRequest>()
+  /** 形式 ext を受け持つはずで、使えないプラグイン。無効にしたものを先に探す。 */
+  const blockerOf = async (ext: string): Promise<Blocker | undefined> => {
+    const of = (await backend.plugins()).plugins.filter((p) => p.formats.includes(ext))
+    return (
+      of.find((p) => p.state === 'disabled' && !p.dev) ??
+      of.find((p) => p.state === 'disabled') ??
+      of.find((p) => p.state === 'blocked')
+    )
+  }
+  const setEnabled = backend.pluginActions?.setEnabled
+  const enablePlugin =
+    setEnabled &&
+    (async (p: Blocker) => {
+      await setEnabled(p.id, p.dev, true)
+      await reloadPlugins()
+    })
   const viewHost = backend.itemView && { view: backend.itemView, ui: backend.uiApi, waveform: backend.waveform }
   const { uiApi, uiUrl } = backend
   const hoverHost: HoverHost = {
@@ -399,6 +419,7 @@ export function App(props: AppProps) {
               loadPlugins={() => backend.plugins()}
               pluginActions={backend.pluginActions}
               onPluginsChanged={reloadPlugins}
+              request={barRequest()}
             />
           }
           toast={notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}
@@ -474,13 +495,21 @@ export function App(props: AppProps) {
                       <AssetScreen
                         lib={lib()}
                         list={v.list}
-                        index={v.index}
+                        index={assetIndex.get(v) ?? v.index}
+                        onIndex={(i) => assetIndex.set(v, i)}
                         onOpenNote={(id) => openItem(id)}
                         onTogglePin={togglePin}
                         onProject={moveItem}
                         onTag={tagItem}
                         onMemo={(id, memo) => editItem(id, { memo }, { memo })}
                         host={viewHost}
+                        blocker={blockerOf}
+                        onEnablePlugin={enablePlugin}
+                        onOpenPlugins={(p) =>
+                          setBarRequest({ state: 'plugins', plugin: p && { id: p.id, dev: p.dev } })
+                        }
+                        onReveal={backend.revealItem}
+                        onOpenDefault={backend.openItemDefault}
                       />
                     )
                   }

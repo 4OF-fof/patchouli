@@ -4,8 +4,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, OnceLock};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader};
@@ -391,7 +391,9 @@ pub fn make_all(
             });
         }
     });
-    let left = jobs.len().saturating_sub(next.load(Ordering::Relaxed).min(jobs.len()));
+    let left = jobs
+        .len()
+        .saturating_sub(next.load(Ordering::Relaxed).min(jobs.len()));
     let undone = &jobs[jobs.len() - left..];
     for j in undone {
         end_making(&j.src);

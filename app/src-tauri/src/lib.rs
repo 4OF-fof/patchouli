@@ -4,6 +4,7 @@ pub mod library;
 pub mod note;
 pub mod plugin;
 mod settings;
+mod shell;
 pub mod thumb;
 mod tidy;
 
@@ -194,13 +195,13 @@ fn plan_thumbs<'a>(
     let mut current = Vec::new();
     let mut all = true;
     for it in items {
+        // 写しにあった場所は、消されていることもあるので確かめ直す
+        it.thumb = None;
         // 波形を作るものは、波形をサムネイルにすることがある
         let by = plugins.handles(&it.ext, Part::Thumbnail);
         if by.is_none() && plugins.handles(&it.ext, Part::Waveform).is_none() {
             continue;
         }
-        // 写しにあった場所は、消されていることもあるので確かめ直す
-        it.thumb = None;
         // 値が変わっていれば、場所が変わって作り直しになる
         let now = reads_now(plugins, reads.get(&it.file), &it.ext);
         let Some(out) = thumb::path_for(thumbs, &it.file, &now) else {
@@ -361,7 +362,7 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
     Ok(opened)
 }
 
-/// ライブラリを開き直さずに、プラグインだけを読み直す。扱える形式が変わったときだけ、素材を読み直す。
+/// ライブラリを開き直さずに、プラグインだけを読み直す。素材は扱える形式によらないので、写しから返す。
 /// wait なら裏のサムネイル作りが終わるのを待ち、でなければいまの 1 件で打ち切らせる。
 #[tauri::command]
 async fn reload_plugins(
@@ -379,20 +380,11 @@ async fn reload_plugins(
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     old.stop();
-    let (plugins, problems) =
-        Registry::open(&root, &plugin_dir(&app)?, dev_places(&app).as_ref());
+    let (plugins, problems) = Registry::open(&root, &plugin_dir(&app)?, dev_places(&app).as_ref());
     let plugins = Arc::new(plugins);
-    let same = old.exts() == plugins.exts();
     let (mut opened, thumbs, cache) = with_session(&cur, |s| {
-        let opened = if same {
-            s.lib.set_plugins(Arc::clone(&plugins));
-            s.lib.snapshot()
-        } else {
-            let (lib, scan) = Library::scan(&root, Arc::clone(&plugins), s.lib.cache());
-            s.lib = lib;
-            s.id = next_session();
-            s.lib.opened(scan)
-        };
+        s.lib.set_plugins(Arc::clone(&plugins));
+        let opened = s.lib.snapshot();
         s.plugins = Arc::clone(&plugins);
         s.runner = Arc::new(Mutex::new(Runner::new(Arc::clone(&plugins))));
         s.ui_reads.clear();
@@ -641,7 +633,11 @@ async fn pick_dev_path(app: tauri::AppHandle, repo: bool) -> Result<Option<PathB
     };
     let p = p.into_path().map_err(|e| e.to_string())?;
     if repo && !p.join(plugin::MANIFEST).is_file() {
-        return Err(format!("{}: {} が見つかりません", p.display(), plugin::MANIFEST));
+        return Err(format!(
+            "{}: {} が見つかりません",
+            p.display(),
+            plugin::MANIFEST
+        ));
     }
     Ok(Some(p))
 }
@@ -753,6 +749,20 @@ async fn item_decoded(cur: State<'_, Current>, id: String) -> Result<tauri::ipc:
         thumb::keep(&out, &png);
     }
     Ok(tauri::ipc::Response::new(png))
+}
+
+/// 素材のファイルを選んだ状態で、入っているフォルダを開く。
+#[tauri::command]
+async fn reveal_item(cur: State<'_, Current>, id: String) -> Result<(), String> {
+    let path = with(&cur, |l| Ok(l.asset(&id)?.0.to_owned()))?;
+    shell::reveal(&path)
+}
+
+/// 素材のファイルを、その形式の既定のアプリで開く。
+#[tauri::command]
+async fn open_item_default(cur: State<'_, Current>, id: String) -> Result<(), String> {
+    let path = with(&cur, |l| Ok(l.asset(&id)?.0.to_owned()))?;
+    shell::open(&path)
 }
 
 /// 組み込み UI から、開いている素材の中身を読む。
@@ -1178,6 +1188,8 @@ pub fn run() {
             set_plugin_setting,
             item_view,
             item_decoded,
+            reveal_item,
+            open_item_default,
             plugin_read,
             plugin_call,
             plugin_settings,

@@ -11,6 +11,7 @@ import { MediaView } from '../../components/media/MediaView/MediaView'
 import { PluginView } from '../../components/media/PluginView/PluginView'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
+import { type Blocker, Unsupported } from '../../components/media/Unsupported/Unsupported'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
 import { type Library, relDay, thumbOf } from '../../model/library'
 import type { ItemView, Part } from '../../plugins/types'
@@ -47,6 +48,17 @@ export interface AssetScreenProps {
   onMemo?: (id: string, memo: string) => void
   /** 省略すると、サムネイルを大きく出す。 */
   host?: AssetViewHost
+  /** 前後に送ったとき。i は list の位置。 */
+  onIndex?: (i: number) => void
+  /** 形式に対応するプラグインがないとき、受け持つはずで使えないプラグインを探す。 */
+  blocker?: (ext: string) => Promise<Blocker | undefined>
+  onEnablePlugin?: (p: Blocker) => Promise<void>
+  /** プラグインの一覧を開く。p があれば、それを選んでおく。 */
+  onOpenPlugins?: (p?: Blocker) => void
+  /** 素材のファイルを選んだ状態で、入っているフォルダを開く。 */
+  onReveal?: (id: string) => Promise<void>
+  /** 素材のファイルを既定のアプリで開く。 */
+  onOpenDefault?: (id: string) => Promise<void>
 }
 
 /** 書いている間は、保存した値で書き換えない。手が止まったとき、離れたとき、閉じたときに onChange を呼ぶ。 */
@@ -86,8 +98,18 @@ export function AssetScreen(props: AssetScreenProps) {
   const [info, setInfo] = createSignal(!!props.infoOpen)
   const it = () => lib().byId.get(props.list[i()] ?? '')
   const step = (d: number) => setI((i() + d + props.list.length) % props.list.length)
+  createEffect(() => props.onIndex?.(i()))
+  /** 形式に対応するプラグインがない。 */
+  const unsupported = () => {
+    const a = it()
+    return !!a && !a.note && !lib().formats.has(a.ext)
+  }
+  const [blocker] = createResource(
+    () => (unsupported() && props.blocker ? it()?.ext : undefined),
+    async (ext) => (await props.blocker?.(ext).catch(() => undefined)) ?? null,
+  )
   const [view] = createResource(
-    () => (props.host ? it()?.id : undefined),
+    () => (props.host && !unsupported() ? it()?.id : undefined),
     async (id) => (await props.host?.view(id).catch(() => null)) ?? null,
   )
   // 波形はサムネイルと一緒にできるので、サムネイルが変わったら読み直す
@@ -134,15 +156,7 @@ export function AssetScreen(props: AssetScreenProps) {
   }
   return (
     <section class={`${shared.screen} ${styles.root}`} data-idle={!!props.idle} aria-label="素材">
-      {/* TODO: 未対応ファイルを開いたときの表示に差し替える（画面は設計中） */}
-      <Show
-        when={it()}
-        fallback={
-          <div class={styles.stage}>
-            <p class={styles.unsupported}>このファイルの形式に対応したプラグインがありません</p>
-          </div>
-        }
-      >
+      <Show when={it()}>
         {(a) => (
           <>
             <div class={styles.stage}>
@@ -153,6 +167,19 @@ export function AssetScreen(props: AssetScreenProps) {
                   </Show>
                 }
               >
+                <Match when={unsupported()}>
+                  <Show when={!blocker.loading}>
+                    <Unsupported
+                      ext={a().ext}
+                      label={lib().formatLabel(a())}
+                      blocker={blocker() ?? undefined}
+                      onEnable={props.onEnablePlugin}
+                      onOpenPlugins={props.onOpenPlugins}
+                      onReveal={props.onReveal && (() => props.onReveal!(a().id))}
+                      onOpenDefault={props.onOpenDefault && (() => props.onOpenDefault!(a().id))}
+                    />
+                  </Show>
+                </Match>
                 <Match when={ui()} keyed>
                   {(u) => <PluginView url={u.url} api={u.api} class={styles.page} />}
                 </Match>

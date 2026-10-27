@@ -1,0 +1,45 @@
+/* 暗い舞台の上なので、ボタンの地と線を舞台の色にする */
+.root {
+  --card: var(--stage-btn);
+  --line-2: rgb(255 255 255 / 0.16);
+  --faint: rgb(255 255 255 / 0.32);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 100%;
+  color: var(--stage-ink);
+  text-align: center;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 104px;
+  height: 128px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--stage-btn);
+  opacity: 0.85;
+}
+.ext {
+  font-family: var(--f-mono);
+  font-size: var(--fs-list);
+}
+.text {
+  margin: 0;
+  font-size: var(--fs-body);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.error {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--danger);
+}

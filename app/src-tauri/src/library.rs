@@ -3,7 +3,8 @@
 //! - 直下のフォルダがプロジェクト。フォルダの属性は同じ階層の `<名前>.meta`（JSON）に置く
 //! - 素材の属性は `<ファイル名>.meta`（JSON）、ノートの属性は frontmatter に置く
 //! - ピン留めとタグの表紙は `.patchouli/library.json` に置く（同じファイルにプラグインの記録もある。plugin/record.rs）
-//! - `.` で始まるものは読まない（ほかのツールの設定や、書き込み途中のファイル）
+//! - `.` で始まるものは読まない（ほかのツールの設定や、書き込み途中のファイル）。Windows の隠しファイルとシステムファイルも読まない
+//! - 扱える形式のないファイルも項目にする（開くと、対応するプラグインがないことを出す）
 //!
 //! ID のない素材やノートと、コピーで ID が重なったもののあとから見つけたほうには、読んだときに新しい ID を書く。
 //! 書けなかったものには仮の ID を渡し、最初に保存するときに書く。
@@ -284,7 +285,6 @@ impl Library {
         Arc::clone(&self.plugins)
     }
 
-    /// 扱える形式の変わらないプラグインに差し替える。
     pub fn set_plugins(&mut self, plugins: Arc<Registry>) {
         self.plugins = plugins;
     }
@@ -298,12 +298,7 @@ impl Library {
         });
         Opened {
             root: self.root.clone(),
-            items: snap
-                .rows
-                .into_iter()
-                .filter(|r| self.plugins.knows(&r.item.ext))
-                .map(|r| r.item)
-                .collect(),
+            items: snap.rows.into_iter().map(|r| r.item).collect(),
             projects: snap.projects,
             state: snap.state,
             formats: self.plugins.formats(),
@@ -341,7 +336,6 @@ impl Library {
         let items = snap
             .rows
             .into_iter()
-            .filter(|r| lib.plugins.knows(&r.item.ext))
             .map(|r| {
                 lib.entries.insert(
                     r.item.id.clone(),
@@ -544,7 +538,7 @@ impl Library {
         }
     }
 
-    /// 扱えるファイルを読む。known は写しにある、このファイルの行。
+    /// ファイルを読む。扱えない形式のものも、項目にする。known は写しにある、このファイルの行。
     pub(crate) fn read_item(
         &mut self,
         path: &Path,
@@ -557,9 +551,6 @@ impl Library {
             .and_then(|e| e.to_str())
             .unwrap_or_default()
             .to_lowercase();
-        if !self.plugins.knows(&ext) {
-            return None;
-        }
         let note = ext == NOTE_EXT;
         let sig = Sig::of(path, note);
         // 写しの ID を使えるのは、ほかのファイルがまだ使っていないときだけ
@@ -946,7 +937,22 @@ pub(crate) fn dunce(p: PathBuf) -> PathBuf {
     }
 }
 
-/// フォルダの中身を名前順に。`.` で始まるものと `.meta` は除く。
+/// Windows の隠しファイルかシステムファイル（desktop.ini や Thumbs.db など）。
+#[cfg(windows)]
+fn hidden(e: &fs::DirEntry) -> bool {
+    use std::os::windows::fs::MetadataExt;
+    const HIDDEN: u32 = 0x2;
+    const SYSTEM: u32 = 0x4;
+    e.metadata()
+        .is_ok_and(|m| m.file_attributes() & (HIDDEN | SYSTEM) != 0)
+}
+
+#[cfg(not(windows))]
+fn hidden(_: &fs::DirEntry) -> bool {
+    false
+}
+
+/// フォルダの中身を名前順に。`.` で始まるもの、隠しファイル、`.meta` は除く。
 fn list_dir(dir: &Path, problems: &mut Vec<String>) -> Vec<(PathBuf, bool)> {
     let rd = match fs::read_dir(dir) {
         Ok(rd) => rd,
@@ -960,7 +966,7 @@ fn list_dir(dir: &Path, problems: &mut Vec<String>) -> Vec<(PathBuf, bool)> {
         .filter(|e| {
             let n = e.file_name();
             let n = n.to_string_lossy();
-            !n.starts_with('.') && !n.ends_with(".meta")
+            !n.starts_with('.') && !n.ends_with(".meta") && !hidden(e)
         })
         .map(|e| (e.path(), e.file_type().is_ok_and(|t| t.is_dir())))
         .collect();

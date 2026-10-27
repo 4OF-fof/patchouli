@@ -37,6 +37,12 @@ export type BarState =
   | 'libraries'
   | 'settings'
 
+/** 外から開く窓。plugin は、プラグインの一覧で選んでおくもの。 */
+export interface BarRequest {
+  state: BarState
+  plugin?: { id: string; dev: boolean }
+}
+
 export interface AppBarProps {
   lib: Library
   /** いまいる所。メニューで印を付ける。 */
@@ -75,6 +81,8 @@ export interface AppBarProps {
   pluginActions?: PluginActions
   /** 使うプラグインが変わったとき。ライブラリを開き直す。 */
   onPluginsChanged?: () => void | Promise<void>
+  /** 変わるたびに、その窓を開く。 */
+  request?: BarRequest
 }
 
 const toggleTheme = () => {
@@ -88,6 +96,13 @@ export function AppBar(props: AppBarProps) {
   const [state, setState] = createSignal<BarState>(init)
   const [query, setQuery] = createSignal(props.query ?? '')
   const [idx, setIdx] = createSignal(0)
+  const [pick, setPick] = createSignal<BarRequest['plugin']>()
+  createEffect(() => {
+    const r = props.request
+    if (!r) return
+    setPick(r.plugin)
+    setState(r.state)
+  })
   const lib = () => props.lib
   const searching = () => state() === 'search' || state() === 'prompt'
   const menuOpen = () => state() === 'menu'
@@ -96,6 +111,7 @@ export function AppBar(props: AppBarProps) {
     setState('closed')
     setQuery('')
     setIdx(0)
+    setPick(undefined)
   }
   const commands = (): Row[] => [
     { type: 'cmd', label: '整理を開く', key: 'Ctrl U', run: () => props.onGo?.('tidy') },
@@ -359,6 +375,7 @@ export function AppBar(props: AppBarProps) {
       <Show when={state() === 'plugins'}>
         <PluginsDialog
           report={plugins.latest}
+          pick={pick()}
           actions={props.pluginActions}
           onChanged={
             props.onPluginsChanged &&

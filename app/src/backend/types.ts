@@ -195,6 +195,10 @@ export interface Backend {
   reloadPlugins?(wait: boolean): Promise<Opened>
   /** 素材の詳細に出すもの。受け持つプラグインが決める。決まらなければ null。 */
   itemView?: (id: string) => Promise<ItemView | null>
+  /** 素材のファイルを選んだ状態で、入っているフォルダを開く。できない環境にはない。 */
+  revealItem?: (id: string) => Promise<void>
+  /** 素材のファイルを、その形式の既定のアプリで開く。できない環境にはない。 */
+  openItemDefault?: (id: string) => Promise<void>
   /** 音声の素材に残してある波形（区間ごとの音の大きさを、0〜255 にしたもの）。まだなければ null。 */
   waveform?: (id: string) => Promise<Uint8Array | null>
   /** 素材 item の part を受け持つ組み込み UI（plugin）に渡す窓口。 */

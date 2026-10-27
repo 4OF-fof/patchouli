@@ -356,6 +356,8 @@ export function tauriBackend(): Backend {
       decoded = URL.createObjectURL(new Blob([png], { type: 'image/png' }))
       return { kind: 'image', url: decoded }
     },
+    revealItem: (id) => invoke('reveal_item', { id }),
+    openItemDefault: (id) => invoke('open_item_default', { id }),
     async waveform(id) {
       const wave = new Uint8Array(await invoke<ArrayBuffer>('waveform', { id }))
       return wave.length > 0 ? wave : null

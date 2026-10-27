@@ -660,11 +660,6 @@ impl Registry {
         self.stopped.load(Ordering::Relaxed)
     }
 
-    /// 扱える形式（拡張子）。
-    pub fn exts(&self) -> HashSet<String> {
-        self.formats().into_iter().map(|f| f.ext).collect()
-    }
-
     fn resolve(&mut self) {
         // 形式ごとに、受け持つプラグインを決める
         let mut claim: HashMap<String, usize> = HashMap::new();
@@ -1105,12 +1100,16 @@ impl Registry {
                         ),
                     });
                 }
-                let mut formats: Vec<String> = self
-                    .formats
-                    .iter()
-                    .filter(|(_, f)| f.owner == i)
-                    .map(|(e, _)| e.clone())
-                    .collect();
+                // 使えないものは、受け持つはずだった形式を出す
+                let mut formats: Vec<String> = if p.blocked {
+                    m.formats.keys().cloned().collect()
+                } else {
+                    self.formats
+                        .iter()
+                        .filter(|(_, f)| f.owner == i)
+                        .map(|(e, _)| e.clone())
+                        .collect()
+                };
                 formats.sort();
                 let settings = p
                     .settings

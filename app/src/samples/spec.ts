@@ -12,8 +12,8 @@ export const TODAY = new Date(2026, 9, 22, 12)
 export const PINNED_PROJECTS = ['秋の企画', '日記']
 export const PINNED_TAGS = ['写真', 'UI', '参考']
 
-/** 見本のファイルの作り方。text は中身をそのまま書く。 */
-export type Media = 'image' | 'video' | 'audio' | 'text' | 'note'
+/** 見本のファイルの作り方。text は中身をそのまま書く。other は中身のないファイルにする。 */
+export type Media = 'image' | 'video' | 'audio' | 'text' | 'note' | 'other'
 
 /** 動作確認用のライブラリで使う、例のプラグイン（example/ の下のフォルダ）。 */
 export const EXAMPLE_PLUGINS = ['text-plugin', 'ppm-plugin']
@@ -52,6 +52,8 @@ const MEDIA_OF: Record<string, Media> = {
   mp3: 'audio',
   wav: 'audio',
   flac: 'audio',
+  // アプリもプラグインも読めない（開くと、対応するプラグインがないことを出す）
+  psd: 'other',
 }
 
 /** タグの表紙。ここにないタグは表紙が空。 */
@@ -549,6 +551,7 @@ export function sampleSpec(): Spec {
   add({ name: 'ref-b', ext: 'jpg', tags: ['参考'], folder: null, moved: 26, hue: 44, sat: 18 })
   for (const [name, ext, tags, moved] of PLUGIN_ASSETS)
     add({ name, ext, tags: [...tags], folder: 'プラグインの確認', moved, hue: 196, sat: 20 })
+  add({ name: 'ポスター案', ext: 'psd', tags: [], folder: '秋の企画', moved: 3, hue: 28, sat: 20 })
 
   const byName = new Map(items.map((i) => [i.name, i]))
   const projects: Project[] = PROJECTS.map(({ name, hue, touched, cover }) => ({

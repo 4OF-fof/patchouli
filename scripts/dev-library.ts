@@ -209,6 +209,7 @@ for (const it of spec.items) {
   fs.writeFileSync(meta, json({ [ID_KEY]: it.id, tags: it.tags, rating: it.rating, memo: it.memo }))
   touched.push({ file, moved: it.moved }, { file: meta, moved: it.moved })
   if (it.media === 'text') fs.writeFileSync(file, `${it.text ?? ''}\n`)
+  else if (it.media === 'other') fs.writeFileSync(file, '')
   else jobs.push(() => run(ffmpegArgs(it, file)))
 }
 
@@ -237,5 +238,5 @@ const count = (k: string) => spec.items.filter((i) => i.media === k).length
 console.log(
   `${path.relative(process.cwd(), root) || root} を作った（見本の今日 ${TODAY.toLocaleDateString('ja-JP')}）: ` +
     `プロジェクト ${spec.projects.length}、ノート ${count('note')}、画像 ${count('image')}、動画 ${count('video')}、音声 ${count('audio')}、` +
-    `テキスト ${count('text')}、例のプラグイン ${EXAMPLE_PLUGINS.length}（${path.relative(process.cwd(), pluginDir)}）`,
+    `テキスト ${count('text')}、未対応 ${count('other')}、例のプラグイン ${EXAMPLE_PLUGINS.length}（${path.relative(process.cwd(), pluginDir)}）`,
 )

@@ -19,6 +19,8 @@ import { IconButton } from '../../controls/IconButton/IconButton'
 export interface PluginsDialogProps {
   /** ないあいだは読み込み中と出す。 */
   report?: PluginReport
+  /** 開いたときに選んでおくプラグイン。 */
+  pick?: { id: string; dev: boolean }
   actions?: PluginActions
   /** 使うプラグインが変わったとき（入れた・アンインストールしたなど）。ライブラリを開き直す。 */
   onChanged?: () => void | Promise<void>
@@ -99,7 +101,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
   let el!: HTMLDivElement
   const [busy, setBusy] = createSignal<string>()
   const [error, setError] = createSignal<string>()
-  const [picked, setPicked] = createSignal<string>()
+  const [picked, setPicked] = createSignal(props.pick && (props.pick.dev ? DEV : '') + props.pick.id)
   const [closed, setClosed] = createSignal<string[]>([])
   const [query, setQuery] = createSignal('')
   const onKey = (e: KeyboardEvent) => {
