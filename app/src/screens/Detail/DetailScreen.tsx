@@ -1,6 +1,5 @@
 import { For, type JSX, Show, children, createMemo, createSignal } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
-import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
@@ -17,9 +16,7 @@ export interface DetailScreenProps {
   label: string
   title: JSX.Element
   meta: JSX.Element
-  backLabel?: string
-  onBack?: () => void
-  /** 右上に置く操作。 */
+  /** 名前の右に置く操作。 */
   actions?: JSX.Element
   /** 左の列に積む部品。何もなければ右の列が全幅になる。 */
   side?: JSX.Element
@@ -80,13 +77,10 @@ export function DetailScreen(props: DetailScreenProps) {
       <ScrollArea class={shared.scroll}>
         <div class={shared.page}>
           <header class={shared.mast}>
-            <FloatingPill class={shared.back} onClick={() => props.onBack?.()}>
-              ‹ {props.backLabel ?? 'ホーム'}
-            </FloatingPill>
             {props.title}
             <span class={shared.meta}>{props.meta}</span>
             <Show when={props.actions}>
-              <span class={shared.right}>{props.actions}</span>
+              <span class={`${shared.end} ${shared.actions}`}>{props.actions}</span>
             </Show>
           </header>
           <div class={styles.body} data-wide={!hasSide() || undefined}>

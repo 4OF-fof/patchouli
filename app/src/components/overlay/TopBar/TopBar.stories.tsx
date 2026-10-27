@@ -4,7 +4,7 @@ import { TopBar } from './TopBar'
 const meta = {
   title: '部品/overlay/TopBar',
   component: TopBar,
-  args: { backLabel: 'ホーム', children: <b>IMG_2041</b> },
+  args: { children: <b>IMG_2041</b> },
   parameters: { layout: 'fullscreen' },
 } satisfies Meta<typeof TopBar>
 export default meta

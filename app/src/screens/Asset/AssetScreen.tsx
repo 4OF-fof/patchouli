@@ -35,8 +35,6 @@ export interface AssetScreenProps {
   infoOpen?: boolean
   /** しばらく触っていない。上の帯と情報のボタンを隠す。 */
   idle?: boolean
-  backLabel?: string
-  onBack?: () => void
   onOpenNote?: (id: string) => void
   /** ピン留めを切り替える。プロジェクトに入っていればその上に、入っていなければホームに出る。 */
   onTogglePin?: (id: string) => void
@@ -174,8 +172,6 @@ export function AssetScreen(props: AssetScreenProps) {
             </div>
             <TopBar
               class={styles.bar}
-              backLabel={props.backLabel}
-              onBack={props.onBack}
               actions={
                 <PinToggle
                   look="float"

@@ -23,7 +23,7 @@ import {
 import { FormatsProvider } from './plugins/formats'
 import { type HoverHost, HoverHostProvider } from './components/media/HoverPreview/HoverPreview'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
-import { AppDock, type Place } from './screens/AppDock'
+import { AppBar, type Place } from './screens/AppBar'
 import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
 import { NoteScreen } from './screens/Note/NoteScreen'
@@ -86,11 +86,17 @@ export function App(props: AppProps) {
   const [pinnedTags, setPinnedTags] = createSignal(props.pinnedTags ?? PINNED_TAGS)
   const [notice, setNotice] = createSignal(props.notice)
   const view = () => stack().at(-1) ?? { s: 'edition' }
-  const back = () => {
-    const prev = stack().at(-2)
-    if (!prev) return 'ホーム'
-    return prev.s === 'project' ? prev.name : prev.s === 'tag' ? `# ${prev.tag}` : LABEL[prev.s]
-  }
+  const labelOf = (v: View) =>
+    v.s === 'project'
+      ? v.name
+      : v.s === 'tag'
+        ? `# ${v.tag}`
+        : v.s === 'note'
+          ? (lib().byId.get(v.id)?.name ?? LABEL.note)
+          : v.s === 'asset'
+            ? (lib().byId.get(v.list[v.index] ?? '')?.name ?? LABEL.asset)
+            : LABEL[v.s]
+  const crumbs = () => stack().map(labelOf)
   const go = (v: View) => setStack([...stack(), v])
   const goBack = () => setStack(stack().length > 1 ? stack().slice(0, -1) : stack())
   const openItem = (id: string, list?: string[]) => {
@@ -242,7 +248,6 @@ export function App(props: AppProps) {
   }
   const here = (): Place | undefined =>
     view().s === 'edition' ? 'home' : view().s === 'tlist' ? 'tags' : view().s === 'plist' ? 'projects' : undefined
-  const hasDock = () => ['edition', 'project', 'plist', 'tlist', 'tag'].includes(view().s)
 
   const onKey = (e: KeyboardEvent) => {
     if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [role="dialog"], [role="menu"]'))
@@ -334,7 +339,29 @@ export function App(props: AppProps) {
   return (
     <FormatsProvider value={lib().formats}>
       <HoverHostProvider value={hoverHost}>
-        <ScreenFrame toast={notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}>
+        <ScreenFrame
+          bar={
+            <AppBar
+              lib={lib()}
+              here={here()}
+              crumbs={crumbs()}
+              onBack={stack().length > 1 ? goBack : undefined}
+              onGo={onGo}
+              onOpenProject={(name) => go({ s: 'project', name })}
+              onOpenItem={(id) => openItem(id)}
+              onCreate={createNote}
+              library={props.location}
+              onChooseLibrary={chooseLibrary}
+              libraries={backend.libraries}
+              tidy={backend.tidy}
+              onReopen={() => window.location.reload()}
+              loadPlugins={() => backend.plugins()}
+              pluginActions={backend.pluginActions}
+              onPluginsChanged={() => window.location.reload()}
+            />
+          }
+          toast={notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}
+        >
           <Switch>
             <Match when={view().s === 'edition'}>
               <EditionScreen
@@ -356,8 +383,6 @@ export function App(props: AppProps) {
                     name={v.name}
                     editing={v.editing}
                     pinned={pinnedProjects().includes(v.name)}
-                    backLabel={back()}
-                    onBack={goBack}
                     onTogglePin={togglePin}
                     onToggleProjectPin={() => toggleProjectPin(v.name)}
                     onOpenItem={openItem}
@@ -383,8 +408,6 @@ export function App(props: AppProps) {
                     lib={lib()}
                     tag={v.tag}
                     pinned={pinnedTags().includes(v.tag)}
-                    backLabel={back()}
-                    onBack={goBack}
                     onOpenItem={openItem}
                     onOpenTag={(tag) => go({ s: 'tag', tag })}
                     onTogglePin={togglePin}
@@ -396,16 +419,7 @@ export function App(props: AppProps) {
             </Match>
             <Match when={view().s === 'note' && view()} keyed>
               {(v) =>
-                v.s === 'note' && (
-                  <NoteScreen
-                    lib={lib()}
-                    noteId={v.id}
-                    backLabel={back()}
-                    onBack={goBack}
-                    onOpenRef={openRef}
-                    onTogglePin={togglePin}
-                  />
-                )
+                v.s === 'note' && <NoteScreen lib={lib()} noteId={v.id} onOpenRef={openRef} onTogglePin={togglePin} />
               }
             </Match>
             <Match when={view().s === 'asset' && view()} keyed>
@@ -415,8 +429,6 @@ export function App(props: AppProps) {
                     lib={lib()}
                     list={v.list}
                     index={v.index}
-                    backLabel={back()}
-                    onBack={goBack}
                     onOpenNote={(id) => openItem(id)}
                     onTogglePin={togglePin}
                     onProject={moveItem}
@@ -428,17 +440,7 @@ export function App(props: AppProps) {
               }
             </Match>
             <Match when={view().s === 'tidy' && view()} keyed>
-              {(v) =>
-                v.s === 'tidy' && (
-                  <TidyScreen
-                    lib={lib()}
-                    currentId={v.id}
-                    backLabel={back()}
-                    onBack={goBack}
-                    onOpenItem={(id) => openItem(id)}
-                  />
-                )
-              }
+              {(v) => v.s === 'tidy' && <TidyScreen lib={lib()} currentId={v.id} onOpenItem={(id) => openItem(id)} />}
             </Match>
           </Switch>
           <Show when={drag()}>
@@ -470,23 +472,6 @@ export function App(props: AppProps) {
               />
             )}
           </Show>
-          <AppDock
-            hidden={!hasDock()}
-            lib={lib()}
-            here={here()}
-            onGo={onGo}
-            onOpenProject={(name) => go({ s: 'project', name })}
-            onOpenItem={(id) => openItem(id)}
-            onCreate={createNote}
-            library={props.location}
-            onChooseLibrary={chooseLibrary}
-            libraries={backend.libraries}
-            tidy={backend.tidy}
-            onReopen={() => window.location.reload()}
-            loadPlugins={() => backend.plugins()}
-            pluginActions={backend.pluginActions}
-            onPluginsChanged={() => window.location.reload()}
-          />
         </ScreenFrame>
       </HoverHostProvider>
     </FormatsProvider>

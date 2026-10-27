@@ -20,8 +20,6 @@ export interface NoteScreenProps {
   propsOpen?: boolean
   /** しばらく触っていない。上の帯とボタンを隠す。 */
   idle?: boolean
-  backLabel?: string
-  onBack?: () => void
   /** [[名前]] のリンクや、つながりの行を押したとき。 */
   onOpenRef?: (name: string) => void
   /** ピン留めを切り替える。プロジェクトに入っていればその上に出る。 */
@@ -123,8 +121,6 @@ export function NoteScreen(props: NoteScreenProps) {
 
           <TopBar
             class={styles.bar}
-            backLabel={props.backLabel}
-            onBack={props.onBack}
             actions={
               <PinToggle
                 look="float"

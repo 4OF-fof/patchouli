@@ -1,27 +1,29 @@
-import { Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import { version } from '../../package.json'
 import type { LibraryActions, TidyActions } from '../backend/types'
+import { Icon } from '../components/base/Icon/Icon'
+import { TitleBar } from '../components/base/TitleBar/TitleBar'
 import { HelpDialog } from '../components/overlay/HelpDialog/HelpDialog'
 import { LibrariesDialog } from '../components/overlay/LibrariesDialog/LibrariesDialog'
 import { type Notices, NoticesDialog } from '../components/overlay/NoticesDialog/NoticesDialog'
 import { OtherDialog } from '../components/overlay/OtherDialog/OtherDialog'
 import { PluginsDialog } from '../components/overlay/PluginsDialog/PluginsDialog'
 import { NavMenu, type NavMenuEntry } from '../components/search/NavMenu/NavMenu'
-import { SearchDock } from '../components/search/SearchDock/SearchDock'
+import { SearchPalette } from '../components/search/SearchPalette/SearchPalette'
 import type { Library } from '../model/library'
 import { builtinReport } from '../plugins/builtin'
 import type { PluginActions, PluginReport } from '../plugins/types'
 import { findItems, searchTerms } from '../model/search'
-import styles from './AppDock.module.css'
+import styles from './AppBar.module.css'
 import { type Row, SearchResults } from '../components/search/SearchResults/SearchResults'
 
 /** 行き先。 */
 export type Place = 'home' | 'tags' | 'projects' | 'tidy'
 /**
- * closed 閉じている / menu ☰ を開いた / settings その先の設定 / search 検索に入力中 / prompt プロンプト / help キー操作の一覧 /
- * plugins プラグイン / notices 権利表示 / libraries ライブラリの切り替え / other その他
+ * closed 閉じている / menu メニューを開いた / settings その先の設定 / search 検索に入力中 / prompt プロンプト /
+ * help キー操作の一覧 / plugins プラグイン / notices 権利表示 / libraries ライブラリの切り替え / other その他
  */
-export type DockState =
+export type BarState =
   | 'closed'
   | 'menu'
   | 'settings'
@@ -33,16 +35,18 @@ export type DockState =
   | 'libraries'
   | 'other'
 
-export interface AppDockProps {
+export interface AppBarProps {
   lib: Library
   /** いまいる所。メニューで印を付ける。 */
   here?: Place
-  initial?: DockState
+  /** いまの場所までの道のり。最後がいまの画面。 */
+  crumbs?: string[]
+  /** 渡すと、メニューの右に戻るを出す。 */
+  onBack?: () => void
+  initial?: BarState
   /** 検索欄に最初から入っている語。 */
   query?: string
-  /** ふだんは出さず、Ctrl P で検索を開いたときだけ出す（ノートや素材を見ているとき）。 */
-  hidden?: boolean
-  /** 保存先に書き込めない。＋ を止め、上に知らせを出す。 */
+  /** 保存先に書き込めない。タイトルバーに知らせを出す。 */
   readOnly?: boolean
   onGo?: (to: Place) => void
   onOpenProject?: (name: string) => void
@@ -72,14 +76,15 @@ const toggleTheme = () => {
   d.theme = d.theme === 'light' ? 'dark' : 'light'
 }
 
-/** どの画面でも下に浮かべる検索バー。☰ のメニュー、検索の結果、キー操作の一覧をまとめて受け持つ。 */
-export function AppDock(props: AppDockProps) {
+/** 画面の上のタイトルバー。メニュー・戻る・いまの場所を置き、メニューと Ctrl P の検索、設定の窓を受け持つ。 */
+export function AppBar(props: AppBarProps) {
   const init = props.initial ?? 'closed'
-  const [state, setState] = createSignal<DockState>(init)
+  const [state, setState] = createSignal<BarState>(init)
   const [query, setQuery] = createSignal(props.query ?? '')
   const [idx, setIdx] = createSignal(0)
   const lib = () => props.lib
-  const open = () => state() === 'search' || state() === 'prompt'
+  const searching = () => state() === 'search' || state() === 'prompt'
+  const menuOpen = () => state() === 'menu' || state() === 'settings'
   const close = () => {
     setState('closed')
     setQuery('')
@@ -138,6 +143,17 @@ export function AppDock(props: AppDockProps) {
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
+  // メニューは外を押すと閉じる
+  let menuEl!: HTMLDivElement
+  const away = (e: PointerEvent) => {
+    if (e.target instanceof Node && !menuEl.contains(e.target)) close()
+  }
+  createEffect(() => {
+    if (!menuOpen()) return
+    document.addEventListener('pointerdown', away)
+    onCleanup(() => document.removeEventListener('pointerdown', away))
+  })
+
   // 開くたびに読み直す（コマンドを入れたあとなど）
   const [plugins, { refetch: reloadPlugins }] = createResource(
     () => state() === 'plugins' || undefined,
@@ -161,46 +177,46 @@ export function AppDock(props: AppDockProps) {
     async () => (await import('../notices/third-party.json')).default as Notices,
   )
 
-  const results = () => <SearchResults lib={lib()} rows={rows()} selected={idx()} terms={terms()} onRun={run} />
-
   const menuItems = (): NavMenuEntry[] =>
     state() === 'settings'
       ? [
-          { id: 'back', icon: '‹', label: '設定', heading: true },
+          { id: 'back', icon: 'back', label: '設定', heading: true },
           'separator',
           ...(props.onChooseLibrary
             ? [
                 {
                   id: 'library',
-                  icon: '▤',
+                  icon: 'library' as const,
                   label: 'ライブラリを切り替え',
                   hint: props.library?.split(/[\\/]/).at(-1) ?? '未選択',
                   title: props.library,
                 },
               ]
             : []),
-          { id: 'theme', icon: '◐', label: 'テーマを切り替え' },
-          { id: 'keys', icon: '⌨', label: 'ショートカット一覧', kbd: '?' },
-          { id: 'plugins', icon: '⧉', label: 'プラグイン' },
-          { id: 'other', icon: '⋯', label: 'その他' },
-          { id: 'notices', icon: '©', label: '権利表示' },
+          { id: 'theme', icon: 'theme', label: 'テーマを切り替え' },
+          { id: 'keys', icon: 'keyboard', label: 'ショートカット一覧', kbd: '?' },
+          { id: 'plugins', icon: 'plugin', label: 'プラグイン' },
+          { id: 'other', icon: 'more', label: 'その他' },
+          { id: 'notices', icon: 'notices', label: '権利表示' },
         ]
       : [
-          { id: 'home', icon: '⌂', label: 'ホーム', current: props.here === 'home' },
-          { id: 'tags', icon: '#', label: 'タグ', count: lib().tagGroups().size, current: props.here === 'tags' },
+          { id: 'home', icon: 'home', label: 'ホーム', current: props.here === 'home' },
           {
             id: 'projects',
-            icon: '▦',
+            icon: 'folder',
             label: 'プロジェクト',
             count: lib().projects.length,
             current: props.here === 'projects',
           },
+          { id: 'tags', icon: 'hash', label: 'タグ', count: lib().tagGroups().size, current: props.here === 'tags' },
+          { id: 'search', icon: 'search', label: '検索', kbd: 'Ctrl P' },
           'separator',
-          { id: 'settings', icon: '⚙', label: '設定' },
+          { id: 'settings', icon: 'settings', label: '設定' },
         ]
   const onMenu = (id: string) => {
     if (id === 'settings') return setState('settings')
     if (id === 'back') return setState('menu')
+    if (id === 'search') return setState('search')
     if (id === 'theme') return toggleTheme()
     if (id === 'keys') return setState('help')
     if (id === 'plugins') return setState('plugins')
@@ -217,33 +233,79 @@ export function AppDock(props: AppDockProps) {
 
   return (
     <>
-      <Show when={props.readOnly && !open()}>
-        <div class={styles.ro} role="status">
-          <b>読み取り専用</b>
-          <span title="保存先に書き込めないため、読み取り専用になっています">ⓘ</span>
-          <button type="button">編集を有効にする</button>
+      <TitleBar
+        end={
+          <Show when={props.readOnly}>
+            <span class={styles.ro} role="status" title="保存先に書き込めないため、読み取り専用になっています">
+              <b>読み取り専用</b>
+              <button type="button">編集を有効にする</button>
+            </span>
+          </Show>
+        }
+      >
+        <div class={styles.menuAt} ref={menuEl}>
+          <button
+            type="button"
+            class={styles.ib}
+            aria-label="メニュー"
+            title="メニュー"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen()}
+            onClick={() => (menuOpen() ? close() : setState('menu'))}
+          >
+            <Icon name="menu" />
+          </button>
+          <Show when={menuOpen()}>
+            <div class={styles.menu}>
+              <NavMenu focusFirst={init === 'closed'} items={menuItems()} onSelect={onMenu} onClose={close} />
+            </div>
+          </Show>
         </div>
-      </Show>
-      <Show when={!props.hidden || open()}>
-        <SearchDock
-          open={open()}
+        <Show when={props.onBack}>
+          <button
+            type="button"
+            class={styles.ib}
+            aria-label="戻る"
+            title="戻る（Esc）"
+            onClick={() => props.onBack?.()}
+          >
+            <Icon name="back" />
+          </button>
+        </Show>
+        <nav class={styles.crumbs} aria-label="いまの場所">
+          <For each={props.crumbs ?? []}>
+            {(c, i) => (
+              <>
+                <Show when={i() > 0}>
+                  <span class={styles.sep} aria-hidden="true">
+                    /
+                  </span>
+                </Show>
+                <span
+                  class={styles.crumb}
+                  aria-current={i() === (props.crumbs?.length ?? 0) - 1 ? 'page' : undefined}
+                  data-tauri-drag-region
+                >
+                  {c}
+                </span>
+              </>
+            )}
+          </For>
+        </nav>
+      </TitleBar>
+      <Show when={searching()}>
+        <SearchPalette
           mode={state() === 'prompt' ? 'prompt' : 'search'}
           query={query()}
-          results={state() === 'search' ? results() : undefined}
-          menuOpen={state() === 'menu' || state() === 'settings'}
-          menu={<NavMenu focusFirst={init === 'closed'} items={menuItems()} onSelect={onMenu} onClose={close} />}
-          readOnly={props.readOnly}
-          onOpen={() => setState('search')}
+          results={
+            state() === 'search' ? (
+              <SearchResults lib={lib()} rows={rows()} selected={idx()} terms={terms()} onRun={run} />
+            ) : undefined
+          }
           onClose={close}
           onQueryInput={(q) => {
             setQuery(q)
             setIdx(0)
-          }}
-          onMenuToggle={() => setState(state() === 'closed' ? 'menu' : 'closed')}
-          onCreate={() => {
-            const q = query().trim()
-            close()
-            props.onCreate?.(q || undefined)
           }}
           onInputKeyDown={(e) => {
             if (e.key === 'Escape') close()

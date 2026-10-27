@@ -93,7 +93,7 @@ export function TagListScreen(props: TagListScreenProps) {
   return (
     <section class={shared.screen} aria-label="タグ一覧">
       <ScrollArea class={shared.scroll}>
-        <div class={`${shared.page} ${shared.top}`}>
+        <div class={shared.page}>
           <header class={shared.mast}>
             <h1>タグ</h1>
             <span class={shared.meta}>

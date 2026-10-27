@@ -1,6 +1,7 @@
 import { For, Show } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
-import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
+import { Icon } from '../../components/base/Icon/Icon'
+import { Button } from '../../components/controls/Button/Button'
 import { Mosaic } from '../../components/media/Mosaic/Mosaic'
 import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
 import { type Library, type Project, coverOf, coverTile, dueLabel, nextDue } from '../../model/library'
@@ -62,12 +63,15 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
   return (
     <section class={shared.screen} aria-label="プロジェクト一覧">
       <ScrollArea class={shared.scroll}>
-        <div class={`${shared.page} ${shared.top}`}>
+        <div class={shared.page}>
           <header class={shared.mast}>
             <h1>プロジェクト</h1>
             <span class={shared.meta}>{lib().projects.length} 件 · 最終更新順</span>
             <span class={shared.end}>
-              <FloatingPill onClick={() => props.onCreate?.()}>＋ 新しいプロジェクト</FloatingPill>
+              <Button onClick={() => props.onCreate?.()}>
+                <Icon name="plus" size={14} />
+                新しいプロジェクト
+              </Button>
             </span>
           </header>
           <Show when={pins().length}>

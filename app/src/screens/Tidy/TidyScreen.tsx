@@ -14,8 +14,6 @@ export interface TidyScreenProps {
   currentId?: string
   /** もう承認したもの（列に ✓ を付ける）。 */
   approved?: string[]
-  backLabel?: string
-  onBack?: () => void
   onOpenItem?: (id: string) => void
 }
 
@@ -126,7 +124,6 @@ export function TidyScreen(props: TidyScreenProps) {
   return (
     <section class={shared.screen} aria-label="整理">
       <div class={styles.head}>
-        <FloatingPill onClick={() => props.onBack?.()}>‹ {props.backLabel ?? 'ホーム'}</FloatingPill>
         <FloatingLabel class={styles.mid}>
           <b>整理</b>タグの候補を確認 · 残り {pending().length} 件
         </FloatingLabel>

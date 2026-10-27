@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from 'solid-js'
-import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
+import { Button } from '../../components/controls/Button/Button'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import type { Library } from '../../model/library'
 import { AddPart } from '../Detail/AddPart'
@@ -17,8 +17,6 @@ export interface ProjectScreenProps {
   /** 編集中に「＋ 部品を足す」の一覧を開いている。 */
   addOpen?: boolean
   /** 戻る先の名前。 */
-  backLabel?: string
-  onBack?: () => void
   onTogglePin?: (id: string) => void
   /** このプロジェクトのホームへのピン留めを切り替える。 */
   onToggleProjectPin?: () => void
@@ -52,8 +50,6 @@ export function ProjectScreen(props: ProjectScreenProps) {
             </Show>
           }
           meta={`プロジェクト · ${list().length} 件 · 最終更新 ${pr().touched}`}
-          backLabel={props.backLabel}
-          onBack={props.onBack}
           actions={
             <>
               <PinToggle
@@ -64,9 +60,9 @@ export function ProjectScreen(props: ProjectScreenProps) {
                   props.onToggleProjectPin?.()
                 }}
               />
-              <FloatingPill aria-pressed={editing()} onClick={() => setEditing(!editing())}>
+              <Button pressed={editing()} onClick={() => setEditing(!editing())}>
                 {editing() ? '編集を完了' : '概要を編集'}
-              </FloatingPill>
+              </Button>
             </>
           }
           sideLabel="概要"

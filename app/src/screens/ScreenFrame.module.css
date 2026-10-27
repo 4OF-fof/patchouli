@@ -1,11 +1,18 @@
 .root {
-  position: relative;
-  height: var(--frame-height, 100vh);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: var(--paper);
   color: var(--ink);
   font-size: var(--fs-body);
   line-height: 1.6;
+}
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .toast {
   position: absolute;

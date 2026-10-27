@@ -2,8 +2,10 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { DropZone } from '../../components/overlay/DropZone/DropZone'
 import { withEmptyProject } from '../../model/library'
 import { sampleLibrary } from '../../samples/library'
-import { AppDock } from '../AppDock'
+import { AppBar } from '../AppBar'
 import { ScreenFrame } from '../ScreenFrame'
+import type { JSX } from 'solid-js'
+import type { Library } from '../../model/library'
 import { ProjectScreen, type ProjectScreenProps } from './ProjectScreen'
 
 const meta = {
@@ -13,46 +15,38 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-const project = (o: Partial<ProjectScreenProps> = {}, name = '秋の企画') => {
+const frame = (lib: Library, name: string, screen: JSX.Element, extra?: JSX.Element) => (
+  <ScreenFrame bar={<AppBar lib={lib} crumbs={['ホーム', name]} onBack={() => {}} />}>
+    {screen}
+    {extra}
+  </ScreenFrame>
+)
+const project = (o: Partial<ProjectScreenProps> = {}, name = '秋の企画', extra?: JSX.Element) => {
   const lib = sampleLibrary()
-  return (
-    <>
-      <ProjectScreen lib={lib} name={name} {...o} />
-      <AppDock lib={lib} />
-    </>
-  )
+  return frame(lib, name, <ProjectScreen lib={lib} name={name} {...o} />, extra)
 }
 
-export const Default: Story = { render: () => <ScreenFrame>{project()}</ScreenFrame> }
-export const Edit: Story = { name: '概要を編集', render: () => <ScreenFrame>{project({ editing: true })}</ScreenFrame> }
+export const Default: Story = { render: () => project() }
+export const Edit: Story = { name: '概要を編集', render: () => project({ editing: true }) }
 export const AddPart: Story = {
   name: '概要にセクションを追加',
-  render: () => <ScreenFrame>{project({ editing: true, addOpen: true })}</ScreenFrame>,
+  render: () => project({ editing: true, addOpen: true }),
 }
 export const Drop: Story = {
   name: 'ファイルを持ってきた',
-  render: () => (
-    <ScreenFrame>
-      {project()}
-      <DropZone title="3 件のファイルを取り込む" sub="ドロップして「秋の企画」に追加します" />
-    </ScreenFrame>
-  ),
+  render: () =>
+    project({}, '秋の企画', <DropZone title="3 件のファイルを取り込む" sub="ドロップして「秋の企画」に追加します" />),
 }
 export const Other: Story = {
   name: '別のプロジェクト',
-  render: () => <ScreenFrame>{project({}, 'UI 改善')}</ScreenFrame>,
+  render: () => project({}, 'UI 改善'),
 }
-export const NoPins: Story = { name: 'ピン留めなし', render: () => <ScreenFrame>{project({}, '資料')}</ScreenFrame> }
-export const NoCover: Story = { name: '表紙なし', render: () => <ScreenFrame>{project({}, '日記')}</ScreenFrame> }
+export const NoPins: Story = { name: 'ピン留めなし', render: () => project({}, '資料') }
+export const NoCover: Story = { name: '表紙なし', render: () => project({}, '日記') }
 export const Created: Story = {
   name: '新しく作った',
   render: () => {
     const { lib, name } = withEmptyProject(sampleLibrary())
-    return (
-      <ScreenFrame>
-        <ProjectScreen lib={lib} name={name} editing />
-        <AppDock lib={lib} />
-      </ScreenFrame>
-    )
+    return frame(lib, name, <ProjectScreen lib={lib} name={name} editing />)
   },
 }

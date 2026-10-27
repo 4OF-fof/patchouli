@@ -1,0 +1,77 @@
+.menuAt {
+  position: relative;
+}
+.menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+}
+.ib {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.ib:hover,
+.ib[aria-expanded='true'] {
+  background: var(--card);
+  color: var(--ink);
+}
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.crumb {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crumb[aria-current='page'] {
+  flex: none;
+  max-width: 40vw;
+  color: var(--ink);
+}
+.sep {
+  color: var(--disabled);
+}
+/* 狭い窓では、いまの場所だけを出す */
+@media (max-width: 760px) {
+  .crumb:not([aria-current='page']),
+  .sep {
+    display: none;
+  }
+}
+/* 書き込めない保存先 */
+.ro {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+}
+.ro b {
+  color: var(--warm-ink);
+  font-weight: 600;
+}
+.ro button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font-size: inherit;
+  cursor: pointer;
+}

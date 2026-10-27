@@ -15,11 +15,7 @@
 /* プロジェクト・一覧の紙 */
 .page {
   position: relative;
-  padding: 70px 28px 100px;
-}
-/* 戻るボタンを置かない画面は上に詰める */
-.top {
-  padding-top: 28px;
+  padding: 28px 28px 100px;
 }
 .mast {
   display: flex;
@@ -54,22 +50,14 @@
   font-size: var(--fs-meta);
   color: var(--faint);
 }
-.back {
-  position: absolute;
-  left: 16px;
-  top: 16px;
-}
 .end {
   margin-left: auto;
   align-self: center;
 }
-.right {
-  position: absolute;
-  right: 16px;
-  top: 16px;
+.actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 /* まとまりの小さな見出し */

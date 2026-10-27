@@ -1,0 +1,79 @@
+/* 置き場所の要素（画面）に position: relative を付けておく */
+.scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 19;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 10vh 16px 16px;
+  background: var(--scrim);
+}
+.root {
+  width: min(640px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--float);
+  box-shadow: var(--shadow);
+  font-size: var(--fs-list);
+  overflow: hidden;
+}
+.in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  flex: none;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+}
+.glass {
+  flex: none;
+  color: var(--muted);
+}
+.md {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+.md[data-ai='true'] {
+  background: var(--ai);
+  color: var(--ai-ink);
+}
+.in input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  outline: none;
+  color: var(--ink);
+  font-size: var(--fs-body);
+}
+.res {
+  max-height: min(56vh, 460px);
+}
+.resView {
+  padding: 6px;
+}
+.ht {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-meta);
+  color: var(--faint);
+}
+.ht .kbd {
+  margin-right: 6px;
+}

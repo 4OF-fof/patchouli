@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { sampleLibrary } from '../../samples/library'
-import { AppDock } from '../AppDock'
+import { AppBar } from '../AppBar'
 import { ScreenFrame } from '../ScreenFrame'
 import { TagListScreen, type TagListScreenProps } from './TagListScreen'
 
@@ -14,9 +14,8 @@ type Story = StoryObj
 const tags = (o: Partial<TagListScreenProps> = {}) => {
   const lib = sampleLibrary()
   return (
-    <ScreenFrame>
+    <ScreenFrame bar={<AppBar lib={lib} here="tags" crumbs={['タグ一覧']} />}>
       <TagListScreen lib={lib} {...o} />
-      <AppDock lib={lib} here="tags" />
     </ScreenFrame>
   )
 }

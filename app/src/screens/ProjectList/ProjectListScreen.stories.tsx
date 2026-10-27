@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { PINNED_PROJECTS, sampleLibrary } from '../../samples/library'
-import { AppDock } from '../AppDock'
+import { AppBar } from '../AppBar'
 import { ScreenFrame } from '../ScreenFrame'
 import { ProjectListScreen } from './ProjectListScreen'
 
@@ -14,9 +14,8 @@ type Story = StoryObj
 const list = () => {
   const lib = sampleLibrary()
   return (
-    <ScreenFrame>
+    <ScreenFrame bar={<AppBar lib={lib} here="projects" crumbs={['プロジェクト一覧']} />}>
       <ProjectListScreen lib={lib} pinned={PINNED_PROJECTS} />
-      <AppDock lib={lib} here="projects" />
     </ScreenFrame>
   )
 }

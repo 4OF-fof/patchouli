@@ -1,7 +1,9 @@
 import { For, type JSX, Show, createMemo, createSignal } from 'solid-js'
 import { NoneText } from '../../components/base/NoneText/NoneText'
 import { Chip } from '../../components/controls/Chip/Chip'
-import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
+import { Icon } from '../../components/base/Icon/Icon'
+import { Button } from '../../components/controls/Button/Button'
+import { IconButton } from '../../components/controls/IconButton/IconButton'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
 import { type Library, type TagCoverPart, hasTag } from '../../model/library'
@@ -41,8 +43,6 @@ export interface TagScreenProps {
   editing?: boolean
   /** 編集中に「＋ 部品を足す」の一覧を開いている。 */
   addOpen?: boolean
-  backLabel?: string
-  onBack?: () => void
   onOpenItem?: (id: string, list: string[]) => void
   onOpenTag?: (tag: string) => void
   onTogglePin?: (id: string) => void
@@ -164,8 +164,6 @@ export function TagScreen(props: TagScreenProps) {
           ? `タグ名を変更すると、付与されている ${all().length} 件とサブタグも更新されます`
           : `タグ · ${all().length} 件 · ${projectCount()} プロジェクト`
       }
-      backLabel={props.backLabel}
-      onBack={props.onBack}
       actions={
         <>
           <PinToggle
@@ -176,12 +174,12 @@ export function TagScreen(props: TagScreenProps) {
               props.onToggleTagPin?.()
             }}
           />
-          <FloatingPill aria-pressed={editing()} onClick={toggleEdit}>
+          <Button pressed={editing()} onClick={toggleEdit}>
             {editing() ? '編集を完了' : '概要を編集'}
-          </FloatingPill>
-          <FloatingPill icon aria-label="その他">
-            ⋯
-          </FloatingPill>
+          </Button>
+          <IconButton label="その他">
+            <Icon name="more" />
+          </IconButton>
         </>
       }
       sideLabel="概要"

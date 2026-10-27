@@ -3,8 +3,9 @@ import { DropZone } from '../../components/overlay/DropZone/DropZone'
 import { Toast } from '../../components/overlay/Toast/Toast'
 import { buildLibrary } from '../../model/library'
 import { PINNED_PROJECTS, PINNED_TAGS, TODAY, sampleLibrary } from '../../samples/library'
-import { AppDock, type DockState } from '../AppDock'
+import { AppBar, type BarState } from '../AppBar'
 import { ScreenFrame } from '../ScreenFrame'
+import type { JSX } from 'solid-js'
 import { EditionScreen } from './EditionScreen'
 
 const meta = {
@@ -16,11 +17,22 @@ type Story = StoryObj
 
 /** ホームに検索バーを重ねた、アプリを開いたときの見た目。 */
 const edition = (
-  o: { dock?: DockState; query?: string; scrollTop?: number; readOnly?: boolean; pinsOpen?: boolean } = {},
+  o: {
+    bar?: BarState
+    query?: string
+    scrollTop?: number
+    readOnly?: boolean
+    pinsOpen?: boolean
+    extra?: JSX.Element
+    toast?: JSX.Element
+  } = {},
 ) => {
   const lib = sampleLibrary()
   return (
-    <>
+    <ScreenFrame
+      bar={<AppBar lib={lib} here="home" crumbs={['ホーム']} initial={o.bar} query={o.query} readOnly={o.readOnly} />}
+      toast={o.toast}
+    >
       <EditionScreen
         lib={lib}
         pinnedProjects={PINNED_PROJECTS}
@@ -28,78 +40,72 @@ const edition = (
         pinsOpen={o.pinsOpen}
         scrollTop={o.scrollTop}
       />
-      <AppDock lib={lib} here="home" initial={o.dock} query={o.query} readOnly={o.readOnly} />
-    </>
+      {o.extra}
+    </ScreenFrame>
   )
 }
 
-export const Default: Story = { render: () => <ScreenFrame>{edition()}</ScreenFrame> }
+export const Default: Story = { render: () => edition() }
 export const PinsOpen: Story = {
   name: 'ピン留めを全件表示',
-  render: () => <ScreenFrame>{edition({ pinsOpen: true })}</ScreenFrame>,
+  render: () => edition({ pinsOpen: true }),
 }
 export const Scrolled: Story = {
   name: 'スクロール後',
-  render: () => <ScreenFrame>{edition({ scrollTop: 1100 })}</ScreenFrame>,
+  render: () => edition({ scrollTop: 1100 }),
 }
 export const Search: Story = {
   name: '検索を開く',
-  render: () => <ScreenFrame>{edition({ dock: 'search' })}</ScreenFrame>,
+  render: () => edition({ bar: 'search' }),
 }
 export const Typing: Story = {
   name: '検索に入力中',
-  render: () => <ScreenFrame>{edition({ dock: 'search', query: '配色' })}</ScreenFrame>,
+  render: () => edition({ bar: 'search', query: '配色' }),
 }
 export const Prompt: Story = {
   name: 'プロンプト',
-  render: () => <ScreenFrame>{edition({ dock: 'prompt' })}</ScreenFrame>,
+  render: () => edition({ bar: 'prompt' }),
 }
 export const Menu: Story = {
   name: 'メニューを開く',
-  render: () => <ScreenFrame>{edition({ dock: 'menu' })}</ScreenFrame>,
+  render: () => edition({ bar: 'menu' }),
 }
 export const Settings: Story = {
   name: 'メニュー · 設定',
-  render: () => <ScreenFrame>{edition({ dock: 'settings' })}</ScreenFrame>,
+  render: () => edition({ bar: 'settings' }),
 }
 export const Help: Story = {
   name: 'キー操作の一覧',
-  render: () => <ScreenFrame>{edition({ dock: 'help' })}</ScreenFrame>,
+  render: () => edition({ bar: 'help' }),
 }
 export const Drop: Story = {
   name: '08 ファイルを持ってきた',
-  render: () => (
-    <ScreenFrame>
-      {edition()}
-      <DropZone title="12 件のファイルを取り込む" sub="ドロップしてプロジェクト未指定で取り込みます" />
-    </ScreenFrame>
-  ),
+  render: () =>
+    edition({
+      extra: <DropZone title="12 件のファイルを取り込む" sub="ドロップしてプロジェクト未指定で取り込みます" />,
+    }),
 }
 export const ReadOnly: Story = {
   name: '08 書き込めない保存先',
-  render: () => <ScreenFrame>{edition({ readOnly: true })}</ScreenFrame>,
+  render: () => edition({ readOnly: true }),
 }
 export const Empty: Story = {
   name: '08 まだ何もない',
   render: () => {
     const lib = buildLibrary([], [], TODAY)
     return (
-      <ScreenFrame>
+      <ScreenFrame bar={<AppBar lib={lib} here="home" crumbs={['ホーム']} />}>
         <EditionScreen lib={lib} location="D:\Library\Example" />
-        <AppDock lib={lib} here="home" />
       </ScreenFrame>
     )
   },
 }
 export const LoadError: Story = {
   name: '08 一部を読み込めない',
-  render: () => (
-    <ScreenFrame
-      toast={
+  render: () =>
+    edition({
+      toast: (
         <Toast message="3 件のノートを読み込めませんでした" actionLabel="見る" onAction={() => {}} onClose={() => {}} />
-      }
-    >
-      {edition()}
-    </ScreenFrame>
-  ),
+      ),
+    }),
 }

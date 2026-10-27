@@ -1,10 +1,11 @@
 import { For, createEffect, on } from 'solid-js'
+import { Icon, type IconName } from '../../base/Icon/Icon'
 import { Kbd } from '../../base/Kbd/Kbd'
 import styles from './NavMenu.module.css'
 
 export interface NavMenuItem {
   id: string
-  icon?: string
+  icon?: IconName
   label: string
   count?: number
   kbd?: string
@@ -29,7 +30,7 @@ export interface NavMenuProps {
   focusFirst?: boolean
 }
 
-/** 検索バーの左の ☰ から開くメニュー。画面が増えたら項目を足す。 */
+/** タイトルバーの左のメニューのボタンから開くメニュー。画面が増えたら項目を足す。 */
 export function NavMenu(props: NavMenuProps) {
   let el!: HTMLDivElement
   const buttons = () => [...el.querySelectorAll<HTMLButtonElement>('button')]
@@ -70,7 +71,7 @@ export function NavMenu(props: NavMenuProps) {
               title={it.title}
               onClick={() => props.onSelect?.(it.id)}
             >
-              <i>{it.icon}</i>
+              <i>{it.icon && <Icon name={it.icon} />}</i>
               {it.label}
               {it.count != null && <small>{it.count}</small>}
               {it.hint && <small>{it.hint}</small>}

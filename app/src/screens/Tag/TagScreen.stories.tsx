@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { PINNED_TAGS, sampleLibrary } from '../../samples/library'
-import { AppDock } from '../AppDock'
+import { AppBar } from '../AppBar'
 import { ScreenFrame } from '../ScreenFrame'
 import { TagScreen, type TagScreenProps } from './TagScreen'
 
@@ -14,9 +14,8 @@ type Story = StoryObj
 const tag = (o: Partial<TagScreenProps> = {}, name = '写真') => {
   const lib = sampleLibrary()
   return (
-    <ScreenFrame>
-      <TagScreen lib={lib} tag={name} pinned={PINNED_TAGS.includes(name)} backLabel="タグ一覧" {...o} />
-      <AppDock lib={lib} />
+    <ScreenFrame bar={<AppBar lib={lib} crumbs={['タグ一覧', `# ${name}`]} onBack={() => {}} />}>
+      <TagScreen lib={lib} tag={name} pinned={PINNED_TAGS.includes(name)} {...o} />
     </ScreenFrame>
   )
 }
