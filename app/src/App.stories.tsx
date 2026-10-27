@@ -9,5 +9,5 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-/** 動くモックと同じように、画面を押して行き来できる。Esc で戻る、Ctrl U で整理、Ctrl P で検索。 */
+/** 画面を押して行き来できる。Esc で戻る、Ctrl U で整理、Ctrl P で検索。 */
 export const WalkThrough: Story = { name: '画面をつないだもの', render: () => <App lib={sampleLibrary()} /> }
