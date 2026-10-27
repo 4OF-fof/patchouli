@@ -3,6 +3,9 @@ wit_bindgen::generate!({ world: "plugin", path: "../sdk/wit" });
 #[path = "../../shared/frame.rs"]
 mod frame;
 
+#[path = "../../shared/clock.rs"]
+mod clock;
+
 mod analyze;
 mod bpm;
 
@@ -29,11 +32,8 @@ impl Guest for Audio {
             label: label.into(),
             value,
         };
-        let mut out = vec![row("長さ", clock(a.secs))];
-        if let Some(b) = a.bpm {
-            out.push(row("BPM", format!("{b:.0}")));
-        }
-        Ok(out)
+        let bpm = a.bpm.map_or("—".into(), |b| format!("{b:.0}"));
+        Ok(vec![row("BPM", bpm), row("再生時間", clock::clock(a.secs))])
     }
 
     fn settings() -> Vec<Setting> {
@@ -42,16 +42,6 @@ impl Guest for Audio {
 
     fn call(_format: String, _f: File, method: String, _args: String) -> Result<String, String> {
         Err(format!("{method} には対応していません"))
-    }
-}
-
-fn clock(secs: f64) -> String {
-    let s = secs.round() as u64;
-    let (h, m, s) = (s / 3600, s / 60 % 60, s % 60);
-    if h > 0 {
-        format!("{h}:{m:02}:{s:02}")
-    } else {
-        format!("{m}:{s:02}")
     }
 }
 

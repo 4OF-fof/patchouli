@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, type JSX, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
 import { NoneText } from '../../base/NoneText/NoneText'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
@@ -16,6 +16,7 @@ export interface TagPickerProps {
   /** ここを押しても、外を押したことにしない */
   anchor?: HTMLElement
   class?: string
+  style?: JSX.CSSProperties
 }
 
 const clean = (s: string) => s.trim().replace(/^#\s*/, '')
@@ -84,7 +85,13 @@ export function TagPicker(props: TagPickerProps) {
   )
 
   return (
-    <div ref={el} class={`${styles.root} ${props.class ?? ''}`} role="dialog" aria-label="タグを選ぶ">
+    <div
+      ref={el}
+      class={`${styles.root} ${props.class ?? ''}`}
+      style={props.style}
+      role="dialog"
+      aria-label="タグを選ぶ"
+    >
       <label class={styles.search}>
         <Icon name="search" size={13} />
         <input

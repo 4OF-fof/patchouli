@@ -27,8 +27,14 @@ impl Guest for Image {
         Err("decode には対応していません".into())
     }
 
-    fn details(_format: String, _f: File) -> Result<Vec<Detail>, String> {
-        Ok(Vec::new())
+    fn details(_format: String, f: File) -> Result<Vec<Detail>, String> {
+        Ok(host::image_size(&f)
+            .map(|d| Detail {
+                label: "解像度".into(),
+                value: format!("{} × {}", d.width, d.height),
+            })
+            .into_iter()
+            .collect())
     }
 
     fn settings() -> Vec<Setting> {

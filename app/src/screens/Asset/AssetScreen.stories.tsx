@@ -50,8 +50,8 @@ export const Details: Story = {
             details: async () => ({
               size: 4_718_592,
               rows: [
-                { label: '長さ', value: '3:42' },
                 { label: 'BPM', value: '128' },
+                { label: '再生時間', value: '3:42' },
               ],
             }),
           }}

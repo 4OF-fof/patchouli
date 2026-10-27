@@ -1,7 +1,7 @@
 {
   "id": "patchouli.image",
   "name": "画像",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "写真やイラストのサムネイルと表示",
   "optional": {
     "commands": {
@@ -9,7 +9,7 @@
     }
   },
   "formats": {
-    "jpg": { "label": "画像", "ratio": 1.6, "parts": ["thumbnail", "view"] },
+    "jpg": { "label": "画像", "ratio": 1.6, "parts": ["thumbnail", "view", "details"] },
     "jpeg": { "extends": "jpg" },
     "png": { "extends": "jpg" },
     "webp": { "extends": "jpg" },

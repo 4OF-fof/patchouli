@@ -12,6 +12,11 @@
   white-space: nowrap;
   cursor: pointer;
 }
+/* 和文の字面は行の真ん中より少し下に寄るので、アイコンも合わせて下げる */
+.root > svg {
+  flex: none;
+  translate: 0 0.05em;
+}
 .root[aria-pressed='false'] {
   background: var(--side);
   color: var(--ink-2);

@@ -1,7 +1,11 @@
 wit_bindgen::generate!({ world: "plugin", path: "../sdk/wit" });
 
+#[path = "../../shared/clock.rs"]
+mod clock;
 #[path = "../../shared/frame.rs"]
 mod frame;
+#[path = "../../shared/probe.rs"]
+mod probe;
 
 struct Video;
 
@@ -20,8 +24,19 @@ impl Guest for Video {
         Err("decode には対応していません".into())
     }
 
-    fn details(_format: String, _f: File) -> Result<Vec<Detail>, String> {
-        Ok(Vec::new())
+    fn details(_format: String, f: File) -> Result<Vec<Detail>, String> {
+        let Some(p) = probe::probe(&f) else {
+            return Ok(Vec::new());
+        };
+        let size = p.size.map(|(w, h)| Detail {
+            label: "解像度".into(),
+            value: format!("{w} × {h}"),
+        });
+        let secs = p.secs.map(|s| Detail {
+            label: "再生時間".into(),
+            value: clock::clock(s),
+        });
+        Ok(size.into_iter().chain(secs).collect())
     }
 
     fn settings() -> Vec<Setting> {

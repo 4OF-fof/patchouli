@@ -6,7 +6,7 @@
 const ENV_RATE: f64 = 200.0;
 const MIN_BPM: f64 = 60.0;
 const MAX_BPM: f64 = 200.0;
-const MIN_SECS: f64 = 10.0;
+const MIN_SECS: f64 = 3.0;
 /// 拍があるとみなす、いちばん強い間隔の強さ（平均との比）。
 const CLEAR: f64 = 1.3;
 
@@ -49,7 +49,8 @@ pub fn estimate(x: &[f32], rate: f64) -> Option<f64> {
     let (k, &best) = score.iter().enumerate().max_by(|a, b| a.1.total_cmp(b.1))?;
     // 拍のない音では、どの間隔でも同じくらいになる
     let mean = plain.iter().sum::<f64>() / plain.len() as f64;
-    if plain[k] <= mean * CLEAR {
+    // 範囲の端がいちばん強いときは、範囲の外に本当の山がある
+    if plain[k] <= mean * CLEAR || k == 0 || k + 1 == score.len() {
         return None;
     }
     // 両隣と放物線を当てて、間隔を細かくする

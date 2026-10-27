@@ -1,7 +1,7 @@
 {
   "id": "patchouli.video",
   "name": "動画",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "動画のサムネイルと再生",
   "optional": {
     "commands": {
@@ -9,7 +9,7 @@
     }
   },
   "formats": {
-    "mp4": { "label": "動画", "ratio": 1.7778, "hover": "video", "parts": ["thumbnail", "view"] },
+    "mp4": { "label": "動画", "ratio": 1.7778, "hover": "video", "parts": ["thumbnail", "view", "details"] },
     "webm": { "extends": "mp4" },
     "mov": { "extends": "mp4" },
     "m4v": { "extends": "mp4" }

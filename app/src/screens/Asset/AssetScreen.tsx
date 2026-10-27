@@ -1,4 +1,15 @@
-import { For, Match, Show, Switch, createEffect, createResource, createSignal, onCleanup, onMount } from 'solid-js'
+import {
+  For,
+  type JSX,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createResource,
+  createSignal,
+  onCleanup,
+  onMount,
+} from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
@@ -181,12 +192,35 @@ export function AssetScreen(props: AssetScreenProps) {
   }
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
+  let root!: HTMLElement
   let addBtn: HTMLButtonElement | undefined
   const [picking, setPicking] = createSignal(false)
   // 付けるたびに並びが変わらないよう、開いたときのものを使う
   const [recent, setRecent] = createSignal<string[]>([])
+  const [at, setAt] = createSignal<JSX.CSSProperties>({})
+  /** 押したボタンの左に出す。画面の上半分なら下へ、下半分なら上へ伸ばす。 */
+  const place = () => {
+    if (!addBtn) return
+    const s = root.getBoundingClientRect()
+    const b = addBtn.getBoundingClientRect()
+    const right = `${s.right - b.left + 8}px`
+    if (b.top + b.height / 2 < s.top + s.height / 2) {
+      const top = b.top - s.top - 12
+      setAt({ '--picker-right': right, '--picker-top': `${top}px`, '--picker-max': `${s.height - top - 18}px` })
+    } else {
+      const bottom = s.bottom - b.bottom - 12
+      setAt({
+        '--picker-right': right,
+        '--picker-bottom': `${bottom}px`,
+        '--picker-max': `${s.height - bottom - 52}px`,
+      })
+    }
+  }
   const togglePicker = () => {
-    if (!picking()) setRecent(props.recentTags ?? [])
+    if (!picking()) {
+      setRecent(props.recentTags ?? [])
+      place()
+    }
     setPicking(!picking())
   }
   createEffect(() => info() || setPicking(false))
@@ -205,7 +239,7 @@ export function AssetScreen(props: AssetScreenProps) {
     addBtn?.focus()
   }
   return (
-    <section class={`${shared.screen} ${styles.root}`} data-idle={!!props.idle} aria-label="素材">
+    <section ref={root} class={`${shared.screen} ${styles.root}`} data-idle={!!props.idle} aria-label="素材">
       <Show when={it()}>
         {(a) => (
           <>
@@ -339,16 +373,6 @@ export function AssetScreen(props: AssetScreenProps) {
                         <NameField value={a().name} onChange={(name) => props.onRename?.(a().id, name)} />
                         <span>種類</span>
                         <span>{a().ext}</span>
-                        <Show when={details.state === 'ready' && details()}>
-                          {(d) => (
-                            <>
-                              <span>サイズ</span>
-                              <span>{bytes(d().size)}</span>
-                            </>
-                          )}
-                        </Show>
-                        <span>更新日</span>
-                        <span>{relDay(lib(), a().moved)}</span>
                         <Show when={details.loading}>
                           <span />
                           <Spinner size={12} />
@@ -361,6 +385,16 @@ export function AssetScreen(props: AssetScreenProps) {
                             </>
                           )}
                         </For>
+                        <Show when={details.state === 'ready' && details()}>
+                          {(d) => (
+                            <>
+                              <span>サイズ</span>
+                              <span>{bytes(d().size)}</span>
+                            </>
+                          )}
+                        </Show>
+                        <span>更新日</span>
+                        <span>{relDay(lib(), a().moved)}</span>
                       </div>
                     </details>
                   </FloatingCard>
@@ -369,6 +403,7 @@ export function AssetScreen(props: AssetScreenProps) {
               <Show when={picking()}>
                 <TagPicker
                   class={styles.picker}
+                  style={at()}
                   tags={a().tags}
                   all={allTags()}
                   recent={recent()}
