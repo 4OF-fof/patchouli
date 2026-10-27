@@ -3,7 +3,7 @@
  * 画面はファイルの場所や形式を知らない。
  */
 import type { CoverPart, Item, Library, NoteBlock, Project, TagCoverPart, Thumbnail } from '../model/library'
-import type { ItemView, Part, PluginActions, PluginReport } from '../plugins/types'
+import type { ItemView, Part, PluginActions, PluginReport, UiRef } from '../plugins/types'
 import type { UiApi, UiItem } from '../plugins/ui'
 
 /** ライブラリ全体にかかわる状態。 */
@@ -170,4 +170,6 @@ export interface Backend {
   itemView?: (id: string) => Promise<ItemView | null>
   /** 素材 item の part を受け持つ組み込み UI（plugin）に渡す窓口。 */
   uiApi?: (item: UiItem, part: Part, plugin: string) => UiApi
+  /** 組み込み UI の ES モジュールの URL。 */
+  uiUrl?: (ui: UiRef) => string
 }

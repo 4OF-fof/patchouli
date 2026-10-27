@@ -15,7 +15,7 @@ import {
 } from './stored'
 import type { Thumbnail } from '../model/library'
 import type { FormatInfo, Part, PluginReport, PluginSource, SettingValue, UiRef } from '../plugins/types'
-import { ThumbnailTimeout, type UiApi, type UiItem, uiThumbnail } from '../plugins/ui'
+import { ThumbnailTimeout, type UiApi, type UiItem, uiThumbnail, uiWaveform } from '../plugins/ui'
 import errorThumb from './thumb-error.svg'
 import type { Backend, CacheUsage, Changed, Dropped, FileDrag, KnownLibrary, UnusedPlugin } from './types'
 
@@ -53,6 +53,9 @@ const asciiJson = (v: unknown) =>
 
 const uiItemOf = (it: TauriItem): UiItem => ({ id: it.id, name: it.name, ext: it.ext, url: convertFileSrc(it.file) })
 
+/** 波形を作る時間の上限（秒）の設定の key。src-tauri/src/plugin/mod.rs の WAVEFORM_LIMIT_KEY と合わせる。 */
+const WAVE_LIMIT = '@waveformLimit'
+
 /** 画面の位置（物理 px）を CSS の px にする。 */
 const at = (p: { x: number; y: number }) => ({ x: p.x / devicePixelRatio, y: p.y / devicePixelRatio })
 
@@ -60,7 +63,10 @@ export function tauriBackend(): Backend {
   // 開いた直後からサムネイルが届くので、画面が受け取れるようになるまで溜めておく
   const ready: [string, Thumbnail][] = []
   const subs = new Set<(id: string, thumb: Thumbnail) => void>()
+  // サムネイルを送った素材。波形を作れなかったときに、エラー用のサムネイルを出すかを決めるのに使う
+  const thumbed = new Set<string>()
   const sendThumb = (id: string, t: Thumbnail) => {
+    thumbed.add(id)
     if (subs.size) for (const cb of subs) cb(id, t)
     else ready.push([id, t])
   }
@@ -77,7 +83,9 @@ export function tauriBackend(): Backend {
   const listenChanges = () =>
     (listeningChanges ??= listen<StoredChanged<TauriItem>>('library-changed', (e) => {
       const c = toChanged(e.payload, new Date(), formats, urlsOf)
-      void makeUiThumbs(e.payload.items.toSorted((a, b) => b.mtime - a.mtime))
+      const items = e.payload.items.toSorted((a, b) => b.mtime - a.mtime)
+      void makeUiThumbs(items)
+      void makeWaves(items)
       if (changeSubs.size) for (const cb of changeSubs) cb(c)
       else changes.push(c)
     }))
@@ -150,12 +158,59 @@ export function tauriBackend(): Backend {
     }
   }
 
+  // 波形は、画面で 1 つずつ作って Rust に置かせる。サムネイルがまだなければ、Rust が波形を描いてサムネイルにする
+  const waveQueue: TauriItem[] = []
+  const waveIds = new Set<string>()
+  let waving = false
+  const makeWave = async (it: TauriItem, ui: UiRef) => {
+    const limit = (await invoke<Record<string, SettingValue>>('plugin_settings', { plugin: ui.plugin }))[WAVE_LIMIT]
+    const api = uiApi(uiItemOf(it), 'waveform', ui.plugin)
+    const peaks = await uiWaveform(
+      pluginUrl(ui.plugin, ui.module),
+      api,
+      typeof limit === 'number' ? limit * 1000 : 60_000,
+    )
+    if (peaks) await invoke('put_waveform', peaks, { headers: { id: it.id } })
+  }
+  const makeWaves = async (items: TauriItem[]) => {
+    const want = items.filter((it) => !it.note && !waveIds.has(it.id) && formats.get(it.ext)?.uiWaveform)
+    if (!want.length) return
+    const missing = new Set(await invoke<string[]>('missing_waveforms', { ids: want.map((it) => it.id) }))
+    for (const it of want)
+      if (missing.has(it.id) && !waveIds.has(it.id)) {
+        waveIds.add(it.id)
+        waveQueue.push(it)
+      }
+    if (waving) return
+    waving = true
+    try {
+      for (let it = waveQueue.shift(); it; it = waveQueue.shift()) {
+        const ui = formats.get(it.ext)?.uiWaveform
+        try {
+          if (ui) await makeWave(it, ui)
+        } catch (e) {
+          console.warn(`波形を作れない: ${it.name}.${it.ext}`, e)
+          if (!it.thumb && !thumbed.has(it.id))
+            sendThumb(it.id, { url: errorThumb, ratio: formats.get(it.ext)?.ratio ?? 1 })
+        } finally {
+          waveIds.delete(it.id)
+        }
+      }
+    } finally {
+      waving = false
+    }
+  }
+
   return {
     async open() {
       await Promise.all([listenThumbs(), listenChanges()])
+      // 前のライブラリの素材のものは、もう作らない
+      for (const it of waveQueue.splice(0)) waveIds.delete(it.id)
       const s = await invoke<StoredLibrary<TauriItem>>('open_library')
       formats = new Map(s.formats.map((f) => [f.ext, f]))
-      void makeUiThumbs(s.items.toSorted((a, b) => b.mtime - a.mtime))
+      const items = s.items.toSorted((a, b) => b.mtime - a.mtime)
+      void makeUiThumbs(items)
+      void makeWaves(items)
       return toOpened(s, new Date(), urlsOf)
     },
     async saveItem(id, patch) {
@@ -209,6 +264,7 @@ export function tauriBackend(): Backend {
       )
       const now = new Date()
       void makeUiThumbs(r.items)
+      void makeWaves(r.items)
       return {
         items: r.items.map((it) => toItem(it, now, formats, urlsOf(it))),
         projects: r.projects.map((p) => toProject(p, now)),
@@ -251,5 +307,6 @@ export function tauriBackend(): Backend {
       return { kind: 'image', url: decoded }
     },
     uiApi,
+    uiUrl: (ui) => pluginUrl(ui.plugin, ui.module),
   }
 }

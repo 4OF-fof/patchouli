@@ -1,0 +1,82 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+}
+.view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  align-self: stretch;
+  overflow: hidden;
+  touch-action: none;
+}
+.view[data-pan] {
+  cursor: grab;
+}
+.view[data-dragging] {
+  cursor: grabbing;
+}
+.img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  transform-origin: 0 0;
+  border-radius: 2px;
+  user-select: none;
+  visibility: hidden;
+}
+.img[data-ready] {
+  visibility: visible;
+}
+/* 暗い舞台の上に、画像の下に続けて置く帯 */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--stage-bar);
+  color: var(--stage-ink);
+}
+.btn,
+.mode {
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--stage-btn);
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.btn {
+  width: 28px;
+  font-size: 15px;
+}
+.mode {
+  padding: 0 12px;
+  background: none;
+  opacity: 0.72;
+}
+.mode[aria-pressed='true'] {
+  background: var(--stage-btn);
+  opacity: 1;
+}
+.btn:focus-visible,
+.mode:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 1px;
+}
+.pct {
+  min-width: 48px;
+  font-family: var(--f-mono);
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

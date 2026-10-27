@@ -1,0 +1,110 @@
+/* 暗い舞台の上に、素材の下に続けて置く帯 */
+.root {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  background: var(--stage-bar);
+  color: var(--stage-ink);
+}
+.btn,
+.rate {
+  flex: none;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 14px;
+  background: var(--stage-btn);
+  color: inherit;
+  cursor: pointer;
+}
+.btn {
+  width: 28px;
+}
+.btn svg {
+  width: 15px;
+  height: 15px;
+}
+.rate {
+  min-width: 40px;
+  padding: 0 8px;
+  font-family: var(--f-mono);
+  font-size: 11.5px;
+}
+.btn:focus-visible,
+.rate:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 1px;
+}
+.time {
+  flex: none;
+  min-width: 36px;
+  font-family: var(--f-mono);
+  font-size: 12px;
+  opacity: 0.8;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* 塗った部分の割合は --p で受け取る */
+.range {
+  flex: 1;
+  min-width: 60px;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--sage) var(--p, 0%), var(--line-2) var(--p, 0%));
+}
+.range::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--sage) var(--p, 0%), var(--line-2) var(--p, 0%));
+}
+.range::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -4px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--stage-ink);
+  appearance: none;
+}
+.range::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--stage-ink);
+}
+.range:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.vol {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.level {
+  flex: none;
+  width: 72px;
+  min-width: 0;
+}
+@media (max-width: 520px) {
+  .level,
+  .rate {
+    display: none;
+  }
+}

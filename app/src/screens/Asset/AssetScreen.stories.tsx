@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
+import type { ItemView } from '../../plugins/types'
 import { sampleLibrary } from '../../samples/library'
 import { ScreenFrame } from '../ScreenFrame'
 import { AssetScreen, type AssetScreenProps } from './AssetScreen'
@@ -24,3 +25,27 @@ const asset = (o: Partial<AssetScreenProps> = {}) => {
 export const Default: Story = { render: () => asset() }
 export const Info: Story = { name: '情報を開く', render: () => asset({ infoOpen: true }) }
 export const Idle: Story = { name: '何も触っていない', render: () => asset({ idle: true }) }
+
+/**
+ * 中身を出すときの見た目。中身は動作確認用のライブラリ（scripts/dev-library.ts が作る）のもので、なければ出ない。
+ * 見本の項目に、そのファイルの URL を付けて開く。
+ */
+const withFile = (name: string, file: string, view: ItemView) => {
+  const lib = sampleLibrary()
+  const it = lib.items.find((i) => i.name === name)
+  if (it) it.src = `/dev-library/${file}`
+  return (
+    <ScreenFrame>
+      <AssetScreen lib={lib} list={it ? [it.id] : []} host={{ view: async () => view }} />
+    </ScreenFrame>
+  )
+}
+
+export const Video: Story = {
+  name: '動画を再生する',
+  render: () => withFile('clip-0412', 'clip-0412.mp4', { kind: 'video' }),
+}
+export const Image: Story = {
+  name: '画像の倍率を変える',
+  render: () => withFile('IMG_3310', 'IMG_3310.jpg', { kind: 'image' }),
+}

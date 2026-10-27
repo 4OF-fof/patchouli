@@ -167,9 +167,11 @@ fn plan_thumbs<'a>(
     let mut current = Vec::new();
     let mut all = true;
     for it in items {
-        let Some(by) = plugins.handles(&it.ext, Part::Thumbnail) else {
+        // 波形を作るものは、波形をサムネイルにすることがある
+        let by = plugins.handles(&it.ext, Part::Thumbnail);
+        if by.is_none() && plugins.handles(&it.ext, Part::Waveform).is_none() {
             continue;
-        };
+        }
         // 写しにあった場所は、消されていることもあるので確かめ直す
         it.thumb = None;
         // 値が変わっていれば、場所が変わって作り直しになる
@@ -186,7 +188,7 @@ fn plan_thumbs<'a>(
                 (it.width, it.height) = (Some(s.width as u32), Some(s.height as u32));
             }
             it.thumb = Some(out);
-        } else if by == By::Wasm {
+        } else if by == Some(By::Wasm) {
             jobs.push(thumb::Job {
                 id: it.id.clone(),
                 src: it.file.clone(),
@@ -551,7 +553,7 @@ async fn item_decoded(cur: State<'_, Current>, id: String) -> Result<tauri::ipc:
     }
     let png = t.run(|r, ext, path| r.decode(ext, path))?;
     if let Some(out) = keep {
-        thumb::keep_decoded(&out, &png);
+        thumb::keep(&out, &png);
     }
     Ok(tauri::ipc::Response::new(png))
 }
@@ -670,6 +672,71 @@ async fn put_thumbnail(
     })?;
     let size = thumb::place(png, original, &out).map_err(|e| format!("{}: {e}", src.display()))?;
     tell_thumb(&app, &cache, &id, &src, &out, size, &reads);
+    Ok(())
+}
+
+/// ids の素材のうち、組み込み UI が波形を作るもので、まだできていないもの。
+#[tauri::command]
+async fn missing_waveforms(
+    cur: State<'_, Current>,
+    ids: Vec<String>,
+) -> Result<Vec<String>, String> {
+    with_session(&cur, |s| {
+        Ok(ids
+            .into_iter()
+            .filter(|id| {
+                s.lib.asset(id).is_ok_and(|(path, ext)| {
+                    s.plugins.ui_of(&ext, Part::Waveform).is_some()
+                        && thumb::wave_path(&s.thumbs, path).is_some_and(|p| !p.exists())
+                })
+            })
+            .collect())
+    })
+}
+
+/// 組み込み UI が作った波形（本文が、各点の音の大きさを 0〜255 にしたもの）を置く。見出しの id は素材。
+/// サムネイルがまだなければ、波形を描いてサムネイルにし、画面へ知らせる。
+#[tauri::command]
+async fn put_waveform(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<(), String> {
+    let tauri::ipc::InvokeBody::Raw(peaks) = request.body() else {
+        return Err("リクエスト本文が波形のデータではありません".into());
+    };
+    if peaks.is_empty() || peaks.len() > 1 << 16 {
+        return Err(format!("波形のデータの長さ（{}）が不正です", peaks.len()));
+    }
+    let id = request
+        .headers()
+        .get("id")
+        .and_then(|v| v.to_str().ok())
+        .ok_or("ID が指定されていません")?
+        .to_owned();
+    let (src, ext, thumbs, plugins, cache) = with_session(&cur, |s| {
+        let (path, ext) = s.lib.asset(&id)?;
+        if s.plugins.ui_of(&ext, Part::Waveform).is_none() {
+            return Err(format!("「.{ext}」の波形を作成するプラグインがありません"));
+        }
+        Ok((
+            path.to_owned(),
+            ext,
+            s.thumbs.clone(),
+            Arc::clone(&s.plugins),
+            s.lib.cache(),
+        ))
+    })?;
+    let err = || format!("{} の読み込みに失敗しました", src.display());
+    thumb::keep(&thumb::wave_path(&thumbs, &src).ok_or_else(err)?, peaks);
+    let reads = reads_now(&plugins, cache.thumb_reads().get(&src), &ext);
+    let out = thumb::path_for(&thumbs, &src, &reads).ok_or_else(err)?;
+    // ジャケットなど、プラグインが作ったサムネイルがあれば、そちらを使う
+    if !out.exists() {
+        let png = thumb::draw_wave(peaks, plugins.ratio_of(&ext))?;
+        let size = thumb::place(&png, None, &out).map_err(|e| format!("{}: {e}", src.display()))?;
+        tell_thumb(&app, &cache, &id, &src, &out, size, &reads);
+    }
     Ok(())
 }
 
@@ -906,6 +973,8 @@ pub fn run() {
             plugin_data,
             set_plugin_data,
             put_thumbnail,
+            missing_waveforms,
+            put_waveform,
             libraries,
             switch_library,
             forget_library,

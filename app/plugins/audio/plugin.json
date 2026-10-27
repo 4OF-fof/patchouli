@@ -1,19 +1,17 @@
 {
   "id": "patchouli.audio",
   "name": "音声",
-  "version": "0.1.0",
-  "description": "音声のジャケットと再生",
+  "version": "0.2.0",
+  "description": "音声のジャケットと波形、再生",
+  "ui": "ui/waveform.js",
   "optional": {
     "commands": {
       "ffmpeg": { "version": { "args": ["-version"], "pattern": "ffmpeg version n?([0-9][^ ]*)" } }
     }
   },
   "formats": {
-    "m4a": { "label": "音声", "ratio": 1.6, "parts": ["thumbnail", "view"] },
-    "mp3": { "extends": "m4a" },
-    "wav": { "extends": "m4a" },
-    "ogg": { "extends": "m4a" },
-    "flac": { "extends": "m4a" },
-    "opus": { "extends": "m4a" }
+    "mp3": { "label": "音声", "ratio": 1.6, "parts": ["thumbnail", "view"], "ui": ["waveform"] },
+    "wav": { "extends": "mp3" },
+    "flac": { "extends": "mp3" }
   }
 }

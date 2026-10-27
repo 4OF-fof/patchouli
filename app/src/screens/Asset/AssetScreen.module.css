@@ -16,6 +16,15 @@
   max-height: 100%;
   border-radius: 2px;
 }
+/*
+ * 操作の帯を持つ表示（画像・動画）は、上の帯の下いっぱいに広げる。
+ * 下は、検索バーを出したときに帯が隠れないよう、その高さの分だけ空ける
+ */
+.stage .player {
+  flex: 1;
+  align-self: stretch;
+  margin: 44px 0 52px;
+}
 /* 組み込み UI の表示は、上の帯の下いっぱいに広げる */
 .stage .page {
   flex: 1;

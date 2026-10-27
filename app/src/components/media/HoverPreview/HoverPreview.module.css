@@ -1,0 +1,57 @@
+/* サムネイルにぴったり重ねる。置き場所の側に position: relative を付けておく */
+.root {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: var(--radius-thumb);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.root[data-ready='true'] {
+  opacity: 1;
+}
+.video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--stage);
+}
+.video[data-fit='top'] {
+  object-position: top;
+}
+.video[data-fit='contain'] {
+  object-fit: contain;
+}
+.time,
+.mute {
+  position: absolute;
+  bottom: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+  line-height: 17px;
+}
+.time {
+  left: 6px;
+  font-family: var(--f-mono);
+}
+.mute {
+  right: 6px;
+}
+.track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.done {
+  display: block;
+  height: 100%;
+  background: var(--sage);
+}

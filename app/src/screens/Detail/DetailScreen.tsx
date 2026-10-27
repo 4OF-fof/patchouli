@@ -1,6 +1,7 @@
 import { For, type JSX, Show, children, createMemo, createSignal } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
+import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
@@ -36,6 +37,7 @@ export interface DetailScreenProps {
 export function DetailScreen(props: DetailScreenProps) {
   const [sort, setSort] = createSignal<Sort>('moved')
   const formats = useFormats()
+  const preview = useHoverPreview()
   const labelOf = (it: Item) => formats.get(it.ext)?.label ?? it.ext
   const side = children(() => props.side)
   const hasSide = () => side.toArray().some((x) => x != null)
@@ -64,6 +66,7 @@ export function DetailScreen(props: DetailScreenProps) {
       ratio={it.ratio}
       pinned={pins().includes(it.id)}
       onPin={() => togglePin(it.id)}
+      preview={preview(it)}
       onClick={() =>
         props.onOpenItem?.(
           it.id,

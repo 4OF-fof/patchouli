@@ -9,7 +9,7 @@
     }
   },
   "formats": {
-    "mp4": { "label": "動画", "ratio": 1.7778, "parts": ["thumbnail", "view"] },
+    "mp4": { "label": "動画", "ratio": 1.7778, "hover": "video", "parts": ["thumbnail", "view"] },
     "webm": { "extends": "mp4" },
     "mov": { "extends": "mp4" },
     "m4v": { "extends": "mp4" }

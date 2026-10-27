@@ -6,7 +6,7 @@ import audio from '../../plugins/audio/plugin.json'
 import image from '../../plugins/image/plugin.json'
 import note from '../../plugins/note/plugin.json'
 import video from '../../plugins/video/plugin.json'
-import type { Cap, Deps, Fit, FormatInfo, Manifest, Part, PluginReport, PluginStatus, Problem } from './types'
+import type { Cap, Deps, Fit, FormatInfo, Hover, Manifest, Part, PluginReport, PluginStatus, Problem } from './types'
 
 /** JSON のままの plugin.json。 */
 export interface RawManifest extends Omit<Manifest, 'formats'> {
@@ -17,6 +17,7 @@ export interface RawManifest extends Omit<Manifest, 'formats'> {
       label?: string
       ratio?: number
       fit?: string
+      hover?: string
       parts?: string[]
       ui?: string[]
       keepDecoded?: boolean
@@ -24,8 +25,9 @@ export interface RawManifest extends Omit<Manifest, 'formats'> {
   >
 }
 
-const PARTS: readonly Part[] = ['thumbnail', 'view']
+const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
+const HOVERS: readonly Hover[] = ['video']
 
 const partsOf = (raw?: string[]) => (raw ?? []).flatMap((p) => PARTS.find((x) => x === p) ?? [])
 
@@ -35,7 +37,13 @@ export const readManifest = (raw: RawManifest): Manifest => ({
   formats: Object.fromEntries(
     Object.entries(raw.formats).map(([ext, d]) => [
       ext,
-      { ...d, fit: FITS.find((f) => f === d.fit), parts: partsOf(d.parts), ui: partsOf(d.ui) },
+      {
+        ...d,
+        fit: FITS.find((f) => f === d.fit),
+        hover: HOVERS.find((h) => h === d.hover),
+        parts: partsOf(d.parts),
+        ui: partsOf(d.ui),
+      },
     ]),
   ),
 })
@@ -73,6 +81,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
     let label: string | undefined
     let ratio: number | undefined
     let fit: Fit | undefined
+    let hover: Hover | undefined
     const parts = new Map<Part, Manifest | 'wasm'>()
     const seen = new Set<string>()
     let at: Manifest | undefined = owner
@@ -88,6 +97,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
       label ??= d.label
       ratio ??= d.ratio
       fit ??= d.fit
+      hover ??= d.hover
       for (const p of d.parts ?? []) if (!parts.has(p)) parts.set(p, 'wasm')
       for (const p of d.ui ?? []) if (!parts.has(p) && at.ui) parts.set(p, at)
       if (!d.extends) break
@@ -97,6 +107,8 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
       fmt = d.extends
     }
     const ui = parts.get('thumbnail')
+    const wave = parts.get('waveform')
+    const hoverUi = parts.get('hover')
     formats.set(ext, {
       ext,
       label: label ?? ext.toUpperCase(),
@@ -105,6 +117,9 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
       plugin: owner.id,
       thumbnail: parts.has('thumbnail'),
       ...(ui && ui !== 'wasm' && ui.ui && { uiThumbnail: { plugin: ui.id, module: ui.ui } }),
+      ...(wave && wave !== 'wasm' && wave.ui && { uiWaveform: { plugin: wave.id, module: wave.ui } }),
+      ...(hover && { hover }),
+      ...(hoverUi && hoverUi !== 'wasm' && hoverUi.ui && { uiHover: { plugin: hoverUi.id, module: hoverUi.ui } }),
     })
   }
   return { formats, problems }

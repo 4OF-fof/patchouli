@@ -54,7 +54,22 @@ pub type Reads = BTreeMap<String, Value>;
 pub enum Part {
     Thumbnail,
     View,
+    /// 音の波形。組み込み UI だけが作れる。
+    Waveform,
+    /// カーソルを合わせたときに、サムネイルの上に重ねる表示。組み込み UI だけが描ける。
+    Hover,
     /// この版のアプリが知らないもの。読み飛ばす。
+    #[serde(other)]
+    Unknown,
+}
+
+/// カーソルを合わせたときに、本体がサムネイルの上で見せるもの。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Hover {
+    /// 元のファイルを、音を消して動画として再生する。
+    Video,
+    /// この版のアプリが知らないもの。書いていないものとして扱う。
     #[serde(other)]
     Unknown,
 }
@@ -92,6 +107,8 @@ pub struct FormatDecl {
     pub ratio: Option<f64>,
     /// サムネイルの枠への収め方。書かなければ真ん中を切り抜く。
     pub fit: Option<Fit>,
+    /// カーソルを合わせたときに、本体が見せるもの。組み込み UI の hover があれば、そちらを使う。
+    pub hover: Option<Hover>,
     /// WASM で受け持つもの。
     #[serde(default)]
     pub parts: Vec<Part>,
@@ -120,6 +137,27 @@ fn keep_decoded_settings(m: &Manifest) -> impl Iterator<Item = SettingDecl> + '_
             help: Some("変換した画像をキャッシュに保存し、次回から速く表示します".into()),
             kind: SettingKind::Toggle,
             default: Value::Bool(false),
+        })
+}
+
+/// 波形を作る時間の上限（秒）の設定の key。0 は上限なし。
+pub const WAVEFORM_LIMIT_KEY: &str = "@waveformLimit";
+
+/// 組み込み UI で波形を作るプラグインに、本体が足す設定の項目。
+fn waveform_settings(m: &Manifest) -> Option<SettingDecl> {
+    m.formats
+        .values()
+        .any(|d| d.ui.contains(&Part::Waveform))
+        .then(|| SettingDecl {
+            key: WAVEFORM_LIMIT_KEY.into(),
+            label: "波形の作成時間の上限（秒）".into(),
+            help: Some("0 にすると、上限なしで最後まで作成します".into()),
+            kind: SettingKind::Number {
+                min: Some(0.0),
+                max: None,
+                step: Some(1.0),
+            },
+            default: Value::from(60),
         })
 }
 
@@ -337,6 +375,7 @@ struct Resolved {
     label: String,
     ratio: f64,
     fit: Fit,
+    hover: Option<Hover>,
     parts: HashMap<Part, Handler>,
 }
 
@@ -376,6 +415,15 @@ pub struct FormatInfo {
     /// サムネイルを組み込み UI が作るときの、その UI。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_thumbnail: Option<UiRef>,
+    /// 波形を作る組み込み UI。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_waveform: Option<UiRef>,
+    /// カーソルを合わせたときに、本体が見せるもの。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hover: Option<Hover>,
+    /// カーソルを合わせたときの表示を描く組み込み UI。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_hover: Option<UiRef>,
 }
 
 /// active 使っている / missing ライブラリに記録してあるがアプリに入っていない /
@@ -571,6 +619,7 @@ impl Registry {
             let mut label = None;
             let mut ratio = None;
             let mut fit = None;
+            let mut hover = None;
             let mut parts = HashMap::new();
             let mut seen = HashSet::new();
             let (mut at, mut fmt) = (owner, ext.clone());
@@ -586,6 +635,7 @@ impl Registry {
                 label = label.or_else(|| decl.label.clone());
                 ratio = ratio.or(decl.ratio);
                 fit = fit.or(decl.fit.filter(|&f| f != Fit::Unknown));
+                hover = hover.or(decl.hover.filter(|&h| h != Hover::Unknown));
                 let own = decl.parts.iter().map(|&p| (p, By::Wasm));
                 for (part, by) in own.chain(decl.ui.iter().map(|&p| (p, By::Ui))) {
                     if part != Part::Unknown {
@@ -620,6 +670,7 @@ impl Registry {
                     label: label.unwrap_or_else(|| ext.to_uppercase()),
                     ratio: ratio.unwrap_or(DEFAULT_RATIO),
                     fit: fit.unwrap_or(Fit::Center),
+                    hover,
                     parts,
                 },
             );
@@ -671,6 +722,11 @@ impl Registry {
     fn part(&self, ext: &str, part: Part, by: By) -> Option<(usize, &str)> {
         let h = self.formats.get(ext)?.parts.get(&part)?;
         (h.by == by).then_some((h.plugin, h.format.as_str()))
+    }
+
+    /// ext の縦横比（幅 / 高さ）の既定。
+    pub fn ratio_of(&self, ext: &str) -> f64 {
+        self.formats.get(ext).map_or(DEFAULT_RATIO, |f| f.ratio)
     }
 
     /// ext のサムネイルを受け持つプラグインの位置。
@@ -832,6 +888,9 @@ impl Registry {
                 plugin: id(f.owner),
                 thumbnail: f.parts.contains_key(&Part::Thumbnail),
                 ui_thumbnail: self.ui_of(ext, Part::Thumbnail),
+                ui_waveform: self.ui_of(ext, Part::Waveform),
+                hover: f.hover,
+                ui_hover: self.ui_of(ext, Part::Hover),
             })
             .collect();
         out.sort_by(|a, b| a.ext.cmp(&b.ext));
@@ -1075,5 +1134,6 @@ fn settings_of(
         }
     };
     list.extend(keep_decoded_settings(m));
+    list.extend(waveform_settings(m));
     list
 }

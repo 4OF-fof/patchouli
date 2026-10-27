@@ -47,9 +47,9 @@ const MEDIA_OF: Record<string, Media> = {
   txt: 'text',
   mp4: 'video',
   webm: 'video',
-  m4a: 'audio',
   mp3: 'audio',
   wav: 'audio',
+  flac: 'audio',
 }
 
 /** タグの表紙。ここにないタグは表紙が空。 */
@@ -325,7 +325,7 @@ const CONTENTS: Record<string, { a: RawAsset[]; n: RawNote[] }> = {
       ['b-roll-street', 'mp4', ['動画'], 17],
       ['timelapse-sky', 'webm', ['動画'], 33],
       ['hands-craft', 'mp4', ['動画'], 33],
-      ['memo-voice-03', 'm4a', ['音'], 17],
+      ['memo-voice-03', 'flac', ['音'], 17],
       ['interview-audio-2', 'wav', ['音'], 18],
       ['cafe-noise', 'mp3', ['音'], 50],
     ],
@@ -415,7 +415,7 @@ const LOOSE: [name: string, ext: string, moved: number, like: string | null, mai
   ['untitled', 'png', 8, null, ['参考']],
   ['photo_1021', 'jpg', 1, '旅行 2026', ['写真/旅行']],
   ['capture', 'png', 6, null, ['UI']],
-  ['voice-1019', 'm4a', 3, 'インタビュー', ['音']],
+  ['voice-1019', 'mp3', 3, 'インタビュー', ['音']],
   ['clip-0412', 'mp4', 11, 'インタビュー', ['動画']],
 ]
 const TAG_POOL: Record<string, string[]> = {

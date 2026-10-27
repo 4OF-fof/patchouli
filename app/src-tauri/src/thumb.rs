@@ -55,17 +55,24 @@ pub fn decoded_dir(thumbs: &Path, id: &str, format: &str) -> PathBuf {
 
 const DECODED: &str = "decoded";
 
-/// 詳細用の画像 png を out に置き、同じ元の前の版を消す。
-pub fn keep_decoded(out: &Path, png: &[u8]) {
+/// 波形の置き場所。名前の形はサムネイルと同じ（読んだ設定はない）で、拡張子は .wave。
+pub fn wave_path(thumbs: &Path, src: &Path) -> Option<PathBuf> {
+    path_for(&thumbs.join(WAVES), src, &Reads::new()).map(|p| p.with_extension("wave"))
+}
+
+const WAVES: &str = "waves";
+
+/// 詳細用の画像や波形 bytes を out に置き、同じ元の前の版を消す。
+pub fn keep(out: &Path, bytes: &[u8]) {
     let (Some(dir), Some(name)) = (out.parent(), out.file_name().and_then(|n| n.to_str())) else {
         return;
     };
     let tmp = out.with_extension("tmp");
     let r = fs::create_dir_all(dir)
-        .and_then(|()| fs::write(&tmp, png))
+        .and_then(|()| fs::write(&tmp, bytes))
         .and_then(|()| fs::rename(&tmp, out));
     if let Err(e) = r {
-        log::warn!("詳細用の画像を保存できない: {}: {e}", out.display());
+        log::warn!("キャッシュに保存できない: {}: {e}", out.display());
         let _ = fs::remove_file(&tmp);
         return;
     }
@@ -107,7 +114,10 @@ pub fn path_for(dir: &Path, src: &Path, reads: &Reads) -> Option<PathBuf> {
 
 /// 名前の前半（元の場所のハッシュ）。いまの名前の形でなければ None。
 fn place_of(name: &str) -> Option<&str> {
-    let (place, version) = name.strip_suffix(".png")?.split_once('-')?;
+    let stem = name
+        .strip_suffix(".png")
+        .or_else(|| name.strip_suffix(".wave"))?;
+    let (place, version) = stem.split_once('-')?;
     let hex = |s: &str| s.len() == 16 && s.bytes().all(|b| b.is_ascii_hexdigit());
     (hex(place) && hex(version)).then_some(place)
 }
@@ -131,6 +141,8 @@ pub fn prune(dir: &Path, current: &[PathBuf], all_found: bool) {
         if e.file_type().is_ok_and(|t| t.is_dir()) {
             if name == DECODED && all_found {
                 prune_decoded(&e.path(), &places);
+            } else if name == WAVES && all_found {
+                prune_gone(&e.path(), &places);
             }
             continue;
         }
@@ -155,19 +167,24 @@ fn prune_decoded(dir: &Path, places: &HashSet<&str>) {
         .flatten()
         .filter_map(Result::ok)
     {
-        for e in fs::read_dir(d.path())
-            .into_iter()
-            .flatten()
-            .filter_map(Result::ok)
-        {
-            let name = e.file_name();
-            let Some(name) = name.to_str() else { continue };
-            if name.ends_with(".tmp") || place_of(name).is_some_and(|p| places.contains(p)) {
-                continue;
-            }
-            if let Err(err) = fs::remove_file(e.path()) {
-                log::warn!("古い詳細用の画像を消せない: {}: {err}", e.path().display());
-            }
+        prune_gone(&d.path(), places);
+    }
+}
+
+/// dir の中の、ライブラリにもう素材がないもの（名前の前半が places にないもの）を消す。
+fn prune_gone(dir: &Path, places: &HashSet<&str>) {
+    for e in fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+    {
+        let name = e.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if name.ends_with(".tmp") || place_of(name).is_some_and(|p| places.contains(p)) {
+            continue;
+        }
+        if let Err(err) = fs::remove_file(e.path()) {
+            log::warn!("古いキャッシュを消せない: {}: {err}", e.path().display());
         }
     }
 }
@@ -196,6 +213,39 @@ pub fn encode(mut img: DynamicImage, edge: u32) -> Result<Vec<u8>, String> {
     img.write_to(&mut Cursor::new(&mut png), ImageFormat::Png)
         .map_err(|e| e.to_string())?;
     Ok(png)
+}
+
+/// 波形 peaks（各点の音の大きさを 0〜255 にしたもの）を、縦横比 ratio（幅 / 高さ）の枠に描いた PNG。
+/// 大きさは、いちばん大きいところでそろえる。
+pub fn draw_wave(peaks: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
+    if peaks.is_empty() {
+        return Err("波形のデータが空です".into());
+    }
+    let ratio = ratio.clamp(0.25, 4.0);
+    let (w, h) = if ratio >= 1.0 {
+        (EDGE, (f64::from(EDGE) / ratio).round() as u32)
+    } else {
+        ((f64::from(EDGE) * ratio).round() as u32, EDGE)
+    };
+    // 背景は透かし、暗い地にも明るい地にも見える中間の灰色（tokens.css の --muted）で描く
+    let color = image::Rgba([0x8e, 0x92, 0x9a, 0xff]);
+    let mut img = image::RgbaImage::new(w, h);
+    let (n, mid) = (peaks.len(), h as f32 / 2.0);
+    // 小さい音のものも見分けられるよう、いちばん大きいところを高さいっぱいにする
+    let top = f32::from(peaks.iter().copied().max().unwrap_or(0).max(1));
+    for x in 0..w as usize {
+        let from = x * n / w as usize;
+        let to = ((x + 1) * n / w as usize).clamp(from + 1, n);
+        let a = f32::from(peaks[from..to].iter().copied().max().unwrap_or(0)) / top;
+        // 無音でも線は残す
+        let half = (a * mid * 0.9).max(0.5);
+        let top = (mid - half).floor().max(0.0) as u32;
+        let bottom = ((mid + half).ceil() as u32).min(h);
+        for y in top..bottom {
+            img.put_pixel(x as u32, y, color);
+        }
+    }
+    encode(DynamicImage::ImageRgba8(img), EDGE)
 }
 
 /// 置いたサムネイルの場所と素材の大きさ（わからなければサムネイルの大きさ）、作るときに読んだ設定。

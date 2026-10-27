@@ -1,7 +1,13 @@
 /* プラグインの形。plugin.json と、Rust 側（src-tauri/src/plugin/）から届くもの。Rust 側と合わせる。 */
 
-/** 形式ごとに受け持つもの。 */
-export type Part = 'thumbnail' | 'view'
+/**
+ * 形式ごとに受け持つもの。waveform は音の波形、hover はカーソルを合わせたときにサムネイルの上に重ねる表示で、
+ * どちらも組み込み UI だけが受け持てる。
+ */
+export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover'
+
+/** カーソルを合わせたときに、本体がサムネイルの上で見せるもの。video は元のファイルを音を消して再生する。 */
+export type Hover = 'video'
 
 /** 受け持ち方。wasm は宣言型（WASM が記述を返し、本体が描く）、ui は組み込み UI（隔離せずに本体の画面で動く）。 */
 export type By = 'wasm' | 'ui'
@@ -48,6 +54,8 @@ export interface FormatDecl {
   ratio?: number
   /** サムネイルの枠への収め方。書かなければ center。 */
   fit?: Fit
+  /** カーソルを合わせたときに、本体が見せるもの。組み込み UI の hover があれば、そちらを使う。 */
+  hover?: Hover
   /** WASM で受け持つもの。 */
   parts?: Part[]
   /** 組み込み UI で受け持つもの。 */
@@ -89,6 +97,12 @@ export interface FormatInfo {
   thumbnail: boolean
   /** サムネイルを組み込み UI が作るときの、その UI。 */
   uiThumbnail?: UiRef
+  /** 波形を作る組み込み UI。 */
+  uiWaveform?: UiRef
+  /** カーソルを合わせたときに、本体が見せるもの。 */
+  hover?: Hover
+  /** カーソルを合わせたときの表示を描く組み込み UI。 */
+  uiHover?: UiRef
 }
 
 export interface Problem {

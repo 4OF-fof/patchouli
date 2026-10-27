@@ -5,10 +5,12 @@ import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { LinkNone, LinkRow } from '../../components/overlay/LinkRow/LinkRow'
+import { ImageZoom } from '../../components/media/ImageZoom/ImageZoom'
 import { MediaView } from '../../components/media/MediaView/MediaView'
 import { PluginView } from '../../components/media/PluginView/PluginView'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
+import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
 import { type Library, relDay, thumbOf } from '../../model/library'
 import type { ItemView, Part } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
@@ -104,7 +106,8 @@ export function AssetScreen(props: AssetScreenProps) {
     return { url: v.url, api: make({ id: a.id, name: a.name, ext: a.ext, url: a.src }, 'view', v.plugin) }
   }
   const onKey = (e: KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey || e.altKey) return
+    // Shift ＋ ← → は、再生の操作の帯が受け持つ
+    if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
     if (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, [role="dialog"], [role="menu"]'))
       return
     if (e.key === 'ArrowLeft') step(-1)
@@ -135,6 +138,12 @@ export function AssetScreen(props: AssetScreenProps) {
               >
                 <Match when={ui()} keyed>
                   {(u) => <PluginView url={u.url} api={u.api} class={styles.page} />}
+                </Match>
+                <Match when={media()?.kind === 'image' && media()}>
+                  {(m) => <ImageZoom src={m().src} name={a().name} class={styles.player} />}
+                </Match>
+                <Match when={media()?.kind === 'video' && media()}>
+                  {(m) => <VideoPlayer src={m().src} poster={a().thumb} name={a().name} class={styles.player} />}
                 </Match>
                 <Match when={media()}>
                   {(m) => (

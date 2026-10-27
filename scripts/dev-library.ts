@@ -85,9 +85,12 @@ function ffmpegArgs(it: SpecItem, out: string): string[] {
       ...['-frames:v', '1', ...codec, out],
     ]
   }
-  const tone = /rain|noise/.test(it.name) ? `anoisesrc=c=pink:a=0.15:d=${sec}` : `sine=f=${220 + it.hue}:d=${sec}`
+  // 波形で見分けられるよう、音の大きさを揺らす
+  const tone = /rain|noise/.test(it.name)
+    ? `anoisesrc=c=pink:a=0.15:d=${sec}`
+    : `aevalsrc=sin(2*PI*${220 + it.hue}*t)*(0.15+0.85*abs(sin(PI*t/${3 + (it.hue % 5)}))):d=${sec}`
   if (it.media === 'audio') {
-    const codec = it.ext === 'm4a' ? ['-c:a', 'aac'] : it.ext === 'mp3' ? ['-c:a', 'libmp3lame'] : []
+    const codec = it.ext === 'mp3' ? ['-c:a', 'libmp3lame'] : []
     return [...base, '-f', 'lavfi', '-i', tone, ...codec, out]
   }
   // 再生できているか分かるよう、右上に経過時間を出す

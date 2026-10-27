@@ -1,5 +1,6 @@
 import { For, Index, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
+import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { Icon } from '../../components/base/Icon/Icon'
@@ -112,6 +113,7 @@ export function EditionScreen(props: EditionScreenProps) {
     }),
   )
   // ピン留めは 2 行までにし、残りは「全件を表示」で出す
+  const preview = useHoverPreview()
   const [cols, setCols] = createSignal(3)
   const [pinsOpen, setPinsOpen] = createSignal(!!props.pinsOpen)
   const pinLimit = () => cols() * 2
@@ -232,6 +234,7 @@ export function EditionScreen(props: EditionScreenProps) {
                           name={it.name}
                           ratio={it.ratio}
                           showName={false}
+                          preview={preview(it)}
                           onClick={() => props.onOpenItem?.(it.id)}
                         />
                       )}

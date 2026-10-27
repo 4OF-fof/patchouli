@@ -26,7 +26,7 @@ export interface PluginsDialogProps {
   onClose?: () => void
 }
 
-const PART: Record<Part, string> = { thumbnail: 'サムネイル', view: '詳細表示' }
+const PART: Record<Part, string> = { thumbnail: 'サムネイル', view: '詳細表示', waveform: '波形', hover: 'ホバー表示' }
 
 /** 左の一覧の段。プラグインは、提供するものの種類ごとに分ける。 */
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [

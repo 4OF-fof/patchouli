@@ -1,4 +1,4 @@
-import { Show, splitProps } from 'solid-js'
+import { type JSX, Show, createSignal, onCleanup, splitProps } from 'solid-js'
 import { PinToggle } from '../../controls/PinToggle/PinToggle'
 import { Thumb, type ThumbProps } from '../Thumb/Thumb'
 import styles from './ItemCard.module.css'
@@ -16,12 +16,37 @@ export interface ItemCardProps extends Omit<ThumbProps, 'title' | 'class'> {
   /** 渡すと右上にピンを重ねる。ピンはホバーで出し、留めていると出たままにする。 */
   onPin?: () => void
   onClick?: () => void
+  /** カーソルを合わせているあいだ、サムネイルの上に重ねるもの（動画の再生など）。 */
+  preview?: () => JSX.Element
 }
+
+/** カーソルが通り過ぎただけのカードでは、重ねるものを作らない。 */
+const HOVER_DELAY = 200
 
 /** 素材やノートを一つ表すカード。押すと開く。 */
 export function ItemCard(props: ItemCardProps) {
-  const [local, thumb] = splitProps(props, ['name', 'why', 'showName', 'ratio', 'pinned', 'onPin', 'onClick'])
+  const [local, thumb] = splitProps(props, [
+    'name',
+    'why',
+    'showName',
+    'ratio',
+    'pinned',
+    'onPin',
+    'onClick',
+    'preview',
+  ])
   const showName = () => local.showName ?? true
+  const [hovered, setHovered] = createSignal(false)
+  let timer = 0
+  const enter = () => {
+    clearTimeout(timer)
+    if (local.preview) timer = window.setTimeout(() => setHovered(true), HOVER_DELAY)
+  }
+  const leave = () => {
+    clearTimeout(timer)
+    setHovered(false)
+  }
+  onCleanup(() => clearTimeout(timer))
   const card = () => (
     <button
       type="button"
@@ -30,8 +55,13 @@ export function ItemCard(props: ItemCardProps) {
       aria-label={showName() ? undefined : local.name}
       style={{ '--ar': local.ratio }}
       onClick={() => local.onClick?.()}
+      onPointerEnter={enter}
+      onPointerLeave={leave}
     >
-      <Thumb {...thumb} title={local.name} class={styles.thumb} />
+      <span class={styles.thumb}>
+        <Thumb {...thumb} title={local.name} />
+        <Show when={hovered() && local.preview}>{(p) => p()()}</Show>
+      </span>
       {showName() && <span class={styles.nm}>{local.name}</span>}
       {local.why && <span class={styles.why}>{local.why}</span>}
     </button>

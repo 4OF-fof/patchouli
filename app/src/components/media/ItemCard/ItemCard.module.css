@@ -15,7 +15,9 @@
   outline-offset: 3px;
   border-radius: var(--radius-thumb);
 }
-.root .thumb {
+.thumb {
+  display: block;
+  position: relative;
   transition: transform 0.15s ease;
 }
 .root:hover .thumb {
