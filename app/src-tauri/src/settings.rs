@@ -12,6 +12,7 @@ use crate::library::{read_json, write_json};
 const FILE: &str = "settings.json";
 const LIBRARY: &str = "library";
 const RECENT: &str = "recent";
+const DEVELOPER: &str = "developer";
 
 fn path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
@@ -99,4 +100,31 @@ pub fn forget(app: &AppHandle, root: &Path) -> Result<(), String> {
     let mut list = recent(app)?;
     list.retain(|r| r.path != root);
     set_recent(app, &list)
+}
+
+/// 開発者モード。plugin_dir は開発版を置くフォルダで、オフのあいだも残す。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Developer {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plugin_dir: Option<PathBuf>,
+}
+
+pub fn developer(app: &AppHandle) -> Result<Developer, String> {
+    Ok(read(app)?
+        .get(DEVELOPER)
+        .cloned()
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default())
+}
+
+pub fn set_developer(app: &AppHandle, d: &Developer) -> Result<(), String> {
+    let mut m = read(app)?;
+    m.insert(
+        DEVELOPER.into(),
+        serde_json::to_value(d).map_err(|e| e.to_string())?,
+    );
+    write(app, &m)
 }

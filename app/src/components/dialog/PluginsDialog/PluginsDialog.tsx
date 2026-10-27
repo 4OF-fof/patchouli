@@ -28,16 +28,29 @@ export interface PluginsDialogProps {
 
 const PART: Record<Part, string> = { thumbnail: 'サムネイル', view: '詳細表示', waveform: '波形', hover: 'ホバー表示' }
 
-/** 左の一覧の段。プラグインは、提供するものの種類ごとに分ける。 */
+/** 左の一覧の段。プラグインは、提供するものの種類ごとに分け、開発版はまとめて別の段にする。 */
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [
-  { label: 'ファイル形式', has: (p) => p.formats.length > 0 },
-  { label: 'その他', has: (p) => p.formats.length === 0 },
+  { label: 'ファイル形式', has: (p) => !p.dev && p.formats.length > 0 },
+  { label: 'その他', has: (p) => !p.dev && p.formats.length === 0 },
+  { label: '開発版', has: (p) => p.dev },
 ]
 
 const TOOLS = '外部ツール'
 
 /** 左の一覧で外部ツールを選んだときの、選んだものの頭に付ける印。 */
 const CMD = ':command:'
+
+/** 左の一覧で開発版を選んだときの、選んだものの頭に付ける印。同じ id の通常のものと見分ける。 */
+const DEV = ':dev:'
+
+const keyOf = (p: PluginStatus) => (p.dev ? DEV : '') + p.id
+
+/** 状態の札。使っているものには出さない。 */
+const STATE_LABEL: Partial<Record<PluginStatus['state'], string>> = {
+  missing: '未導入',
+  blocked: '使用不可',
+  disabled: '無効',
+}
 
 const sourceLabel = (s: PluginSource) => s.local
 
@@ -114,13 +127,15 @@ export function PluginsDialog(props: PluginsDialogProps) {
   const a = () => props.actions ?? {}
   const plugins = () => props.report?.plugins ?? []
   const commands = () => props.report?.commands ?? []
-  const byId = (id: string) => plugins().find((p) => p.id === id)
+  /** id のプラグイン。開発版と通常のものがあれば、使っているほう。 */
+  const byId = (id: string) =>
+    plugins().find((p) => p.id === id && p.state === 'active') ?? plugins().find((p) => p.id === id)
   const byName = (name: string) => commands().find((c) => c.name === name)
   /** 選んでいるもの。選んだものがなくなったら、最初のものにする。 */
   const current = createMemo(() => {
-    const id = picked()
-    if (id?.startsWith(CMD)) return byName(id.slice(CMD.length)) ?? plugins()[0]
-    return (id && byId(id)) || plugins()[0] || commands()[0]
+    const k = picked()
+    if (k?.startsWith(CMD)) return byName(k.slice(CMD.length)) ?? plugins()[0]
+    return (k && plugins().find((p) => keyOf(p) === k)) || plugins()[0] || commands()[0]
   })
   /** 検索欄の言葉をどれも含むもの。 */
   const hit = (...texts: string[]) => {
@@ -142,7 +157,10 @@ export function PluginsDialog(props: PluginsDialogProps) {
     return v && !('formats' in v) ? v : undefined
   }
   /** 選んでいるものの印。一覧を読み直しても、これが変わらないあいだは詳細を描き直さない。 */
-  const key = createMemo(() => pickedPlugin()?.id ?? (pickedCommand() && CMD + pickedCommand()!.name))
+  const key = createMemo(() => {
+    const p = pickedPlugin()
+    return p ? keyOf(p) : pickedCommand() && CMD + pickedCommand()!.name
+  })
   /** name を求めるプラグイン。 */
   const users = (name: string) =>
     plugins().flatMap((p) => needs(p, 'commands').flatMap((n) => (n.name === name ? [{ p, need: n.need }] : [])))
@@ -193,18 +211,28 @@ export function PluginsDialog(props: PluginsDialogProps) {
             <Show when={p().builtin}>
               <span class={styles.badge}>組み込み</span>
             </Show>
-            <Show when={p().state === 'missing'}>
-              <span class={styles.badge} data-tone="danger">
-                未導入
-              </span>
+            <Show when={p().dev}>
+              <span class={styles.badge}>開発版</span>
             </Show>
-            <Show when={p().state === 'blocked'}>
-              <span class={styles.badge} data-tone="danger">
-                無効
-              </span>
+            <Show when={STATE_LABEL[p().state]}>
+              {(label) => (
+                <span class={styles.badge} data-tone={p().state === 'disabled' ? undefined : 'danger'}>
+                  {label()}
+                </span>
+              )}
             </Show>
           </div>
           <div class={styles.actions}>
+            <Show when={!p().builtin && p().state !== 'missing' && a().setEnabled}>
+              <Button
+                size="sm"
+                variant={p().enabled ? undefined : 'primary'}
+                disabled={busy() !== undefined}
+                onClick={() => void run('', () => a().setEnabled!(p().id, p().dev, !p().enabled))}
+              >
+                {p().enabled ? '無効化' : '有効化'}
+              </Button>
+            </Show>
             <Show when={outdated() && a().update && p().source}>
               <Button
                 size="sm"
@@ -225,7 +253,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 インストール
               </Button>
             </Show>
-            <Show when={!p().builtin && a().remove}>
+            <Show when={!p().builtin && !p().dev && a().remove}>
               <Button
                 size="sm"
                 variant="danger"
@@ -275,14 +303,14 @@ export function PluginsDialog(props: PluginsDialogProps) {
                       <li>
                         <Show when={q()} fallback={<b>{d.name}</b>}>
                           {(dep) => (
-                            <button type="button" class={styles.link} onClick={() => setPicked(dep().id)}>
+                            <button type="button" class={styles.link} onClick={() => setPicked(keyOf(dep()))}>
                               {dep().name}
                             </button>
                           )}
                         </Show>
                         <span class={styles.need}>{need(d)}</span>
                         <span class={styles.state} data-ok={ok()}>
-                          {ok() ? '有効' : q()?.state === 'blocked' ? '無効' : '未導入'}
+                          {ok() ? '有効' : ((q() && STATE_LABEL[q()!.state]) ?? '未導入')}
                         </span>
                       </li>
                     )
@@ -444,7 +472,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                               class={styles.item}
                               aria-current={current() === p}
                               data-missing={p.state !== 'active'}
-                              onClick={() => setPicked(p.id)}
+                              onClick={() => setPicked(keyOf(p))}
                             >
                               <span>{p.name}</span>
                               <Show when={p.problems.length}>

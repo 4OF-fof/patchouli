@@ -355,6 +355,7 @@ export function App(props: AppProps) {
               onChooseLibrary={chooseLibrary}
               libraries={backend.libraries}
               tidy={backend.tidy}
+              developer={backend.developer}
               onReopen={() => window.location.reload()}
               loadPlugins={() => backend.plugins()}
               pluginActions={backend.pluginActions}

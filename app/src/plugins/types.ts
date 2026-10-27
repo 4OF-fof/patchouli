@@ -72,8 +72,11 @@ export type Setting = {
   | { kind: 'choice'; choices: { value: string; label: string }[] }
 )
 
-/** active 使っている / missing ライブラリに記録してあるがアプリに入っていない / blocked 必須の依存が足りないので読み込んでいない */
-export type PluginState = 'active' | 'missing' | 'blocked'
+/**
+ * active 使っている / missing ライブラリに記録してあるがアプリに入っていない / blocked 必須の依存が足りないので読み込んでいない /
+ * disabled 無効にしてある、または同じ id の開発版を使っている
+ */
+export type PluginState = 'active' | 'missing' | 'blocked' | 'disabled'
 
 export interface PluginStatus {
   id: string
@@ -85,6 +88,10 @@ export interface PluginStatus {
   source?: PluginSource
   description: string
   builtin: boolean
+  /** 開発者モードのフォルダの中の開発版。 */
+  dev: boolean
+  /** 有効にしてある。組み込みのものはいつも有効。 */
+  enabled: boolean
   state: PluginState
   required: Deps
   optional: Deps
@@ -140,4 +147,6 @@ export interface PluginActions {
   /** アンインストールする（ライブラリの記録から外す）。 */
   remove?: (id: string) => Promise<void>
   setSetting?: (id: string, key: string, value: SettingValue) => Promise<void>
+  /** 有効・無効を切り替える。dev は開発版のほうか。 */
+  setEnabled?: (id: string, dev: boolean, enabled: boolean) => Promise<void>
 }

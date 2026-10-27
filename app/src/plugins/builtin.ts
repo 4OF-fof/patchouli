@@ -145,6 +145,8 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
   version: m.version,
   description: m.description ?? '',
   builtin,
+  dev: false,
+  enabled: true,
   state: 'active',
   required: depsOf(m.required),
   optional: depsOf(m.optional),

@@ -103,6 +103,7 @@ pub(super) fn load() -> Vec<Loaded> {
                 source: None,
                 recorded: None,
                 blocked: false,
+                dev: false,
             }
         })
         .collect()

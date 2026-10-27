@@ -18,7 +18,7 @@ import type { FormatInfo, Part, PluginReport, PluginSource, SettingValue, UiRef 
 import type { Caller } from '../../plugins/sdk'
 import { ThumbnailTimeout, type UiApi, type UiItem, uiThumbnail, uiWaveform } from '../plugins/ui'
 import errorThumb from './thumb-error.svg'
-import type { Backend, CacheUsage, Changed, Dropped, FileDrag, KnownLibrary, UnusedPlugin } from './types'
+import type { Backend, CacheUsage, Changed, Developer, Dropped, FileDrag, KnownLibrary, UnusedPlugin } from './types'
 
 /** Rust から届く項目。file はファイルの場所、thumb はできているサムネイルの場所。 */
 type TauriItem = StoredItem & { file: string; thumb?: string }
@@ -256,6 +256,11 @@ export function tauriBackend(): Backend {
       unusedPlugins: () => invoke<UnusedPlugin[]>('unused_plugins'),
       removeUnusedPlugins: () => invoke('remove_unused_plugins'),
     },
+    developer: {
+      get: () => invoke<Developer>('developer'),
+      set: (developer) => invoke('set_developer', { developer }),
+      pickDir: async () => (await invoke<string | null>('pick_dev_plugin_dir')) ?? undefined,
+    },
     onFileDrag(cb) {
       const send = (e: FileDrag) => cb(e)
       const off = getCurrentWebview().onDragDropEvent(async (e) => {
@@ -307,6 +312,7 @@ export function tauriBackend(): Backend {
       },
       update: (id) => invoke('update_plugin', { id }),
       remove: (id) => invoke('remove_plugin', { id }),
+      setEnabled: (id, dev, enabled) => invoke('set_plugin_enabled', { id, dev, enabled }),
       setSetting,
     },
     async itemView(id) {

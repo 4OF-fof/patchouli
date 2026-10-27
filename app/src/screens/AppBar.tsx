@@ -1,13 +1,14 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import { version } from '../../package.json'
 import appIcon from '../../src-tauri/icons/32x32.png'
-import type { LibraryActions, TidyActions } from '../backend/types'
+import type { DeveloperActions, LibraryActions, TidyActions } from '../backend/types'
 import { Icon } from '../components/base/Icon/Icon'
 import { TitleBar } from '../components/nav/TitleBar/TitleBar'
 import { HelpDialog } from '../components/dialog/HelpDialog/HelpDialog'
 import { LibrariesDialog } from '../components/dialog/LibrariesDialog/LibrariesDialog'
 import { type Notices, NoticesDialog } from '../components/dialog/NoticesDialog/NoticesDialog'
 import { OtherDialog } from '../components/dialog/OtherDialog/OtherDialog'
+import { DeveloperDialog } from '../components/dialog/DeveloperDialog/DeveloperDialog'
 import { PluginsDialog } from '../components/dialog/PluginsDialog/PluginsDialog'
 import { NavMenu, type NavMenuEntry } from '../components/nav/NavMenu/NavMenu'
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
@@ -37,6 +38,7 @@ export type BarState =
   | 'notices'
   | 'libraries'
   | 'other'
+  | 'developer'
 
 export interface AppBarProps {
   lib: Library
@@ -66,6 +68,8 @@ export interface AppBarProps {
   libraries?: LibraryActions
   /** キャッシュと使っていないプラグインの片付け。渡すと「その他」に出す。 */
   tidy?: TidyActions
+  /** 開発者モードの設定。渡すと、設定に「開発者モード」を出す。 */
+  developer?: DeveloperActions
   /** 開くライブラリを替えたときや、キャッシュを消したとき。ライブラリを開き直す。 */
   onReopen?: () => void
   /** プラグインの一覧を読む。省略すると組み込みのものだけを出す。 */
@@ -179,6 +183,10 @@ export function AppBar(props: AppBarProps) {
     () => (state() === 'other' && props.tidy) || undefined,
     (t) => t.unusedPlugins(),
   )
+  const [dev] = createResource(
+    () => (state() === 'developer' && props.developer) || undefined,
+    (d) => d.get(),
+  )
   // 一覧は大きいので、初めて開いたときに読む
   const [notices] = createResource(
     () => state() === 'notices' || undefined,
@@ -215,6 +223,7 @@ export function AppBar(props: AppBarProps) {
           { id: 'theme', icon: 'theme', label: 'テーマを切り替え' },
           { id: 'keys', icon: 'keyboard', label: 'ショートカット一覧', kbd: '?' },
           { id: 'plugins', icon: 'plugin', label: 'プラグイン' },
+          ...(props.developer ? [{ id: 'developer', icon: 'code' as const, label: '開発者モード' }] : []),
           { id: 'other', icon: 'more', label: 'その他' },
           { id: 'notices', icon: 'notices', label: '権利表示' },
         ]
@@ -231,6 +240,7 @@ export function AppBar(props: AppBarProps) {
     if (id === 'plugins') return setState('plugins')
     if (id === 'notices') return setState('notices')
     if (id === 'other') return setState('other')
+    if (id === 'developer') return setState('developer')
     if (id === 'library' && props.libraries) return setState('libraries')
     if (id === 'library') {
       close()
@@ -389,6 +399,21 @@ export function AppBar(props: AppBarProps) {
             })
           }
           onChoose={props.onChooseLibrary && (async () => props.onChooseLibrary!())}
+          onClose={close}
+        />
+      </Show>
+      <Show when={state() === 'developer'}>
+        <DeveloperDialog
+          developer={dev.latest}
+          onChange={
+            props.developer &&
+            (async (d) => {
+              await props.developer!.set(d)
+              props.onPluginsChanged?.()
+            })
+          }
+          onPickDir={props.developer && (() => props.developer!.pickDir())}
+          onReload={props.onPluginsChanged}
           onClose={close}
         />
       </Show>

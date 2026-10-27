@@ -1,10 +1,12 @@
 //! ライブラリに残すプラグインの記録。
 //!
-//! - `.patchouli/library.json` の `plugins`: 使うプラグインの版と取得先、取得元の検証値。
+//! - `.patchouli/library.json` の `plugins`: 使うプラグインの版と取得先、取得元の検証値、無効にしたか。
 //!   ここにないプラグインは、アプリに入っていても使わない
+//! - `.patchouli/library.json` の `devPlugins`: 有効にした開発版（開発者モードのフォルダの中のもの）の id。
+//!   見つからなくなったものは、ライブラリを開いたときに外す
 //! - `.patchouli/plugins/<id>.json`: 設定の値（`settings`）と、プラグインが自分で読み書きする値（`data`）
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -31,14 +33,24 @@ pub struct Entry {
     /// 取得元の検証値（zip は「sha256:<16 進>」）。取り直したときに同じものかを確かめる。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
+    /// 無効にした。記録は残すが使わない。
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub disabled: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct Record {
     pub plugins: BTreeMap<String, Entry>,
+    /// 有効にした開発版の id。
+    pub dev: BTreeSet<String>,
 }
 
 const KEY: &str = "plugins";
+const DEV_KEY: &str = "devPlugins";
 
 pub fn path(root: &Path) -> PathBuf {
     root.join(".patchouli").join("library.json")
@@ -46,14 +58,19 @@ pub fn path(root: &Path) -> PathBuf {
 
 impl Record {
     pub fn read(path: &Path) -> Result<Record, String> {
-        let plugins = match read_json(path)?.and_then(|mut m| m.remove(KEY)) {
+        let mut m = read_json(path)?.unwrap_or_default();
+        let plugins = match m.remove(KEY) {
             Some(v) => serde_json::from_value(v).map_err(|e| format!("{}: {e}", path.display()))?,
             None => BTreeMap::new(),
         };
-        Ok(Record { plugins })
+        let dev = match m.remove(DEV_KEY) {
+            Some(v) => serde_json::from_value(v).map_err(|e| format!("{}: {e}", path.display()))?,
+            None => BTreeSet::new(),
+        };
+        Ok(Record { plugins, dev })
     }
 
-    /// library.json の plugins だけを書き換える。ほかのもの（ピン留めなど）は残す。
+    /// library.json の plugins と devPlugins だけを書き換える。ほかのもの（ピン留めなど）は残す。
     pub fn write(&self, path: &Path) -> Result<(), String> {
         if let Some(d) = path.parent() {
             std::fs::create_dir_all(d).map_err(|e| format!("{}: {e}", d.display()))?;
@@ -63,6 +80,14 @@ impl Record {
             KEY.into(),
             serde_json::to_value(&self.plugins).map_err(|e| e.to_string())?,
         );
+        if self.dev.is_empty() {
+            m.remove(DEV_KEY);
+        } else {
+            m.insert(
+                DEV_KEY.into(),
+                serde_json::to_value(&self.dev).map_err(|e| e.to_string())?,
+            );
+        }
         write_json(path, &m)
     }
 }

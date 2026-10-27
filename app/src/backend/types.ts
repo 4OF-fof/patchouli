@@ -137,6 +137,21 @@ export interface TidyActions {
   removeUnusedPlugins(): Promise<void>
 }
 
+/** 開発者モード。pluginDir は開発版を置くフォルダで、オフのあいだも残す。 */
+export interface Developer {
+  enabled: boolean
+  pluginDir?: string
+}
+
+/** 開発者モードの設定。 */
+export interface DeveloperActions {
+  get(): Promise<Developer>
+  /** 変えたあとは、open からやり直す。 */
+  set(d: Developer): Promise<void>
+  /** フォルダを選ぶ窓を出す。選ばなかったときは undefined。 */
+  pickDir(): Promise<string | undefined>
+}
+
 export interface Backend {
   open(): Promise<Opened>
   /** 文章がファイルの外での変更と食い違って書かなかったときは、読み直した項目を返す。 */
@@ -154,6 +169,8 @@ export interface Backend {
   libraries?: LibraryActions
   /** キャッシュと使っていないプラグインの片付け。できない環境にはない。 */
   tidy?: TidyActions
+  /** 開発者モード。できない環境にはない。 */
+  developer?: DeveloperActions
   /** ファイルを持ってきたときに呼ぶ。受け付けない環境にはない。返す関数で止める。 */
   onFileDrag?(cb: (e: FileDrag) => void): () => void
   /** 最後に落としたものを取り込む。folder が null のときは、どこにも入れない。projects に key があるフォルダは、新しいプロジェクトにする。 */

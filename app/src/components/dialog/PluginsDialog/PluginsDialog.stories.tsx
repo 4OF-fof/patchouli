@@ -1,5 +1,6 @@
 import { createSignal } from 'solid-js'
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
+import { expect, fn } from 'storybook/test'
 import { builtinReport } from '../../../plugins/builtin'
 import type { CommandStatus, PluginReport, PluginStatus, SettingValue } from '../../../plugins/types'
 import { sampleReport } from '../../../samples/plugins'
@@ -17,6 +18,8 @@ const text: PluginStatus = {
   source: { local: 'D:\\plugins\\patchouli-text' },
   description: 'テキストファイルの表示とサムネイル生成',
   builtin: false,
+  dev: false,
+  enabled: true,
   state: 'active',
   required: none,
   optional: { commands: { pandoc: {} }, plugins: {} },
@@ -70,6 +73,8 @@ const external: PluginReport = {
       source: { local: 'D:\\plugins\\psd.zip' },
       description: '',
       builtin: false,
+      dev: false,
+      enabled: true,
       state: 'missing',
       required: none,
       optional: none,
@@ -105,6 +110,8 @@ const troubled: PluginReport = {
       source: { local: 'D:\\plugins\\psd' },
       description: 'PSD ファイルのサムネイル生成',
       builtin: false,
+      dev: false,
+      enabled: true,
       state: 'blocked',
       required: {
         commands: { magick: { min: '7.0' } },
@@ -135,6 +142,51 @@ const actions = {
   update: wait,
   remove: wait,
   setSetting: wait,
+  setEnabled: wait,
+}
+
+/** 開発者モードのフォルダの中のもの。テキストは通常版も入っていて、開発版のほうを使う。CSV は検出した直後で無効。 */
+const developing: PluginReport = {
+  commands: [ffmpeg],
+  plugins: [
+    ...builtinReport().plugins,
+    {
+      ...text,
+      optional: none,
+      version: '0.3.0-dev',
+      recorded: undefined,
+      source: undefined,
+      dev: true,
+      problems: [],
+    },
+    {
+      ...text,
+      optional: none,
+      state: 'disabled',
+      settings: [],
+      problems: [{ level: 'warning', text: '同じ ID の開発版を使用しているため、使用していません' }],
+    },
+    {
+      id: 'example.csv',
+      name: 'CSV',
+      version: '0.1.0',
+      description: 'CSV の表の表示とサムネイル生成',
+      builtin: false,
+      dev: true,
+      enabled: false,
+      state: 'disabled',
+      required: none,
+      optional: none,
+      via: [],
+      caps: [
+        { part: 'thumbnail', by: 'ui' },
+        { part: 'view', by: 'ui' },
+      ],
+      formats: ['csv'],
+      settings: [],
+      problems: [],
+    },
+  ],
 }
 
 const meta = {
@@ -196,6 +248,20 @@ export const Refresh: Story = {
       />
     )
   },
+}
+export const Developing: Story = {
+  name: '開発版',
+  args: { report: developing, actions: { ...actions, setEnabled: fn(async () => {}) } },
+  play: async ({ args, canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole('button', { name: 'CSV' }))
+    await userEvent.click(await canvas.findByRole('button', { name: '有効化' }))
+    await expect(args.actions?.setEnabled).toHaveBeenCalledWith('example.csv', true, true)
+  },
+}
+/** 無効にした通常のプラグイン。 */
+export const Disabled: Story = {
+  name: '無効にしたもの',
+  args: { report: { ...found, plugins: [...builtinReport().plugins, { ...text, state: 'disabled', enabled: false }] } },
 }
 export const Sample: Story = { name: '見本（例のプラグインも）', args: { report: sampleReport(), actions: {} } }
 export const Loading: Story = { name: '読み込み中', args: { report: undefined } }

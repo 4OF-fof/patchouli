@@ -48,3 +48,20 @@ export const Typing: Story = { name: '検索に入力中', render: () => bar({ i
 export const Prompt: Story = { name: 'プロンプト', render: () => bar({ initial: 'prompt' }) }
 export const Help: Story = { name: 'キー操作の一覧', render: () => bar({ initial: 'help' }) }
 export const ReadOnly: Story = { name: '書き込めない保存先', render: () => bar({ readOnly: true }) }
+
+const developer: AppBarProps['developer'] = {
+  get: async () => ({ enabled: true, pluginDir: 'D:devpatchouli-plugins' }),
+  set: async () => {},
+  pickDir: async () => undefined,
+}
+/** デスクトップでは、設定に開発者モードが出る。 */
+export const DesktopSettings: Story = {
+  name: 'メニュー · 設定（デスクトップ）',
+  decorators: [desktop],
+  render: () => bar({ initial: 'settings', developer }),
+}
+export const Developer: Story = {
+  name: '開発者モード',
+  decorators: [desktop],
+  render: () => bar({ initial: 'developer', developer }),
+}

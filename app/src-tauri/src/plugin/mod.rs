@@ -5,7 +5,9 @@
 //! - 形式はほかの形式を引き継いで（extends）、一部（parts）だけを自分で受け持てる
 //! - 同じ形式を 2 つのプラグインが受け持つときは、先に読んだほうを使い、両方にエラーを付ける
 //! - 外のプラグインの本体はアプリのデータフォルダに置き、ライブラリに記録したものだけを使う。
-//!   設定の値と、プラグインが自分で読み書きする値も、ライブラリに置く（record.rs）
+//!   設定の値と、プラグインが自分で読み書きする値も、ライブラリに置く（record.rs）。記録したものは無効にもできる
+//! - 開発者モードのフォルダの中のものは開発版として一覧に出し、ライブラリで有効にしたものを使う。
+//!   同じ id の通常のものより開発版を使う
 //! - 手元のコマンドとほかのプラグインを、必須（required）か、あれば使う（optional）として求められる
 
 mod builtin;
@@ -176,7 +178,7 @@ pub struct Manifest {
     /// あれば使うもの。
     #[serde(default)]
     pub optional: Deps,
-    /// 組み込み UI の ES モジュール（plugin.json からの相対パス）。組み込みのプラグインでは ui/ の中に置く。
+    /// 組み込み UI の ES モジュール（plugin.json からの相対パス）。組み込みのプラグインのものは build.rs がビルドする。
     pub ui: Option<String>,
     pub formats: BTreeMap<String, FormatDecl>,
 }
@@ -333,6 +335,8 @@ struct Loaded {
     recorded: Option<String>,
     /// 必須の依存が足りないので、何も受け持たせない（読み込まないのと同じ）。
     blocked: bool,
+    /// 開発者モードのフォルダの中の開発版。
+    dev: bool,
 }
 
 /// プラグイン id（いまの版は version）が dep を満たしているか。使っていなければ version は None。
@@ -427,13 +431,14 @@ pub struct FormatInfo {
 }
 
 /// active 使っている / missing ライブラリに記録してあるがアプリに入っていない /
-/// blocked 必須の依存が足りないので読み込んでいない
+/// blocked 必須の依存が足りないので読み込んでいない / disabled 無効にしてある、または同じ id の開発版を使っている
 #[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum State {
     Active,
     Missing,
     Blocked,
+    Disabled,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -451,6 +456,10 @@ pub struct PluginStatus {
     pub source: Option<Source>,
     pub description: String,
     pub builtin: bool,
+    /// 開発者モードのフォルダの中の開発版。
+    pub dev: bool,
+    /// 有効にしてある。組み込みのものはいつも有効。
+    pub enabled: bool,
     pub state: State,
     pub required: Deps,
     pub optional: Deps,
@@ -529,22 +538,55 @@ impl Registry {
     }
 
     /// 組み込みのプラグインと、ライブラリ root に記録してあるプラグイン（本体は dir の下）を読む。
+    /// dev は開発者モードのフォルダで、中の `<名前>/plugin.json` を開発版として一覧に出し、ライブラリで有効にしたものを使う。
+    /// 見つからなくなった開発版は、記録から外す。
     /// 記録を読めなかったときは、組み込みのものだけにして、その理由を返す。
-    pub fn open(root: &Path, dir: &Path) -> (Registry, Vec<String>) {
+    pub fn open(root: &Path, dir: &Path, dev: Option<&Path>) -> (Registry, Vec<String>) {
         let mut problems = Vec::new();
-        let record = Record::read(&record::path(root)).unwrap_or_else(|e| {
+        let mut record = Record::read(&record::path(root)).unwrap_or_else(|e| {
             problems.push(e);
             Record::default()
         });
         let mut plugins = builtin::load();
         let mut others = Vec::new();
         let builtin_ids: HashSet<String> = plugins.iter().map(|p| p.manifest.id.clone()).collect();
+        let mut found = HashSet::new();
+        for (manifest, at) in dev.map(dev_plugins).unwrap_or_default() {
+            if builtin_ids.contains(&manifest.id) {
+                let e = error("組み込みプラグインと ID が重複しています".into());
+                others.push(idle(&manifest, true, false, None, vec![e]));
+            } else if !found.insert(manifest.id.clone()) {
+                log::warn!("開発版の ID が重複しているので読まない: {}", at.display());
+            } else if record.dev.contains(&manifest.id) {
+                let mut p = load_external(manifest, at, &record::Entry::default());
+                p.dev = true;
+                plugins.push(p);
+            } else {
+                others.push(idle(&manifest, true, false, None, Vec::new()));
+            }
+        }
+        if record.dev.iter().any(|id| !found.contains(id)) {
+            record.dev.retain(|id| found.contains(id));
+            if let Err(e) = record::update(root, |r| r.dev.retain(|id| found.contains(id))) {
+                problems.push(e);
+            }
+        }
         for (id, entry) in &record.plugins {
             if builtin_ids.contains(id) {
                 continue;
             }
             let at = dir.join(id);
             match Manifest::read(&at) {
+                Ok(manifest) if entry.disabled => {
+                    others.push(idle(&manifest, false, false, Some(entry), Vec::new()));
+                }
+                Ok(manifest) if record.dev.contains(id) => {
+                    let w = Problem {
+                        level: Level::Warning,
+                        text: "同じ ID の開発版を使用しているため、使用していません".into(),
+                    };
+                    others.push(idle(&manifest, false, true, Some(entry), vec![w]));
+                }
                 Ok(manifest) => plugins.push(load_external(manifest, at, entry)),
                 Err(_) => others.push(PluginStatus {
                     id: id.clone(),
@@ -554,6 +596,8 @@ impl Registry {
                     source: entry.source.clone(),
                     description: String::new(),
                     builtin: false,
+                    dev: false,
+                    enabled: !entry.disabled,
                     state: State::Missing,
                     required: Deps::default(),
                     optional: Deps::default(),
@@ -762,13 +806,6 @@ impl Registry {
             plugin: p.manifest.id.clone(),
             module: p.ui.clone()?,
         })
-    }
-
-    /// 入っている外のプラグインか。
-    pub fn installed(&self, id: &str) -> bool {
-        self.plugins
-            .iter()
-            .any(|p| p.manifest.id == id && p.dir.is_some())
     }
 
     /// 使っているプラグイン id の、plugin.json からのパスが rel のファイル。
@@ -1059,6 +1096,8 @@ impl Registry {
                     source: p.source.clone(),
                     description: m.description.clone(),
                     builtin: p.builtin,
+                    dev: p.dev,
+                    enabled: true,
                     state: if p.blocked {
                         State::Blocked
                     } else {
@@ -1116,6 +1155,59 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
         source: entry.source.clone(),
         recorded: entry.version.clone(),
         blocked: false,
+        dev: false,
+    }
+}
+
+/// 開発者モードのフォルダ dir の中の、`<名前>/plugin.json` を読めたもの。名前順。
+fn dev_plugins(dir: &Path) -> Vec<(Manifest, PathBuf)> {
+    let Ok(entries) = fs::read_dir(dir) else {
+        log::warn!("開発者モードのフォルダを読めない: {}", dir.display());
+        return Vec::new();
+    };
+    let mut dirs: Vec<PathBuf> = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.join(MANIFEST).is_file())
+        .collect();
+    dirs.sort();
+    dirs.into_iter()
+        .filter_map(|at| match Manifest::read(&at) {
+            Ok(m) => Some((m, at)),
+            Err(e) => {
+                log::warn!("開発版の plugin.json を読めない: {e}");
+                None
+            }
+        })
+        .collect()
+}
+
+/// 使っていないプラグインの、一覧の項目。plugin.json に書いてあることだけ出す。
+fn idle(
+    m: &Manifest,
+    dev: bool,
+    enabled: bool,
+    entry: Option<&record::Entry>,
+    problems: Vec<Problem>,
+) -> PluginStatus {
+    PluginStatus {
+        id: m.id.clone(),
+        name: m.name.clone(),
+        version: Some(m.version.clone()),
+        recorded: entry.and_then(|e| e.version.clone()),
+        source: entry.and_then(|e| e.source.clone()),
+        description: m.description.clone(),
+        builtin: false,
+        dev,
+        enabled,
+        state: State::Disabled,
+        required: m.required.clone(),
+        optional: m.optional.clone(),
+        via: Vec::new(),
+        caps: m.caps(),
+        formats: m.formats.keys().cloned().collect(),
+        settings: Vec::new(),
+        problems,
     }
 }
 
