@@ -68,7 +68,6 @@ export function VideoHover(props: { src: string; fit?: Fit }) {
         <span class={styles.time}>
           {clock(at())} / {clock(length())}
         </span>
-        <span class={styles.mute}>ミュート</span>
         <span class={styles.track}>
           <span class={styles.done} style={{ width: `${Math.min(100, (at() / length()) * 100)}%` }} />
         </span>
