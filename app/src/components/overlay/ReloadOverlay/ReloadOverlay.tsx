@@ -33,13 +33,19 @@ export function ReloadOverlay(props: ReloadOverlayProps) {
             </div>
           </Match>
           <Match when={props.step === 'wait'}>
-            <b role="status">処理の完了を待っています…{left()}</b>
+            <b class={styles.busy} role="status">
+              <span class={styles.spin} aria-hidden="true" />
+              処理の完了を待っています…{left()}
+            </b>
             <div class={styles.actions}>
               <Button onClick={() => props.onStop?.()}>処理を中止</Button>
             </div>
           </Match>
           <Match when={props.step === 'load'}>
-            <b role="status">プラグインを読み込んでいます…</b>
+            <b class={styles.busy} role="status">
+              <span class={styles.spin} aria-hidden="true" />
+              プラグインを読み込んでいます…
+            </b>
           </Match>
         </Switch>
       </div>
