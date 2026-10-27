@@ -6,7 +6,7 @@ const meta = {
   title: '部品/overlay/ReloadOverlay',
   component: ReloadOverlay,
   parameters: { layout: 'fullscreen' },
-  args: { step: 'load', onWait: fn(), onStop: fn(), onCancel: fn() },
+  args: { step: 'load', onWait: fn(), onStop: fn() },
   decorators: [
     (Story) => (
       <div style={{ position: 'relative', height: '100vh', 'min-height': '480px', background: 'var(--paper)' }}>

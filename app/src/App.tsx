@@ -228,7 +228,7 @@ export function App(props: AppProps) {
   // プラグインだけを読み直す。いまいる画面は保ち、ライブラリと形式を差し替える
   const [plugged, setPlugged] = createSignal(0)
   const [reloading, setReloading] = createSignal<{ step: 'ask' | 'wait' | 'load'; work?: number }>()
-  let answer: ((a: 'wait' | 'stop' | undefined) => void) | undefined
+  let answer: ((a: 'wait' | 'stop') => void) | undefined
   const reloadPlugins = async () => {
     if (!backend.reloadPlugins) return window.location.reload()
     if (reloading()) return
@@ -236,9 +236,8 @@ export function App(props: AppProps) {
     let wait = true
     if (work > 0) {
       setReloading({ step: 'ask', work })
-      const a = await new Promise<'wait' | 'stop' | undefined>((r) => (answer = r))
+      const a = await new Promise<'wait' | 'stop'>((r) => (answer = r))
       answer = undefined
-      if (!a) return setReloading(undefined)
       wait = a === 'wait'
     }
     setReloading({ step: wait && work > 0 ? 'wait' : 'load' })
@@ -529,7 +528,6 @@ export function App(props: AppProps) {
                 work={r().work}
                 onWait={() => answer?.('wait')}
                 onStop={() => (r().step === 'ask' ? answer?.('stop') : void backend.stopPluginWork?.())}
-                onCancel={() => answer?.(undefined)}
               />
             )}
           </Show>

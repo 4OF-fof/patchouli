@@ -1,5 +1,6 @@
 import { For, Index, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
+import { Spinner } from '../../components/base/Spinner/Spinner'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
@@ -260,7 +261,7 @@ export function EditionScreen(props: EditionScreenProps) {
             </Index>
             <div class={styles.more} ref={more}>
               <Show when={shown() < feed().length}>
-                <span class={styles.spin} aria-hidden="true" />
+                <Spinner />
                 続きを読み込み中（<span class={styles.mono}>{feed().length}</span> 件中{' '}
                 <span class={styles.mono}>{Math.min(shown(), feed().length)}</span> 件を表示）
               </Show>
