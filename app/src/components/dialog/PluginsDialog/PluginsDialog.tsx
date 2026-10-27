@@ -21,7 +21,7 @@ export interface PluginsDialogProps {
   report?: PluginReport
   actions?: PluginActions
   /** 使うプラグインが変わったとき（入れた・アンインストールしたなど）。ライブラリを開き直す。 */
-  onChanged?: () => void
+  onChanged?: () => void | Promise<void>
   /** 設定を変えたとき。一覧を読み直す。 */
   onRefresh?: () => void
   onClose?: () => void
@@ -111,13 +111,13 @@ export function PluginsDialog(props: PluginsDialogProps) {
   })
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
-  /** label を出しているあいだに job を動かす（空なら出さない）。changed なら、終わったあとライブラリを開き直す。 */
+  /** label を出しているあいだに job を動かす（空なら出さない）。changed なら、終わったあとプラグインを読み直す。 */
   const run = async (label: string, job: () => Promise<boolean | void>, changed = true) => {
     setBusy(label)
     setError(undefined)
     try {
       if ((await job()) === false) return
-      if (changed) props.onChanged?.()
+      if (changed) await props.onChanged?.()
       else props.onRefresh?.()
     } catch (e) {
       setError(message(e))

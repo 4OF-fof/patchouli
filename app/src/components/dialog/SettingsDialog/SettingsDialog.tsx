@@ -24,9 +24,8 @@ export interface SettingsDialogProps {
   onDeveloperChange?: (d: Developer) => Promise<void>
   /** 開発版の場所を選ぶ窓を出す。選ばなかったときは undefined。 */
   onPickDevPath?: (kind: 'dir' | 'repo') => Promise<string | undefined>
-  /** 変えた開発者モードの設定が、再起動するまで使われない。 */
-  restartNeeded?: boolean
-  onRestart?: () => void
+  /** プラグインを読み直す。開発版を作り直したときに使う。 */
+  onReload?: () => void
   onClose?: () => void
 }
 
@@ -231,16 +230,10 @@ export function SettingsDialog(props: SettingsDialogProps) {
                           </div>
                         )}
                       </For>
-                      <Show when={props.onRestart && (props.restartNeeded || d().enabled)}>
-                        <div class={styles.restart} data-needed={!!props.restartNeeded}>
-                          <span>{props.restartNeeded ? '変更を反映するには再起動が必要です' : ''}</span>
-                          <Button
-                            size="sm"
-                            variant={props.restartNeeded ? 'primary' : 'default'}
-                            disabled={busy() !== undefined}
-                            onClick={() => props.onRestart?.()}
-                          >
-                            再起動
+                      <Show when={props.onReload && d().enabled}>
+                        <div class={styles.reload}>
+                          <Button size="sm" disabled={busy() !== undefined} onClick={() => props.onReload?.()}>
+                            プラグインを再読み込み
                           </Button>
                         </div>
                       </Show>

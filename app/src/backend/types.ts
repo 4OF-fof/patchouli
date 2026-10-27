@@ -150,11 +150,10 @@ export interface Developer {
 /** 開発者モードの設定。 */
 export interface DeveloperActions {
   get(): Promise<Developer>
-  /** 変えたものは、再起動すると使う。 */
+  /** 変えたあとは、reloadPlugins で読み直す。 */
   set(d: Developer): Promise<void>
   /** 場所を選ぶ窓を出す。repo ならリポジトリ、でなければフォルダ。選ばなかったときは undefined。 */
   pick(kind: 'dir' | 'repo'): Promise<string | undefined>
-  restart(): Promise<void>
 }
 
 export interface Backend {
@@ -186,8 +185,14 @@ export interface Backend {
   onChanged?(cb: (c: Changed) => void): () => void
   /** プラグインの一覧と、それぞれの問題。 */
   plugins(): Promise<PluginReport>
-  /** プラグインを入れる・外すなどの操作。できない環境にはない。使うプラグインが変わったら、open からやり直す。 */
+  /** プラグインを入れる・外すなどの操作。できない環境にはない。使うプラグインが変わったら、reloadPlugins で読み直す。 */
   pluginActions?: PluginActions
+  /** 裏でプラグインを使っている処理（サムネイルや波形の作成）の、残りの数。 */
+  pluginWork?(): Promise<number>
+  /** 裏でプラグインを使っている処理を、いまの 1 件で打ち切らせる。 */
+  stopPluginWork?(): Promise<void>
+  /** ライブラリを開き直さずに、プラグインだけを読み直す。wait なら裏の処理が終わるのを待ち、でなければ打ち切る。 */
+  reloadPlugins?(wait: boolean): Promise<Opened>
   /** 素材の詳細に出すもの。受け持つプラグインが決める。決まらなければ null。 */
   itemView?: (id: string) => Promise<ItemView | null>
   /** 音声の素材に残してある波形（区間ごとの音の大きさを、0〜255 にしたもの）。まだなければ null。 */

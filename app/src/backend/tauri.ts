@@ -31,9 +31,12 @@ const urlsOf = (it: TauriItem): ItemUrls => ({
 /** Rust から届く、詳細に出すもの。ui はプラグインの id と、そのフォルダの中の ES モジュールのパス。decoded は item_decoded で PNG を受け取る。 */
 type TauriView = { kind: 'image' | 'video' | 'audio' | 'decoded' } | { kind: 'ui'; plugin: string; module: string }
 
+/** プラグインを読み直した回数。組み込み UI の ES モジュールは URL ごとに使い回すので、URL に付けて読み直させる。 */
+let uiVersion = 0
+
 /** プラグインのフォルダの中のファイルの URL（src-tauri/src/plugin/files.rs が返す）。 */
 const pluginUrl = (plugin: string, path: string) =>
-  convertFileSrc('', 'plugin') + [plugin, ...path.split('/')].map(encodeURIComponent).join('/')
+  `${convertFileSrc('', 'plugin') + [plugin, ...path.split('/')].map(encodeURIComponent).join('/')}?v=${uiVersion}`
 
 /** 読んだ key を read に足していく設定の値。 */
 const watched = (s: Record<string, SettingValue>, read: Set<string>) =>
@@ -215,17 +218,44 @@ export function tauriBackend(): Backend {
     }
   }
 
+  const openedOf = (s: StoredLibrary<TauriItem>) => {
+    formats = new Map(s.formats.map((f) => [f.ext, f]))
+    const items = s.items.toSorted((a, b) => b.mtime - a.mtime)
+    void makeUiThumbs(items)
+    void makeWaves(items)
+    return toOpened(s, new Date(), urlsOf)
+  }
+  // 組み込み UI に作らせる予定のものを捨てる。作っている 1 件は、終わるまで待つ
+  const stopFront = () => {
+    uiQueue.length = 0
+    for (const it of waveQueue.splice(0)) waveIds.delete(it.id)
+  }
+  const frontBusy = () => making || waving
+  const frontIdle = async () => {
+    while (frontBusy()) await new Promise((r) => setTimeout(r, 50))
+  }
+
   return {
     async open() {
       await Promise.all([listenThumbs(), listenChanges()])
       // 前のライブラリの素材のものは、もう作らない
       for (const it of waveQueue.splice(0)) waveIds.delete(it.id)
-      const s = await invoke<StoredLibrary<TauriItem>>('open_library')
-      formats = new Map(s.formats.map((f) => [f.ext, f]))
-      const items = s.items.toSorted((a, b) => b.mtime - a.mtime)
-      void makeUiThumbs(items)
-      void makeWaves(items)
-      return toOpened(s, new Date(), urlsOf)
+      return openedOf(await invoke<StoredLibrary<TauriItem>>('open_library'))
+    },
+    async pluginWork() {
+      const front = uiQueue.length + waveQueue.length + Number(making) + Number(waving)
+      return front + (await invoke<number>('plugin_work'))
+    },
+    async stopPluginWork() {
+      stopFront()
+      await invoke('stop_plugin_work')
+    },
+    async reloadPlugins(wait) {
+      if (!wait) stopFront()
+      await frontIdle()
+      const s = await invoke<StoredLibrary<TauriItem>>('reload_plugins', { wait })
+      uiVersion++
+      return openedOf(s)
     },
     async saveItem(id, patch) {
       const it = await invoke<TauriItem | null>('save_item', { id, patch })
@@ -260,7 +290,6 @@ export function tauriBackend(): Backend {
       get: () => invoke<Developer>('developer'),
       set: (developer) => invoke('set_developer', { developer }),
       pick: async (kind) => (await invoke<string | null>('pick_dev_path', { repo: kind === 'repo' })) ?? undefined,
-      restart: () => invoke('restart_app'),
     },
     onFileDrag(cb) {
       const send = (e: FileDrag) => cb(e)

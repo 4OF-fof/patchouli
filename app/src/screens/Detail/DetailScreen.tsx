@@ -35,7 +35,7 @@ export function DetailScreen(props: DetailScreenProps) {
   const [sort, setSort] = createSignal<Sort>('moved')
   const formats = useFormats()
   const preview = useHoverPreview()
-  const labelOf = (it: Item) => formats.get(it.ext)?.label ?? it.ext
+  const labelOf = (it: Item) => formats().get(it.ext)?.label ?? it.ext
   const side = children(() => props.side)
   const hasSide = () => side.toArray().some((x) => x != null)
   const [pins, setPins] = createSignal(props.pins ?? [])

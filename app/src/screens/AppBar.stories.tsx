@@ -52,7 +52,6 @@ const developer: AppBarProps['developer'] = {
   get: async () => ({ enabled: true, pluginDirs: ['D:\\dev\\patchouli-plugins'], repos: [] }),
   set: async () => {},
   pick: async () => undefined,
-  restart: async () => {},
 }
 /** デスクトップでは、設定に開発者モードが出る。 */
 export const Settings: Story = {

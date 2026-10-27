@@ -23,7 +23,7 @@ const meta = {
     developer: { enabled: false, pluginDirs: [], repos: [] },
     onDeveloperChange: fn(async () => {}),
     onPickDevPath: fn(async (kind: 'dir' | 'repo') => (kind === 'dir' ? DIR : REPO)),
-    onRestart: fn(),
+    onReload: fn(),
     onClose: () => {},
   },
   decorators: [
@@ -72,20 +72,8 @@ export const Developer: Story = {
     developer: { enabled: true, pluginDirs: [DIR, 'E:\\work\\plugins'], repos: [REPO] },
   },
   play: async ({ args, canvas, userEvent }) => {
-    await userEvent.click(canvas.getByRole('button', { name: '再起動' }))
-    await expect(args.onRestart).toHaveBeenCalled()
-  },
-}
-
-/** 設定を変えたあとは、再起動するまで使われないことを知らせる。 */
-export const RestartNeeded: Story = {
-  name: '再起動が必要',
-  args: {
-    developer: { enabled: true, pluginDirs: [DIR], repos: [] },
-    restartNeeded: true,
-  },
-  play: async ({ canvas }) => {
-    await expect(canvas.getByText('変更を反映するには再起動が必要です')).toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: 'プラグインを再読み込み' }))
+    await expect(args.onReload).toHaveBeenCalled()
   },
 }
 

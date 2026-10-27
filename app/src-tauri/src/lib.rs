@@ -9,6 +9,7 @@ mod tidy;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use cache::Cache;
@@ -25,6 +26,8 @@ use tauri_plugin_dialog::DialogExt;
 struct Current(Mutex<Option<Session>>);
 
 struct Session {
+    /// 素材を読み直すたびに変わる。裏の突き合わせが、読み直す前の結果を持ち込まないようにする。
+    id: u64,
     lib: Library,
     thumbs: PathBuf,
     plugins: Arc<Registry>,
@@ -63,6 +66,17 @@ fn plugin_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .join("plugins"))
 }
 
+/// Session の id。
+fn next_session() -> u64 {
+    static N: AtomicU64 = AtomicU64::new(0);
+    N.fetch_add(1, Ordering::Relaxed)
+}
+
+/// 開発版のリポジトリの zip を広げる場所。
+fn dev_unpack_dir(app: &tauri::AppHandle) -> Option<PathBuf> {
+    Some(cache_dir(app).ok()?.join("dev-plugins"))
+}
+
 /// 開発者モードで、開発版を探す場所。オフのときはない。
 fn dev_places(app: &tauri::AppHandle) -> Option<plugin::Dev> {
     let d = settings::developer(app)
@@ -72,7 +86,7 @@ fn dev_places(app: &tauri::AppHandle) -> Option<plugin::Dev> {
     Some(plugin::Dev {
         dirs: d.plugin_dirs,
         repos: d.repos,
-        unpack: cache_dir(app).ok()?.join("dev-plugins"),
+        unpack: dev_unpack_dir(app)?,
     })
 }
 
@@ -332,7 +346,9 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
         };
     opened.problems.extend(plugin_problems);
     let runner = Arc::new(Mutex::new(Runner::new(Arc::clone(&plugins))));
+    let id = next_session();
     *cur.0.lock().map_err(|e| e.to_string())? = Some(Session {
+        id,
         lib,
         thumbs: thumbs.clone(),
         plugins: Arc::clone(&plugins),
@@ -340,9 +356,68 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
         ui_reads: HashMap::new(),
     });
     if checking {
-        std::thread::spawn(move || check(&app, &root, &plugins, &cache, &thumbs));
+        std::thread::spawn(move || check(&app, id, &root, &plugins, &cache, &thumbs));
     }
     Ok(opened)
+}
+
+/// ライブラリを開き直さずに、プラグインだけを読み直す。扱える形式が変わったときだけ、素材を読み直す。
+/// wait なら裏のサムネイル作りが終わるのを待ち、でなければいまの 1 件で打ち切らせる。
+#[tauri::command]
+async fn reload_plugins(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    wait: bool,
+) -> Result<library::Opened, String> {
+    let (root, old) = with_session(&cur, |s| {
+        Ok((s.lib.root().to_owned(), Arc::clone(&s.plugins)))
+    })?;
+    if !wait {
+        old.stop();
+    }
+    while thumb::pending() > 0 {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    old.stop();
+    let (plugins, problems) =
+        Registry::open(&root, &plugin_dir(&app)?, dev_places(&app).as_ref());
+    let plugins = Arc::new(plugins);
+    let same = old.exts() == plugins.exts();
+    let (mut opened, thumbs, cache) = with_session(&cur, |s| {
+        let opened = if same {
+            s.lib.set_plugins(Arc::clone(&plugins));
+            s.lib.snapshot()
+        } else {
+            let (lib, scan) = Library::scan(&root, Arc::clone(&plugins), s.lib.cache());
+            s.lib = lib;
+            s.id = next_session();
+            s.lib.opened(scan)
+        };
+        s.plugins = Arc::clone(&plugins);
+        s.runner = Arc::new(Mutex::new(Runner::new(Arc::clone(&plugins))));
+        s.ui_reads.clear();
+        Ok((opened, s.thumbs.clone(), s.lib.cache()))
+    })?;
+    let job = plan_thumbs(&plugins, &thumbs, &cache, &mut opened.items);
+    let all_found = job.2;
+    spawn_thumbs(&app, &plugins, &cache, &thumbs, job, all_found);
+    opened.problems.extend(problems);
+    Ok(opened)
+}
+
+/// 裏で作っているサムネイルの、残りの数。
+#[tauri::command]
+fn plugin_work() -> usize {
+    thumb::pending()
+}
+
+/// 裏でプラグインを使う処理を、いまの 1 件で打ち切らせる。
+#[tauri::command]
+async fn stop_plugin_work(cur: State<'_, Current>) -> Result<(), String> {
+    with_session(&cur, |s| {
+        s.plugins.stop();
+        Ok(())
+    })
 }
 
 /// 裏でサムネイルの要らなくなったものを消し、足りないものを作る。
@@ -366,9 +441,10 @@ fn spawn_thumbs(
     });
 }
 
-/// 写しから開いたライブラリを、ファイルと突き合わせる。開き直していたら（plugins が替わっていたら）何もしない。
+/// 写しから開いたライブラリを、ファイルと突き合わせる。開き直していたら（Session の id が替わっていたら）何もしない。
 fn check(
     app: &tauri::AppHandle,
+    id: u64,
     root: &Path,
     plugins: &Arc<Registry>,
     cache: &Arc<Cache>,
@@ -389,7 +465,7 @@ fn check(
             return;
         };
         match g.as_mut() {
-            Some(s) if Arc::ptr_eq(&s.plugins, plugins) => s.lib.apply(fresh, scan),
+            Some(s) if s.id == id => s.lib.apply(fresh, scan),
             _ => return,
         }
     };
@@ -542,7 +618,7 @@ async fn developer(app: tauri::AppHandle) -> Result<settings::Developer, String>
     settings::developer(&app)
 }
 
-/// 開発者モードの設定を変える。変えたものは、アプリを再起動すると使う。
+/// 開発者モードの設定を変える。変えたあとは、画面がプラグインを読み直す。
 #[tauri::command]
 async fn set_developer(
     app: tauri::AppHandle,
@@ -568,12 +644,6 @@ async fn pick_dev_path(app: tauri::AppHandle, repo: bool) -> Result<Option<PathB
         return Err(format!("{}: {} が見つかりません", p.display(), plugin::MANIFEST));
     }
     Ok(Some(p))
-}
-
-/// アプリを再起動する。
-#[tauri::command]
-fn restart_app(app: tauri::AppHandle) {
-    app.restart()
 }
 
 /// 開いているライブラリの記録と設定から外す。ほかのどのライブラリでも使っていなければ、アプリからも消す。
@@ -1102,7 +1172,9 @@ pub fn run() {
             developer,
             set_developer,
             pick_dev_path,
-            restart_app,
+            reload_plugins,
+            plugin_work,
+            stop_plugin_work,
             set_plugin_setting,
             item_view,
             item_decoded,
@@ -1124,6 +1196,10 @@ pub fn run() {
             remove_unused_plugins
         ])
         .setup(|app| {
+            // 前に起動したときに広げた開発版は、もう使っていない
+            if let Some(d) = dev_unpack_dir(app.handle()) {
+                let _ = std::fs::remove_dir_all(d);
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

@@ -25,7 +25,7 @@ export function useHoverPreview() {
   const formats = useFormats()
   const host = useContext(Host)
   return (it: Item, opts?: HoverOptions): (() => JSX.Element) | undefined => {
-    const f = it.note ? undefined : formats.get(it.ext)
+    const f = it.note ? undefined : formats().get(it.ext)
     const make = host.ui
     const ui = f?.uiHover
     if (ui && make)

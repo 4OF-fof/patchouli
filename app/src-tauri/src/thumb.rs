@@ -356,27 +356,45 @@ pub fn is_making(src: &Path) -> bool {
     making().lock().is_ok_and(|m| m.contains(src))
 }
 
+/// 裏で作っているサムネイルの、残りの数。
+static PENDING: AtomicUsize = AtomicUsize::new(0);
+
+pub fn pending() -> usize {
+    PENDING.load(Ordering::Relaxed)
+}
+
 /// 新しいものから順に、手の空いた数だけ並べて作る。仕事ごとに done を呼ぶ（作らなかったときと失敗したときは None）。
+/// reg が止められたら、作っているものを終えたところで、残りは作らずに戻る。
 pub fn make_all(
     reg: &Arc<Registry>,
     mut jobs: Vec<Job>,
     done: impl Fn(&Job, Option<Placed>) + Sync,
 ) {
     jobs.sort_by(|a, b| b.mtime.total_cmp(&a.mtime));
+    PENDING.fetch_add(jobs.len(), Ordering::Relaxed);
     let next = AtomicUsize::new(0);
     let width = std::thread::available_parallelism().map_or(2, |n| (n.get() / 2).max(1));
     std::thread::scope(|s| {
         for _ in 0..width {
             s.spawn(|| {
                 let mut runner = Runner::new(Arc::clone(reg));
-                while let Some(job) = jobs.get(next.fetch_add(1, Ordering::Relaxed)) {
+                while !reg.stopped()
+                    && let Some(job) = jobs.get(next.fetch_add(1, Ordering::Relaxed))
+                {
                     let placed = make(&mut runner, job).unwrap_or_else(|e| {
                         log::warn!("サムネイルを作れない: {e}");
                         None
                     });
                     done(job, placed);
+                    PENDING.fetch_sub(1, Ordering::Relaxed);
                 }
             });
         }
     });
+    let left = jobs.len().saturating_sub(next.load(Ordering::Relaxed).min(jobs.len()));
+    let undone = &jobs[jobs.len() - left..];
+    for j in undone {
+        end_making(&j.src);
+    }
+    PENDING.fetch_sub(left, Ordering::Relaxed);
 }

@@ -21,6 +21,7 @@ mod runtime;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
 use serde::{Deserialize, Serialize};
@@ -513,6 +514,8 @@ pub struct Registry {
     stored: RwLock<HashMap<String, Stored>>,
     /// 開いているライブラリ。組み込みだけのときはない。
     root: Option<PathBuf>,
+    /// 読み直すために、裏の処理を打ち切った。
+    stopped: AtomicBool,
 }
 
 const DEFAULT_RATIO: f64 = 1.6;
@@ -532,6 +535,7 @@ impl Registry {
             record: Record::default(),
             stored: RwLock::new(HashMap::new()),
             root: None,
+            stopped: AtomicBool::new(false),
         };
         r.resolve();
         r
@@ -641,9 +645,24 @@ impl Registry {
             record,
             stored: RwLock::new(stored),
             root: Some(root.to_owned()),
+            stopped: AtomicBool::new(false),
         };
         r.resolve();
         (r, problems)
+    }
+
+    /// 裏でこのプラグインを使う処理を、いまの 1 件で打ち切らせる。
+    pub fn stop(&self) {
+        self.stopped.store(true, Ordering::Relaxed);
+    }
+
+    pub fn stopped(&self) -> bool {
+        self.stopped.load(Ordering::Relaxed)
+    }
+
+    /// 扱える形式（拡張子）。
+    pub fn exts(&self) -> HashSet<String> {
+        self.formats().into_iter().map(|f| f.ext).collect()
     }
 
     fn resolve(&mut self) {
@@ -1177,6 +1196,7 @@ pub struct Dev {
     /// 中の `<名前>/plugin.json` を読むフォルダ。
     pub dirs: Vec<PathBuf>,
     /// plugin.json を直下に持つリポジトリ。ビルドした `<id>-<版>.zip` を unpack の下に広げて読む。
+    /// 前に広げたものを使っていることがあるので、読むたびに別のフォルダに広げる。
     pub repos: Vec<PathBuf>,
     pub unpack: PathBuf,
 }
@@ -1222,7 +1242,9 @@ impl Dev {
         if !zip.is_file() {
             return Err(format!("{name} が見つかりません"));
         }
-        let at = self.unpack.join(&m.id);
+        let at = self
+            .unpack
+            .join(format!("{}-{}", m.id, uuid::Uuid::new_v4().simple()));
         install::unpack(&zip, &at)?;
         let inner = Manifest::read(&at)?;
         if inner.id != m.id {

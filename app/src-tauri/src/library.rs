@@ -284,6 +284,33 @@ impl Library {
         Arc::clone(&self.plugins)
     }
 
+    /// 扱える形式の変わらないプラグインに差し替える。
+    pub fn set_plugins(&mut self, plugins: Arc<Registry>) {
+        self.plugins = plugins;
+    }
+
+    /// いまの写しを、開いた結果にする。
+    pub fn snapshot(&self) -> Opened {
+        let snap = self.cache.load().unwrap_or_else(|| crate::cache::Snapshot {
+            rows: Vec::new(),
+            projects: Vec::new(),
+            state: LibraryState::default(),
+        });
+        Opened {
+            root: self.root.clone(),
+            items: snap
+                .rows
+                .into_iter()
+                .filter(|r| self.plugins.knows(&r.item.ext))
+                .map(|r| r.item)
+                .collect(),
+            projects: snap.projects,
+            state: snap.state,
+            formats: self.plugins.formats(),
+            problems: vec![],
+        }
+    }
+
     fn new(root: PathBuf, plugins: Arc<Registry>, cache: Arc<Cache>) -> Library {
         Library {
             root,

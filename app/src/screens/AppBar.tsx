@@ -74,7 +74,7 @@ export interface AppBarProps {
   /** プラグインを入れる・外すなどの操作。 */
   pluginActions?: PluginActions
   /** 使うプラグインが変わったとき。ライブラリを開き直す。 */
-  onPluginsChanged?: () => void
+  onPluginsChanged?: () => void | Promise<void>
 }
 
 const toggleTheme = () => {
@@ -180,17 +180,10 @@ export function AppBar(props: AppBarProps) {
     () => (state() === 'settings' && props.tidy) || undefined,
     (t) => t.unusedPlugins(),
   )
-  // 開発者モードの設定は起動したときに読むので、初めて読んだ値と違えば再起動を促す
-  let applied: string | undefined
   const [dev, { mutate: setDev }] = createResource(
     () => (state() === 'settings' && props.developer) || undefined,
-    async (d) => {
-      const v = await d.get()
-      applied ??= JSON.stringify(v)
-      return v
-    },
+    (d) => d.get(),
   )
-  const restartNeeded = () => applied !== undefined && !!dev.latest && JSON.stringify(dev.latest) !== applied
   // 一覧は大きいので、初めて開いたときに読む
   const [notices] = createResource(
     () => state() === 'notices' || undefined,
@@ -367,7 +360,13 @@ export function AppBar(props: AppBarProps) {
         <PluginsDialog
           report={plugins.latest}
           actions={props.pluginActions}
-          onChanged={props.onPluginsChanged}
+          onChanged={
+            props.onPluginsChanged &&
+            (async () => {
+              await props.onPluginsChanged!()
+              await reloadPlugins()
+            })
+          }
           onRefresh={() => void reloadPlugins()}
           onClose={close}
         />
@@ -421,11 +420,11 @@ export function AppBar(props: AppBarProps) {
             (async (d) => {
               await props.developer!.set(d)
               setDev(d)
+              await props.onPluginsChanged?.()
             })
           }
           onPickDevPath={props.developer && ((kind) => props.developer!.pick(kind))}
-          restartNeeded={restartNeeded()}
-          onRestart={props.developer && (() => void props.developer!.restart())}
+          onReload={props.onPluginsChanged && (() => void props.onPluginsChanged!())}
           onClose={close}
         />
       </Show>
