@@ -9,7 +9,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  font: 13px var(--f-sans);
+  font: var(--fs-list) var(--f-sans);
 }
 .error {
   margin: auto;
@@ -17,7 +17,7 @@
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--danger) 14%, transparent);
   color: var(--danger);
-  font-size: 12.5px;
+  font-size: var(--fs-list);
 }
 
 /* プラグインが描く素の要素の既定の見た目。:where で詳細度を 0 にして、プラグインの CSS で上書きできるようにする */
@@ -29,7 +29,7 @@
   background: var(--card);
   color: var(--ink);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   cursor: pointer;
 }
 :where(.mount) :where(button:hover) {
@@ -48,21 +48,21 @@
   background: var(--card);
   color: var(--ink);
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--fs-list);
 }
 :where(.mount) :where(textarea) {
   height: auto;
   padding: 6px 8px;
 }
 :where(.mount) :where(input, select, textarea, button):focus-visible {
-  outline: 2px solid var(--sage);
+  outline: 2px solid var(--accent);
   outline-offset: -1px;
 }
 :where(.mount) :where(input[type='checkbox'], input[type='radio'], input[type='range']) {
-  accent-color: var(--sage);
+  accent-color: var(--accent);
 }
 :where(.mount) :where(a) {
-  color: var(--sage);
+  color: var(--accent);
 }
 :where(.mount) :where(code, pre, kbd) {
   font-family: var(--f-mono);

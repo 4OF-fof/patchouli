@@ -28,7 +28,7 @@ button.tw {
 }
 /* 開閉は丸い地で、詳細へ行く .link の帯とは別の見た目にする */
 button.tw:hover {
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--card);
   color: var(--ink);
 }
@@ -50,7 +50,7 @@ button.tw:hover {
   margin: -6px 0;
   padding: 6px 4px 6px 10px;
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: none;
   color: inherit;
   text-align: left;
@@ -80,11 +80,11 @@ button.tw:hover {
   width: 144px;
 }
 .tn b {
-  font-size: 18px;
-  font-weight: 700;
+  font-size: var(--fs-heading);
+  font-weight: 600;
 }
 .row[data-sub='true'] .tn b {
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .tn i {
@@ -92,7 +92,7 @@ button.tw:hover {
   color: var(--faint);
 }
 .tn span {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--muted);
 }
 .strip {

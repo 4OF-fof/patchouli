@@ -23,11 +23,11 @@
 }
 /* 色は描くときに color から読む */
 .base {
-  color: #8e929a;
+  color: var(--muted);
   opacity: 0.55;
 }
 .done {
-  color: var(--sage);
+  color: var(--accent);
 }
 /* 置き場所の側で、--player-bar-width で幅を変えられる */
 .bar {

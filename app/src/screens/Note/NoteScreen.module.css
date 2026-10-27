@@ -19,9 +19,9 @@
 }
 .doc h1 {
   margin: 0;
-  font-size: 34px;
+  font-size: var(--fs-title);
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.25;
 }
 .props {
   align-self: flex-start;
@@ -33,11 +33,11 @@
   border: 0;
   background: none;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   cursor: pointer;
 }
 .tag {
-  color: var(--sage);
+  color: var(--accent);
 }
 .panel {
   display: grid;
@@ -47,7 +47,7 @@
   padding: 12px 14px;
   border-radius: var(--radius-md);
   background: var(--side);
-  font-size: 12.5px;
+  font-size: var(--fs-list);
 }
 .panel dt {
   font-family: var(--f-mono);
@@ -63,12 +63,12 @@
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   background: var(--card);
-  font-size: 12.5px;
+  font-size: var(--fs-list);
 }
 .body {
   min-height: 300px;
-  font-size: 16px;
-  line-height: 1.95;
+  font-size: var(--note-body);
+  line-height: 1.9;
   color: var(--ink-2);
 }
 .body p {
@@ -76,9 +76,9 @@
 }
 .body h2 {
   margin: 22px 0 8px;
-  font-size: 20px;
+  font-size: var(--note-h2);
   font-weight: 700;
-  line-height: 1.5;
+  line-height: 1.35;
   color: var(--ink);
 }
 .body ul {
@@ -153,8 +153,8 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--sage);
-  font-size: 12px;
+  color: var(--accent);
+  font-size: var(--fs-meta);
   cursor: pointer;
 }
 .connect:hover {

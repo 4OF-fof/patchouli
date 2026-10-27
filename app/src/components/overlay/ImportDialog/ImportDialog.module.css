@@ -14,16 +14,17 @@
   display: flex;
   flex-direction: column;
   padding: 20px 22px 16px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--paper);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
 }
 .root:focus {
   outline: none;
 }
 .root h2 {
   margin: 0 0 14px;
-  font-size: 18px;
+  font-size: var(--fs-heading);
   font-weight: 600;
 }
 .list {
@@ -59,16 +60,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13.5px;
+  font-size: var(--fs-body);
   font-weight: 600;
 }
 .what small {
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--faint);
 }
 .dest {
   flex-shrink: 0;
-  font-size: 12.5px;
+  font-size: var(--fs-list);
   color: var(--muted);
 }
 .root footer {

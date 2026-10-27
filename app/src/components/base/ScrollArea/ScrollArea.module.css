@@ -46,7 +46,7 @@
   top: 0;
   right: 2px;
   width: 4px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--faint);
   transition:
     width 0.15s,

@@ -30,7 +30,7 @@
 }
 .mast h1 {
   margin: 0;
-  font-size: 34px;
+  font-size: var(--fs-title);
   font-weight: 700;
   line-height: 1.2;
 }
@@ -46,12 +46,12 @@
 }
 .nameEdit:focus-visible {
   border-style: solid;
-  border-color: var(--sage);
+  border-color: var(--accent);
   outline: none;
 }
 .meta {
   padding-bottom: 3px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--faint);
 }
 .back {
@@ -82,12 +82,12 @@
 }
 .head h2 {
   margin: 0;
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--muted);
 }
 .head > span {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--faint);
 }
 .head > :last-child:not(h2, span) {
@@ -95,6 +95,6 @@
 }
 .empty {
   padding: 24px 0;
-  font-size: 13px;
+  font-size: var(--fs-list);
   color: var(--muted);
 }

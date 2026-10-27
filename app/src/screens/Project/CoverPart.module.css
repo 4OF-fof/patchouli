@@ -5,7 +5,7 @@
 }
 .todo input[type='checkbox'] {
   margin-top: 5px;
-  accent-color: var(--sage);
+  accent-color: var(--accent);
 }
 .todo[data-done='true'] > span {
   color: var(--muted);
@@ -19,7 +19,7 @@
 .due {
   margin-left: auto;
   flex: none;
-  font: 12px var(--f-mono);
+  font: var(--fs-meta) var(--f-mono);
   color: var(--muted);
 }
 .due[data-late='true'] {
@@ -29,7 +29,7 @@
 .root .todo input.due {
   width: auto;
   padding: 1px 6px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .link {
   display: flex;

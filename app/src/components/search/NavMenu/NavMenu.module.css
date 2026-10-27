@@ -3,9 +3,10 @@
   display: flex;
   flex-direction: column;
   padding: 6px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--menu);
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
 }
 .root hr {
   border: 0;
@@ -20,10 +21,10 @@
   height: 36px;
   padding: 0 10px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--fs-list);
   text-align: left;
   white-space: nowrap;
   cursor: pointer;
@@ -40,7 +41,7 @@
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font: 500 11px var(--f-mono);
+  font: 400 var(--fs-tiny) var(--f-mono);
   color: var(--faint);
 }
 .root button .kbd {
@@ -56,9 +57,9 @@
   outline-offset: -2px;
 }
 .root button[aria-current='page'] i {
-  color: var(--sage);
+  color: var(--accent);
 }
 .root button[data-heading='true'] {
   color: var(--faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }

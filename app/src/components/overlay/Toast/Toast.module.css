@@ -4,12 +4,11 @@
   min-height: 34px;
   max-width: 100%;
   padding: 0 16px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-lg);
   background: var(--float);
-  backdrop-filter: blur(14px);
   box-shadow: var(--shadow-pill);
   color: var(--ink);
-  font-size: 12.5px;
+  font-size: var(--fs-list);
 }
 .root:has(button) {
   padding-right: 6px;

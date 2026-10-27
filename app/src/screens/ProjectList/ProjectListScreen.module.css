@@ -27,35 +27,35 @@
   cursor: pointer;
 }
 .card:focus-visible {
-  border-radius: var(--radius-thumb);
+  border-radius: var(--radius-sm);
   outline-offset: 3px;
 }
 .nm {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--fs-body);
+  font-weight: 600;
 }
 .card[data-big='true'] .nm {
-  font-size: 16px;
+  font-size: var(--fs-large);
 }
 .ds {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--muted);
 }
 .pm {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--muted);
 }
 .pm b {
-  color: var(--sage);
+  color: var(--accent);
 }
 .r {
   margin-left: auto;

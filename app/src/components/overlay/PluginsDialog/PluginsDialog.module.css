@@ -14,9 +14,10 @@
   width: min(1120px, 100%);
   height: min(760px, 100%);
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--paper);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
 }
 .root:focus {
   outline: none;
@@ -31,7 +32,7 @@
 .side h2 {
   margin: 0;
   padding: 24px 20px 12px;
-  font-size: 18px;
+  font-size: var(--fs-heading);
   font-weight: 600;
 }
 .list {
@@ -49,13 +50,13 @@
   margin: 0 12px 8px;
   padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--card);
   color: var(--faint);
-  font-size: 13px;
+  font-size: var(--fs-list);
 }
 .search:focus-within {
-  border-color: var(--sage);
+  border-color: var(--accent);
 }
 .search input {
   flex: 1;
@@ -81,7 +82,7 @@
   border-radius: var(--radius-sm);
   background: none;
   color: var(--faint);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   text-align: left;
   cursor: pointer;
@@ -93,7 +94,7 @@
   flex: 1;
 }
 .groupHead em {
-  font: normal 500 11px var(--f-mono);
+  font: normal 400 var(--fs-tiny) var(--f-mono);
 }
 .chev {
   width: 12px;
@@ -113,7 +114,7 @@
   border-radius: var(--radius-sm);
   background: none;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--fs-list);
   text-align: left;
   cursor: pointer;
 }
@@ -121,7 +122,7 @@
   background: color-mix(in srgb, var(--ink) 6%, transparent);
 }
 .item[aria-current='true'] {
-  background: var(--sage-soft);
+  background: var(--accent-soft);
   color: var(--ink);
 }
 .item[data-missing='true'] > span {
@@ -137,10 +138,10 @@
 .item i {
   min-width: 18px;
   padding: 0 5px;
-  border-radius: var(--radius-chip);
+  border-radius: var(--radius-sm);
   background: var(--warm);
   color: var(--warm-ink);
-  font: normal 600 10.5px/16px var(--f-mono);
+  font: normal 600 var(--fs-tiny)/16px var(--f-mono);
   text-align: center;
 }
 .item i[data-level='error'] {
@@ -158,7 +159,7 @@
   width: 100%;
 }
 .plus {
-  font-size: 16px;
+  font-size: var(--fs-large);
   line-height: 1;
 }
 .main {
@@ -171,9 +172,9 @@
   margin: 0 0 16px;
   padding: 8px 12px;
   border-radius: var(--radius-md);
-  background: var(--sage-soft);
-  color: var(--sage-ink);
-  font-size: 12.5px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-list);
 }
 .status[data-error='true'] {
   background: color-mix(in srgb, var(--danger) 10%, var(--paper));
@@ -193,7 +194,7 @@
 }
 .head h3 {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--fs-heading);
   font-weight: 600;
 }
 .actions {
@@ -202,15 +203,15 @@
   gap: 6px;
 }
 .mono {
-  font: 500 12px var(--f-mono);
+  font: 400 var(--fs-meta) var(--f-mono);
   color: var(--faint);
 }
 .badge {
   padding: 1px 8px;
-  border-radius: var(--radius-chip);
-  background: var(--sage-soft);
-  color: var(--sage-ink);
-  font-size: 11px;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--fs-tiny);
 }
 .badge[data-tone='danger'] {
   background: color-mix(in srgb, var(--danger) 14%, var(--paper));
@@ -218,12 +219,12 @@
 }
 .id {
   margin: 4px 0 0;
-  font: 11.5px var(--f-mono);
+  font: var(--fs-meta) var(--f-mono);
   color: var(--faint);
 }
 .desc {
   margin: 10px 0 0;
-  font-size: 13px;
+  font-size: var(--fs-list);
   color: var(--muted);
 }
 .problems {
@@ -239,7 +240,7 @@
   border-radius: 0;
   background: var(--warm);
   color: var(--warm-ink);
-  font-size: 12.5px;
+  font-size: var(--fs-list);
 }
 .problems li[data-level='error'] {
   border-left-color: var(--danger-line);
@@ -253,14 +254,14 @@
   margin: 0 0 10px;
   padding-bottom: 6px;
   border-bottom: 1px solid var(--line);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--muted);
 }
 .where {
   margin: 8px 0 0;
   overflow-wrap: anywhere;
-  font: 12px var(--f-mono);
+  font: var(--fs-meta) var(--f-mono);
   color: var(--ink-2);
 }
 .where[data-ok='false'] {
@@ -276,16 +277,16 @@
   padding: 1px 6px;
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
-  font: 11px var(--f-mono);
+  font: var(--fs-tiny) var(--f-mono);
   color: var(--ink-2);
 }
 .cap {
   padding: 1px 8px;
   border: 1px solid transparent;
-  border-radius: var(--radius-chip);
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--ink) 7%, transparent);
   color: var(--ink-2);
-  font-size: 11px;
+  font-size: var(--fs-meta);
 }
 .deps {
   margin: 0;
@@ -299,19 +300,19 @@
   gap: 12px;
   padding: 8px 2px;
   border-bottom: 1px solid var(--line);
-  font-size: 12.5px;
+  font-size: var(--fs-list);
 }
 .user {
   padding: 3px 12px;
   border: 1px solid var(--line-2);
-  border-radius: var(--radius-chip);
+  border-radius: var(--radius-sm);
   background: var(--card);
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   cursor: pointer;
 }
 .user:hover {
-  border-color: var(--sage);
+  border-color: var(--accent);
   color: var(--ink);
 }
 .perms {
@@ -329,7 +330,7 @@
   padding: 8px 12px;
   border-radius: var(--radius-md);
   background: var(--side);
-  font-size: 12.5px;
+  font-size: var(--fs-list);
   color: var(--muted);
 }
 .perms b {
@@ -359,7 +360,7 @@
   cursor: pointer;
 }
 .link:hover {
-  color: var(--sage-ink);
+  color: var(--accent-ink);
   text-decoration: underline;
 }
 .need {
@@ -369,7 +370,7 @@
   color: var(--muted);
 }
 .state[data-ok='true'] {
-  color: var(--sage-ink);
+  color: var(--accent-ink);
 }
 .state[data-ok='false'] {
   color: var(--danger);
@@ -379,7 +380,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 11px var(--f-mono);
+  font: var(--fs-tiny) var(--f-mono);
   color: var(--faint);
 }
 .settings {
@@ -394,11 +395,11 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font: 11.5px var(--f-mono);
+  font: var(--fs-meta) var(--f-mono);
   color: var(--muted);
 }
 .none {
   margin: 0;
-  font-size: 12.5px;
+  font-size: var(--fs-list);
   color: var(--faint);
 }

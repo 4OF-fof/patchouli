@@ -5,9 +5,9 @@
   flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--card);
-  font-size: 12.5px;
+  font-size: var(--fs-list);
   line-height: 1.6;
 }
 .root[data-editing='true'] {
@@ -15,8 +15,8 @@
   background: none;
 }
 .k {
-  font-size: 10.5px;
-  font-weight: 500;
+  font-size: var(--fs-tiny);
+  font-weight: 400;
   color: var(--faint);
 }
 .root textarea,
@@ -28,7 +28,7 @@
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   background: var(--paper);
-  font-size: 13px;
+  font-size: var(--fs-list);
 }
 .root textarea {
   min-height: 64px;
@@ -45,15 +45,15 @@
   width: 24px;
   height: 24px;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   background: var(--side);
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   cursor: pointer;
 }
 .ctl button:hover {
-  background: var(--sage-soft);
-  color: var(--sage-ink);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
 }
 .ctl .del:hover {
   background: var(--warm);

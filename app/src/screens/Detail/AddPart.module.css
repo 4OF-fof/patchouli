@@ -4,21 +4,21 @@
   align-items: center;
   justify-content: center;
   border: 1px dashed var(--line-2);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: none;
-  color: var(--sage);
-  font-weight: 700;
+  color: var(--accent);
+  font-weight: 600;
   cursor: pointer;
 }
 .add:hover {
-  border-color: var(--sage);
+  border-color: var(--accent);
 }
 .menu {
   display: flex;
   flex-direction: column;
   padding: 6px;
   border: 1px solid var(--line-2);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--card);
   box-shadow: var(--shadow);
 }
@@ -30,16 +30,16 @@
   border-radius: var(--radius-sm);
   background: none;
   color: inherit;
-  font-size: 13px;
+  font-size: var(--fs-list);
   text-align: left;
   cursor: pointer;
 }
 .menu button:hover,
 .menu button:focus-visible {
-  background: var(--sage-soft);
+  background: var(--accent-soft);
 }
 .menu small {
   margin-left: auto;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--faint);
 }

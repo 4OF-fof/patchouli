@@ -7,7 +7,7 @@
   justify-content: center;
   padding: 0;
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--faint);
   cursor: pointer;
@@ -20,16 +20,16 @@
   color: var(--ink-2);
 }
 .root[aria-pressed='true'] {
-  color: var(--sage);
+  color: var(--accent);
 }
 .root[data-look='float'] {
   width: 26px;
   height: 26px;
-  border-radius: 13px;
+  border-radius: var(--radius-md);
   background: var(--float);
   color: var(--muted);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
 }
 .root[data-look='float'][aria-pressed='true'] {
-  color: var(--sage);
+  color: var(--accent);
 }

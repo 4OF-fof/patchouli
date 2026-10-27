@@ -2,11 +2,11 @@
   display: block;
   height: 4px;
   overflow: hidden;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--line);
 }
 .root > span {
   display: block;
   height: 4px;
-  background: var(--sage);
+  background: var(--accent);
 }

@@ -11,20 +11,16 @@
   cursor: pointer;
 }
 .root:focus-visible {
-  outline: 2px solid var(--sage);
+  outline: 2px solid var(--accent);
   outline-offset: 3px;
-  border-radius: var(--radius-thumb);
+  border-radius: var(--radius-sm);
 }
 .thumb {
   display: block;
   position: relative;
-  transition: transform 0.15s ease;
-}
-.root:hover .thumb {
-  transform: translateY(-2px);
 }
 .nm {
-  font-weight: 700;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -32,9 +28,9 @@
 /* JustifiedRow の中では --card-why: none で隠れる */
 .why {
   display: var(--card-why, block);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--sage);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--accent);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -26,10 +26,10 @@
   padding: 3px 0;
 }
 .ext {
-  font: 12px var(--f-mono);
+  font: var(--fs-meta) var(--f-mono);
 }
 .n {
-  font: 12px var(--f-mono);
+  font: var(--fs-meta) var(--f-mono);
   color: var(--muted);
   text-align: right;
 }

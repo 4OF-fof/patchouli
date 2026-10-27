@@ -26,7 +26,7 @@
   top: 0;
   max-width: none;
   transform-origin: 0 0;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   user-select: none;
   visibility: hidden;
 }
@@ -40,7 +40,7 @@
   gap: 6px;
   height: 40px;
   padding: 0 10px;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-lg);
   background: var(--stage-bar);
   color: var(--stage-ink);
 }
@@ -49,15 +49,15 @@
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   background: var(--stage-btn);
   color: inherit;
-  font-size: 13px;
+  font-size: var(--fs-list);
   cursor: pointer;
 }
 .btn {
   width: 28px;
-  font-size: 15px;
+  font-size: var(--fs-large);
 }
 .mode {
   padding: 0 12px;
@@ -70,13 +70,13 @@
 }
 .btn:focus-visible,
 .mode:focus-visible {
-  outline: 2px solid var(--sage);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 .pct {
   min-width: 48px;
   font-family: var(--f-mono);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   text-align: center;
   font-variant-numeric: tabular-nums;
 }

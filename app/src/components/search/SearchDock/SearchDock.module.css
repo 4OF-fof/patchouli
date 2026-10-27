@@ -16,11 +16,10 @@
   gap: 7px;
   max-width: calc(100% - 32px);
   padding: 7px;
-  border-radius: 23px;
+  border-radius: var(--radius-md);
   background: var(--float);
-  backdrop-filter: blur(14px);
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3);
-  font-size: 13px;
+  font-size: var(--fs-list);
 }
 .in {
   display: flex;
@@ -35,10 +34,10 @@
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--card);
   color: var(--muted);
-  font-size: 15px;
+  font-size: var(--fs-large);
   cursor: pointer;
 }
 .ib:hover,
@@ -58,10 +57,10 @@
   gap: 8px;
   padding: 0 14px;
   border: 0;
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: var(--card);
   color: var(--faint);
-  font-size: 13px;
+  font-size: var(--fs-list);
   cursor: pointer;
 }
 .sr .kbd {
@@ -72,10 +71,10 @@
   height: 32px;
   flex: none;
   border: 0;
-  border-radius: 16px;
-  background: var(--sage);
-  color: var(--on-sage);
-  font-size: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--fs-large);
   cursor: pointer;
 }
 .nw:disabled {
@@ -93,12 +92,12 @@
 .root[data-open='true'] {
   width: min(640px, calc(100% - 32px));
   padding: 7px 7px 9px;
-  border-radius: 18px;
+  border-radius: var(--radius-md);
 }
 .root[data-open='true'] .in {
   height: 40px;
   padding: 0 4px 0 8px;
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--card);
 }
 .md {
@@ -106,11 +105,11 @@
   display: inline-flex;
   align-items: center;
   padding: 3px 8px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--line-2);
   color: var(--ink-2);
-  font-size: 11.5px;
-  font-weight: 700;
+  font-size: var(--fs-meta);
+  font-weight: 600;
 }
 .md[data-ai='true'] {
   background: var(--ai);
@@ -124,7 +123,7 @@
   background: transparent;
   outline: none;
   color: var(--ink);
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 .res {
   max-height: min(52vh, 420px);
@@ -137,7 +136,7 @@
   flex-wrap: wrap;
   gap: 6px 18px;
   padding: 0 8px;
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--faint);
 }
 .ht .kbd {

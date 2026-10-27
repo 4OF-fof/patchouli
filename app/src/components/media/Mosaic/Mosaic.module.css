@@ -12,7 +12,7 @@
   height: var(--mosaic-h, auto);
   aspect-ratio: 8 / 3;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 .root[data-count='3'] {
   grid-template-columns: 2fr 1fr;

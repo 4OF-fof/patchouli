@@ -4,7 +4,7 @@
   overflow: hidden;
   background: var(--paper);
   color: var(--ink);
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.6;
 }
 .toast {

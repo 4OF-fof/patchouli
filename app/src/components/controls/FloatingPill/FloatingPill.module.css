@@ -5,12 +5,11 @@
   gap: 8px;
   padding: 0 14px;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-lg);
   background: var(--float);
-  backdrop-filter: blur(14px);
   box-shadow: var(--shadow-pill);
   color: var(--muted);
-  font-size: 12.5px;
+  font-size: var(--fs-list);
   cursor: pointer;
   white-space: nowrap;
 }
@@ -23,10 +22,10 @@
   padding: 0;
 }
 .count {
-  font: 600 12px var(--f-mono);
-  color: var(--sage);
+  font: 600 var(--fs-meta) var(--f-mono);
+  color: var(--accent);
 }
 .root[aria-pressed='true'] {
-  background: var(--sage);
-  color: var(--on-sage);
+  background: var(--accent);
+  color: var(--on-accent);
 }

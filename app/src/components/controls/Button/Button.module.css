@@ -16,13 +16,13 @@
 .root[data-size='sm'] {
   height: 28px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .root[data-variant='primary'] {
   border: 0;
-  background: var(--sage);
-  color: var(--on-sage);
-  font-weight: 700;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
 }
 .root[data-variant='primary']:disabled {
   background: var(--line);
@@ -54,8 +54,8 @@
   cursor: default;
 }
 .root[aria-pressed='true'] {
-  background: var(--sage-soft);
-  border-color: var(--sage);
-  color: var(--sage-ink);
-  font-weight: 700;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
 }

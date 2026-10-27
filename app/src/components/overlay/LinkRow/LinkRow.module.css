@@ -9,7 +9,7 @@
   border-radius: var(--radius-sm);
   background: none;
   color: inherit;
-  font-size: 13px;
+  font-size: var(--fs-list);
   text-align: left;
   cursor: pointer;
 }
@@ -26,7 +26,7 @@
   color: var(--ink);
 }
 .root[data-current='true'] {
-  font-weight: 700;
+  font-weight: 600;
 }
 .root[data-indent='true'] {
   padding-left: 22px;
@@ -41,7 +41,7 @@
 .root small {
   margin-left: auto;
   flex: none;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--faint);
 }
 .root[data-missing='true'] > span {
@@ -50,13 +50,13 @@
 }
 .cap {
   padding: 0 6px 2px;
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--fs-meta);
+  font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--muted);
 }
 .none {
   padding: 4px 6px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--faint);
 }
