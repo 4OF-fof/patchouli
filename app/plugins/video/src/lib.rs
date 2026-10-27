@@ -1,6 +1,6 @@
 //! 動画。サムネイルはコマを 1 枚取り出して作り、詳細はアプリの動画の表示に出す。
 
-wit_bindgen::generate!({ world: "plugin", path: "../wit" });
+wit_bindgen::generate!({ world: "plugin", path: "../sdk/wit" });
 
 #[path = "../../shared/frame.rs"]
 mod frame;

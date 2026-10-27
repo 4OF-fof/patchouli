@@ -4,32 +4,53 @@ use std::{env, fs};
 
 /// 組み込みのプラグイン（ディレクトリ名）。処理部分のないものは WASM を作らない。
 const WASM_PLUGINS: [&str; 3] = ["image", "video", "audio"];
-const PLUGINS: [&str; 4] = ["image", "video", "audio", "note"];
 
-/// 組み込みのプラグインの `ui/` の中のファイルを、src/plugin/builtin.rs が埋め込めるように並べる。
-fn list_ui_files() {
+/// 組み込み UI（plugin.json の ui）のあるプラグイン。
+const UI_PLUGINS: [&str; 1] = ["audio"];
+
+/// 組み込み UI を plugins/sdk/cli.ts でビルドし、できたファイルを src/plugin/builtin.rs が埋め込めるように並べる。
+fn build_ui() {
     let here = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let plugins = here.join("../plugins");
+    let cli = plugins.join("sdk/cli.ts");
+    println!("cargo:rerun-if-changed={}", plugins.join("sdk").display());
+    let out = PathBuf::from(env::var("OUT_DIR").unwrap()).join("ui");
     let mut items = String::new();
-    for p in PLUGINS {
-        let dir = here.join("../plugins").join(p);
-        // ui/ がまだないときも、できたら気付けるよう、プラグインのフォルダごと見る
-        println!("cargo:rerun-if-changed={}", dir.display());
-        let mut stack = vec![dir.join("ui")];
+    for p in UI_PLUGINS {
+        let dir = plugins.join(p);
+        println!("cargo:rerun-if-changed={}", dir.join("ui").display());
+        println!(
+            "cargo:rerun-if-changed={}",
+            dir.join("plugin.json").display()
+        );
+        let dest = out.join(p);
+        let status = Command::new("node")
+            .arg(&cli)
+            .args(["build", "--no-wasm", "--out"])
+            .arg(&dest)
+            .arg(&dir)
+            .status()
+            .expect("組み込み UI のビルドを始められない（Node が要る）");
+        assert!(
+            status.success(),
+            "組み込み UI をビルドできない（app で pnpm install が要る）"
+        );
+        let mut stack = vec![dest.clone()];
         while let Some(d) = stack.pop() {
-            let Ok(entries) = fs::read_dir(&d) else {
-                continue;
-            };
-            for e in entries.flatten() {
+            for e in fs::read_dir(&d).unwrap().flatten() {
                 let path = e.path();
                 if path.is_dir() {
                     stack.push(path);
                     continue;
                 }
                 let rel = path
-                    .strip_prefix(&dir)
+                    .strip_prefix(&dest)
                     .unwrap()
                     .to_string_lossy()
                     .replace('\\', "/");
+                if rel == "plugin.json" {
+                    continue;
+                }
                 items.push_str(&format!(
                     "    ({p:?}, {rel:?}, include_bytes!({:?})),\n",
                     path.to_string_lossy()
@@ -37,15 +58,18 @@ fn list_ui_files() {
             }
         }
     }
-    let out = PathBuf::from(env::var("OUT_DIR").unwrap());
-    fs::write(out.join("ui_files.rs"), format!("&[\n{items}]\n")).unwrap();
+    fs::write(
+        PathBuf::from(env::var("OUT_DIR").unwrap()).join("ui_files.rs"),
+        format!("&[\n{items}]\n"),
+    )
+    .unwrap();
 }
 
 /// 組み込みのプラグインの処理部分を WASM にして OUT_DIR に置く。src/plugin/builtin.rs が埋め込む。
 fn build_plugins() {
     let here = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let plugins = here.join("../plugins");
-    for p in ["wit", "shared", "Cargo.toml", "Cargo.lock"] {
+    for p in ["sdk/wit", "shared", "Cargo.toml", "Cargo.lock"] {
         println!("cargo:rerun-if-changed={}", plugins.join(p).display());
     }
     for p in WASM_PLUGINS {
@@ -95,6 +119,6 @@ fn build_plugins() {
 
 fn main() {
     build_plugins();
-    list_ui_files();
+    build_ui();
     tauri_build::build()
 }

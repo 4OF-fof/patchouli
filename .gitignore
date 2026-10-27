@@ -6,4 +6,5 @@
 /example/dev-zips/
 # 例のプラグインのビルド
 /example/target/
-/example/*/plugin.wasm
+/example/*/dist/
+/example/*/*.zip

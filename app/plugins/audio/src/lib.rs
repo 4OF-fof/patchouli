@@ -1,7 +1,7 @@
-//! 音声。ジャケットがあれば、それをサムネイルにする。なければ、波形（ui/waveform.js）ができたときにアプリが波形をサムネイルにする。
+//! 音声。ジャケットがあれば、それをサムネイルにする。なければ、波形（ui/waveform.ts）ができたときにアプリが波形をサムネイルにする。
 //! 詳細はアプリの音声の表示に出す。
 
-wit_bindgen::generate!({ world: "plugin", path: "../wit" });
+wit_bindgen::generate!({ world: "plugin", path: "../sdk/wit" });
 
 #[path = "../../shared/frame.rs"]
 mod frame;

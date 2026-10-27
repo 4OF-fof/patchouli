@@ -1,5 +1,4 @@
-//! 組み込みのプラグイン。`plugin.json` と、処理の部分の WASM（build.rs が作る）と、
-//! 組み込み UI のファイル（`ui/` の中）を埋め込む。
+//! 組み込みのプラグイン。`plugin.json` と、処理の部分の WASM と、組み込み UI のファイル（どちらも build.rs が作る）を埋め込む。
 
 use std::sync::{Arc, OnceLock};
 
@@ -29,7 +28,7 @@ const ALL: [(&str, &str, Option<&[u8]>); 4] = [
     ),
 ];
 
-/// 組み込み UI のファイル（ディレクトリ名、plugin.json からのパス、中身）。build.rs が並べる。
+/// 組み込み UI のファイル（ディレクトリ名、plugin.json からのパス、中身）。build.rs がビルドして並べる。
 const UI_FILES: &[(&str, &str, &[u8])] = include!(concat!(env!("OUT_DIR"), "/ui_files.rs"));
 
 /// ディレクトリ名が dir のプラグインの、plugin.json からのパスが rel のファイル。
@@ -87,7 +86,7 @@ pub(super) fn load() -> Vec<Loaded> {
                 let ok = embedded(dir, m).is_some();
                 if !ok {
                     problems.push(error(format!(
-                        "UI ファイル（{m}）が見つかりません（組み込みのプラグインは ui/ の中のものだけ使えます）"
+                        "UI ファイル（{m}）が見つかりません（組み込みのプラグインは build.rs の UI_PLUGINS に書いたものだけビルドします）"
                     )));
                 }
                 ok

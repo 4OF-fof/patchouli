@@ -16,6 +16,7 @@
     "noEmit": true,
     "jsx": "preserve",
     "jsxImportSource": "solid-js",
+    "paths": { "@patchouli/plugin": ["./plugins/sdk/index.ts"] },
 
     /* Linting */
     "noUnusedLocals": true,
@@ -23,5 +24,6 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "plugins", ".storybook/*.ts", ".storybook/*.tsx"]
+  "include": ["src", "plugins", ".storybook/*.ts", ".storybook/*.tsx"],
+  "exclude": ["plugins/sdk/cli.ts"]
 }

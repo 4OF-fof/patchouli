@@ -1,6 +1,6 @@
-//! テキスト（組み込み UI の例）。サムネイルと詳細は ui.js が描き、WASM は設定の項目と、行数などを数える関数を持つ。
+//! テキスト（組み込み UI の例）。サムネイルと詳細は ui.ts が描き、WASM は設定の項目と、行数などを数える関数を持つ。
 
-wit_bindgen::generate!({ world: "plugin", path: "../../app/plugins/wit" });
+wit_bindgen::generate!({ world: "plugin", path: "../../app/plugins/sdk/wit" });
 
 use patchouli::plugin::host;
 use patchouli::plugin::types::{Choice, NumberRange, SettingKind, SettingValue};

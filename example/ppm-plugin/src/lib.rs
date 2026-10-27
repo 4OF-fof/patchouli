@@ -1,6 +1,6 @@
 //! PPM 画像（宣言型の例）。アプリが読めない PPM（P6）を WASM で読み、サムネイルと詳細の画像を PNG にして返す。
 
-wit_bindgen::generate!({ world: "plugin", path: "../../app/plugins/wit" });
+wit_bindgen::generate!({ world: "plugin", path: "../../app/plugins/sdk/wit" });
 
 use patchouli::plugin::host;
 use patchouli::plugin::types::Dimensions;

@@ -9,11 +9,18 @@
 ## 見本と動作確認用のライブラリ
 
 - 中身は `app/src/samples/spec.ts` の 1 か所で決める。画面の見本（`library.ts`）と `example/dev-library/` は、どちらもここから作る。中身を変えるときは `spec.ts` を直す。
-- `example/dev-library/` は `node scripts/dev-library.ts` で作る（ffmpeg と、cargo の wasm32-wasip2 が要る）。作り直すたびに消えるので、手で直さない。
-- 例のプラグインは `example/<名前>-plugin/` に置き、使うものを `spec.ts` の `EXAMPLE_PLUGINS` に書く。スクリプトがビルドして `example/dev-plugins/` に入れ、ライブラリに記録する。開発中のアプリは、既定でこのライブラリとプラグインの置き場を使う。
+- `example/dev-library/` は `node scripts/dev-library.ts` で作る（ffmpeg と、cargo の wasm32-wasip2、app の pnpm install が要る）。作り直すたびに消えるので、手で直さない。
+- 例のプラグインは `example/<名前>-plugin/` に置き、使うものを `spec.ts` の `EXAMPLE_PLUGINS` に書く。スクリプトが SDK の CLI でビルドして `example/dev-plugins/` に入れ、ライブラリに記録する。開発中のアプリは、既定でこのライブラリとプラグインの置き場を使う。
 - 開発中だけ効く環境変数: `PATCHOULI_LIBRARY`（開くライブラリ）、`PATCHOULI_PLUGIN_DIR`（プラグインの置き場）、`PATCHOULI_NO_COMMANDS`（「ffmpeg,magick」のように並べたコマンドを、見つからないことにする）。リリースビルドには残さない。
 - `spec.ts` は Node がそのまま読むので、型のほかは import しない。
 - ライブラリの形式が決まったり変わったりしたら、`spec.ts` とスクリプトにも反映する。
+
+## プラグインの SDK とテンプレート
+
+- SDK（型・`definePlugin`・build / zip の CLI・WIT）の正本は `app/plugins/sdk/`。直したら `node scripts/plugin-template.ts` で `plugin-template/patchouli/` に写す。写した側は手で直さない。
+- npm には上げない。外部の作者には、SDK を同梱した `plugin-template/` を写して使ってもらう。
+- 組み込み UI は、組み込みも外部も TypeScript で書き、`@patchouli/plugin` から読む。plugin.json の `ui` はビルド後の `.js` のパスで、元は拡張子を `.ts` にしたもの。
+- 組み込みのプラグインの UI は、`build.rs` が CLI でビルドして埋め込む。UI のあるものは `build.rs` の `UI_PLUGINS` に書く。
 
 ## ブランチと版
 

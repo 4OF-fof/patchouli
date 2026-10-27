@@ -1,0 +1,16 @@
+{
+  "name": "my-plugin",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc && node patchouli/cli.ts build",
+    "zip": "tsc && node patchouli/cli.ts zip"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "~6.0.3"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}

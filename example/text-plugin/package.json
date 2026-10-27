@@ -1,0 +1,9 @@
+{
+  "name": "example-text",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../app/plugins/sdk/cli.ts build",
+    "zip": "node ../../app/plugins/sdk/cli.ts zip"
+  }
+}

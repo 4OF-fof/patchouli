@@ -4,13 +4,33 @@
  * そこで、区切ってよい位置でファイルを分け、頭（形式の情報）を付け直した小さなファイルにして 1 つずつデコードする。
  */
 
+import { type Api, definePlugin } from '@patchouli/plugin'
+
+type Bytes = Uint8Array<ArrayBuffer>
+type Read = (offset: number, length: number) => Promise<Bytes>
+
+/** 分け方。start から（end があればそこまで）が音の中身で、cut で区切ってよい位置を探し、head を付け直してデコードする。 */
+interface Layout {
+  start: number
+  end?: number
+  rate: number
+  align?: number
+  /** 中身が n バイトのときの頭。 */
+  head(n: number): Bytes
+  /** a の終わり近くの、区切ってよい位置。 */
+  cut(a: Bytes): number
+}
+
 /** 一度に読む長さの目安（バイト）。 */
 const STEP = { mp3: 2 << 20, flac: 8 << 20, wav: 8 << 20 }
 
-const ascii = (a, i, s) => [...s].every((c, k) => a[i + k] === c.charCodeAt(0))
-const u32le = (a, i) => (a[i] | (a[i + 1] << 8) | (a[i + 2] << 16) | (a[i + 3] << 24)) >>> 0
-const u16le = (a, i) => a[i] | (a[i + 1] << 8)
-const concat = (...parts) => {
+const ascii = (a: Bytes, i: number, s: string) => {
+  for (let k = 0; k < s.length; k++) if (a[i + k] !== s.charCodeAt(k)) return false
+  return true
+}
+const u32le = (a: Bytes, i: number) => (a[i] | (a[i + 1] << 8) | (a[i + 2] << 16) | (a[i + 3] << 24)) >>> 0
+const u16le = (a: Bytes, i: number) => a[i] | (a[i + 1] << 8)
+const concat = (...parts: Bytes[]) => {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0))
   let at = 0
   for (const p of parts) {
@@ -19,9 +39,6 @@ const concat = (...parts) => {
   }
   return out
 }
-
-/** 素材を offset から length バイト読む。終わりに近ければ短くなる。 */
-const reader = (api) => async (offset, length) => new Uint8Array(await api.read(offset, length))
 
 /* ---- mp3 ---- */
 
@@ -39,7 +56,7 @@ const MP3_RATES = [
 ]
 
 /** i から始まる Layer III のフレームの長さと標本化周波数。フレームの頭でなければ null。 */
-function mp3Frame(a, i) {
+function mp3Frame(a: Bytes, i: number) {
   if (a[i] !== 0xff || (a[i + 1] & 0xe0) !== 0xe0) return null
   const version = (a[i + 1] >> 3) & 3
   const layer = (a[i + 1] >> 1) & 3
@@ -54,14 +71,14 @@ function mp3Frame(a, i) {
 }
 
 /** a の中で、i から始まるフレームが本物らしいか（次のフレームも続いているか）。 */
-const mp3At = (a, i) => {
+const mp3At = (a: Bytes, i: number) => {
   const f = mp3Frame(a, i)
   if (!f) return null
   const j = i + f.len
   return j + 4 > a.length || mp3Frame(a, j) ? f : null
 }
 
-async function mp3(read) {
+async function mp3(read: Read): Promise<Layout> {
   const h = await read(0, 10)
   let start = 0
   if (ascii(h, 0, 'ID3')) start = 10 + ((h[6] << 21) | (h[7] << 14) | (h[8] << 7) | h[9]) + (h[5] & 0x10 ? 10 : 0)
@@ -80,7 +97,7 @@ async function mp3(read) {
     rate,
     head: () => new Uint8Array(0),
     /** a の終わり近くの、最後のフレームの頭。 */
-    cut(a) {
+    cut(a: Bytes) {
       for (let i = a.length - 4; i > 0; i--) if (mp3At(a, i)) return i
       return a.length
     },
@@ -89,7 +106,7 @@ async function mp3(read) {
 
 /* ---- flac ---- */
 
-const crc8 = (a, from, to) => {
+const crc8 = (a: Bytes, from: number, to: number) => {
   let c = 0
   for (let i = from; i < to; i++) {
     c ^= a[i]
@@ -99,7 +116,7 @@ const crc8 = (a, from, to) => {
 }
 
 /** i から始まるのが FLAC のフレームの頭か（頭の CRC-8 まで確かめる）。 */
-function flacFrame(a, i) {
+function flacFrame(a: Bytes, i: number) {
   if (a[i] !== 0xff || (a[i + 1] & 0xfe) !== 0xf8) return false
   const bs = a[i + 2] >> 4
   const sr = a[i + 2] & 0xf
@@ -134,7 +151,7 @@ function flacFrame(a, i) {
   return j < a.length && crc8(a, i, j) === a[j]
 }
 
-async function flac(read) {
+async function flac(read: Read): Promise<Layout> {
   const h = await read(0, 42)
   if (!ascii(h, 0, 'fLaC') || (h[4] & 0x7f) !== 0) throw new Error('FLAC の頭（STREAMINFO）が見つかりません')
   const info = h.slice(8, 42)
@@ -155,7 +172,7 @@ async function flac(read) {
     start: at,
     rate,
     head: () => head,
-    cut(a) {
+    cut(a: Bytes) {
       for (let i = a.length - 16; i > 0; i--) if (flacFrame(a, i)) return i
       return a.length
     },
@@ -164,24 +181,25 @@ async function flac(read) {
 
 /* ---- wav ---- */
 
-async function wav(read) {
+async function wav(read: Read): Promise<Layout> {
   const h = await read(0, 12)
   if (!ascii(h, 0, 'RIFF') || !ascii(h, 8, 'WAVE')) throw new Error('WAV の頭（RIFF）が見つかりません')
-  let fmt
+  let found: Bytes | undefined
   let at = 12
   for (;;) {
     const c = await read(at, 8)
     if (c.length < 8) throw new Error('WAV の data チャンクが見つかりません')
     const size = u32le(c, 4)
-    if (ascii(c, 0, 'fmt ')) fmt = await read(at + 8, size)
+    if (ascii(c, 0, 'fmt ')) found = await read(at + 8, size)
     else if (ascii(c, 0, 'data')) {
+      const fmt = found
       if (!fmt) throw new Error('WAV の fmt チャンクが見つかりません')
       const align = u16le(fmt, 12) || 1
       const rate = u32le(fmt, 4)
       const start = at + 8
       // 長さが書けていない（書き出し途中のものなど）ときは、ファイルの終わりまで
       const end = size === 0 || size === 0xffffffff ? Infinity : start + size
-      const head = (n) => {
+      const head = (n: number) => {
         const b = new Uint8Array(12 + 8 + fmt.length + 8)
         const v = new DataView(b.buffer)
         b.set([0x52, 0x49, 0x46, 0x46], 0)
@@ -193,7 +211,7 @@ async function wav(read) {
         v.setUint32(24 + fmt.length, n, true)
         return b
       }
-      return { start, end, rate, align, head, cut: (a) => a.length - (a.length % align) }
+      return { start, end, rate, align, head, cut: (a: Bytes) => a.length - (a.length % align) }
     }
     at += 8 + size + (size & 1)
   }
@@ -201,12 +219,20 @@ async function wav(read) {
 
 const LAYOUTS = { mp3, flac, wav }
 
+const isFormat = (ext: string): ext is keyof typeof LAYOUTS => Object.hasOwn(LAYOUTS, ext)
+
 /**
  * 音を頭から同じ長さの区切りに分け、区切りごとに二乗の和を足していく（チャンネルは平均する）。区切りが増えすぎたら隣どうしをまとめ、長さを倍にする。
  * 区間の端と区切りの端のずれが小さくなるよう、区間 1 つに区切りが 8〜16 入るだけ持つ。
  */
 class Meter {
-  constructor(points) {
+  limit: number
+  sums: number[]
+  size: number
+  sum: number
+  count: number
+
+  constructor(points: number) {
     this.limit = points * 16
     this.sums = []
     this.size = 1
@@ -214,7 +240,7 @@ class Meter {
     this.count = 0
   }
 
-  push(channels) {
+  push(channels: Float32Array[]) {
     const len = channels[0]?.length ?? 0
     const k = channels.length
     for (let i = 0; i < len; i++) {
@@ -233,7 +259,7 @@ class Meter {
   }
 
   /** points 個の区間ごとの、二乗平均の平方根。 */
-  finish(points) {
+  finish(points: number) {
     const sums = [...this.sums]
     const sizes = sums.map(() => this.size)
     // 終わりの半端な区切りも、長さのぶんだけ入れる
@@ -259,17 +285,16 @@ class Meter {
   }
 }
 
-export async function waveform(api) {
+async function waveform(api: Api & { points: number; signal: AbortSignal }) {
   const ext = api.item.ext
-  const layout = LAYOUTS[ext]
-  if (!layout) return null
-  const read = reader(api)
-  const f = await layout(read)
+  if (!isFormat(ext)) return null
+  const read: Read = (offset, length) => api.read(offset, length)
+  const f = await LAYOUTS[ext](read)
   const rate = Math.min(192000, Math.max(8000, f.rate || 44100))
   const meter = new Meter(api.points)
   const step = STEP[ext] - (f.align ? STEP[ext] % f.align : 0)
   let pos = f.start
-  let carry = new Uint8Array(0)
+  let carry: Bytes = new Uint8Array(0)
   let decoded = 0
   for (;;) {
     if (api.signal.aborted) throw api.signal.reason
@@ -296,3 +321,5 @@ export async function waveform(api) {
   if (!decoded) throw new Error('音声のデコードに失敗しました')
   return meter.finish(api.points)
 }
+
+export default definePlugin({ waveform })

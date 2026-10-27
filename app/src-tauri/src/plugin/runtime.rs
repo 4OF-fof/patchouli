@@ -16,7 +16,7 @@ use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 use super::{By, Choice, Part, Reads, Registry, SettingDecl, SettingKind, UiRef, commands, os};
 use crate::{library, thumb};
 
-wasmtime::component::bindgen!({ world: "plugin", path: "../plugins/wit" });
+wasmtime::component::bindgen!({ world: "plugin", path: "../plugins/sdk/wit" });
 
 use patchouli::plugin::host::{CommandArg, CommandOutput};
 use patchouli::plugin::types;

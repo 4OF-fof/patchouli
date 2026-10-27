@@ -1,6 +1,6 @@
 //! 画像。縮めるのも大きさを読むのもアプリに任せ、詳細はアプリの画像の表示に出す。
 
-wit_bindgen::generate!({ world: "plugin", path: "../wit" });
+wit_bindgen::generate!({ world: "plugin", path: "../sdk/wit" });
 
 use patchouli::plugin::host;
 

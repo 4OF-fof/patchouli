@@ -1,0 +1,143 @@
+package patchouli:plugin@0.5.0;
+
+interface types {
+  /// アプリが渡すファイル。中身はホストの関数を通して読む。
+  record file {
+    /// この呼び出しの中だけで使える番号。
+    handle: u32,
+    /// 拡張子（小文字）。
+    ext: string,
+    /// 大きさ（バイト）。
+    size: u64,
+  }
+
+  /// 見た目の大きさ（px）。
+  record dimensions {
+    width: u32,
+    height: u32,
+  }
+
+  /// できたサムネイル。
+  record thumbnail {
+    /// 長いほうの辺が edge 以下の PNG。
+    png: list<u8>,
+    /// 素材そのものの大きさ。わからなければ none（サムネイルの縦横比を使う）。
+    size: option<dimensions>,
+  }
+
+  /// 素材の詳細に出すもの。
+  variant view {
+    /// アプリが画像として出す。
+    image,
+    /// アプリが動画として出す。サムネイルを最初の絵にする。
+    video,
+    /// アプリが音声として出す。サムネイルをジャケットにする。
+    audio,
+    /// アプリが読めない画像。decode で PNG にしたものを、アプリが画像として出す。
+    decoded,
+  }
+
+  record number-range {
+    min: option<f64>,
+    max: option<f64>,
+    step: option<f64>,
+  }
+
+  record choice {
+    value: string,
+    label: string,
+  }
+
+  variant setting-kind {
+    toggle,
+    number(number-range),
+    text,
+    /// 選んだものの value を text で持つ。
+    choice(list<choice>),
+  }
+
+  variant setting-value {
+    toggle(bool),
+    number(f64),
+    text(string),
+  }
+
+  /// 設定の項目。アプリの部品が描き、値はライブラリに残す。
+  record setting {
+    key: string,
+    label: string,
+    /// 項目の下に添える説明。
+    help: option<string>,
+    kind: setting-kind,
+    default: setting-value,
+  }
+}
+
+/// アプリが用意する処理。重い処理はここに任せる。
+interface host {
+  use types.{file, dimensions, setting-value};
+
+  /// コマンドに渡す引数。file は、そのファイルの場所に置き換えて渡す。
+  variant command-arg {
+    text(string),
+    file(file),
+  }
+
+  /// コマンドが終わったときの結果。
+  record command-output {
+    /// 終わったときの番号。止めたときなどは none。
+    code: option<s32>,
+    stdout: list<u8>,
+    stderr: string,
+  }
+
+  /// コマンドが見つかるか。plugin.json の required / optional の commands に書いたものだけを聞ける。
+  command-available: func(name: string) -> bool;
+
+  /// コマンドを動かす。plugin.json の required / optional の commands に書いたものだけを動かせる。
+  /// 標準入力は空にし、timeout-ms（none なら 30 秒）で終わらなければ止める。長さに上限はない。
+  run-command: func(name: string, args: list<command-arg>, timeout-ms: option<u32>) -> result<command-output, string>;
+
+  /// 中身を offset から最大 len バイト読む。
+  read: func(f: file, offset: u64, len: u32) -> result<list<u8>, string>;
+
+  /// 画像の見た目の大きさ。写真の向き（EXIF）を反映する。
+  image-size: func(f: file) -> option<dimensions>;
+
+  /// 画像を、長いほうの辺が edge 以下になるよう縮めた PNG。アプリが読める形式だけ。
+  image-thumbnail: func(f: file, edge: u32) -> result<list<u8>, string>;
+
+  /// OS の機能で作ったサムネイル（動画はコマ、音声はジャケット）を、長いほうの辺が edge 以下の PNG にする。
+  os-thumbnail: func(f: file, edge: u32) -> result<list<u8>, string>;
+
+  /// 自分の設定の値。変えていなければ settings で返した既定の値。知らない key は none。
+  setting: func(key: string) -> option<setting-value>;
+
+  /// 自分で残した値。ライブラリごとに残る。ないときは none。
+  get-data: func(key: string) -> option<string>;
+
+  /// 値を残す。none なら消す。
+  set-data: func(key: string, value: option<string>) -> result<_, string>;
+
+  log: func(message: string);
+}
+
+world plugin {
+  import host;
+  use types.{file, thumbnail, view, setting};
+
+  /// サムネイル。作らないときは none。format は受け持つ形式（拡張子）。
+  export thumbnail: func(format: string, f: file, edge: u32) -> result<option<thumbnail>, string>;
+
+  /// 詳細に出すもの。none ならアプリがサムネイルを大きく出す。
+  export view: func(format: string, f: file) -> option<view>;
+
+  /// view が decoded を返したときに、詳細に出す PNG（素材そのものの大きさ）。
+  export decode: func(format: string, f: file) -> result<list<u8>, string>;
+
+  /// 設定の項目。ライブラリを開いたときに一度だけ呼ぶ。
+  export settings: func() -> list<setting>;
+
+  /// 組み込み UI（plugin.json の ui）から呼ばれる。method と args（JSON など）の中身はプラグインが決める。
+  export call: func(format: string, f: file, method: string, args: string) -> result<string, string>;
+}

@@ -15,6 +15,7 @@ import {
 } from './stored'
 import type { Thumbnail } from '../model/library'
 import type { FormatInfo, Part, PluginReport, PluginSource, SettingValue, UiRef } from '../plugins/types'
+import type { Caller } from '../../plugins/sdk'
 import { ThumbnailTimeout, type UiApi, type UiItem, uiThumbnail, uiWaveform } from '../plugins/ui'
 import errorThumb from './thumb-error.svg'
 import type { Backend, CacheUsage, Changed, Dropped, FileDrag, KnownLibrary, UnusedPlugin } from './types'
@@ -58,6 +59,20 @@ const WAVE_LIMIT = '@waveformLimit'
 
 /** 画面の位置（物理 px）を CSS の px にする。 */
 const at = (p: { x: number; y: number }) => ({ x: p.x / devicePixelRatio, y: p.y / devicePixelRatio })
+
+// 組み込み UI の call。引数と戻り値は JSON で受け渡す。WASM が何も返さなければ undefined
+const callerOf = <M extends object>(item: UiItem, part: Part, plugin?: string): Caller<M> => ({
+  call: async (method: string, ...args: unknown[]) => {
+    const r = await invoke<string>('plugin_call', {
+      id: item.id,
+      part,
+      plugin,
+      method,
+      args: JSON.stringify(args[0] ?? null),
+    })
+    return r === '' ? undefined : JSON.parse(r)
+  },
+})
 
 export function tauriBackend(): Backend {
   // 開いた直後からサムネイルが届くので、画面が受け取れるようになるまで溜めておく
@@ -105,11 +120,10 @@ export function tauriBackend(): Backend {
 
   const uiApi = (item: UiItem, part: Part, plugin: string): UiApi => ({
     item,
-    read: (offset, length) => invoke<ArrayBuffer>('plugin_read', { id: item.id, offset, length }),
-    call: (method, args) => invoke<string>('plugin_call', { id: item.id, part, method, args }),
-    plugin: (dep) => ({
-      call: (method, args) => invoke<string>('plugin_call', { id: item.id, part, plugin: dep, method, args }),
-    }),
+    read: async (offset, length) =>
+      new Uint8Array(await invoke<ArrayBuffer>('plugin_read', { id: item.id, offset, length })),
+    ...callerOf(item, part),
+    plugin: (dep) => callerOf(item, part, dep),
     settings: () => invoke('plugin_settings', { plugin }),
     setSetting: (key, value) => setSetting(plugin, key, value),
     getData: async (key) => (await invoke<string | null>('plugin_data', { plugin, key })) ?? undefined,
