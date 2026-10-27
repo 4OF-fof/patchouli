@@ -215,12 +215,16 @@ pub fn encode(mut img: DynamicImage, edge: u32) -> Result<Vec<u8>, String> {
     Ok(png)
 }
 
-/// 波形の 1 区間の幅（px）。src/components/media/AudioPlayer と合わせる。
-const WAVE_STEP: u32 = 2;
+/// サムネイルの波形の棒の数。「今週」の大きさで、詳細と同じ幅 3px・間 1px ほどになる。
+const WAVE_BARS: usize = 48;
 
-/// 波形 wave（等間隔に拾った音の値を、符号付き 8 bit にしたもの）を、縦横比 ratio（幅 / 高さ）の枠に描いた PNG。
-/// 幅を WAVE_STEP ずつの区間に分け、区間ごとの最大を上、最小を下として、隣の区間と線でつないで塗る。
-/// 大きさは、いちばん大きく振れたところでそろえる。
+/// 棒の幅と、棒と次の棒の間の比。src/components/media/AudioPlayer と合わせる。
+const WAVE_BAR: f32 = 3.0;
+const WAVE_GAP: f32 = 1.0;
+
+/// 波形 wave（区間ごとの音の大きさを、0〜255 にしたもの）を、縦横比 ratio（幅 / 高さ）の枠に描いた PNG。
+/// 幅を棒の数で分け、棒ごとに区間の大きさの二乗平均の平方根を、真ん中から上下に同じ長さで伸ばした角丸の棒にする。
+/// いちばん大きい棒を枠の高さに合わせる。
 pub fn draw_wave(wave: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
     if wave.is_empty() {
         return Err("波形のデータが空です".into());
@@ -234,45 +238,59 @@ pub fn draw_wave(wave: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
     // 背景は透かし、暗い地にも明るい地にも見える中間の灰色（tokens.css の --muted）で描く
     let [r, g, b] = [0x8e, 0x92, 0x9a];
     let mut img = image::RgbaImage::new(w, h);
-    let vals: Vec<f32> = wave.iter().map(|&b| f32::from(b as i8)).collect();
-    let (n, mid) = (vals.len(), h as f32 / 2.0);
-    // 小さい音のものも見分けられるよう、いちばん大きく振れたところを高さいっぱいにする
-    let scale = vals.iter().fold(1.0f32, |m, v| m.max(v.abs())) / mid;
-    let parts = (w / WAVE_STEP).max(1) as usize;
-    let (his, los): (Vec<f32>, Vec<f32>) = (0..parts)
-        .map(|k| {
-            let from = (k * n / parts).min(n - 1);
-            let to = ((k + 1) * n / parts).clamp(from + 1, n);
-            let (lo, hi) = vals[from..to]
-                .iter()
-                .fold((f32::MAX, f32::MIN), |(lo, hi), &v| (lo.min(v), hi.max(v)));
-            (mid - hi / scale, mid - lo / scale)
-        })
-        .unzip();
-    // 区間の真ん中どうしを線でつないだときの、x での高さ
-    let width = w as f32 / parts as f32;
-    let at = |ys: &[f32], x: f32| {
-        let p = (x / width - 0.5).clamp(0.0, (parts - 1) as f32);
-        let i = (p as usize).min(parts.saturating_sub(2));
-        let t = p - i as f32;
-        ys.get(i + 1).map_or(ys[i], |&next| ys[i] * (1.0 - t) + next * t)
-    };
-    for x in 0..w {
-        let cx = x as f32 + 0.5;
-        let (mut top, mut bottom) = (at(&his, cx), at(&los, cx));
-        // 無音でも線は残す
-        if bottom - top < 1.0 {
-            let c = (top + bottom) / 2.0;
-            (top, bottom) = (c - 0.5, c + 0.5);
-        }
-        // 上下の端は、覆う割合で薄くする
+    let bars = bar_levels(wave, WAVE_BARS);
+    let pitch = w as f32 / WAVE_BARS as f32;
+    let bw = pitch * WAVE_BAR / (WAVE_BAR + WAVE_GAP);
+    let rad = bw / 2.0;
+    let mid = h as f32 / 2.0;
+    // 角を滑らかにするため、1 px を 4×4 に分けて覆う割合を数える
+    const SUB: u32 = 4;
+    for (k, &level) in bars.iter().enumerate() {
+        let len = (level * h as f32).max(bw);
+        let (left, top) = (k as f32 * pitch + (pitch - bw) / 2.0, mid - len / 2.0);
+        let (right, bottom) = (left + bw, top + len);
+        let inside = |x: f32, y: f32| {
+            if x < left || x > right || y < top || y > bottom {
+                return false;
+            }
+            let cy = y.clamp(top + rad, bottom - rad);
+            let (dx, dy) = (x - (left + rad), y - cy);
+            dx * dx + dy * dy <= rad * rad
+        };
         for y in top.floor().max(0.0) as u32..(bottom.ceil() as u32).min(h) {
-            let cover = (y as f32 + 1.0).min(bottom) - (y as f32).max(top);
-            let a = (cover.clamp(0.0, 1.0) * 255.0).round() as u8;
-            img.put_pixel(x, y, image::Rgba([r, g, b, a]));
+            for x in left.floor().max(0.0) as u32..(right.ceil() as u32).min(w) {
+                let hits = (0..SUB * SUB)
+                    .filter(|i| {
+                        let sx = x as f32 + ((i % SUB) as f32 + 0.5) / SUB as f32;
+                        let sy = y as f32 + ((i / SUB) as f32 + 0.5) / SUB as f32;
+                        inside(sx, sy)
+                    })
+                    .count();
+                if hits > 0 {
+                    let a = (hits * 255 / (SUB * SUB) as usize) as u8;
+                    img.put_pixel(x, y, image::Rgba([r, g, b, a]));
+                }
+            }
         }
     }
     encode(DynamicImage::ImageRgba8(img), EDGE)
+}
+
+/// 波形を n 本の棒に分けた、棒ごとの大きさ（いちばん大きい棒を 1 とする）。
+fn bar_levels(wave: &[u8], n: usize) -> Vec<f32> {
+    let len = wave.len();
+    let bars: Vec<f32> = (0..n)
+        .map(|k| {
+            let from = (k * len / n).min(len - 1);
+            let to = ((k + 1) * len / n).clamp(from + 1, len);
+            let sq: f32 = wave[from..to].iter().map(|&v| f32::from(v).powi(2)).sum();
+            (sq / (to - from) as f32).sqrt()
+        })
+        .collect();
+    let top = bars.iter().fold(0.0f32, |m, &v| m.max(v));
+    bars.iter()
+        .map(|&v| if top > 0.0 { v / top } else { 0.0 })
+        .collect()
 }
 
 /// 置いたサムネイルの場所と素材の大きさ（わからなければサムネイルの大きさ）、作るときに読んだ設定。

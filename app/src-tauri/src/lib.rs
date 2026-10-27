@@ -694,7 +694,7 @@ async fn missing_waveforms(
     })
 }
 
-/// 残してある波形（等間隔に拾った音の値を、符号付き 8 bit にしたもの）。まだなければ空を返す。
+/// 残してある波形（区間ごとの音の大きさを、0〜255 にしたもの）。まだなければ空を返す。
 #[tauri::command]
 async fn waveform(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Response, String> {
     let path = with_session(&cur, |s| {
@@ -705,7 +705,7 @@ async fn waveform(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Res
     Ok(tauri::ipc::Response::new(bytes))
 }
 
-/// 組み込み UI が作った波形（本文が、等間隔に拾った音の値を符号付き 8 bit にしたもの）を置く。見出しの id は素材。
+/// 組み込み UI が作った波形（本文が、区間ごとの音の大きさを 0〜255 にしたもの）を置く。見出しの id は素材。
 /// サムネイルがまだなければ、波形を描いてサムネイルにし、画面へ知らせる。
 #[tauri::command]
 async fn put_waveform(

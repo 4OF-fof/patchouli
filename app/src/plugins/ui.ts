@@ -62,7 +62,10 @@ export interface UiModule {
    * 合わせているカードの 1 枚にだけ描くので、動画の再生や音を出すこともできる。
    */
   hover?: (el: HTMLElement, api: UiApi) => void | (() => void)
-  /** 音の波形。素材の頭から終わりまでを等間隔に points 個拾った、音の値（−1〜1）を返す。作らないときは null。 */
+  /**
+   * 音の波形。素材の頭から終わりまでを points 個の区間に等分し、区間ごとの音の大きさ（二乗平均の平方根、0 以上）を返す。
+   * 作らないときは null。
+   */
   waveform?: (api: WaveformApi) => Promise<ArrayLike<number> | null>
 }
 
@@ -86,7 +89,7 @@ const limitOf = (mod: UiModule) => {
 /** サムネイルの長いほうの辺の長さ（px）。src-tauri/src/thumb.rs と合わせる。 */
 export const EDGE = 512
 
-/** 波形の点の数。音をこの数だけ等間隔に拾って描く。 */
+/** 波形の区間の数。音をこの数に等分して、区間ごとの大きさを残す。 */
 export const WAVE_POINTS = 4000
 
 /** 波形が時間の上限のうちに作り終わらなかった。 */
@@ -140,7 +143,7 @@ export async function uiThumbnail(
   return { png, width: t.width, height: t.height }
 }
 
-/** UI に波形を作らせ、各点を符号付き 8 bit（−127〜127）にする。limit（ms）を過ぎたら止めて WaveformTimeout を投げる。0 なら待ち続ける。 */
+/** UI に波形を作らせ、各区間の大きさを 8 bit（0〜255）にする。limit（ms）を過ぎたら止めて WaveformTimeout を投げる。0 なら待ち続ける。 */
 export async function uiWaveform(url: string, api: UiApi, limit: number): Promise<Uint8Array | null> {
   const mod = await loadUi(url)
   if (!mod.waveform) throw new Error('波形を作成する関数（waveform）が見つかりません')
@@ -159,9 +162,10 @@ export async function uiWaveform(url: string, api: UiApi, limit: number): Promis
   run.catch(() => undefined)
   const v = await Promise.race([run, late]).finally(() => clearTimeout(timer))
   if (!v) return null
-  if (v.length !== WAVE_POINTS) throw new Error(`波形の点の数（${v.length}）が ${WAVE_POINTS} と異なります`)
-  // 小さい音のものも細かさを落とさないよう、いちばん大きく振れた所を ±127 に合わせる
-  const top = Math.max(...Array.from(v, (x) => Math.abs(x || 0)))
-  const scale = top > 0 ? 127 / top : 0
-  return new Uint8Array(Int8Array.from(v, (x) => Math.round((x || 0) * scale)).buffer)
+  if (v.length !== WAVE_POINTS) throw new Error(`波形の区間の数（${v.length}）が ${WAVE_POINTS} と異なります`)
+  // 小さい音のものも細かさを落とさないよう、いちばん大きい区間を 255 に合わせる
+  const vals = Array.from(v, (x) => (Number.isFinite(x) && x > 0 ? x : 0))
+  const top = Math.max(...vals)
+  const scale = top > 0 ? 255 / top : 0
+  return Uint8Array.from(vals, (x) => Math.round(x * scale))
 }

@@ -168,7 +168,7 @@ export interface Backend {
   pluginActions?: PluginActions
   /** 素材の詳細に出すもの。受け持つプラグインが決める。決まらなければ null。 */
   itemView?: (id: string) => Promise<ItemView | null>
-  /** 音声の素材に残してある波形（等間隔に拾った音の値を、符号付き 8 bit にしたもの）。まだなければ null。 */
+  /** 音声の素材に残してある波形（区間ごとの音の大きさを、0〜255 にしたもの）。まだなければ null。 */
   waveform?: (id: string) => Promise<Uint8Array | null>
   /** 素材 item の part を受け持つ組み込み UI（plugin）に渡す窓口。 */
   uiApi?: (item: UiItem, part: Part, plugin: string) => UiApi

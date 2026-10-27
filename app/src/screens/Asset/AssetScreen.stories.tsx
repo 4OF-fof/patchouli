@@ -52,13 +52,7 @@ export const Image: Story = {
 export const Audio: Story = {
   name: '音声を再生する',
   render: () =>
-    withFile(
-      'voice-1019',
-      'voice-1019.mp3',
-      { kind: 'audio' },
-      async () =>
-        new Uint8Array(
-          Int8Array.from({ length: 4000 }, (_, i) => 127 * Math.sin((Math.PI * i) / 450) * Math.sin(i * 2.3)).buffer,
-        ),
+    withFile('voice-1019', 'voice-1019.mp3', { kind: 'audio' }, async () =>
+      Uint8Array.from({ length: 4000 }, (_, i) => 255 * Math.abs(Math.sin((Math.PI * i) / 450))),
     ),
 }

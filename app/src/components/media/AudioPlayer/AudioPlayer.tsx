@@ -4,19 +4,20 @@ import styles from './AudioPlayer.module.css'
 
 export interface AudioPlayerProps {
   src: string
-  /** 波形（等間隔に拾った音の値を、符号付き 8 bit にしたもの）。なければ、真ん中に線だけ引く。 */
+  /** 波形（区間ごとの音の大きさを、0〜255 にしたもの）。なければ、真ん中に小さな点を並べる。 */
   wave?: Uint8Array | null
   name: string
   /** 置き場所の側で大きさを決めるとき。 */
   class?: string
 }
 
-/** 波形の 1 区間の幅（CSS px）。src-tauri/src/thumb.rs の WAVE_STEP と合わせる。 */
-const STEP = 2
+/** 棒の幅と、棒と次の棒の間（CSS px）。src-tauri/src/thumb.rs の WAVE_BAR・WAVE_GAP と合わせる。 */
+const BAR = 3
+const GAP = 1
 
 /**
- * 枠の幅いっぱいに、波形を要素の color で描く。幅を STEP ずつの区間に分け、区間ごとの最大を上、最小を下として、
- * 隣の区間と線でつないで塗る。いちばん大きく振れたところを枠の高さに合わせる。
+ * 枠の幅いっぱいに、波形を要素の color で描く。幅を棒に分け、棒ごとに区間の大きさの二乗平均の平方根を、
+ * 真ん中から上下に同じ長さで伸ばした角丸の棒にする。いちばん大きい棒を枠の高さに合わせる。
  */
 function draw(canvas: HTMLCanvasElement, wave: Uint8Array | null | undefined, w: number, h: number) {
   const dpr = window.devicePixelRatio || 1
@@ -27,45 +28,26 @@ function draw(canvas: HTMLCanvasElement, wave: Uint8Array | null | undefined, w:
   const g = canvas.getContext('2d')
   if (!g) return
   g.fillStyle = getComputedStyle(canvas).color
-  const vals = wave ? new Int8Array(wave.buffer, wave.byteOffset, wave.length) : new Int8Array(1)
+  const vals = wave ?? new Uint8Array(1)
   const n = vals.length
-  const mid = ch / 2
-  const scale = Math.max(1, ...Array.from(vals, Math.abs)) / mid
-  const parts = Math.max(1, Math.floor(w / STEP))
-  const xs: number[] = []
-  const tops: number[] = []
-  const bottoms: number[] = []
-  for (let k = 0; k < parts; k++) {
-    const from = Math.min(n - 1, Math.floor((k * n) / parts))
-    const to = Math.min(n, Math.max(from + 1, Math.floor(((k + 1) * n) / parts)))
-    let lo = Infinity
-    let hi = -Infinity
-    for (let i = from; i < to; i++) {
-      const v = vals[i] ?? 0
-      lo = Math.min(lo, v)
-      hi = Math.max(hi, v)
-    }
-    let top = mid - hi / scale
-    let bottom = mid - lo / scale
-    // 無音でも線は残す
-    if (bottom - top < dpr) {
-      const c = (top + bottom) / 2
-      top = c - dpr / 2
-      bottom = c + dpr / 2
-    }
-    xs.push(((k + 0.5) * cw) / parts)
-    tops.push(top)
-    bottoms.push(bottom)
+  const count = Math.max(1, Math.floor((w + GAP) / (BAR + GAP)))
+  const levels: number[] = []
+  for (let k = 0; k < count; k++) {
+    const from = Math.min(n - 1, Math.floor((k * n) / count))
+    const to = Math.min(n, Math.max(from + 1, Math.floor(((k + 1) * n) / count)))
+    let sq = 0
+    for (let i = from; i < to; i++) sq += (vals[i] ?? 0) ** 2
+    levels.push(Math.sqrt(sq / (to - from)))
   }
-  g.beginPath()
-  g.moveTo(0, tops[0] ?? mid)
-  xs.forEach((x, k) => g.lineTo(x, tops[k] ?? mid))
-  g.lineTo(cw, tops.at(-1) ?? mid)
-  g.lineTo(cw, bottoms.at(-1) ?? mid)
-  for (let k = parts - 1; k >= 0; k--) g.lineTo(xs[k] ?? 0, bottoms[k] ?? mid)
-  g.lineTo(0, bottoms[0] ?? mid)
-  g.closePath()
-  g.fill()
+  const top = Math.max(...levels)
+  const pitch = cw / count
+  const bw = BAR * dpr
+  for (let k = 0; k < count; k++) {
+    const len = Math.max(bw, top > 0 ? ((levels[k] ?? 0) / top) * ch : 0)
+    g.beginPath()
+    g.roundRect(k * pitch + (pitch - bw) / 2, (ch - len) / 2, bw, len, bw / 2)
+    g.fill()
+  }
 }
 
 /** 音声の波形と、その下に続けて置く操作の帯。波形を押すか引くと、その位置へ移る。 */
