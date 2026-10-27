@@ -16,6 +16,9 @@
   --thumb-h: var(--mosaic-h, auto);
   aspect-ratio: 2 / 1;
 }
+.root[data-large] .cover {
+  flex: 1 0 auto;
+}
 .root:focus-visible {
   border-radius: var(--radius-sm);
   outline-offset: 3px;

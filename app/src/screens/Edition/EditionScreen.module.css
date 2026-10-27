@@ -49,6 +49,10 @@
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 16px 12px;
 }
+.hero {
+  grid-column: span 2;
+  grid-row: span 2;
+}
 .pinsMore {
   display: flex;
   justify-content: center;

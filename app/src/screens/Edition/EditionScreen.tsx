@@ -28,8 +28,8 @@ const TIERS: { name: string; until: number; size: CardSize; h: number; gap: numb
   { name: 'それ以前', until: Infinity, size: 'X', h: 56, gap: 4, clock: false },
 ]
 
-/** ピン留めの 1 枚。素材のときは thumb にその素材が入る。 */
-type Pin = { key: string; name: string; meta: string; tiles: Item[]; thumb?: Item; open: () => void }
+/** ピン留めの 1 枚。素材のときは thumb にその素材が入る。moved は中でいちばん新しく動いてからの日数。 */
+type Pin = { key: string; name: string; meta: string; moved: number; tiles: Item[]; thumb?: Item; open: () => void }
 const FIRST = 36
 const MORE = 30
 
@@ -56,52 +56,58 @@ export function EditionScreen(props: EditionScreenProps) {
   let more: HTMLDivElement | undefined
   const lib = () => props.lib
   const recent = createMemo(() => lib().pending())
-  const pins = createMemo<Pin[]>(() => [
-    ...(props.pinnedProjects ?? []).flatMap((n) => {
-      const p = lib().projectBy.get(n)
-      if (!p) return []
-      const n2 = lib().inProject(n).length
-      return [
-        {
-          key: `p:${n}`,
-          name: n,
-          meta: `プロジェクト · ${n2} 件`,
-          tiles: coverOf(lib(), p, 5),
-          open: () => props.onOpenProject?.(n),
-        },
-      ]
-    }),
-    ...(props.pinnedTags ?? []).flatMap((t) => {
-      const list = lib()
-        .items.filter((i) => !i.note && hasTag(i, t))
-        .toSorted((a, b) => a.moved - b.moved)
-      if (!list.length) return []
-      return [
-        {
-          key: `t:${t}`,
-          name: `# ${t}`,
-          meta: `タグ · ${list.length} 件`,
-          tiles: list.slice(0, 5),
-          open: () => props.onOpenTag?.(t),
-        },
-      ]
-    }),
-    // プロジェクトに入っていないものだけ出す
-    ...lib().pins.flatMap((id) => {
-      const it = lib().byId.get(id)
-      if (!it || it.folder) return []
-      return [
-        {
-          key: `i:${it.id}`,
-          name: it.name,
-          meta: it.note ? 'ノート' : `素材 · ${lib().formatLabel(it)}`,
-          tiles: [],
-          thumb: it,
-          open: () => props.onOpenItem?.(it.id),
-        },
-      ]
-    }),
-  ])
+  // 最後に動いたのが新しい順。同じなら留めた種類と順のまま
+  const pins = createMemo<Pin[]>(() =>
+    [
+      ...(props.pinnedProjects ?? []).flatMap((n) => {
+        const p = lib().projectBy.get(n)
+        if (!p) return []
+        const inside = lib().inProject(n)
+        return [
+          {
+            key: `p:${n}`,
+            name: n,
+            meta: `プロジェクト · ${inside.length} 件`,
+            moved: Math.min(...inside.map((i) => i.moved)),
+            tiles: coverOf(lib(), p, 5),
+            open: () => props.onOpenProject?.(n),
+          },
+        ]
+      }),
+      ...(props.pinnedTags ?? []).flatMap((t) => {
+        const list = lib()
+          .items.filter((i) => !i.note && hasTag(i, t))
+          .toSorted((a, b) => a.moved - b.moved)
+        if (!list.length) return []
+        return [
+          {
+            key: `t:${t}`,
+            name: `# ${t}`,
+            meta: `タグ · ${list.length} 件`,
+            moved: list[0].moved,
+            tiles: list.slice(0, 5),
+            open: () => props.onOpenTag?.(t),
+          },
+        ]
+      }),
+      // プロジェクトに入っていないものだけ出す
+      ...lib().pins.flatMap((id) => {
+        const it = lib().byId.get(id)
+        if (!it || it.folder) return []
+        return [
+          {
+            key: `i:${it.id}`,
+            name: it.name,
+            meta: it.note ? 'ノート' : `素材 · ${lib().formatLabel(it)}`,
+            moved: it.moved,
+            tiles: [],
+            thumb: it,
+            open: () => props.onOpenItem?.(it.id),
+          },
+        ]
+      }),
+    ].toSorted((a, b) => a.moved - b.moved),
+  )
   // 段ごとに、重みの大きい順 → 新しい順に並べて、先頭から続けて出す
   const feed = createMemo(() =>
     TIERS.flatMap((tier, k) => {
@@ -112,11 +118,12 @@ export function EditionScreen(props: EditionScreenProps) {
       return list.map((it) => ({ tier, it, n: list.length }))
     }),
   )
-  // ピン留めは 2 行までにし、残りは「全件を表示」で出す
+  // ピン留めは 2 行までにし、残りは「全件を表示」で出す。3 列以上あれば、先頭を 2 列 2 行の大きさにする
   const preview = useHoverPreview()
   const [cols, setCols] = createSignal(3)
   const [pinsOpen, setPinsOpen] = createSignal(!!props.pinsOpen)
-  const pinLimit = () => cols() * 2
+  const large = () => cols() >= 3
+  const pinLimit = () => cols() * 2 - (large() ? 3 : 0)
   const shownPins = () => (pinsOpen() ? pins() : pins().slice(0, pinLimit()))
   const watchCols = (el: HTMLDivElement) => {
     const ro = new ResizeObserver(() => setCols(getComputedStyle(el).gridTemplateColumns.split(' ').length))
@@ -203,8 +210,10 @@ export function EditionScreen(props: EditionScreenProps) {
                 <SectionLabel label="ピン留め" count={pins().length} />
                 <div class={styles.pins} ref={watchCols}>
                   <Index each={shownPins()}>
-                    {(p) => (
+                    {(p, k) => (
                       <PinnedCard
+                        large={large() && k === 0}
+                        class={large() && k === 0 ? styles.hero : undefined}
                         name={p().name}
                         meta={p().meta}
                         tiles={p().tiles.map(coverTile)}

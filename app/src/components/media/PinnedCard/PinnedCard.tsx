@@ -12,6 +12,9 @@ export interface PinnedCardProps {
   /** 素材 1 つを留めたとき。tiles の代わりにこの絵を出す。 */
   thumb?: ThumbProps
   height?: number
+  /** 大きく出す 1 枚。表紙が置き場所の高さいっぱいに伸び、中身を 5 枚まで並べる。 */
+  large?: boolean
+  class?: string
   onClick?: () => void
 }
 
@@ -20,14 +23,15 @@ export function PinnedCard(props: PinnedCardProps) {
   return (
     <button
       type="button"
-      class={styles.root}
+      class={`${styles.root} ${props.class ?? ''}`}
+      data-large={props.large || undefined}
       style={{ '--mosaic-h': props.height ? `${props.height}px` : undefined }}
       onClick={() => props.onClick?.()}
     >
       {props.thumb ? (
         <Thumb {...props.thumb} class={`${styles.cover} ${styles.th}`} />
       ) : (
-        <Mosaic tiles={props.tiles ?? []} count={3} class={styles.cover} />
+        <Mosaic tiles={props.tiles ?? []} count={props.large ? 5 : 3} class={styles.cover} />
       )}
       <span class={styles.t}>
         <b>{props.name}</b>
