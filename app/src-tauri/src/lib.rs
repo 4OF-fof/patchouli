@@ -694,6 +694,17 @@ async fn missing_waveforms(
     })
 }
 
+/// 残してある波形（各点の音の大きさを 0〜255 にしたもの）。まだなければ空を返す。
+#[tauri::command]
+async fn waveform(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Response, String> {
+    let path = with_session(&cur, |s| {
+        let (path, _) = s.lib.asset(&id)?;
+        Ok(thumb::wave_path(&s.thumbs, path))
+    })?;
+    let bytes = path.and_then(|p| std::fs::read(p).ok()).unwrap_or_default();
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
 /// 組み込み UI が作った波形（本文が、各点の音の大きさを 0〜255 にしたもの）を置く。見出しの id は素材。
 /// サムネイルがまだなければ、波形を描いてサムネイルにし、画面へ知らせる。
 #[tauri::command]
@@ -975,6 +986,7 @@ pub fn run() {
             put_thumbnail,
             missing_waveforms,
             put_waveform,
+            waveform,
             libraries,
             switch_library,
             forget_library,

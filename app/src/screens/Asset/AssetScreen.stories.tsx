@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import type { ItemView } from '../../plugins/types'
 import { sampleLibrary } from '../../samples/library'
 import { ScreenFrame } from '../ScreenFrame'
-import { AssetScreen, type AssetScreenProps } from './AssetScreen'
+import { AssetScreen, type AssetScreenProps, type AssetViewHost } from './AssetScreen'
 
 const meta = {
   title: '画面/04 素材',
@@ -30,13 +30,13 @@ export const Idle: Story = { name: '何も触っていない', render: () => ass
  * 中身を出すときの見た目。中身は動作確認用のライブラリ（scripts/dev-library.ts が作る）のもので、なければ出ない。
  * 見本の項目に、そのファイルの URL を付けて開く。
  */
-const withFile = (name: string, file: string, view: ItemView) => {
+const withFile = (name: string, file: string, view: ItemView, waveform?: AssetViewHost['waveform']) => {
   const lib = sampleLibrary()
   const it = lib.items.find((i) => i.name === name)
   if (it) it.src = `/dev-library/${file}`
   return (
     <ScreenFrame>
-      <AssetScreen lib={lib} list={it ? [it.id] : []} host={{ view: async () => view }} />
+      <AssetScreen lib={lib} list={it ? [it.id] : []} host={{ view: async () => view, waveform }} />
     </ScreenFrame>
   )
 }
@@ -48,4 +48,11 @@ export const Video: Story = {
 export const Image: Story = {
   name: '画像の倍率を変える',
   render: () => withFile('IMG_3310', 'IMG_3310.jpg', { kind: 'image' }),
+}
+export const Audio: Story = {
+  name: '音声を再生する',
+  render: () =>
+    withFile('voice-1019', 'voice-1019.mp3', { kind: 'audio' }, async () =>
+      Uint8Array.from({ length: 4000 }, (_, i) => Math.round(255 * Math.abs(Math.sin((Math.PI * i) / 900)))),
+    ),
 }

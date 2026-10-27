@@ -306,6 +306,10 @@ export function tauriBackend(): Backend {
       decoded = URL.createObjectURL(new Blob([png], { type: 'image/png' }))
       return { kind: 'image', url: decoded }
     },
+    async waveform(id) {
+      const peaks = new Uint8Array(await invoke<ArrayBuffer>('waveform', { id }))
+      return peaks.length > 0 ? peaks : null
+    },
     uiApi,
     uiUrl: (ui) => pluginUrl(ui.plugin, ui.module),
   }

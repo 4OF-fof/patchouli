@@ -217,7 +217,7 @@ export function App(props: AppProps) {
         setNotice(`ライブラリを切り替えられませんでした：${e instanceof Error ? e.message : String(e)}`)
       }
     })
-  const viewHost = backend.itemView && { view: backend.itemView, ui: backend.uiApi }
+  const viewHost = backend.itemView && { view: backend.itemView, ui: backend.uiApi, waveform: backend.waveform }
   const { uiApi, uiUrl } = backend
   const hoverHost: HoverHost = {
     ui:

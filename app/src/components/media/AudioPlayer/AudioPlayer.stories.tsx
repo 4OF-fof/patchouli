@@ -1,0 +1,26 @@
+import type { Meta, StoryObj } from 'storybook-solidjs-vite'
+import { AudioPlayer } from './AudioPlayer'
+
+/** 大きくなったり小さくなったりする音の波形。 */
+const peaks = Uint8Array.from({ length: 4000 }, (_, i) =>
+  Math.round(255 * (0.15 + 0.85 * Math.abs(Math.sin((Math.PI * i) / 1300))) * (0.8 + 0.2 * Math.random())),
+)
+
+/** 中身は動作確認用のライブラリ（scripts/dev-library.ts が作る）のもの。なければ再生できない。 */
+const meta = {
+  title: '部品/media/AudioPlayer',
+  component: AudioPlayer,
+  args: { src: '/dev-library/voice-1019.mp3', name: 'voice-1019', peaks },
+  decorators: [
+    (Story) => (
+      <div style={{ display: 'grid', width: '760px', height: '480px', padding: '16px', background: 'var(--stage)' }}>
+        <Story />
+      </div>
+    ),
+  ],
+} satisfies Meta<typeof AudioPlayer>
+export default meta
+type Story = StoryObj<typeof meta>
+
+export const Default: Story = {}
+export const NoWave: Story = { name: '波形がまだない', args: { peaks: null } }

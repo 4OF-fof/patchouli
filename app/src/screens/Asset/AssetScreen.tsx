@@ -5,6 +5,7 @@ import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { LinkNone, LinkRow } from '../../components/overlay/LinkRow/LinkRow'
+import { AudioPlayer } from '../../components/media/AudioPlayer/AudioPlayer'
 import { ImageZoom } from '../../components/media/ImageZoom/ImageZoom'
 import { MediaView } from '../../components/media/MediaView/MediaView'
 import { PluginView } from '../../components/media/PluginView/PluginView'
@@ -21,6 +22,7 @@ import styles from './AssetScreen.module.css'
 export interface AssetViewHost {
   view: (id: string) => Promise<ItemView | null>
   ui?: (item: UiItem, part: Part, plugin: string) => UiApi
+  waveform?: (id: string) => Promise<Uint8Array | null>
 }
 
 export interface AssetScreenProps {
@@ -89,6 +91,14 @@ export function AssetScreen(props: AssetScreenProps) {
     () => (props.host ? it()?.id : undefined),
     async (id) => (await props.host?.view(id).catch(() => null)) ?? null,
   )
+  // 波形はサムネイルと一緒にできるので、サムネイルが変わったら読み直す
+  const [peaks] = createResource(
+    () => {
+      const a = it()
+      return props.host?.waveform && a ? { id: a.id, thumb: a.thumb } : undefined
+    },
+    async ({ id }) => (await props.host?.waveform?.(id).catch(() => null)) ?? null,
+  )
   /** いまの素材について決まったもの。決まるまでは、前の素材のものもサムネイルも出さない。 */
   const settled = () => !props.host || view.state === 'ready'
   const current = () => (view.state === 'ready' ? view() : undefined)
@@ -144,6 +154,16 @@ export function AssetScreen(props: AssetScreenProps) {
                 </Match>
                 <Match when={media()?.kind === 'video' && media()}>
                   {(m) => <VideoPlayer src={m().src} poster={a().thumb} name={a().name} class={styles.player} />}
+                </Match>
+                <Match when={media()?.kind === 'audio' && media()}>
+                  {(m) => (
+                    <AudioPlayer
+                      src={m().src}
+                      peaks={peaks.state === 'ready' ? peaks() : null}
+                      name={a().name}
+                      class={styles.player}
+                    />
+                  )}
                 </Match>
                 <Match when={media()}>
                   {(m) => (
