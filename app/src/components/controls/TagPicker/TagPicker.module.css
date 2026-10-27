@@ -1,0 +1,135 @@
+.root {
+  width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--float);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+  font-size: var(--fs-list);
+  overflow: hidden;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--muted);
+}
+.search:focus-within {
+  border-color: var(--accent);
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--ink);
+  font-size: var(--fs-list);
+}
+.fresh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: -6px;
+  padding: 5px 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--accent);
+  font-size: var(--fs-list);
+  text-align: left;
+  cursor: pointer;
+}
+.fresh:hover {
+  background: var(--accent-soft);
+}
+.root section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+}
+.root h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--muted);
+}
+.root h3 em {
+  font: normal 400 var(--fs-tiny) var(--f-mono);
+  color: var(--faint);
+}
+.all {
+  flex: 1;
+}
+.scroll {
+  max-height: 168px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 6px;
+}
+.grid button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-2);
+  font-size: var(--fs-list);
+  text-align: left;
+  cursor: pointer;
+}
+.grid button:hover {
+  background: var(--card);
+}
+.grid button[aria-checked='true'] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.box {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--frame);
+  border-radius: 3px;
+  color: transparent;
+}
+[aria-checked='true'] > .box {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.grid em {
+  margin-left: auto;
+  flex: none;
+  font-size: var(--fs-tiny);
+  font-style: normal;
+  color: var(--accent);
+}
+.wait {
+  margin: 4px 6px;
+}

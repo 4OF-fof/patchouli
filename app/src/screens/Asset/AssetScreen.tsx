@@ -4,6 +4,7 @@ import { Chip } from '../../components/controls/Chip/Chip'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
+import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
 import { AudioPlayer } from '../../components/media/AudioPlayer/AudioPlayer'
 import { ImageZoom } from '../../components/media/ImageZoom/ImageZoom'
@@ -37,6 +38,9 @@ export interface AssetScreenProps {
   onProject?: (id: string, folder: string | null) => void
   onTag?: (id: string, tag: string, on: boolean) => void
   onMemo?: (id: string, memo: string) => void
+  recentTags?: string[]
+  /** タグを選び始めるたびに呼ぶ。付いていないタグも、まだないタグも返してよい */
+  suggestTags?: (id: string) => Promise<string[]>
   host?: AssetViewHost
   onIndex?: (i: number) => void
   blocker?: (ext: string) => Promise<Blocker | undefined>
@@ -129,12 +133,17 @@ export function AssetScreen(props: AssetScreenProps) {
   }
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
-  const addTag = (e: KeyboardEvent & { currentTarget: HTMLInputElement }) => {
-    const a = it()
-    if (e.key !== 'Enter' || e.isComposing || !a) return
-    const tag = e.currentTarget.value.trim().replace(/^#\s*/, '')
-    e.currentTarget.value = ''
-    if (tag && !a.tags.includes(tag)) props.onTag?.(a.id, tag, true)
+  let addBtn: HTMLButtonElement | undefined
+  const [picking, setPicking] = createSignal(false)
+  createEffect(() => info() || setPicking(false))
+  const [suggested] = createResource(
+    () => (picking() ? it()?.id : undefined),
+    async (id) => (await props.suggestTags?.(id).catch(() => [])) ?? [],
+  )
+  const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
+  const closePicker = () => {
+    setPicking(false)
+    addBtn?.focus()
   }
   return (
     <section class={`${shared.screen} ${styles.root}`} data-idle={!!props.idle} aria-label="素材">
@@ -238,7 +247,16 @@ export function AssetScreen(props: AssetScreenProps) {
                             </Chip>
                           )}
                         </For>
-                        <input type="text" placeholder="＋ タグ" aria-label="タグを追加" onKeyDown={addTag} />
+                        <Chip
+                          ref={addBtn}
+                          dashed
+                          aria-expanded={picking()}
+                          aria-haspopup="dialog"
+                          onClick={() => setPicking(!picking())}
+                        >
+                          <Icon name="plus" size={12} />
+                          追加
+                        </Chip>
                       </div>
                     </div>
                     <label class={styles.fl}>
@@ -278,6 +296,18 @@ export function AssetScreen(props: AssetScreenProps) {
                   </FloatingCard>
                 </ScrollArea>
               </aside>
+              <Show when={picking()}>
+                <TagPicker
+                  class={styles.picker}
+                  tags={a().tags}
+                  all={allTags()}
+                  recent={props.recentTags ?? []}
+                  suggested={suggested.state === 'ready' ? suggested() : undefined}
+                  anchor={addBtn}
+                  onToggle={(t, on) => props.onTag?.(a().id, t, on)}
+                  onClose={closePicker}
+                />
+              </Show>
             </Show>
           </>
         )}

@@ -178,8 +178,10 @@ export function App(props: AppProps) {
     setLib(withChanged(lib(), [{ ...it, ...change }], []))
     saveItem(id, patch)
   }
+  const [recentTags, setRecentTags] = createSignal<string[]>([])
   const tagItem = (id: string, tag: string, on: boolean) => {
     const tags = lib().byId.get(id)?.tags ?? []
+    if (on) setRecentTags([tag, ...recentTags().filter((t) => t !== tag)].slice(0, 8))
     editItem(
       id,
       { tags: on ? [...tags, tag] : tags.filter((t) => t !== tag) },
@@ -559,6 +561,7 @@ export function App(props: AppProps) {
                           onTogglePin={togglePin}
                           onProject={moveItem}
                           onTag={tagItem}
+                          recentTags={recentTags()}
                           onMemo={(id, memo) => editItem(id, { memo }, { memo })}
                           host={viewHost}
                           blocker={blockerOf}

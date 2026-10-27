@@ -1,4 +1,7 @@
+import { createSignal } from 'solid-js'
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
+import { expect, userEvent, within } from 'storybook/test'
+import { withChanged } from '../../model/library'
 import type { ItemView } from '../../plugins/types'
 import { sampleLibrary } from '../../samples/library'
 import { ScreenFrame } from '../ScreenFrame'
@@ -23,6 +26,38 @@ const asset = (o: Partial<AssetScreenProps> = {}) => {
 
 export const Default: Story = { render: () => asset() }
 export const Info: Story = { name: '情報を開く', render: () => asset({ infoOpen: true }) }
+export const Tags: Story = {
+  name: 'タグを選ぶ',
+  render: () => {
+    const [lib, setLib] = createSignal(sampleLibrary())
+    const list = lib()
+      .inProject('秋の企画')
+      .filter((i) => !i.note)
+      .map((i) => i.id)
+    const onTag = (id: string, tag: string, on: boolean) => {
+      const l = lib()
+      const it = l.byId.get(id)
+      if (it) setLib(withChanged(l, [{ ...it, tags: on ? [...it.tags, tag] : it.tags.filter((t) => t !== tag) }], []))
+    }
+    return (
+      <ScreenFrame>
+        <AssetScreen
+          lib={lib()}
+          list={list}
+          infoOpen
+          onTag={onTag}
+          recentTags={['資料', '写真/旅行']}
+          suggestTags={async () => ['紅葉', '逆光', '写真/旅行']}
+        />
+      </ScreenFrame>
+    )
+  },
+  play: async ({ canvas }) => {
+    await userEvent.click(canvas.getByRole('button', { name: '追加' }))
+    const picker = await canvas.findByRole('dialog', { name: 'タグを選ぶ' })
+    await expect(await within(picker).findByRole('checkbox', { name: /紅葉/ })).toBeInTheDocument()
+  },
+}
 export const Idle: Story = { name: '何も触っていない', render: () => asset({ idle: true }) }
 
 const done = async () => {}
