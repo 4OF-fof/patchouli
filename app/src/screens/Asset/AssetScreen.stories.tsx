@@ -26,6 +26,49 @@ const asset = (o: Partial<AssetScreenProps> = {}) => {
 
 export const Default: Story = { render: () => asset() }
 export const Info: Story = { name: '情報を開く', render: () => asset({ infoOpen: true }) }
+export const Details: Story = {
+  name: 'ファイルの詳細',
+  render: () => {
+    const [lib, setLib] = createSignal(sampleLibrary())
+    const list = lib()
+      .inProject('秋の企画')
+      .filter((i) => !i.note)
+      .map((i) => i.id)
+    const onRename = (id: string, name: string) => {
+      const it = lib().byId.get(id)
+      if (it) setLib(withChanged(lib(), [{ ...it, name }], []))
+    }
+    return (
+      <ScreenFrame>
+        <AssetScreen
+          lib={lib()}
+          list={list}
+          infoOpen
+          onRename={onRename}
+          host={{
+            view: async () => null,
+            details: async () => ({
+              size: 4_718_592,
+              rows: [
+                { label: '長さ', value: '3:42' },
+                { label: 'BPM', value: '128' },
+              ],
+            }),
+          }}
+        />
+      </ScreenFrame>
+    )
+  },
+  play: async ({ canvas }) => {
+    await userEvent.click(canvas.getByText('ファイルの詳細'))
+    await expect(await canvas.findByText('4.5 MB')).toBeInTheDocument()
+    await expect(await canvas.findByText('128')).toBeInTheDocument()
+    const name = canvas.getByRole('textbox', { name: '名前' })
+    await userEvent.clear(name)
+    await userEvent.type(name, '新しい名前{Enter}')
+    await expect(await canvas.findByText('新しい名前')).toBeInTheDocument()
+  },
+}
 export const Tags: Story = {
   name: 'タグを選ぶ',
   render: () => {

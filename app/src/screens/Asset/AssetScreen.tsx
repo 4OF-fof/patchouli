@@ -15,16 +15,18 @@ import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { type Blocker, Unsupported } from '../../components/media/Unsupported/Unsupported'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
 import { type Library, relDay, thumbOf } from '../../model/library'
-import type { ItemView, Part } from '../../plugins/types'
+import type { ItemDetails, ItemView, Part } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
 import shared from '../screen.module.css'
 import styles from './AssetScreen.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
+import { Spinner } from '../../components/base/Spinner/Spinner'
 
 export interface AssetViewHost {
   view: (id: string) => Promise<ItemView | null>
   ui?: (item: UiItem, part: Part, plugin: string) => UiApi
   waveform?: (id: string) => Promise<Uint8Array | null>
+  details?: (id: string) => Promise<ItemDetails>
 }
 
 export interface AssetScreenProps {
@@ -36,6 +38,7 @@ export interface AssetScreenProps {
   onOpenNote?: (id: string) => void
   onTogglePin?: (id: string) => void
   onProject?: (id: string, folder: string | null) => void
+  onRename?: (id: string, name: string) => void
   onTag?: (id: string, tag: string, on: boolean) => void
   onMemo?: (id: string, memo: string) => void
   recentTags?: string[]
@@ -78,6 +81,51 @@ function MemoField(props: { value: string; onChange: (memo: string) => void }) {
       onBlur={flush}
     />
   )
+}
+
+/** Enter か離れたときに onChange を呼ぶ。空にしたときと Esc では元に戻す。 */
+function NameField(props: { value: string; onChange: (name: string) => void }) {
+  let el!: HTMLInputElement
+  createEffect(() => {
+    const v = props.value
+    if (document.activeElement !== el) el.value = v
+  })
+  const commit = () => {
+    const v = el.value.trim()
+    if (v && v !== props.value) props.onChange(v)
+    else el.value = props.value
+  }
+  return (
+    <input
+      ref={el}
+      type="text"
+      aria-label="名前"
+      spellcheck={false}
+      onKeyDown={(e) => {
+        if (e.isComposing) return
+        if (e.key === 'Enter') {
+          commit()
+          el.blur()
+        } else if (e.key === 'Escape') {
+          e.stopPropagation()
+          el.value = props.value
+          el.blur()
+        }
+      }}
+      onBlur={commit}
+    />
+  )
+}
+
+const UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
+
+function bytes(n: number) {
+  let i = 0
+  while (n >= 1024 && i < UNITS.length - 1) {
+    n /= 1024
+    i++
+  }
+  return `${i === 0 || n >= 10 ? Math.round(n) : n.toFixed(1)} ${UNITS[i]}`
 }
 
 export function AssetScreen(props: AssetScreenProps) {
@@ -135,10 +183,21 @@ export function AssetScreen(props: AssetScreenProps) {
   onCleanup(() => window.removeEventListener('keydown', onKey))
   let addBtn: HTMLButtonElement | undefined
   const [picking, setPicking] = createSignal(false)
+  // 付けるたびに並びが変わらないよう、開いたときのものを使う
+  const [recent, setRecent] = createSignal<string[]>([])
+  const togglePicker = () => {
+    if (!picking()) setRecent(props.recentTags ?? [])
+    setPicking(!picking())
+  }
   createEffect(() => info() || setPicking(false))
   const [suggested] = createResource(
     () => (picking() ? it()?.id : undefined),
     async (id) => (await props.suggestTags?.(id).catch(() => [])) ?? [],
+  )
+  const [fileOpen, setFileOpen] = createSignal(false)
+  const [details] = createResource(
+    () => (info() && fileOpen() && props.host?.details ? it()?.id : undefined),
+    async (id) => (await props.host?.details?.(id).catch(() => null)) ?? null,
   )
   const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
   const closePicker = () => {
@@ -252,7 +311,7 @@ export function AssetScreen(props: AssetScreenProps) {
                           dashed
                           aria-expanded={picking()}
                           aria-haspopup="dialog"
-                          onClick={() => setPicking(!picking())}
+                          onClick={togglePicker}
                         >
                           <Icon name="plus" size={12} />
                           追加
@@ -273,24 +332,35 @@ export function AssetScreen(props: AssetScreenProps) {
                         </For>
                       </Show>
                     </div>
-                    <details>
+                    <details open={fileOpen()} onToggle={(e) => setFileOpen(e.currentTarget.open)}>
                       <summary class={styles.sum}>ファイルの詳細</summary>
                       <div class={styles.fi}>
+                        <span>名前</span>
+                        <NameField value={a().name} onChange={(name) => props.onRename?.(a().id, name)} />
                         <span>種類</span>
-                        <span>
-                          {lib().formatLabel(a())} · {a().ext}
-                        </span>
-                        <span>場所</span>
-                        <span>
-                          {a().folder ? `${a().folder}/` : ''}
-                          {a().name}.{a().ext}
-                        </span>
-                        <span>メタ情報</span>
-                        <span>
-                          {a().name}.{a().ext}.meta
-                        </span>
+                        <span>{a().ext}</span>
+                        <Show when={details.state === 'ready' && details()}>
+                          {(d) => (
+                            <>
+                              <span>サイズ</span>
+                              <span>{bytes(d().size)}</span>
+                            </>
+                          )}
+                        </Show>
                         <span>更新日</span>
                         <span>{relDay(lib(), a().moved)}</span>
+                        <Show when={details.loading}>
+                          <span />
+                          <Spinner size={12} />
+                        </Show>
+                        <For each={details.state === 'ready' ? details()?.rows : undefined}>
+                          {(r) => (
+                            <>
+                              <span>{r.label}</span>
+                              <span>{r.value}</span>
+                            </>
+                          )}
+                        </For>
                       </div>
                     </details>
                   </FloatingCard>
@@ -301,7 +371,7 @@ export function AssetScreen(props: AssetScreenProps) {
                   class={styles.picker}
                   tags={a().tags}
                   all={allTags()}
-                  recent={props.recentTags ?? []}
+                  recent={recent()}
                   suggested={suggested.state === 'ready' ? suggested() : undefined}
                   anchor={addBtn}
                   onToggle={(t, on) => props.onTag?.(a().id, t, on)}

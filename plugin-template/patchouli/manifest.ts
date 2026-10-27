@@ -2,9 +2,9 @@
 
 /**
  * 形式ごとに受け持つもの。waveform は音の波形、hover はカーソルを合わせたときにサムネイルの上に重ねる表示で、
- * どちらも組み込み UI だけが受け持てる。
+ * どちらも組み込み UI だけが受け持てる。details はファイルの詳細に足す行で、WASM だけが受け持てる。
  */
-export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover'
+export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details'
 
 /** カーソルを合わせたときに、本体がサムネイルの上で見せるもの。video は元のファイルを音を消して再生する。 */
 export type Hover = 'video'

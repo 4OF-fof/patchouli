@@ -695,6 +695,39 @@ async fn item_view(cur: State<'_, Current>, id: String) -> Result<Option<ViewOut
     Ok(Target::of(&cur, &id)?.run(|r, ext, path| r.view(ext, path)))
 }
 
+#[derive(Serialize)]
+struct Detail {
+    label: String,
+    value: String,
+}
+
+#[derive(Serialize)]
+struct Details {
+    size: u64,
+    rows: Vec<Detail>,
+}
+
+#[tauri::command]
+async fn item_details(cur: State<'_, Current>, id: String) -> Result<Details, String> {
+    let t = Target::of(&cur, &id)?;
+    let size = std::fs::metadata(&t.path)
+        .map_err(|e| format!("{}: {e}", t.path.display()))?
+        .len();
+    let rows = t
+        .run(|r, ext, path| r.details(ext, path))
+        .unwrap_or_else(|e| {
+            log::warn!("ファイルの詳細を足せない: {}: {e}", t.path.display());
+            Vec::new()
+        });
+    Ok(Details {
+        size,
+        rows: rows
+            .into_iter()
+            .map(|(label, value)| Detail { label, value })
+            .collect(),
+    })
+}
+
 #[tauri::command]
 async fn item_decoded(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Response, String> {
     let t = Target::of(&cur, &id)?;
@@ -1062,6 +1095,15 @@ async fn move_item(
 }
 
 #[tauri::command]
+async fn rename_item(
+    cur: State<'_, Current>,
+    id: String,
+    name: String,
+) -> Result<StoredItem, String> {
+    with_session(&cur, |s| s.lib.rename_item(&id, &name, &s.thumbs))
+}
+
+#[tauri::command]
 async fn save_state(cur: State<'_, Current>, state: LibraryState) -> Result<(), String> {
     with(&cur, |l| l.save_state(&state))
 }
@@ -1121,6 +1163,8 @@ pub fn run() {
             checking,
             set_plugin_setting,
             item_view,
+            item_details,
+            rename_item,
             item_decoded,
             reveal_item,
             open_item_default,

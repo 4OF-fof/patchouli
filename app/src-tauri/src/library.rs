@@ -683,12 +683,8 @@ impl Library {
         folder: Option<&str>,
         thumbs: &Path,
     ) -> Result<StoredItem, String> {
-        let e = self.entry(id)?;
-        let (from, note) = (e.path.clone(), e.note);
-        let mut row = self
-            .cache
-            .row(&from)
-            .ok_or_else(|| format!("{} が見つかりません", from.display()))?;
+        let from = self.entry(id)?.path.clone();
+        let row = self.row_of(&from)?;
         if row.item.folder.as_deref() == folder {
             return Ok(row.item);
         }
@@ -703,38 +699,97 @@ impl Library {
             None => self.root.clone(),
         };
         let name = from.file_name().ok_or("ファイル名がありません")?;
+        let place = folder.unwrap_or("プロジェクトなし");
+        let taken = format!(
+            "「{place}」に同じ名前のファイル（{}）があるため、移動できません",
+            name.to_string_lossy()
+        );
         let to = dir.join(name);
-        let (meta_from, meta_to) = (meta_path(&from), meta_path(&to));
-        let has_meta = !note && meta_from.exists();
-        if to.exists() || (has_meta && meta_to.exists()) {
-            let place = folder.unwrap_or("プロジェクトなし");
-            return Err(format!(
-                "「{place}」に同じ名前のファイル（{}）があるため、移動できません",
-                name.to_string_lossy()
-            ));
+        self.relocate(id, row, &to, thumbs, taken, |it| {
+            it.folder = folder.map(str::to_owned);
+        })
+    }
+
+    pub fn rename_item(
+        &mut self,
+        id: &str,
+        name: &str,
+        thumbs: &Path,
+    ) -> Result<StoredItem, String> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err("名前を入れてください".into());
         }
-        fs::rename(&from, &to).map_err(|e| format!("{}: {e}", from.display()))?;
+        if name.ends_with('.')
+            || name
+                .chars()
+                .any(|c| c.is_control() || r#"\/:*?"<>|"#.contains(c))
+        {
+            return Err(
+                r#"名前に使えない文字（\ / : * ? " < > | と末尾の .）が入っています"#.into(),
+            );
+        }
+        let from = self.entry(id)?.path.clone();
+        let row = self.row_of(&from)?;
+        if row.item.name == name {
+            return Ok(row.item);
+        }
+        let file = match from.extension() {
+            Some(ext) => format!("{name}.{}", ext.to_string_lossy()),
+            None => name.to_owned(),
+        };
+        let to = from.with_file_name(&file);
+        let taken = format!("同じ名前のファイル（{file}）があるため、名前を変えられません");
+        self.relocate(id, row, &to, thumbs, taken, |it| it.name = name.to_owned())
+    }
+
+    fn row_of(&self, path: &Path) -> Result<Row, String> {
+        self.cache
+            .row(path)
+            .ok_or_else(|| format!("{} が見つかりません", path.display()))
+    }
+
+    /// ファイルとメタ情報を to に移し、キャッシュとサムネイルを付け替える。
+    fn relocate(
+        &mut self,
+        id: &str,
+        mut row: Row,
+        to: &Path,
+        thumbs: &Path,
+        taken: String,
+        change: impl FnOnce(&mut StoredItem),
+    ) -> Result<StoredItem, String> {
+        let from = row.item.file.clone();
+        let (meta_from, meta_to) = (meta_path(&from), meta_path(to));
+        let has_meta = !row.item.note && meta_from.exists();
+        // 大文字と小文字だけを変えるときは、変える前のものが見つかる
+        let other =
+            |a: &Path, b: &Path| b.exists() && fs::canonicalize(a).ok() != fs::canonicalize(b).ok();
+        if other(&from, to) || (has_meta && other(&meta_from, &meta_to)) {
+            return Err(taken);
+        }
+        fs::rename(&from, to).map_err(|e| format!("{}: {e}", from.display()))?;
         if has_meta && let Err(e) = fs::rename(&meta_from, &meta_to) {
-            let _ = fs::rename(&to, &from);
+            let _ = fs::rename(to, &from);
             return Err(format!("{}: {e}", meta_from.display()));
         }
         self.mark(&from);
-        self.mark(&to);
+        self.mark(to);
         if let Some(e) = self.entries.get_mut(id) {
-            e.path = to.clone();
+            e.path = to.to_owned();
         }
         let reads = self.cache.thumb_reads().remove(&from).unwrap_or_default();
         let thumb = row.item.thumb.take().and_then(|old| {
-            let new = thumb::path_for(thumbs, &to, &reads)?;
+            let new = thumb::path_for(thumbs, to, &reads)?;
             fs::rename(&old, &new).ok()?;
             Some(new)
         });
-        row.item.file = to.clone();
-        row.item.folder = folder.map(str::to_owned);
+        row.item.file = to.to_owned();
+        change(&mut row.item);
         self.cache.update(std::slice::from_ref(&row), &[from]);
         if let Some(t) = &thumb {
             let size = row.item.width.zip(row.item.height).unwrap_or_default();
-            self.cache.set_thumb(&to, t, size, &reads);
+            self.cache.set_thumb(to, t, size, &reads);
             row.item.thumb = thumb;
         }
         Ok(row.item)

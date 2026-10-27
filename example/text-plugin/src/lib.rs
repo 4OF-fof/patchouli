@@ -18,6 +18,10 @@ impl Guest for Text {
         Err("decode には対応していません".into())
     }
 
+    fn details(_format: String, _f: File) -> Result<Vec<Detail>, String> {
+        Ok(Vec::new())
+    }
+
     fn settings() -> Vec<Setting> {
         vec![
             Setting {

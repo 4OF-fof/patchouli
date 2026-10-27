@@ -24,7 +24,7 @@ export interface RawManifest extends Omit<Manifest, 'formats'> {
   >
 }
 
-const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover']
+const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover', 'details']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
 const HOVERS: readonly Hover[] = ['video']
 

@@ -188,24 +188,31 @@ export function App(props: AppProps) {
       { tags: on ? { add: [tag] } : { remove: [tag] } },
     )
   }
-  // 先に画面を移しておき、移せなかったら元のプロジェクトに戻す
-  const moveItem = (id: string, folder: string | null) => {
-    const it = lib().byId.get(id)
-    if (!it || it.folder === folder) return
-    const put = (change: Partial<Item>) => {
+  // 先に画面を変えておき、ファイルを変えられなかったら元に戻す
+  const changeFile = (id: string, change: Partial<Item>, undo: Partial<Item>, run: () => Promise<Item | undefined>) => {
+    const put = (c: Partial<Item>) => {
       const now = lib().byId.get(id)
-      if (now) setLib(withChanged(lib(), [{ ...now, ...change }], []))
+      if (now) setLib(withChanged(lib(), [{ ...now, ...c }], []))
     }
-    put({ folder })
+    put(change)
     persist(async () => {
       try {
-        const moved = await backend.moveItem(id, folder)
-        if (moved) setLib(withChanged(lib(), [moved], []))
+        const done = await run()
+        if (done) setLib(withChanged(lib(), [done], []))
       } catch (e) {
-        put({ folder: it.folder })
+        put(undo)
         throw e
       }
     })
+  }
+  const moveItem = (id: string, folder: string | null) => {
+    const it = lib().byId.get(id)
+    if (it && it.folder !== folder)
+      changeFile(id, { folder }, { folder: it.folder }, () => backend.moveItem(id, folder))
+  }
+  const renameItem = (id: string, name: string) => {
+    const it = lib().byId.get(id)
+    if (it && it.name !== name) changeFile(id, { name }, { name: it.name }, () => backend.renameItem(id, name))
   }
 
   const createProject = async () => {
@@ -305,7 +312,12 @@ export function App(props: AppProps) {
       await setEnabled(p.id, p.dev, true)
       await reloadPlugins()
     })
-  const viewHost = backend.itemView && { view: backend.itemView, ui: backend.uiApi, waveform: backend.waveform }
+  const viewHost = backend.itemView && {
+    view: backend.itemView,
+    ui: backend.uiApi,
+    waveform: backend.waveform,
+    details: backend.itemDetails,
+  }
   const { uiApi, uiUrl } = backend
   const hoverHost: HoverHost = {
     ui:
@@ -560,6 +572,7 @@ export function App(props: AppProps) {
                           onOpenNote={(id) => openItem(id)}
                           onTogglePin={togglePin}
                           onProject={moveItem}
+                          onRename={renameItem}
                           onTag={tagItem}
                           recentTags={recentTags()}
                           onMemo={(id, memo) => editItem(id, { memo }, { memo })}

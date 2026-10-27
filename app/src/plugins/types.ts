@@ -99,6 +99,12 @@ export interface Via {
   required: boolean
 }
 
+/** ファイルの詳細。rows はプラグインが足す行。 */
+export interface ItemDetails {
+  size: number
+  rows: { label: string; value: string }[]
+}
+
 export type ItemView =
   | { kind: 'image'; url?: string }
   | { kind: 'video' }

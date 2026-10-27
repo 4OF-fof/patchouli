@@ -31,6 +31,10 @@ impl Guest for Csv {
     }
 
     /// ui.ts の settings の型と合わせる。
+    fn details(_format: String, _f: File) -> Result<Vec<Detail>, String> {
+        Ok(Vec::new())
+    }
+
     fn settings() -> Vec<Setting> {
         vec![Setting {
             key: "header".into(),

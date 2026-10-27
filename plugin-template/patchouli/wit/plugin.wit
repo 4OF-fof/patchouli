@@ -1,4 +1,4 @@
-package patchouli:plugin@0.5.0;
+package patchouli:plugin@0.6.0;
 
 interface types {
   /// アプリが渡すファイル。中身はホストの関数を通して読む。
@@ -35,6 +35,12 @@ interface types {
     audio,
     /// アプリが読めない画像。decode で PNG にしたものを、アプリが画像として出す。
     decoded,
+  }
+
+  /// ファイルの詳細に足す 1 行。
+  record detail {
+    label: string,
+    value: string,
   }
 
   record number-range {
@@ -124,7 +130,7 @@ interface host {
 
 world plugin {
   import host;
-  use types.{file, thumbnail, view, setting};
+  use types.{file, thumbnail, view, detail, setting};
 
   /// サムネイル。作らないときは none。format は受け持つ形式（拡張子）。
   export thumbnail: func(format: string, f: file, edge: u32) -> result<option<thumbnail>, string>;
@@ -134,6 +140,9 @@ world plugin {
 
   /// view が decoded を返したときに、詳細に出す PNG（素材そのものの大きさ）。
   export decode: func(format: string, f: file) -> result<list<u8>, string>;
+
+  /// ファイルの詳細に足す行。plugin.json の parts に details を書いた形式で、詳細を開くたびに呼ぶ。
+  export details: func(format: string, f: file) -> result<list<detail>, string>;
 
   /// 設定の項目。ライブラリを開いたときに一度だけ呼ぶ。
   export settings: func() -> list<setting>;

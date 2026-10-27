@@ -6,6 +6,7 @@ license = "MIT"
 publish = false
 
 [dependencies]
+symphonia = { version = "0.6.1", default-features = false, features = ["mp3", "wav", "flac", "pcm", "adpcm"] }
 wit-bindgen = "0.63"
 
 [lib]

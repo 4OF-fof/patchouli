@@ -255,6 +255,10 @@ export function tauriBackend(): Backend {
       const it = await invoke<TauriItem>('move_item', { id, folder })
       return toItem(it, new Date(), formats, urlsOf(it))
     },
+    async renameItem(id, name) {
+      const it = await invoke<TauriItem>('rename_item', { id, name })
+      return toItem(it, new Date(), formats, urlsOf(it))
+    },
     saveState: (state) => invoke('save_state', { state }),
     async createNote(name, folder) {
       const it = await invoke<TauriItem>('create_note', { name, folder })
@@ -346,6 +350,7 @@ export function tauriBackend(): Backend {
       decoded = URL.createObjectURL(new Blob([png], { type: 'image/png' }))
       return { kind: 'image', url: decoded }
     },
+    itemDetails: (id) => invoke('item_details', { id }),
     revealItem: (id) => invoke('reveal_item', { id }),
     openItemDefault: (id) => invoke('open_item_default', { id }),
     async waveform(id) {

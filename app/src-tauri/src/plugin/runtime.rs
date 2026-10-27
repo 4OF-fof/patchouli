@@ -460,6 +460,19 @@ impl Runner {
         })
     }
 
+    pub fn details(&mut self, ext: &str, path: &Path) -> Result<Vec<(String, String)>, String> {
+        let r = self.call(
+            ext,
+            Part::Details,
+            By::Wasm,
+            path,
+            VIEW_LIMIT,
+            |p, s, fmt, file| p.call_details(s, fmt, &file),
+        );
+        let ds = r.unwrap_or(Ok(Ok(Vec::new())))??;
+        Ok(ds.into_iter().map(|d| (d.label, d.value)).collect())
+    }
+
     pub fn decode(&mut self, ext: &str, path: &Path) -> Result<Vec<u8>, String> {
         self.call(
             ext,

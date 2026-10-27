@@ -1,5 +1,5 @@
 import type { CoverPart, Item, Library, NoteBlock, Project, TagCoverPart, Thumbnail } from '../model/library'
-import type { ItemView, Part, PluginActions, PluginReport, UiRef } from '../plugins/types'
+import type { ItemDetails, ItemView, Part, PluginActions, PluginReport, UiRef } from '../plugins/types'
 import type { UiApi, UiItem } from '../plugins/ui'
 
 export interface LibraryState {
@@ -118,6 +118,7 @@ export interface Backend {
   open(): Promise<Opened>
   saveItem(id: string, patch: ItemPatch): Promise<Item | undefined>
   moveItem(id: string, folder: string | null): Promise<Item | undefined>
+  renameItem(id: string, name: string): Promise<Item | undefined>
   saveState(state: LibraryState): Promise<void>
   createNote(name: string, folder: string | null): Promise<Item>
   createProject(name: string): Promise<Project>
@@ -137,6 +138,7 @@ export interface Backend {
   checking?(): Promise<boolean>
   reloadPlugins?(wait: boolean): Promise<Opened>
   itemView?: (id: string) => Promise<ItemView | null>
+  itemDetails?: (id: string) => Promise<ItemDetails>
   revealItem?: (id: string) => Promise<void>
   openItemDefault?: (id: string) => Promise<void>
   waveform?: (id: string) => Promise<Uint8Array | null>

@@ -41,6 +41,7 @@ pub enum Part {
     View,
     Waveform,
     Hover,
+    Details,
     #[serde(other)]
     Unknown,
 }

@@ -25,7 +25,13 @@ export interface PluginsDialogProps {
   onClose?: () => void
 }
 
-const PART: Record<Part, string> = { thumbnail: 'サムネイル', view: '詳細表示', waveform: '波形', hover: 'ホバー表示' }
+const PART: Record<Part, string> = {
+  thumbnail: 'サムネイル',
+  view: '詳細表示',
+  waveform: '波形',
+  hover: 'ホバー表示',
+  details: 'ファイルの詳細',
+}
 
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [
   { label: 'ファイル形式', has: (p) => !p.dev && p.formats.length > 0 },

@@ -1,8 +1,8 @@
 {
   "id": "patchouli.audio",
   "name": "音声",
-  "version": "0.2.0",
-  "description": "音声のジャケットと波形、再生",
+  "version": "0.3.0",
+  "description": "音声のジャケットと波形、再生、長さと BPM",
   "ui": "ui/waveform.js",
   "optional": {
     "commands": {
@@ -10,7 +10,7 @@
     }
   },
   "formats": {
-    "mp3": { "label": "音声", "ratio": 1.6, "parts": ["thumbnail", "view"], "ui": ["waveform"] },
+    "mp3": { "label": "音声", "ratio": 1.6, "parts": ["thumbnail", "view", "details"], "ui": ["waveform"] },
     "wav": { "extends": "mp3" },
     "flac": { "extends": "mp3" }
   }

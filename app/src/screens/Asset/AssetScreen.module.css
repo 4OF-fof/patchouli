@@ -94,10 +94,20 @@
 .fl textarea {
   width: 100%;
   padding: 5px 8px;
-  border: 1px solid var(--line-2);
+  border: 1px solid color-mix(in oklch, var(--ink) 6%, transparent);
   border-radius: var(--radius-sm);
-  background: var(--card);
+  background: color-mix(in oklch, var(--ink) 4%, transparent);
+  color: var(--ink);
   font-size: var(--fs-list);
+}
+.fl select:focus-visible,
+.fl input:focus-visible,
+.fl textarea:focus-visible {
+  border-color: var(--accent);
+  outline: 0;
+}
+.fl option {
+  background: var(--float);
 }
 .fl textarea {
   height: calc(8 * 1.5em + 12px);
@@ -128,10 +138,31 @@
   grid-template-columns: 64px 1fr;
   gap: 3px 8px;
   margin-top: 8px;
+  align-items: center;
   font-size: var(--fs-meta);
 }
-.fi span:nth-child(odd) {
+.fi > :nth-child(odd) {
   color: var(--muted);
+}
+.fi input {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 6px;
+  margin-left: -7px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font-size: var(--fs-meta);
+}
+.fi input:hover {
+  border-color: color-mix(in oklch, var(--ink) 6%, transparent);
+  background: color-mix(in oklch, var(--ink) 4%, transparent);
+}
+.fi input:focus-visible {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--ink) 4%, transparent);
+  outline: 0;
 }
 @media (max-width: 640px) {
   .info,

@@ -158,6 +158,10 @@ impl Guest for Ppm {
         encode(&parse(&read_all(&f)?)?)
     }
 
+    fn details(_format: String, _f: File) -> Result<Vec<Detail>, String> {
+        Ok(Vec::new())
+    }
+
     fn settings() -> Vec<Setting> {
         Vec::new()
     }
