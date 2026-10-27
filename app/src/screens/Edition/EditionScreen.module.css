@@ -53,22 +53,27 @@
   grid-column: span 2;
   grid-row: span 2;
 }
+/* ほかのピンの表紙と同じ大きさの枠。名前の行は持たない */
 .pinsMore {
+  align-self: start;
+  aspect-ratio: 2 / 1;
   display: flex;
+  align-items: center;
   justify-content: center;
-  padding-top: 10px;
-}
-.pinsMore button {
-  height: 28px;
-  padding: 0 14px;
+  padding: 0;
   border: 1px solid var(--line-2);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-sm);
   background: none;
-  color: var(--muted);
-  font-size: var(--fs-meta);
+  color: var(--ink-2);
+  font-size: var(--fs-large);
   cursor: pointer;
 }
-.pinsMore button:hover {
+.pinsMore[aria-expanded='true'] {
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.pinsMore:hover {
+  border-color: var(--frame);
   color: var(--ink);
 }
 .more {

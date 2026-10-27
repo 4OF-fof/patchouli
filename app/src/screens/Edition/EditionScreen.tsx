@@ -118,13 +118,14 @@ export function EditionScreen(props: EditionScreenProps) {
       return list.map((it) => ({ tier, it, n: list.length }))
     }),
   )
-  // ピン留めは 2 行までにし、残りは「全件を表示」で出す。3 列以上あれば、先頭を 2 列 2 行の大きさにする
+  // ピン留めは 2 行までにし、入りきらないときは最後の枠を「すべて表示」の札にする。3 列以上あれば、先頭を 2 列 2 行の大きさにする
   const preview = useHoverPreview()
   const [cols, setCols] = createSignal(3)
   const [pinsOpen, setPinsOpen] = createSignal(!!props.pinsOpen)
   const large = () => cols() >= 3
   const pinLimit = () => cols() * 2 - (large() ? 3 : 0)
-  const shownPins = () => (pinsOpen() ? pins() : pins().slice(0, pinLimit()))
+  const pinsOver = () => pins().length > pinLimit()
+  const shownPins = () => (pinsOpen() || !pinsOver() ? pins() : pins().slice(0, pinLimit() - 1))
   const watchCols = (el: HTMLDivElement) => {
     const ro = new ResizeObserver(() => setCols(getComputedStyle(el).gridTemplateColumns.split(' ').length))
     ro.observe(el)
@@ -222,14 +223,18 @@ export function EditionScreen(props: EditionScreenProps) {
                       />
                     )}
                   </Index>
-                </div>
-                <Show when={pins().length > pinLimit()}>
-                  <div class={styles.pinsMore}>
-                    <button type="button" aria-expanded={pinsOpen()} onClick={() => setPinsOpen(!pinsOpen())}>
-                      {pinsOpen() ? '折りたたむ' : `すべて表示（${pins().length} 件）`}
+                  <Show when={pinsOver()}>
+                    <button
+                      type="button"
+                      class={styles.pinsMore}
+                      aria-expanded={pinsOpen()}
+                      aria-label={pinsOpen() ? undefined : `すべて表示（${pins().length} 件）`}
+                      onClick={() => setPinsOpen(!pinsOpen())}
+                    >
+                      {pinsOpen() ? '折りたたむ' : `＋${pins().length - shownPins().length}`}
                     </button>
-                  </div>
-                </Show>
+                  </Show>
+                </div>
               </section>
             </Show>
             <Index each={tiers()}>
