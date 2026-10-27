@@ -63,12 +63,17 @@ fn plugin_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .join("plugins"))
 }
 
-/// 開発者モードで、開発版を読むフォルダ。オフのときや選んでいないときはない。
-fn dev_plugin_dir(app: &tauri::AppHandle) -> Option<PathBuf> {
+/// 開発者モードで、開発版を探す場所。オフのときはない。
+fn dev_places(app: &tauri::AppHandle) -> Option<plugin::Dev> {
     let d = settings::developer(app)
         .inspect_err(|e| log::warn!("開発者モードの設定を読めない: {e}"))
-        .ok()?;
-    d.plugin_dir.filter(|_| d.enabled)
+        .ok()
+        .filter(|d| d.enabled)?;
+    Some(plugin::Dev {
+        dirs: d.plugin_dirs,
+        repos: d.repos,
+        unpack: cache_dir(app).ok()?.join("dev-plugins"),
+    })
 }
 
 fn cache_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -286,7 +291,7 @@ fn tell_thumb(
 async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<Opened, String> {
     let root = library::canonical(&library_root(&app)?)?;
     let (plugins, plugin_problems) =
-        Registry::open(&root, &plugin_dir(&app)?, dev_plugin_dir(&app).as_deref());
+        Registry::open(&root, &plugin_dir(&app)?, dev_places(&app).as_ref());
     let plugins = Arc::new(plugins);
     if let Err(e) = settings::remember(&app, &root, plugin_ids(&root).unwrap_or_default()) {
         log::warn!("開いたライブラリを覚えられない: {e}");
@@ -537,27 +542,38 @@ async fn developer(app: tauri::AppHandle) -> Result<settings::Developer, String>
     settings::developer(&app)
 }
 
-/// 開発者モードの設定を変える。変えたあとは、画面がライブラリを開き直す。
+/// 開発者モードの設定を変える。変えたものは、アプリを再起動すると使う。
 #[tauri::command]
 async fn set_developer(
     app: tauri::AppHandle,
     developer: settings::Developer,
 ) -> Result<(), String> {
-    if let Some(d) = developer.plugin_dir.as_ref().filter(|d| !d.is_dir()) {
-        return Err(format!("{}: フォルダが見つかりません", d.display()));
-    }
     settings::set_developer(&app, &developer)
 }
 
-/// 開発版を置くフォルダを選ぶ窓を出す。選ばなければ None。
+/// 開発版の場所を選ぶ窓を出す。repo なら plugin.json を直下に持つリポジトリ、でなければ開発版を入れたフォルダ。
+/// 選ばなければ None。
 #[tauri::command]
-async fn pick_dev_plugin_dir(app: tauri::AppHandle) -> Result<Option<PathBuf>, String> {
-    app.dialog()
-        .file()
-        .set_title("開発版のプラグインのフォルダを選択")
-        .blocking_pick_folder()
-        .map(|p| p.into_path().map_err(|e| e.to_string()))
-        .transpose()
+async fn pick_dev_path(app: tauri::AppHandle, repo: bool) -> Result<Option<PathBuf>, String> {
+    let title = if repo {
+        "プラグインのリポジトリを選択"
+    } else {
+        "開発用プラグインのフォルダを選択"
+    };
+    let Some(p) = app.dialog().file().set_title(title).blocking_pick_folder() else {
+        return Ok(None);
+    };
+    let p = p.into_path().map_err(|e| e.to_string())?;
+    if repo && !p.join(plugin::MANIFEST).is_file() {
+        return Err(format!("{}: {} が見つかりません", p.display(), plugin::MANIFEST));
+    }
+    Ok(Some(p))
+}
+
+/// アプリを再起動する。
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart()
 }
 
 /// 開いているライブラリの記録と設定から外す。ほかのどのライブラリでも使っていなければ、アプリからも消す。
@@ -1085,7 +1101,8 @@ pub fn run() {
             set_plugin_enabled,
             developer,
             set_developer,
-            pick_dev_plugin_dir,
+            pick_dev_path,
+            restart_app,
             set_plugin_setting,
             item_view,
             item_decoded,

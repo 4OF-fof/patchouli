@@ -259,7 +259,8 @@ export function tauriBackend(): Backend {
     developer: {
       get: () => invoke<Developer>('developer'),
       set: (developer) => invoke('set_developer', { developer }),
-      pickDir: async () => (await invoke<string | null>('pick_dev_plugin_dir')) ?? undefined,
+      pick: async (kind) => (await invoke<string | null>('pick_dev_path', { repo: kind === 'repo' })) ?? undefined,
+      restart: () => invoke('restart_app'),
     },
     onFileDrag(cb) {
       const send = (e: FileDrag) => cb(e)

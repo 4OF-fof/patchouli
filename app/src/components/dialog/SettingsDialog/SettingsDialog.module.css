@@ -58,16 +58,48 @@
   background: color-mix(in srgb, var(--danger) 10%, var(--paper));
   color: var(--danger);
 }
-.note {
-  margin: 0 0 8px;
-  font-size: var(--fs-list);
-  color: var(--muted);
-}
 .row {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 8px 0;
+}
+.row b {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.mono {
+  font: 400 var(--fs-meta) var(--f-mono);
+  color: var(--faint);
+}
+.loading,
+.empty {
+  margin: 0;
+  font-size: var(--fs-list);
+  color: var(--faint);
+}
+.places {
+  padding: 8px 0;
+}
+.placesHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+.placesHead span {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.place {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 0;
 }
 .path {
   flex: 1;
@@ -78,10 +110,21 @@
   font: 400 var(--fs-meta) var(--f-mono);
   color: var(--ink-2);
 }
-.path[data-empty='true'] {
-  font-family: var(--f-sans);
-  color: var(--faint);
+.restart {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  padding: 8px 0;
 }
-.grow {
+.restart span {
   flex: 1;
+  min-width: 0;
+  font-size: var(--fs-list);
+}
+.restart[data-needed='true'] {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
 }

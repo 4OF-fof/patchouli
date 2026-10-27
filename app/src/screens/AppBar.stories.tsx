@@ -42,7 +42,6 @@ export const Places: Story = {
   render: () => bar({ initial: 'places' }),
 }
 export const Menu: Story = { name: 'メニュー', render: () => bar({ initial: 'menu' }) }
-export const Settings: Story = { name: 'メニュー · 設定', render: () => bar({ initial: 'settings' }) }
 export const Search: Story = { name: '検索を開く', render: () => bar({ initial: 'search' }) }
 export const Typing: Story = { name: '検索に入力中', render: () => bar({ initial: 'search', query: '配色' }) }
 export const Prompt: Story = { name: 'プロンプト', render: () => bar({ initial: 'prompt' }) }
@@ -50,18 +49,14 @@ export const Help: Story = { name: 'キー操作の一覧', render: () => bar({ 
 export const ReadOnly: Story = { name: '書き込めない保存先', render: () => bar({ readOnly: true }) }
 
 const developer: AppBarProps['developer'] = {
-  get: async () => ({ enabled: true, pluginDir: 'D:devpatchouli-plugins' }),
+  get: async () => ({ enabled: true, pluginDirs: ['D:\\dev\\patchouli-plugins'], repos: [] }),
   set: async () => {},
-  pickDir: async () => undefined,
+  pick: async () => undefined,
+  restart: async () => {},
 }
 /** デスクトップでは、設定に開発者モードが出る。 */
-export const DesktopSettings: Story = {
-  name: 'メニュー · 設定（デスクトップ）',
+export const Settings: Story = {
+  name: '設定',
   decorators: [desktop],
   render: () => bar({ initial: 'settings', developer }),
-}
-export const Developer: Story = {
-  name: '開発者モード',
-  decorators: [desktop],
-  render: () => bar({ initial: 'developer', developer }),
 }

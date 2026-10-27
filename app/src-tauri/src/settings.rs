@@ -102,14 +102,17 @@ pub fn forget(app: &AppHandle, root: &Path) -> Result<(), String> {
     set_recent(app, &list)
 }
 
-/// 開発者モード。plugin_dir は開発版を置くフォルダで、オフのあいだも残す。
+/// 開発者モード。場所はオフのあいだも残す。
+/// plugin_dirs は中の `<名前>/plugin.json` を開発版として読むフォルダ、repos は plugin.json を直下に持つプラグインのリポジトリ。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Developer {
     #[serde(default)]
     pub enabled: bool,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub plugin_dir: Option<PathBuf>,
+    #[serde(default)]
+    pub plugin_dirs: Vec<PathBuf>,
+    #[serde(default)]
+    pub repos: Vec<PathBuf>,
 }
 
 pub fn developer(app: &AppHandle) -> Result<Developer, String> {

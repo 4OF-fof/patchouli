@@ -137,19 +137,24 @@ export interface TidyActions {
   removeUnusedPlugins(): Promise<void>
 }
 
-/** 開発者モード。pluginDir は開発版を置くフォルダで、オフのあいだも残す。 */
+/**
+ * 開発者モード。場所はオフのあいだも残す。
+ * pluginDirs は中の `<名前>/plugin.json` を開発版として読むフォルダ、repos は plugin.json を直下に持つリポジトリ（ビルドした `<id>-<版>.zip` を読む）。
+ */
 export interface Developer {
   enabled: boolean
-  pluginDir?: string
+  pluginDirs: string[]
+  repos: string[]
 }
 
 /** 開発者モードの設定。 */
 export interface DeveloperActions {
   get(): Promise<Developer>
-  /** 変えたあとは、open からやり直す。 */
+  /** 変えたものは、再起動すると使う。 */
   set(d: Developer): Promise<void>
-  /** フォルダを選ぶ窓を出す。選ばなかったときは undefined。 */
-  pickDir(): Promise<string | undefined>
+  /** 場所を選ぶ窓を出す。repo ならリポジトリ、でなければフォルダ。選ばなかったときは undefined。 */
+  pick(kind: 'dir' | 'repo'): Promise<string | undefined>
+  restart(): Promise<void>
 }
 
 export interface Backend {

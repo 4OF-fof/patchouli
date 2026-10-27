@@ -6,7 +6,7 @@
 //! - 同じ形式を 2 つのプラグインが受け持つときは、先に読んだほうを使い、両方にエラーを付ける
 //! - 外のプラグインの本体はアプリのデータフォルダに置き、ライブラリに記録したものだけを使う。
 //!   設定の値と、プラグインが自分で読み書きする値も、ライブラリに置く（record.rs）。記録したものは無効にもできる
-//! - 開発者モードのフォルダの中のものは開発版として一覧に出し、ライブラリで有効にしたものを使う。
+//! - 開発者モードで登録したフォルダの中のものと、リポジトリの zip は、開発版として一覧に出し、ライブラリで有効にしたものを使う。
 //!   同じ id の通常のものより開発版を使う
 //! - 手元のコマンドとほかのプラグインを、必須（required）か、あれば使う（optional）として求められる
 
@@ -538,10 +538,9 @@ impl Registry {
     }
 
     /// 組み込みのプラグインと、ライブラリ root に記録してあるプラグイン（本体は dir の下）を読む。
-    /// dev は開発者モードのフォルダで、中の `<名前>/plugin.json` を開発版として一覧に出し、ライブラリで有効にしたものを使う。
-    /// 見つからなくなった開発版は、記録から外す。
+    /// dev で見つけたものは開発版として一覧に出し、ライブラリで有効にしたものを使う。見つからなくなった開発版は、記録から外す。
     /// 記録を読めなかったときは、組み込みのものだけにして、その理由を返す。
-    pub fn open(root: &Path, dir: &Path, dev: Option<&Path>) -> (Registry, Vec<String>) {
+    pub fn open(root: &Path, dir: &Path, dev: Option<&Dev>) -> (Registry, Vec<String>) {
         let mut problems = Vec::new();
         let mut record = Record::read(&record::path(root)).unwrap_or_else(|e| {
             problems.push(e);
@@ -551,18 +550,32 @@ impl Registry {
         let mut others = Vec::new();
         let builtin_ids: HashSet<String> = plugins.iter().map(|p| p.manifest.id.clone()).collect();
         let mut found = HashSet::new();
-        for (manifest, at) in dev.map(dev_plugins).unwrap_or_default() {
+        let mut active = HashSet::new();
+        let dev_found = dev.map(|d| d.plugins(&mut problems)).unwrap_or_default();
+        for (manifest, at) in dev_found {
+            let enabled = record.dev.contains(&manifest.id);
             if builtin_ids.contains(&manifest.id) {
                 let e = error("組み込みプラグインと ID が重複しています".into());
                 others.push(idle(&manifest, true, false, None, vec![e]));
             } else if !found.insert(manifest.id.clone()) {
-                log::warn!("開発版の ID が重複しているので読まない: {}", at.display());
-            } else if record.dev.contains(&manifest.id) {
-                let mut p = load_external(manifest, at, &record::Entry::default());
-                p.dev = true;
-                plugins.push(p);
+                log::warn!("開発版の ID が重複しているので読まない: {}", manifest.id);
             } else {
-                others.push(idle(&manifest, true, false, None, Vec::new()));
+                match at {
+                    Ok(at) if enabled => {
+                        active.insert(manifest.id.clone());
+                        let mut p = load_external(manifest, at, &record::Entry::default());
+                        p.dev = true;
+                        plugins.push(p);
+                    }
+                    Ok(_) => others.push(idle(&manifest, true, false, None, Vec::new())),
+                    Err(e) => {
+                        let mut s = idle(&manifest, true, enabled, None, vec![e]);
+                        if enabled {
+                            s.state = State::Blocked;
+                        }
+                        others.push(s);
+                    }
+                }
             }
         }
         if record.dev.iter().any(|id| !found.contains(id)) {
@@ -580,7 +593,7 @@ impl Registry {
                 Ok(manifest) if entry.disabled => {
                     others.push(idle(&manifest, false, false, Some(entry), Vec::new()));
                 }
-                Ok(manifest) if record.dev.contains(id) => {
+                Ok(manifest) if active.contains(id) => {
                     let w = Problem {
                         level: Level::Warning,
                         text: "同じ ID の開発版を使用しているため、使用していません".into(),
@@ -1159,27 +1172,67 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
     }
 }
 
-/// 開発者モードのフォルダ dir の中の、`<名前>/plugin.json` を読めたもの。名前順。
-fn dev_plugins(dir: &Path) -> Vec<(Manifest, PathBuf)> {
-    let Ok(entries) = fs::read_dir(dir) else {
-        log::warn!("開発者モードのフォルダを読めない: {}", dir.display());
-        return Vec::new();
-    };
-    let mut dirs: Vec<PathBuf> = entries
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.join(MANIFEST).is_file())
-        .collect();
-    dirs.sort();
-    dirs.into_iter()
-        .filter_map(|at| match Manifest::read(&at) {
-            Ok(m) => Some((m, at)),
-            Err(e) => {
-                log::warn!("開発版の plugin.json を読めない: {e}");
-                None
+/// 開発者モードで、開発版を探す場所。
+pub struct Dev {
+    /// 中の `<名前>/plugin.json` を読むフォルダ。
+    pub dirs: Vec<PathBuf>,
+    /// plugin.json を直下に持つリポジトリ。ビルドした `<id>-<版>.zip` を unpack の下に広げて読む。
+    pub repos: Vec<PathBuf>,
+    pub unpack: PathBuf,
+}
+
+impl Dev {
+    /// 見つけた開発版と、その本体の場所（使えないときはその理由）。登録した順、フォルダの中は名前順。
+    /// plugin.json を読めなかったものは、problems に足す。
+    fn plugins(&self, problems: &mut Vec<String>) -> Vec<(Manifest, Result<PathBuf, Problem>)> {
+        let mut out = Vec::new();
+        for dir in &self.dirs {
+            let Ok(entries) = fs::read_dir(dir) else {
+                problems.push(format!("{}: フォルダが見つかりません", dir.display()));
+                continue;
+            };
+            let mut found: Vec<PathBuf> = entries
+                .flatten()
+                .map(|e| e.path())
+                .filter(|p| p.join(MANIFEST).is_file())
+                .collect();
+            found.sort();
+            for at in found {
+                match Manifest::read(&at) {
+                    Ok(m) => out.push((m, Ok(at))),
+                    Err(e) => problems.push(e),
+                }
             }
-        })
-        .collect()
+        }
+        for repo in &self.repos {
+            match Manifest::read(repo) {
+                Ok(m) => {
+                    let at = self.unpack_repo(repo, &m).map_err(error);
+                    out.push((m, at));
+                }
+                Err(e) => problems.push(e),
+            }
+        }
+        out
+    }
+
+    fn unpack_repo(&self, repo: &Path, m: &Manifest) -> Result<PathBuf, String> {
+        let name = format!("{}-{}.zip", m.id, m.version);
+        let zip = repo.join(&name);
+        if !zip.is_file() {
+            return Err(format!("{name} が見つかりません"));
+        }
+        let at = self.unpack.join(&m.id);
+        install::unpack(&zip, &at)?;
+        let inner = Manifest::read(&at)?;
+        if inner.id != m.id {
+            return Err(format!(
+                "{name} の ID（{}）が plugin.json（{}）と異なります",
+                inner.id, m.id
+            ));
+        }
+        Ok(at)
+    }
 }
 
 /// 使っていないプラグインの、一覧の項目。plugin.json に書いてあることだけ出す。

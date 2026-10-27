@@ -66,6 +66,23 @@ fn fetch(source: &Source, work: &Path, expect: Option<&str>) -> Result<(PathBuf,
     }
 }
 
+/// 開発版の zip を、前に広げたものと入れ替えて out に広げる。
+pub fn unpack(zip: &Path, out: &Path) -> Result<(), String> {
+    let bytes = fs::read(zip).map_err(|e| format!("{}: {e}", zip.display()))?;
+    if out.exists() {
+        fs::remove_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
+    }
+    unzip(&bytes, out).map_err(|e| format!("{}: {e}", zip.display()))?;
+    if out.join(MANIFEST).is_file() {
+        Ok(())
+    } else {
+        Err(format!(
+            "{}: アーカイブの最上位に {MANIFEST} が見つかりません",
+            zip.display()
+        ))
+    }
+}
+
 fn unzip(bytes: &[u8], out: &Path) -> Result<(), String> {
     let mut z = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
     z.extract(out).map_err(|e| e.to_string())

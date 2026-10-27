@@ -7,9 +7,8 @@ import { TitleBar } from '../components/nav/TitleBar/TitleBar'
 import { HelpDialog } from '../components/dialog/HelpDialog/HelpDialog'
 import { LibrariesDialog } from '../components/dialog/LibrariesDialog/LibrariesDialog'
 import { type Notices, NoticesDialog } from '../components/dialog/NoticesDialog/NoticesDialog'
-import { OtherDialog } from '../components/dialog/OtherDialog/OtherDialog'
-import { DeveloperDialog } from '../components/dialog/DeveloperDialog/DeveloperDialog'
 import { PluginsDialog } from '../components/dialog/PluginsDialog/PluginsDialog'
+import { SettingsDialog } from '../components/dialog/SettingsDialog/SettingsDialog'
 import { NavMenu, type NavMenuEntry } from '../components/nav/NavMenu/NavMenu'
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
 import type { Library } from '../model/library'
@@ -22,14 +21,13 @@ import { type Row, SearchResults } from '../components/nav/SearchResults/SearchR
 /** 行き先。 */
 export type Place = 'home' | 'tags' | 'projects' | 'tidy'
 /**
- * closed 閉じている / menu メニューを開いた / settings その先の設定 / places いまの場所から開いた画面の一覧 /
+ * closed 閉じている / menu メニューを開いた / places いまの場所から開いた画面の一覧 /
  * search 検索に入力中 / prompt プロンプト /
- * help キー操作の一覧 / plugins プラグイン / notices 権利表示 / libraries ライブラリの切り替え / other その他
+ * help キー操作の一覧 / plugins プラグイン / notices 権利表示 / libraries ライブラリの切り替え / settings 設定
  */
 export type BarState =
   | 'closed'
   | 'menu'
-  | 'settings'
   | 'places'
   | 'search'
   | 'prompt'
@@ -37,8 +35,7 @@ export type BarState =
   | 'plugins'
   | 'notices'
   | 'libraries'
-  | 'other'
-  | 'developer'
+  | 'settings'
 
 export interface AppBarProps {
   lib: Library
@@ -66,9 +63,9 @@ export interface AppBarProps {
   onChooseLibrary?: () => void | Promise<void>
   /** 開いたことのあるライブラリ。渡すと、ライブラリを選ぶ項目で履歴の窓を開く。 */
   libraries?: LibraryActions
-  /** キャッシュと使っていないプラグインの片付け。渡すと「その他」に出す。 */
+  /** キャッシュと使っていないプラグインの片付け。渡すと設定に出す。 */
   tidy?: TidyActions
-  /** 開発者モードの設定。渡すと、設定に「開発者モード」を出す。 */
+  /** 開発者モードの設定。渡すと設定に出す。 */
   developer?: DeveloperActions
   /** 開くライブラリを替えたときや、キャッシュを消したとき。ライブラリを開き直す。 */
   onReopen?: () => void
@@ -93,7 +90,7 @@ export function AppBar(props: AppBarProps) {
   const [idx, setIdx] = createSignal(0)
   const lib = () => props.lib
   const searching = () => state() === 'search' || state() === 'prompt'
-  const menuOpen = () => state() === 'menu' || state() === 'settings'
+  const menuOpen = () => state() === 'menu'
   const placesOpen = () => state() === 'places'
   const close = () => {
     setState('closed')
@@ -176,17 +173,24 @@ export function AppBar(props: AppBarProps) {
     (l) => l.list(),
   )
   const [usage, { refetch: reloadUsage }] = createResource(
-    () => (state() === 'other' && props.tidy) || undefined,
+    () => (state() === 'settings' && props.tidy) || undefined,
     (t) => t.usage(),
   )
   const [unused, { refetch: reloadUnused }] = createResource(
-    () => (state() === 'other' && props.tidy) || undefined,
+    () => (state() === 'settings' && props.tidy) || undefined,
     (t) => t.unusedPlugins(),
   )
-  const [dev] = createResource(
-    () => (state() === 'developer' && props.developer) || undefined,
-    (d) => d.get(),
+  // 開発者モードの設定は起動したときに読むので、初めて読んだ値と違えば再起動を促す
+  let applied: string | undefined
+  const [dev, { mutate: setDev }] = createResource(
+    () => (state() === 'settings' && props.developer) || undefined,
+    async (d) => {
+      const v = await d.get()
+      applied ??= JSON.stringify(v)
+      return v
+    },
   )
+  const restartNeeded = () => applied !== undefined && !!dev.latest && JSON.stringify(dev.latest) !== applied
   // 一覧は大きいので、初めて開いたときに読む
   const [notices] = createResource(
     () => state() === 'notices' || undefined,
@@ -204,43 +208,33 @@ export function AppBar(props: AppBarProps) {
     },
     { id: 'tags', icon: 'hash', label: 'タグ', count: lib().tagGroups().size, current: props.here === 'tags' },
   ]
-  const menuItems = (): NavMenuEntry[] =>
-    state() === 'settings'
+  const menuItems = (): NavMenuEntry[] => [
+    { id: 'search', icon: 'search', label: '検索', kbd: 'Ctrl P' },
+    ...(props.onChooseLibrary
       ? [
-          { id: 'back', icon: 'back', label: '設定', heading: true },
-          'separator',
-          ...(props.onChooseLibrary
-            ? [
-                {
-                  id: 'library',
-                  icon: 'library' as const,
-                  label: 'ライブラリを切り替え',
-                  hint: props.library?.split(/[\\/]/).at(-1) ?? '未選択',
-                  title: props.library,
-                },
-              ]
-            : []),
-          { id: 'theme', icon: 'theme', label: 'テーマを切り替え' },
-          { id: 'keys', icon: 'keyboard', label: 'ショートカット一覧', kbd: '?' },
-          { id: 'plugins', icon: 'plugin', label: 'プラグイン' },
-          ...(props.developer ? [{ id: 'developer', icon: 'code' as const, label: '開発者モード' }] : []),
-          { id: 'other', icon: 'more', label: 'その他' },
-          { id: 'notices', icon: 'notices', label: '権利表示' },
+          {
+            id: 'library',
+            icon: 'library' as const,
+            label: 'ライブラリを切り替え',
+            hint: props.library?.split(/[\\/]/).at(-1) ?? '未選択',
+            title: props.library,
+          },
         ]
-      : [
-          { id: 'search', icon: 'search', label: '検索', kbd: 'Ctrl P' },
-          { id: 'settings', icon: 'settings', label: '設定' },
-        ]
+      : []),
+    { id: 'plugins', icon: 'plugin', label: 'プラグイン' },
+    'separator',
+    { id: 'theme', icon: 'theme', label: 'テーマを切り替え' },
+    { id: 'keys', icon: 'keyboard', label: 'ショートカット一覧', kbd: '?' },
+    { id: 'notices', icon: 'notices', label: '権利表示' },
+    { id: 'settings', icon: 'settings', label: '設定' },
+  ]
   const onMenu = (id: string) => {
     if (id === 'settings') return setState('settings')
-    if (id === 'back') return setState('menu')
     if (id === 'search') return setState('search')
     if (id === 'theme') return toggleTheme()
     if (id === 'keys') return setState('help')
     if (id === 'plugins') return setState('plugins')
     if (id === 'notices') return setState('notices')
-    if (id === 'other') return setState('other')
-    if (id === 'developer') return setState('developer')
     if (id === 'library' && props.libraries) return setState('libraries')
     if (id === 'library') {
       close()
@@ -402,23 +396,8 @@ export function AppBar(props: AppBarProps) {
           onClose={close}
         />
       </Show>
-      <Show when={state() === 'developer'}>
-        <DeveloperDialog
-          developer={dev.latest}
-          onChange={
-            props.developer &&
-            (async (d) => {
-              await props.developer!.set(d)
-              props.onPluginsChanged?.()
-            })
-          }
-          onPickDir={props.developer && (() => props.developer!.pickDir())}
-          onReload={props.onPluginsChanged}
-          onClose={close}
-        />
-      </Show>
-      <Show when={state() === 'other'}>
-        <OtherDialog
+      <Show when={state() === 'settings'}>
+        <SettingsDialog
           version={version}
           usage={usage.latest}
           unused={unused.latest}
@@ -436,6 +415,17 @@ export function AppBar(props: AppBarProps) {
               await Promise.all([reloadUnused(), reloadUsage()])
             })
           }
+          developer={dev.latest}
+          onDeveloperChange={
+            props.developer &&
+            (async (d) => {
+              await props.developer!.set(d)
+              setDev(d)
+            })
+          }
+          onPickDevPath={props.developer && ((kind) => props.developer!.pick(kind))}
+          restartNeeded={restartNeeded()}
+          onRestart={props.developer && (() => void props.developer!.restart())}
           onClose={close}
         />
       </Show>
