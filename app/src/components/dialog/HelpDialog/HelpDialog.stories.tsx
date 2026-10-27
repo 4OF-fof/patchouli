@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { HelpDialog } from './HelpDialog'
 
 const meta = {
-  title: '部品/overlay/HelpDialog',
+  title: '部品/dialog/HelpDialog',
   component: HelpDialog,
   parameters: { layout: 'fullscreen' },
   args: { onClose: () => {} },

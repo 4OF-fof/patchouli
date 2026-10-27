@@ -30,43 +30,31 @@ export const Tag: Story = {
   },
   decorators: [single],
 }
+export const Asset: Story = {
+  name: '素材を 1 つ留めた',
+  args: { name: 'IMG_2041', meta: '素材 · JPEG', tiles: [], thumb: { hue: 30 } },
+  decorators: [single],
+}
+export const Note: Story = {
+  name: 'ノートを 1 つ留めた',
+  args: {
+    name: '配色メモ',
+    meta: 'ノート',
+    tiles: [],
+    thumb: { note: true, title: '配色メモ', excerpt: '彩度を落とした色を基調にし、差し色に朱を使う。' },
+  },
+  decorators: [single],
+}
 
-/** ホームの並び（5 枚） */
-export const Row: Story = {
+/** ホームの先頭の 1 枚。置き場所の高さいっぱいに伸びる。 */
+export const Large: Story = {
+  name: '大きく出す 1 枚',
+  args: { large: true },
   decorators: [
     (Story) => (
-      <div style={{ width: '1200px' }}>
+      <div style={{ display: 'grid', width: '720px', height: '420px' }}>
         <Story />
       </div>
     ),
   ],
-  render: () => (
-    <div style={{ display: 'flex', gap: '12px' }}>
-      <PinnedCard
-        name="秋の企画"
-        meta="プロジェクト · 32 件"
-        tiles={[{ hue: 30 }, { hue: 15 }, { hue: 45 }, { hue: 200 }, { hue: 0 }]}
-      />
-      <PinnedCard
-        name="日記"
-        meta="プロジェクト · 64 件"
-        tiles={[{ hue: 120 }, { hue: 90 }, { hue: 140 }, { hue: 60 }, { hue: 100 }]}
-      />
-      <PinnedCard
-        name="# 写真"
-        meta="タグ · 120 件"
-        tiles={[{ hue: 205 }, { hue: 180 }, { hue: 220 }, { hue: 160 }, { hue: 240 }]}
-      />
-      <PinnedCard
-        name="# UI"
-        meta="タグ · 18 件"
-        tiles={[{ hue: 260 }, { hue: 280 }, { hue: 240 }, { hue: 300 }, { hue: 220 }]}
-      />
-      <PinnedCard
-        name="# 参考"
-        meta="タグ · 41 件"
-        tiles={[{ hue: 340 }, { hue: 10 }, { hue: 320 }, { hue: 0 }, { hue: 350 }]}
-      />
-    </div>
-  ),
 }

@@ -1,7 +1,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { type JSX, createSignal, onCleanup, onMount } from 'solid-js'
 import icon from '../src-tauri/icons/32x32.png'
-import { WindowProvider } from './components/base/TitleBar/TitleBar'
+import { WindowProvider } from './components/nav/TitleBar/TitleBar'
 
 /** デスクトップの窓。OS の枠を外しているので、アプリのタイトルバーに窓のボタンを渡す。 */
 export function DesktopFrame(props: { children: JSX.Element }) {

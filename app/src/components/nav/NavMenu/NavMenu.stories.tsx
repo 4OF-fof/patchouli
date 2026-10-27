@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { NavMenu } from './NavMenu'
-import { MAIN_ITEMS, SETTINGS_ITEMS } from './NavMenu.samples'
+import { MAIN_ITEMS, PLACE_ITEMS, SETTINGS_ITEMS } from './NavMenu.samples'
 
 const meta = {
-  title: '部品/search/NavMenu',
+  title: '部品/nav/NavMenu',
   component: NavMenu,
   args: { items: MAIN_ITEMS, onSelect: () => {} },
 } satisfies Meta<typeof NavMenu>
@@ -17,3 +17,4 @@ export const OnTagList: Story = {
   },
 }
 export const Settings: Story = { args: { items: SETTINGS_ITEMS } }
+export const Places: Story = { name: '画面の一覧（いまの場所から）', args: { items: PLACE_ITEMS } }

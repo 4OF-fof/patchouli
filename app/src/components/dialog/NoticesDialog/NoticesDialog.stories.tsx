@@ -29,7 +29,7 @@ const notices: Notices = {
 }
 
 const meta = {
-  title: '部品/overlay/NoticesDialog',
+  title: '部品/dialog/NoticesDialog',
   component: NoticesDialog,
   parameters: { layout: 'fullscreen' },
   args: { notices, onClose: () => {} },

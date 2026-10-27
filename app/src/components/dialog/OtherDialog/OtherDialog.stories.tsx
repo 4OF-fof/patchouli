@@ -4,7 +4,7 @@ import { OtherDialog } from './OtherDialog'
 const wait = () => new Promise<void>((r) => setTimeout(r, 600))
 
 const meta = {
-  title: '部品/overlay/OtherDialog',
+  title: '部品/dialog/OtherDialog',
   component: OtherDialog,
   parameters: { layout: 'fullscreen' },
   args: {

@@ -72,6 +72,7 @@ const ICONS = {
 }
 
 export type IconName = keyof typeof ICONS
+export const ICON_NAMES = Object.keys(ICONS).filter((n): n is IconName => n in ICONS)
 
 export interface IconProps {
   name: IconName

@@ -33,7 +33,7 @@ const typed = () => (
 )
 
 const meta = {
-  title: '部品/search/SearchPalette',
+  title: '部品/nav/SearchPalette',
   component: SearchPalette,
   parameters: { layout: 'fullscreen' },
   decorators: [

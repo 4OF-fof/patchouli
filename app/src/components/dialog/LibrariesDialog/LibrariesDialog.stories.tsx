@@ -32,7 +32,7 @@ const libraries: KnownLibrary[] = [
 const wait = () => new Promise<void>((r) => setTimeout(r, 600))
 
 const meta = {
-  title: '部品/overlay/LibrariesDialog',
+  title: '部品/dialog/LibrariesDialog',
   component: LibrariesDialog,
   parameters: { layout: 'fullscreen' },
   args: { libraries, today, onOpen: wait, onForget: wait, onChoose: wait, onClose: () => {} },

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
-import { PINNED_PROJECTS, sampleLibrary } from '../../samples/library'
+import { buildLibrary } from '../../model/library'
+import { PINNED_PROJECTS, TODAY, sampleLibrary } from '../../samples/library'
 import { AppBar } from '../AppBar'
 import { ScreenFrame } from '../ScreenFrame'
 import { ProjectListScreen } from './ProjectListScreen'
@@ -11,13 +12,14 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-const list = () => {
-  const lib = sampleLibrary()
+const list = (lib = sampleLibrary(), pinned = PINNED_PROJECTS) => {
   return (
     <ScreenFrame bar={<AppBar lib={lib} here="projects" crumbs={['プロジェクト一覧']} />}>
-      <ProjectListScreen lib={lib} pinned={PINNED_PROJECTS} />
+      <ProjectListScreen lib={lib} pinned={pinned} />
     </ScreenFrame>
   )
 }
 
 export const Default: Story = { render: () => list() }
+export const NoPins: Story = { name: 'ピン留めなし', render: () => list(sampleLibrary(), []) }
+export const Empty: Story = { name: 'プロジェクトがない', render: () => list(buildLibrary([], [], TODAY), []) }

@@ -138,7 +138,7 @@ const actions = {
 }
 
 const meta = {
-  title: '部品/overlay/PluginsDialog',
+  title: '部品/dialog/PluginsDialog',
   component: PluginsDialog,
   parameters: { layout: 'fullscreen' },
   args: { report: found, actions, onClose: () => {} },

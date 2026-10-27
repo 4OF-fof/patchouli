@@ -1,7 +1,7 @@
 import { Match, Show, Switch, createSignal, onCleanup, onMount } from 'solid-js'
 import { type Backend, type Dropped, type Imported, type ItemPatch, type LibraryState, sampleBackend } from './backend'
 import { DropZone } from './components/overlay/DropZone/DropZone'
-import { ImportDialog } from './components/overlay/ImportDialog/ImportDialog'
+import { ImportDialog } from './components/dialog/ImportDialog/ImportDialog'
 import { Toast } from './components/overlay/Toast/Toast'
 import {
   type Item,

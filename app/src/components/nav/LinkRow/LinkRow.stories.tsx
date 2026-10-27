@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { LinkCaption, LinkNone, LinkRow } from './LinkRow'
 
 const meta = {
-  title: '部品/overlay/LinkRow',
+  title: '部品/nav/LinkRow',
   component: LinkRow,
   args: { mark: '→', label: 'moodboard-01', sub: '素材', onClick: () => {} },
   decorators: [

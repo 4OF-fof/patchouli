@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { ImportDialog } from './ImportDialog'
 
 const meta = {
-  title: '部品/overlay/ImportDialog',
+  title: '部品/dialog/ImportDialog',
   component: ImportDialog,
   parameters: { layout: 'fullscreen' },
   args: {

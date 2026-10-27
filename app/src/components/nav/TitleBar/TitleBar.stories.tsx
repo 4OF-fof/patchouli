@@ -12,7 +12,7 @@ const controls = (maximized: boolean) => ({
 })
 
 const meta = {
-  title: '部品/base/TitleBar',
+  title: '部品/nav/TitleBar',
   component: TitleBar,
   parameters: { layout: 'fullscreen' },
 } satisfies Meta<typeof TitleBar>
