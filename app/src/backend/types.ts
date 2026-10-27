@@ -81,7 +81,7 @@ export type FileDrag =
 export interface Imported {
   items: Item[]
   projects: Project[]
-  /** 取り込まなかったファイルの数（取り込めない形式、ライブラリの中にあるもの）。 */
+  /** 取り込まなかったファイルの数（ライブラリで読まないもの、ライブラリの中にあるもの）。 */
   skipped: number
   /** コピーできなかったもの。 */
   failed: string[]

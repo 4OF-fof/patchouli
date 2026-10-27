@@ -42,7 +42,7 @@ export function Unsupported(props: UnsupportedProps) {
   }
   const text = () => {
     const b = props.blocker
-    if (!b) return `${props.label} に対応したプラグインがありません`
+    if (!b) return `${props.label ? `${props.label} ` : 'このファイル'}に対応したプラグインがありません`
     return b.state === 'disabled'
       ? `プラグイン「${b.name}」が無効のため、表示できません`
       : `プラグイン「${b.name}」を使用できないため、表示できません`
@@ -56,7 +56,9 @@ export function Unsupported(props: UnsupportedProps) {
     <div class={`${styles.root} ${props.class ?? ''}`} role="status">
       <div class={styles.tile} aria-hidden="true">
         <Icon name={props.blocker ? 'plugin' : 'file'} size={24} />
-        <span class={styles.ext}>.{props.ext}</span>
+        <Show when={props.ext}>
+          <span class={styles.ext}>.{props.ext}</span>
+        </Show>
       </div>
       <p class={styles.text}>{text()}</p>
       <div class={styles.actions}>

@@ -74,7 +74,7 @@ const importedNotice = (r: Imported) => {
   const n = r.items.length
   const parts = [n ? `${n} 件を取り込みました` : '取り込めるファイルがありませんでした']
   if (r.projects.length) parts.push(`プロジェクト ${r.projects.length} 件`)
-  if (r.skipped) parts.push(`${r.skipped} 件は未対応の形式またはライブラリ内のファイルのためスキップ`)
+  if (r.skipped) parts.push(`${r.skipped} 件はライブラリ内のファイルなどのためスキップ`)
   if (r.failed.length) parts.push(`${r.failed.length} 件のコピーに失敗`)
   return parts.join('、')
 }
@@ -539,7 +539,7 @@ export function App(props: AppProps) {
                 title={d().files ? `${d().files} 件のファイルを取り込む` : '取り込めるファイルがありません'}
                 sub={
                   !d().files
-                    ? '対応形式：画像・動画・音声・Markdown'
+                    ? 'ライブラリ内のファイルと空のフォルダは取り込めません'
                     : d().folders.length
                       ? 'ドロップ後にフォルダごとの取り込み方法を選択できます'
                       : flatSub()

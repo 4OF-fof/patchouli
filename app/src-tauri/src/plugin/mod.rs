@@ -772,18 +772,6 @@ impl Registry {
         &self.plugins[i].manifest.name
     }
 
-    /// この拡張子（小文字）のファイルを扱えるか。
-    pub fn knows(&self, ext: &str) -> bool {
-        self.formats.contains_key(ext)
-    }
-
-    /// 拡張子（大文字小文字を問わない）からファイルを扱えるか。
-    pub fn knows_path(&self, p: &Path) -> bool {
-        p.extension()
-            .and_then(|e| e.to_str())
-            .is_some_and(|e| self.knows(&e.to_lowercase()))
-    }
-
     /// part をどう受け持つか。受け持つものがなければ None。
     pub fn handles(&self, ext: &str, part: Part) -> Option<By> {
         Some(self.formats.get(ext)?.parts.get(&part)?.by)

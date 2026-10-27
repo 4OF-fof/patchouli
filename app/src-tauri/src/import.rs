@@ -2,7 +2,8 @@
 //!
 //! - 名前が重なるときは「名前 2」「名前 3」…と番号を付ける
 //! - フォルダは、ひとつずつ、中のファイルを平らに入れるか、新しいプロジェクトにするかを選ぶ
-//! - 取り込めない形式のファイルと、ライブラリの中にあるファイルは取り込まない
+//! - 対応するプラグインのない形式のファイルも取り込む。ライブラリで読まないもの（`.` で始まるもの、隠しファイル、`.meta`）と、
+//!   ライブラリの中にあるファイルは取り込まない
 
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
@@ -10,8 +11,7 @@ use std::time::SystemTime;
 
 use serde::Serialize;
 
-use crate::library::{Library, StoredItem, StoredProject, check_name, dunce, meta_path};
-use crate::plugin::Registry;
+use crate::library::{Library, StoredItem, StoredProject, check_name, dunce, listed, meta_path};
 
 /// 落とそうとしているものの中身。
 #[derive(Debug, Serialize)]
@@ -41,24 +41,20 @@ pub struct FolderInfo {
 pub struct Imported {
     pub items: Vec<StoredItem>,
     pub projects: Vec<StoredProject>,
-    /// 取り込まなかったファイルの数（取り込めない形式、ライブラリの中にあるもの）。
+    /// 取り込まなかったファイルの数（ライブラリで読まないもの、ライブラリの中にあるもの）。
     pub skipped: usize,
     /// コピーできなかったもの（「パス: 理由」）。
     pub failed: Vec<String>,
 }
 
-/// フォルダの中のファイル（下の階層も）を名前順に。`.` で始まるものと `.meta` は除く。
+/// フォルダの中のファイル（下の階層も）のうち、ライブラリで読むもの（listed）を名前順に。
 /// 返すのは、下の階層にあったフォルダの数。
 fn files_in(dir: &Path, out: &mut Vec<PathBuf>) -> usize {
     let Ok(rd) = fs::read_dir(dir) else { return 0 };
     let mut paths: Vec<PathBuf> = rd
         .filter_map(Result::ok)
-        .filter(|e| {
-            let n = e.file_name();
-            let n = n.to_string_lossy();
-            !n.starts_with('.') && !n.ends_with(".meta")
-        })
         .map(|e| e.path())
+        .filter(|p| listed(p))
         .collect();
     paths.sort();
     let mut dirs = 0;
@@ -73,7 +69,7 @@ fn files_in(dir: &Path, out: &mut Vec<PathBuf>) -> usize {
 }
 
 /// 取り込めるものを数える。root（開いているライブラリ）の中にあるものは数えない。
-pub fn inspect(paths: &[PathBuf], root: Option<&Path>, plugins: &Registry) -> DropInfo {
+pub fn inspect(paths: &[PathBuf], root: Option<&Path>) -> DropInfo {
     let mut folders = Vec::new();
     let mut loose = 0;
     for (key, p) in paths.iter().enumerate() {
@@ -92,10 +88,10 @@ pub fn inspect(paths: &[PathBuf], root: Option<&Path>, plugins: &Registry) -> Dr
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
                     .unwrap_or_default(),
-                files: fs.iter().filter(|f| plugins.knows_path(f)).count(),
+                files: fs.len(),
                 subfolders,
             });
-        } else if plugins.knows_path(p) {
+        } else if listed(p) {
             loose += 1;
         }
     }
@@ -135,7 +131,6 @@ impl Library {
         folder: Option<&str>,
         projects: &[usize],
     ) -> Result<Imported, String> {
-        let plugins = self.plugins();
         let root = self.root().to_owned();
         let dest = match folder {
             Some(f) => {
@@ -162,7 +157,7 @@ impl Library {
                 continue;
             }
             if !p.is_dir() {
-                if plugins.knows_path(&p) {
+                if listed(&p) {
                     self.copy_in(&p, &dest, folder, &mut out);
                 } else {
                     out.skipped += 1;
@@ -171,10 +166,8 @@ impl Library {
             }
             let mut files = Vec::new();
             files_in(&p, &mut files);
-            let (ok, ng): (Vec<_>, Vec<_>) = files.into_iter().partition(|f| plugins.knows_path(f));
-            out.skipped += ng.len();
             if !projects.contains(&key) {
-                for f in &ok {
+                for f in &files {
                     self.copy_in(f, &dest, folder, &mut out);
                 }
                 continue;
@@ -195,7 +188,7 @@ impl Library {
             };
             out.projects.push(project);
             let dir = root.join(&name);
-            for f in &ok {
+            for f in &files {
                 self.copy_in(f, &dir, Some(&name), &mut out);
             }
         }
@@ -204,8 +197,11 @@ impl Library {
 
     fn copy_in(&mut self, src: &Path, dir: &Path, folder: Option<&str>, out: &mut Imported) {
         let stem = src.file_stem().and_then(|n| n.to_str()).unwrap_or_default();
-        let ext = src.extension().and_then(|e| e.to_str()).unwrap_or_default();
-        let file = |n: &str| dir.join(format!("{n}.{ext}"));
+        let ext = src.extension().and_then(|e| e.to_str());
+        let file = |n: &str| match ext {
+            Some(ext) => dir.join(format!("{n}.{ext}")),
+            None => dir.join(n),
+        };
         // 前のファイルの .meta だけが残っていると、それを引き継いでしまうので避ける
         let name = numbered(stem, |n| file(n).exists() || meta_path(&file(n)).exists());
         let to = file(&name);

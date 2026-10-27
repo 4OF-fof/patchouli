@@ -939,20 +939,25 @@ pub(crate) fn dunce(p: PathBuf) -> PathBuf {
 
 /// Windows の隠しファイルかシステムファイル（desktop.ini や Thumbs.db など）。
 #[cfg(windows)]
-fn hidden(e: &fs::DirEntry) -> bool {
+fn hidden(path: &Path) -> bool {
     use std::os::windows::fs::MetadataExt;
     const HIDDEN: u32 = 0x2;
     const SYSTEM: u32 = 0x4;
-    e.metadata()
-        .is_ok_and(|m| m.file_attributes() & (HIDDEN | SYSTEM) != 0)
+    fs::metadata(path).is_ok_and(|m| m.file_attributes() & (HIDDEN | SYSTEM) != 0)
 }
 
 #[cfg(not(windows))]
-fn hidden(_: &fs::DirEntry) -> bool {
+fn hidden(_: &Path) -> bool {
     false
 }
 
-/// フォルダの中身を名前順に。`.` で始まるもの、隠しファイル、`.meta` は除く。
+/// ライブラリで読むものか。`.` で始まるもの、隠しファイル、`.meta` は読まない。
+pub(crate) fn listed(path: &Path) -> bool {
+    let n = path.file_name().unwrap_or_default().to_string_lossy();
+    !n.starts_with('.') && !n.ends_with(".meta") && !hidden(path)
+}
+
+/// フォルダの中身のうち、読むもの（listed）を名前順に。
 fn list_dir(dir: &Path, problems: &mut Vec<String>) -> Vec<(PathBuf, bool)> {
     let rd = match fs::read_dir(dir) {
         Ok(rd) => rd,
@@ -963,11 +968,7 @@ fn list_dir(dir: &Path, problems: &mut Vec<String>) -> Vec<(PathBuf, bool)> {
     };
     let mut out: Vec<(PathBuf, bool)> = rd
         .filter_map(Result::ok)
-        .filter(|e| {
-            let n = e.file_name();
-            let n = n.to_string_lossy();
-            !n.starts_with('.') && !n.ends_with(".meta") && !hidden(e)
-        })
+        .filter(|e| listed(&e.path()))
         .map(|e| (e.path(), e.file_type().is_ok_and(|t| t.is_dir())))
         .collect();
     out.sort();

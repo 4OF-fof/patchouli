@@ -476,8 +476,8 @@ async fn inspect_drop(
 ) -> Result<import::DropInfo, String> {
     let g = cur.0.lock().map_err(|e| e.to_string())?;
     Ok(match g.as_ref() {
-        Some(s) => import::inspect(&paths, Some(s.lib.root()), &s.plugins),
-        None => import::inspect(&paths, None, &Registry::builtin()),
+        Some(s) => import::inspect(&paths, Some(s.lib.root())),
+        None => import::inspect(&paths, None),
     })
 }
 
