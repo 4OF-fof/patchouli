@@ -15,11 +15,16 @@ const Host = createContext<HoverHost>({})
 
 export const HoverHostProvider = Host.Provider
 
+/** 重ねる表示の出し方。clock を false にすると、動画の時刻を出さず、下の帯だけにする（小さいサムネイル向け）。 */
+export interface HoverOptions {
+  clock?: boolean
+}
+
 /** 素材にカーソルを合わせたときに、サムネイルの上に重ねる表示を返す関数。重ねるものがなければ undefined を返す。 */
 export function useHoverPreview() {
   const formats = useFormats()
   const host = useContext(Host)
-  return (it: Item): (() => JSX.Element) | undefined => {
+  return (it: Item, opts?: HoverOptions): (() => JSX.Element) | undefined => {
     const f = it.note ? undefined : formats.get(it.ext)
     const make = host.ui
     const ui = f?.uiHover
@@ -29,13 +34,13 @@ export function useHoverPreview() {
         return <PluginHover url={p.url} api={p.api} />
       }
     const src = it.src
-    if (f?.hover === 'video' && src) return () => <VideoHover src={src} fit={it.fit} />
+    if (f?.hover === 'video' && src) return () => <VideoHover src={src} fit={it.fit} clock={opts?.clock} />
     return undefined
   }
 }
 
 /** 元のファイルを音を消して頭から再生する。再生が始まるまでは透かして、下のサムネイルを見せておく。 */
-export function VideoHover(props: { src: string; fit?: Fit }) {
+export function VideoHover(props: { src: string; fit?: Fit; clock?: boolean }) {
   const [ready, setReady] = createSignal(false)
   const [at, setAt] = createSignal(0)
   const [length, setLength] = createSignal(0)
@@ -65,9 +70,11 @@ export function VideoHover(props: { src: string; fit?: Fit }) {
         onDurationChange={(e) => setLength(e.currentTarget.duration)}
       />
       <Show when={ready() && length() > 0}>
-        <span class={styles.time}>
-          {clock(at())} / {clock(length())}
-        </span>
+        <Show when={props.clock ?? true}>
+          <span class={styles.time}>
+            {clock(at())} / {clock(length())}
+          </span>
+        </Show>
         <span class={styles.track}>
           <span class={styles.done} style={{ width: `${Math.min(100, (at() / length()) * 100)}%` }} />
         </span>

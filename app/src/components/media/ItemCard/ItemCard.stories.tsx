@@ -38,3 +38,13 @@ export const VideoHovered: Story = {
   name: '動画にカーソルを合わせる',
   args: { ratio: 16 / 9, preview: () => <VideoHover src="/dev-library/clip-0412.mp4" /> },
 }
+/** 小さいカードでは時刻を出さず、下の帯だけにする。 */
+export const VideoHoveredSmall: Story = {
+  name: '小さい動画にカーソルを合わせる',
+  args: {
+    ratio: 16 / 9,
+    height: 76,
+    showName: false,
+    preview: () => <VideoHover src="/dev-library/clip-0412.mp4" clock={false} />,
+  },
+}

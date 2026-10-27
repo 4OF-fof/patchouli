@@ -59,14 +59,14 @@ export function DetailScreen(props: DetailScreenProps) {
           : (a, b) => a.moved - b.moved,
     ),
   )
-  const card = (it: Item, size: CardSize, list: () => Item[]) => (
+  const card = (it: Item, size: CardSize, list: () => Item[], clock: boolean) => (
     <ItemCard
       {...thumbOf(it, size)}
       name={it.name}
       ratio={it.ratio}
       pinned={pins().includes(it.id)}
       onPin={() => togglePin(it.id)}
-      preview={preview(it)}
+      preview={preview(it, { clock })}
       onClick={() =>
         props.onOpenItem?.(
           it.id,
@@ -102,7 +102,7 @@ export function DetailScreen(props: DetailScreenProps) {
                   <span>{pinned().length} 件</span>
                 </div>
                 <JustifiedRow height={196} gap={10}>
-                  <For each={pinned()}>{(it) => card(it, 'M', pinned)}</For>
+                  <For each={pinned()}>{(it) => card(it, 'M', pinned, true)}</For>
                 </JustifiedRow>
               </Show>
               <div class={shared.head} data-first={!pinned().length || undefined}>
@@ -121,7 +121,7 @@ export function DetailScreen(props: DetailScreenProps) {
               </div>
               <Show when={all().length} fallback={<div class={shared.empty}>{props.empty}</div>}>
                 <JustifiedRow height={104}>
-                  <For each={all()}>{(it) => card(it, 'S', all)}</For>
+                  <For each={all()}>{(it) => card(it, 'S', all, false)}</For>
                 </JustifiedRow>
               </Show>
             </div>

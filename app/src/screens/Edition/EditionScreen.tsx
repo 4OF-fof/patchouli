@@ -21,11 +21,11 @@ import {
 import shared from '../screen.module.css'
 import styles from './EditionScreen.module.css'
 
-/** 動いた日で分ける段。新しいほど大きく出す。 */
-const TIERS: { name: string; until: number; size: CardSize; h: number; gap: number }[] = [
-  { name: '今週', until: 7, size: 'M', h: 118, gap: 6 },
-  { name: '今月', until: 30, size: 'S', h: 76, gap: 5 },
-  { name: 'それ以前', until: Infinity, size: 'X', h: 56, gap: 4 },
+/** 動いた日で分ける段。新しいほど大きく出す。clock は動画のホバー再生で時刻を出すか。 */
+const TIERS: { name: string; until: number; size: CardSize; h: number; gap: number; clock: boolean }[] = [
+  { name: '今週', until: 7, size: 'M', h: 118, gap: 6, clock: true },
+  { name: '今月', until: 30, size: 'S', h: 76, gap: 5, clock: false },
+  { name: 'それ以前', until: Infinity, size: 'X', h: 56, gap: 4, clock: false },
 ]
 
 /** ピン留めの 1 枚。素材のときは thumb にその素材が入る。 */
@@ -234,7 +234,7 @@ export function EditionScreen(props: EditionScreenProps) {
                           name={it.name}
                           ratio={it.ratio}
                           showName={false}
-                          preview={preview(it)}
+                          preview={preview(it, { clock: t().tier.clock })}
                           onClick={() => props.onOpenItem?.(it.id)}
                         />
                       )}
