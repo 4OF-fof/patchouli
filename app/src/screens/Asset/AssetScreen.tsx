@@ -128,6 +128,9 @@ function NameField(props: { value: string; onChange: (name: string) => void }) {
   )
 }
 
+/** タグセレクタの高さを、少なくともこれだけは取る。 */
+const MIN_PICKER = 280
+
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 
 function bytes(n: number) {
@@ -198,30 +201,34 @@ export function AssetScreen(props: AssetScreenProps) {
   // 付けるたびに並びが変わらないよう、開いたときのものを使う
   const [recent, setRecent] = createSignal<string[]>([])
   const [at, setAt] = createSignal<JSX.CSSProperties>({})
-  /** 押したボタンの左に出す。画面の上半分なら下へ、下半分なら上へ伸ばす。 */
+  /**
+   * 押したボタンの左に、検索欄がボタンの横に来るように出す。下に入りきらないときは上へずらす。
+   * 検索欄の位置は、出したあとに測って合わせる。
+   */
   const place = () => {
-    if (!addBtn) return
+    const input = root.querySelector<HTMLElement>('[role="dialog"] input')
+    if (!addBtn || !input) return
     const s = root.getBoundingClientRect()
     const b = addBtn.getBoundingClientRect()
-    const right = `${s.right - b.left + 8}px`
-    if (b.top + b.height / 2 < s.top + s.height / 2) {
-      const top = b.top - s.top - 12
-      setAt({ '--picker-right': right, '--picker-top': `${top}px`, '--picker-max': `${s.height - top - 18}px` })
-    } else {
-      const bottom = s.bottom - b.bottom - 12
-      setAt({
-        '--picker-right': right,
-        '--picker-bottom': `${bottom}px`,
-        '--picker-max': `${s.height - bottom - 52}px`,
-      })
-    }
+    const field = input.getBoundingClientRect()
+    const dialog = input.closest('[role="dialog"]')?.getBoundingClientRect()
+    const offset = dialog ? field.top + field.height / 2 - dialog.top : 0
+    const want = b.top + b.height / 2 - s.top - offset
+    const top = Math.max(52, Math.min(want, s.height - 18 - MIN_PICKER))
+    setAt({
+      '--picker-right': `${s.right - b.left + 8}px`,
+      '--picker-top': `${top}px`,
+      '--picker-max': `${s.height - top - 18}px`,
+    })
   }
   const togglePicker = () => {
-    if (!picking()) {
-      setRecent(props.recentTags ?? [])
-      place()
+    if (picking()) {
+      setPicking(false)
+      return
     }
-    setPicking(!picking())
+    setRecent(props.recentTags ?? [])
+    setPicking(true)
+    place()
   }
   createEffect(() => info() || setPicking(false))
   const [suggested] = createResource(
@@ -319,6 +326,10 @@ export function AssetScreen(props: AssetScreenProps) {
               <aside class={styles.info} aria-label="情報">
                 <ScrollArea viewClass={styles.infoView}>
                   <FloatingCard title="情報" onClose={() => setInfo(false)}>
+                    <div class={styles.fl}>
+                      <span class={styles.k}>名前</span>
+                      <NameField value={a().name} onChange={(name) => props.onRename?.(a().id, name)} />
+                    </div>
                     <label class={styles.fl}>
                       <span class={styles.k}>プロジェクト</span>
                       <select
@@ -369,8 +380,6 @@ export function AssetScreen(props: AssetScreenProps) {
                     <details open={fileOpen()} onToggle={(e) => setFileOpen(e.currentTarget.open)}>
                       <summary class={styles.sum}>ファイルの詳細</summary>
                       <div class={styles.fi}>
-                        <span>名前</span>
-                        <NameField value={a().name} onChange={(name) => props.onRename?.(a().id, name)} />
                         <span>種類</span>
                         <span>{a().ext}</span>
                         <Show when={details.loading}>

@@ -122,9 +122,8 @@
 }
 .picker {
   position: absolute;
-  top: var(--picker-top, auto);
+  top: var(--picker-top);
   right: var(--picker-right);
-  bottom: var(--picker-bottom, auto);
   z-index: 6;
   max-height: var(--picker-max);
 }
@@ -143,20 +142,6 @@
 }
 .fi > :nth-child(odd) {
   color: var(--muted);
-}
-.fi input {
-  width: 100%;
-  min-width: 0;
-  padding: 2px 6px;
-  border: 1px solid color-mix(in oklch, var(--ink) 6%, transparent);
-  border-radius: var(--radius-sm);
-  background: color-mix(in oklch, var(--ink) 4%, transparent);
-  color: var(--ink);
-  font-size: var(--fs-meta);
-}
-.fi input:focus-visible {
-  border-color: var(--accent);
-  outline: 0;
 }
 @media (max-width: 640px) {
   .info,
