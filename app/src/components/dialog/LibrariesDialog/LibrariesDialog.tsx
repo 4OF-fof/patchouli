@@ -5,6 +5,7 @@ import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import styles from './LibrariesDialog.module.css'
 import { Icon } from '../../base/Icon/Icon'
+import { IconButton } from '../../controls/IconButton/IconButton'
 
 export interface LibrariesDialogProps {
   /** 最後に開いた順。ないあいだは読み込み中と出す。 */
@@ -53,6 +54,11 @@ export function LibrariesDialog(props: LibrariesDialogProps) {
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
       <div class={styles.root} role="dialog" aria-label="ライブラリ" tabIndex={-1} ref={el}>
+        <Show when={props.onClose}>
+          <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
+            <Icon name="close" />
+          </IconButton>
+        </Show>
         <h2>ライブラリ</h2>
         <Show when={busy() || error()}>
           <p class={styles.status} data-error={!!error()} role="status">

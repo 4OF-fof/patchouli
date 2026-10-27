@@ -1,6 +1,8 @@
 import { For, Show, createSignal, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import styles from './NoticesDialog.module.css'
+import { Icon } from '../../base/Icon/Icon'
+import { IconButton } from '../../controls/IconButton/IconButton'
 
 /** アプリに同梱しているものの 1 つ。 */
 export interface NoticeEntry {
@@ -86,54 +88,54 @@ export function NoticesDialog(props: NoticesDialogProps) {
   onCleanup(() => window.removeEventListener('keydown', onKey))
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
-      <ScrollArea
-        class={styles.root}
-        viewClass={styles.body}
-        role="dialog"
-        aria-label="権利表示"
-        tabIndex={-1}
-        ref={el}
-      >
-        <h2>権利表示</h2>
-        <Show when={props.notices} fallback={<p class={styles.wait}>読み込み中…</p>}>
-          {(n) => (
-            <>
-              <section>
-                <h3>
-                  {n().self.name} <small>{n().self.license}</small>
-                </h3>
-                <pre>{n().self.text}</pre>
-              </section>
-              <section>
-                <h3>
-                  3rd Party <small>{n().groups.reduce((c, g) => c + g.entries.length, 0)} 件</small>
-                </h3>
-                <div class={styles.groups}>
-                  <For each={n().groups}>
-                    {(g) => (
-                      <details
-                        onToggle={(ev) =>
-                          setOpen(
-                            ev.currentTarget.open ? [...open(), g.license] : open().filter((k) => k !== g.license),
-                          )
-                        }
-                      >
-                        <summary>
-                          <b>{g.license}</b>
-                          <small>{g.entries.length} 件</small>
-                        </summary>
-                        <Show when={open().includes(g.license)}>
-                          <Group group={g} texts={n().texts} />
-                        </Show>
-                      </details>
-                    )}
-                  </For>
-                </div>
-              </section>
-            </>
-          )}
+      <div class={styles.frame} role="dialog" aria-label="権利表示">
+        <Show when={props.onClose}>
+          <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
+            <Icon name="close" />
+          </IconButton>
         </Show>
-      </ScrollArea>
+        <ScrollArea class={styles.root} viewClass={styles.body} tabIndex={-1} ref={el}>
+          <h2>権利表示</h2>
+          <Show when={props.notices} fallback={<p class={styles.wait}>読み込み中…</p>}>
+            {(n) => (
+              <>
+                <section>
+                  <h3>
+                    {n().self.name} <small>{n().self.license}</small>
+                  </h3>
+                  <pre>{n().self.text}</pre>
+                </section>
+                <section>
+                  <h3>
+                    3rd Party <small>{n().groups.reduce((c, g) => c + g.entries.length, 0)} 件</small>
+                  </h3>
+                  <div class={styles.groups}>
+                    <For each={n().groups}>
+                      {(g) => (
+                        <details
+                          onToggle={(ev) =>
+                            setOpen(
+                              ev.currentTarget.open ? [...open(), g.license] : open().filter((k) => k !== g.license),
+                            )
+                          }
+                        >
+                          <summary>
+                            <b>{g.license}</b>
+                            <small>{g.entries.length} 件</small>
+                          </summary>
+                          <Show when={open().includes(g.license)}>
+                            <Group group={g} texts={n().texts} />
+                          </Show>
+                        </details>
+                      )}
+                    </For>
+                  </div>
+                </section>
+              </>
+            )}
+          </Show>
+        </ScrollArea>
+      </div>
     </div>
   )
 }

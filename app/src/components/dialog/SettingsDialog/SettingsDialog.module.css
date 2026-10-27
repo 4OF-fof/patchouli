@@ -9,6 +9,7 @@
   background: var(--scrim);
 }
 .root {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: min(640px, 100%);
@@ -127,4 +128,10 @@
   border-radius: var(--radius-md);
   background: var(--accent-soft);
   color: var(--accent-ink);
+}
+.x {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
 }

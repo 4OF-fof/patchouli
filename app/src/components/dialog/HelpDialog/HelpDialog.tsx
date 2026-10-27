@@ -1,6 +1,8 @@
-import { For, onCleanup, onMount } from 'solid-js'
+import { For, Show, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import styles from './HelpDialog.module.css'
+import { Icon } from '../../base/Icon/Icon'
+import { IconButton } from '../../controls/IconButton/IconButton'
 
 /** キーと、そのキーでできること。 */
 export const SHORTCUTS: [string, string][] = [
@@ -34,26 +36,26 @@ export function HelpDialog(props: HelpDialogProps) {
   onCleanup(() => window.removeEventListener('keydown', onKey))
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
-      <ScrollArea
-        class={styles.root}
-        viewClass={styles.body}
-        role="dialog"
-        aria-label="ショートカット"
-        tabIndex={-1}
-        ref={el}
-      >
-        <h2>ショートカット</h2>
-        <dl>
-          <For each={SHORTCUTS}>
-            {([k, d]) => (
-              <>
-                <dt>{k}</dt>
-                <dd>{d}</dd>
-              </>
-            )}
-          </For>
-        </dl>
-      </ScrollArea>
+      <div class={styles.frame} role="dialog" aria-label="ショートカット">
+        <Show when={props.onClose}>
+          <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
+            <Icon name="close" />
+          </IconButton>
+        </Show>
+        <ScrollArea class={styles.root} viewClass={styles.body} tabIndex={-1} ref={el}>
+          <h2>ショートカット</h2>
+          <dl>
+            <For each={SHORTCUTS}>
+              {([k, d]) => (
+                <>
+                  <dt>{k}</dt>
+                  <dd>{d}</dd>
+                </>
+              )}
+            </For>
+          </dl>
+        </ScrollArea>
+      </div>
     </div>
   )
 }

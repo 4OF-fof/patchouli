@@ -4,6 +4,8 @@ import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
 import styles from './SettingsDialog.module.css'
+import { Icon } from '../../base/Icon/Icon'
+import { IconButton } from '../../controls/IconButton/IconButton'
 
 export interface SettingsDialogProps {
   /** アプリの版。 */
@@ -103,6 +105,11 @@ export function SettingsDialog(props: SettingsDialogProps) {
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
       <div class={styles.root} role="dialog" aria-label="設定" tabIndex={-1} ref={el}>
+        <Show when={props.onClose}>
+          <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
+            <Icon name="close" />
+          </IconButton>
+        </Show>
         <h2>設定</h2>
         <ScrollArea class={styles.main} viewClass={styles.mainView}>
           <Show when={busy() || error()}>

@@ -5,6 +5,7 @@ import { Button } from '../../controls/Button/Button'
 import { Tabs } from '../../controls/Tabs/Tabs'
 import styles from './ImportDialog.module.css'
 import { Icon } from '../../base/Icon/Icon'
+import { IconButton } from '../../controls/IconButton/IconButton'
 
 /** 落としたフォルダの 1 つ。 */
 export interface DropFolder {
@@ -59,6 +60,11 @@ export function ImportDialog(props: ImportDialogProps) {
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
       <div class={styles.root} role="dialog" aria-label="取り込み" tabIndex={-1} ref={el}>
+        <Show when={props.onClose}>
+          <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
+            <Icon name="close" />
+          </IconButton>
+        </Show>
         <h2>{props.files} 件のファイルを取り込む</h2>
         <ScrollArea class={styles.list}>
           <ul>

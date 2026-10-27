@@ -8,9 +8,14 @@
   padding: 40px 48px;
   background: var(--scrim);
 }
-.root {
+.frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   width: min(1120px, 100%);
   max-height: 100%;
+}
+.root {
   border-radius: var(--radius-lg);
   background: var(--paper);
   border: 1px solid var(--line-2);
@@ -146,4 +151,10 @@
   margin: 0;
   font-size: var(--fs-meta);
   color: var(--faint);
+}
+.x {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
 }

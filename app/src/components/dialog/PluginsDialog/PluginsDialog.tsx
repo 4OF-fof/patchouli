@@ -14,6 +14,7 @@ import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
 import styles from './PluginsDialog.module.css'
+import { IconButton } from '../../controls/IconButton/IconButton'
 
 export interface PluginsDialogProps {
   /** ないあいだは読み込み中と出す。 */
@@ -446,6 +447,11 @@ export function PluginsDialog(props: PluginsDialogProps) {
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
       <div class={styles.root} role="dialog" aria-label="プラグイン" tabIndex={-1} ref={el}>
+        <Show when={props.onClose}>
+          <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
+            <Icon name="close" />
+          </IconButton>
+        </Show>
         <nav class={styles.side}>
           <h2>プラグイン</h2>
           <label class={styles.search}>
