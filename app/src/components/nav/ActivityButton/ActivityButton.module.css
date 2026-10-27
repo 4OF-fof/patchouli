@@ -20,18 +20,6 @@
 .button[aria-expanded='true'] {
   background: var(--card);
 }
-.count {
-  font-family: var(--f-mono);
-  font-variant-numeric: tabular-nums;
-}
-.done {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0 8px;
-  color: var(--ok);
-  font-size: var(--fs-meta);
-}
 .panel {
   position: absolute;
   right: 0;
@@ -52,7 +40,7 @@
 }
 .row {
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) auto;
+  grid-template-columns: 16px minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 4px 8px;
   padding: 6px 8px;
@@ -72,6 +60,28 @@
   font-variant-numeric: tabular-nums;
   color: var(--muted);
 }
+.stop {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: -4px -4px -4px 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.stop:hover:not(:disabled) {
+  background: var(--card);
+  color: var(--ink);
+}
+.stop:disabled {
+  color: var(--disabled);
+  cursor: default;
+}
 .bar {
-  grid-column: 2 / 4;
+  grid-column: 2 / -1;
 }

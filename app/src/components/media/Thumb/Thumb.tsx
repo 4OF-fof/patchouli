@@ -1,12 +1,11 @@
 import { createContext, useContext } from 'solid-js'
-import { useFormats } from '../../../plugins/formats'
 import type { Fit } from '../../../plugins/types'
 import { Spinner } from '../../base/Spinner/Spinner'
 import styles from './Thumb.module.css'
 
-const Making = createContext<() => boolean>(() => false)
+const Making = createContext<(id: string) => boolean>(() => false)
 
-/** 裏でサムネイルを作っているあいだ true を返す関数を渡す。 */
+/** 素材の id を受け、裏でその素材のサムネイルを作っているあいだ true を返す関数を渡す。 */
 export const ThumbMakingProvider = Making.Provider
 
 export interface ThumbProps {
@@ -17,8 +16,8 @@ export interface ThumbProps {
   /** 彩度（%）。省略すると 28。 */
   sat?: number
   src?: string
-  /** 形式（拡張子）。src がなく、この形式のサムネイルを裏で作っているあいだは、回る印を出す。 */
-  ext?: string
+  /** 素材の id。src がなく、この素材のサムネイルを裏で作っているあいだは、回る印を出す。 */
+  id?: string
   /** 枠と縦横比が合わない src の収め方。省略すると center。 */
   fit?: Fit
   title?: string
@@ -32,13 +31,8 @@ export interface ThumbProps {
 }
 
 export function Thumb(props: ThumbProps) {
-  const formats = useFormats()
   const making = useContext(Making)
-  const waiting = () => {
-    if (props.src || props.note || !props.ext || !making()) return false
-    const f = formats().get(props.ext)
-    return !!(f?.thumbnail || f?.uiThumbnail || f?.uiWaveform)
-  }
+  const waiting = () => !props.src && !props.note && !!props.id && making(props.id)
   return (
     <span
       class={`${styles.root} ${props.class ?? ''}`}

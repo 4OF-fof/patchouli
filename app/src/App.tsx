@@ -237,7 +237,7 @@ export function App(props: AppProps) {
   const reloadPlugins = async () => {
     if (!backend.reloadPlugins) return window.location.reload()
     if (reloading()) return
-    const work = (await backend.pluginWork?.()) ?? 0
+    const work = (await backend.pluginWork?.())?.length ?? 0
     let wait = true
     if (work > 0) {
       setReloading({ step: 'ask', work })
@@ -248,7 +248,9 @@ export function App(props: AppProps) {
     setReloading({ step: wait && work > 0 ? 'wait' : 'load' })
     const poll = window.setInterval(() => {
       if (reloading()?.step === 'wait')
-        void backend.pluginWork?.().then((n) => reloading()?.step === 'wait' && setReloading({ step: 'wait', work: n }))
+        void backend
+          .pluginWork?.()
+          .then((ids) => reloading()?.step === 'wait' && setReloading({ step: 'wait', work: ids.length }))
     }, 500)
     try {
       const o = await backend.reloadPlugins(wait)
@@ -406,26 +408,35 @@ export function App(props: AppProps) {
       } else if (e.type === 'leave') setDrag(undefined)
     }) ?? (() => {})
   onCleanup(stopDrag)
-  // 裏でサムネイルや波形を作っている残りの数を見張る。total は作り始めてからいちばん多かった数
-  const [work, setWork] = createSignal({ left: 0, total: 0 })
-  if (backend.pluginWork) {
+  // seen は作り始めてから頼まれた素材。途中で増えたら total も増やす
+  const [making, setMaking] = createSignal<ReadonlySet<string>>(new Set())
+  const [seen, setSeen] = createSignal(0)
+  const [checking, setChecking] = createSignal(false)
+  let seenIds = new Set<string>()
+  if (backend.pluginWork || backend.checking) {
     const poll = window.setInterval(() => {
-      void backend.pluginWork?.().then((left) => {
-        const total = left ? Math.max(left, work().total) : 0
-        if (left !== work().left || total !== work().total) setWork({ left, total })
+      void backend.pluginWork?.().then((ids) => {
+        if (!ids.length) seenIds = new Set()
+        for (const id of ids) seenIds.add(id)
+        const now = making()
+        if (ids.length !== now.size || ids.some((id) => !now.has(id))) setMaking(new Set(ids))
+        setSeen(seenIds.size)
       })
+      void backend.checking?.().then(setChecking)
     }, 1000)
     onCleanup(() => clearInterval(poll))
   }
   const activities = (): Activity[] => [
-    ...(work().left
+    ...(checking() ? [{ key: 'check', icon: 'sync' as const, label: 'ライブラリとファイルを突き合わせ中' }] : []),
+    ...(making().size
       ? [
           {
             key: 'thumbs',
             icon: 'image' as const,
             label: 'サムネイルと波形を作成中',
-            done: work().total - work().left,
-            total: work().total,
+            done: seen() - making().size,
+            total: seen(),
+            onStop: () => void backend.stopPluginWork?.(),
           },
         ]
       : []),
@@ -438,7 +449,7 @@ export function App(props: AppProps) {
 
   return (
     <FormatsProvider value={() => lib().formats}>
-      <ThumbMakingProvider value={() => work().left > 0}>
+      <ThumbMakingProvider value={(id) => making().has(id)}>
         <HoverHostProvider value={hoverHost}>
           <ScreenFrame
             bar={

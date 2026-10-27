@@ -155,13 +155,13 @@ export function tauriBackend(): Backend {
 
   // 組み込み UI が作るサムネイルは、画面で 1 つずつ作って Rust に置かせる（できたら thumbnail が届く）
   const uiQueue: TauriItem[] = []
-  let making = false
+  let making: TauriItem | undefined
   const makeUiThumbs = async (items: TauriItem[]) => {
     uiQueue.push(...items.filter((it) => !it.note && !it.thumb && formats.get(it.ext)?.uiThumbnail))
     if (making) return
-    making = true
     try {
       for (let it = uiQueue.shift(); it; it = uiQueue.shift()) {
+        making = it
         const ui = formats.get(it.ext)?.uiThumbnail
         if (!ui) continue
         try {
@@ -171,14 +171,14 @@ export function tauriBackend(): Backend {
         }
       }
     } finally {
-      making = false
+      making = undefined
     }
   }
 
   // 波形は、画面で 1 つずつ作って Rust に置かせる。サムネイルがまだなければ、Rust が波形を描いてサムネイルにする
   const waveQueue: TauriItem[] = []
   const waveIds = new Set<string>()
-  let waving = false
+  let waving: TauriItem | undefined
   const makeWave = async (it: TauriItem, ui: UiRef) => {
     const limit = (await invoke<Record<string, SettingValue>>('plugin_settings', { plugin: ui.plugin }))[WAVE_LIMIT]
     const api = uiApi(uiItemOf(it), 'waveform', ui.plugin)
@@ -199,9 +199,9 @@ export function tauriBackend(): Backend {
         waveQueue.push(it)
       }
     if (waving) return
-    waving = true
     try {
       for (let it = waveQueue.shift(); it; it = waveQueue.shift()) {
+        waving = it
         const ui = formats.get(it.ext)?.uiWaveform
         try {
           if (ui) await makeWave(it, ui)
@@ -214,7 +214,7 @@ export function tauriBackend(): Backend {
         }
       }
     } finally {
-      waving = false
+      waving = undefined
     }
   }
 
@@ -230,7 +230,7 @@ export function tauriBackend(): Backend {
     uiQueue.length = 0
     for (const it of waveQueue.splice(0)) waveIds.delete(it.id)
   }
-  const frontBusy = () => making || waving
+  const frontBusy = () => !!(making || waving)
   const frontIdle = async () => {
     while (frontBusy()) await new Promise((r) => setTimeout(r, 50))
   }
@@ -243,13 +243,14 @@ export function tauriBackend(): Backend {
       return openedOf(await invoke<StoredLibrary<TauriItem>>('open_library'))
     },
     async pluginWork() {
-      const front = uiQueue.length + waveQueue.length + Number(making) + Number(waving)
-      return front + (await invoke<number>('plugin_work'))
+      const front = [...uiQueue, ...waveQueue, making, waving].flatMap((it) => (it ? [it.id] : []))
+      return [...new Set([...front, ...(await invoke<string[]>('plugin_work'))])]
     },
     async stopPluginWork() {
       stopFront()
       await invoke('stop_plugin_work')
     },
+    checking: () => invoke<boolean>('checking'),
     async reloadPlugins(wait) {
       if (!wait) stopFront()
       await frontIdle()

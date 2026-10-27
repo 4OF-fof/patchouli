@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createSignal, on, onCleanup } from 'solid-js'
+import { For, Show, createEffect, createSignal, onCleanup } from 'solid-js'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { ProgressBar } from '../../base/ProgressBar/ProgressBar'
 import { Spinner } from '../../base/Spinner/Spinner'
@@ -11,6 +11,8 @@ export interface Activity {
   label: string
   done?: number
   total?: number
+  /** 止められる処理だけに渡す。 */
+  onStop?: () => void
 }
 
 export interface ActivityButtonProps {
@@ -19,27 +21,21 @@ export interface ActivityButtonProps {
   open?: boolean
 }
 
-/** 終わったことを知らせておく長さ。 */
-const DONE_MS = 3000
-
-/** 裏で処理が動いているあいだ、回る印と処理の数を出す。押すと処理の一覧を開き、すべて終わると少しのあいだ「完了」を出す。 */
+/** 裏で処理が動いているあいだ、回る印を出す。押すと処理の一覧を開く。すべて終わると消える。 */
 export function ActivityButton(props: ActivityButtonProps) {
   const [open, setOpen] = createSignal(!!props.open)
-  const [done, setDone] = createSignal(false)
+  const [stopping, setStopping] = createSignal<ReadonlySet<string>>(new Set())
   const busy = () => props.activities.length > 0
-  createEffect(
-    on(busy, (now, before) => {
-      if (now) {
-        setDone(false)
-        return
-      }
-      setOpen(false)
-      if (!before) return
-      setDone(true)
-      const t = window.setTimeout(() => setDone(false), DONE_MS)
-      onCleanup(() => clearTimeout(t))
-    }),
-  )
+  createEffect(() => {
+    const keys = new Set(props.activities.map((a) => a.key))
+    const left = [...stopping()].filter((k) => keys.has(k))
+    if (left.length !== stopping().size) setStopping(new Set(left))
+    if (!keys.size) setOpen(false)
+  })
+  const stop = (a: Activity) => {
+    setStopping(new Set([...stopping(), a.key]))
+    a.onStop?.()
+  }
 
   let el!: HTMLDivElement
   const away = (e: PointerEvent) => {
@@ -57,21 +53,14 @@ export function ActivityButton(props: ActivityButtonProps) {
         <button
           type="button"
           class={styles.button}
-          aria-label={`処理中 ${props.activities.length} 件`}
+          aria-label="裏で動いている処理"
           title="裏で動いている処理"
           aria-haspopup="dialog"
           aria-expanded={open()}
           onClick={() => setOpen(!open())}
         >
           <Spinner />
-          <span class={styles.count}>{props.activities.length}</span>
         </button>
-      </Show>
-      <Show when={!busy() && done()}>
-        <span class={styles.done} role="status">
-          <Icon name="check" size={14} />
-          完了
-        </span>
       </Show>
       <Show when={busy() && open()}>
         <div class={styles.panel} role="dialog" aria-label="裏で動いている処理">
@@ -83,13 +72,25 @@ export function ActivityButton(props: ActivityButtonProps) {
                 <span class={styles.label}>{a.label}</span>
                 <Show when={a.total}>
                   {(total) => (
-                    <>
-                      <span class={styles.num}>
-                        {a.done ?? 0} / {total()}
-                      </span>
-                      <ProgressBar class={styles.bar} value={(a.done ?? 0) / total()} />
-                    </>
+                    <span class={styles.num}>
+                      {a.done ?? 0} / {total()}
+                    </span>
                   )}
+                </Show>
+                <Show when={a.onStop}>
+                  <button
+                    type="button"
+                    class={styles.stop}
+                    title={stopping().has(a.key) ? '止めています' : '止める'}
+                    aria-label={stopping().has(a.key) ? '止めています' : '止める'}
+                    disabled={stopping().has(a.key)}
+                    onClick={() => stop(a)}
+                  >
+                    <Icon name="stop" size={14} />
+                  </button>
+                </Show>
+                <Show when={a.total}>
+                  {(total) => <ProgressBar class={styles.bar} value={(a.done ?? 0) / total()} />}
                 </Show>
               </div>
             )}

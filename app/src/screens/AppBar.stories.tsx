@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import type { JSX } from 'solid-js'
+import { ThumbMakingProvider } from '../components/media/Thumb/Thumb'
+import type { Activity } from '../components/nav/ActivityButton/ActivityButton'
 import { WindowProvider } from '../components/nav/TitleBar/TitleBar'
 import { PINNED_PROJECTS, PINNED_TAGS, sampleLibrary } from '../samples/library'
 import { AppBar, type AppBarProps } from './AppBar'
@@ -46,6 +48,24 @@ export const Search: Story = { name: '検索を開く', render: () => bar({ init
 export const Typing: Story = { name: '検索に入力中', render: () => bar({ initial: 'search', query: '配色' }) }
 export const Prompt: Story = { name: 'プロンプト', render: () => bar({ initial: 'prompt' }) }
 export const Help: Story = { name: 'キー操作の一覧', render: () => bar({ initial: 'help' }) }
+
+const working: Activity[] = [
+  { key: 'check', icon: 'sync', label: 'ライブラリとファイルを突き合わせ中' },
+  { key: 'thumbs', icon: 'image', label: 'サムネイルと波形を作成中', done: 28, total: 40, onStop: () => {} },
+]
+/** 裏で処理が動いているあいだ。サムネイルを作っている素材には、仮の絵に回る印が出る。押すと一覧を開く。 */
+export const Working: Story = {
+  name: '裏で処理中',
+  render: () => {
+    const making = new Set(
+      sampleLibrary()
+        .items.filter((it) => !it.note)
+        .slice(0, 6)
+        .map((it) => it.id),
+    )
+    return <ThumbMakingProvider value={(id) => making.has(id)}>{bar({ activities: working })}</ThumbMakingProvider>
+  },
+}
 export const ReadOnly: Story = { name: '書き込めない保存先', render: () => bar({ readOnly: true }) }
 
 const developer: AppBarProps['developer'] = {

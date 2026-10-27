@@ -374,7 +374,7 @@ export type CardSize = 'L' | 'M' | 'S' | 'X'
 
 /** Thumb に渡す値。ノートは大きさに合わせて本文を切る。 */
 export function thumbOf(it: Item, size: CardSize = 'M') {
-  if (!it.note) return { hue: it.hue, sat: it.sat, src: it.thumb, ext: it.ext, fit: it.fit }
+  if (!it.note) return { hue: it.hue, sat: it.sat, src: it.thumb, id: it.id, fit: it.fit }
   if (size === 'X') return { note: true, excerpt: it.name }
   const ex = plainText(it.blocks ?? [])
   const lim = size === 'L' ? 140 : size === 'S' ? 0 : 46

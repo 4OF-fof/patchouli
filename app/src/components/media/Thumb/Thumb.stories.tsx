@@ -29,7 +29,7 @@ export const Selected: Story = { args: { selected: true } }
 /** サムネイルがまだなく、裏で作っているあいだ。 */
 export const Making: Story = {
   name: '作成中',
-  args: { ext: 'png' },
+  args: { id: 'a' },
   decorators: [
     (Story) => (
       <ThumbMakingProvider value={() => true}>

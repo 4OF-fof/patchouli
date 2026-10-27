@@ -356,22 +356,55 @@ pub fn is_making(src: &Path) -> bool {
     making().lock().is_ok_and(|m| m.contains(src))
 }
 
-/// 裏で作っているサムネイルの、残りの数。
-static PENDING: AtomicUsize = AtomicUsize::new(0);
+/// 裏で作るサムネイルの、まだできていない素材の id。
+fn pending_ids() -> &'static Mutex<HashSet<String>> {
+    static P: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    P.get_or_init(Default::default)
+}
 
+/// 裏で作っているサムネイルの、残りの数。
 pub fn pending() -> usize {
-    PENDING.load(Ordering::Relaxed)
+    pending_ids().lock().map_or(0, |p| p.len())
+}
+
+/// 裏でサムネイルを作っている素材の id。
+pub fn pending_items() -> Vec<String> {
+    pending_ids()
+        .lock()
+        .map(|p| p.iter().cloned().collect())
+        .unwrap_or_default()
+}
+
+/// stop を呼んだ回数。make_all は始めたときと違っていたら打ち切る。
+static STOPS: AtomicUsize = AtomicUsize::new(0);
+
+/// いま裏で作っているサムネイルを、作っている 1 件で打ち切らせる。あとから頼んだものは作る。
+pub fn stop() {
+    STOPS.fetch_add(1, Ordering::Relaxed);
+}
+
+fn set_pending<'a>(ids: impl IntoIterator<Item = &'a String>, on: bool) {
+    if let Ok(mut p) = pending_ids().lock() {
+        for id in ids {
+            if on {
+                p.insert(id.clone());
+            } else {
+                p.remove(id);
+            }
+        }
+    }
 }
 
 /// 新しいものから順に、手の空いた数だけ並べて作る。仕事ごとに done を呼ぶ（作らなかったときと失敗したときは None）。
-/// reg が止められたら、作っているものを終えたところで、残りは作らずに戻る。
+/// reg が止められたか stop が呼ばれたら、作っているものを終えたところで、残りは作らずに戻る。
 pub fn make_all(
     reg: &Arc<Registry>,
     mut jobs: Vec<Job>,
     done: impl Fn(&Job, Option<Placed>) + Sync,
 ) {
     jobs.sort_by(|a, b| b.mtime.total_cmp(&a.mtime));
-    PENDING.fetch_add(jobs.len(), Ordering::Relaxed);
+    set_pending(jobs.iter().map(|j| &j.id), true);
+    let stops = STOPS.load(Ordering::Relaxed);
     let next = AtomicUsize::new(0);
     let width = std::thread::available_parallelism().map_or(2, |n| (n.get() / 2).max(1));
     std::thread::scope(|s| {
@@ -379,6 +412,7 @@ pub fn make_all(
             s.spawn(|| {
                 let mut runner = Runner::new(Arc::clone(reg));
                 while !reg.stopped()
+                    && STOPS.load(Ordering::Relaxed) == stops
                     && let Some(job) = jobs.get(next.fetch_add(1, Ordering::Relaxed))
                 {
                     let placed = make(&mut runner, job).unwrap_or_else(|e| {
@@ -386,7 +420,7 @@ pub fn make_all(
                         None
                     });
                     done(job, placed);
-                    PENDING.fetch_sub(1, Ordering::Relaxed);
+                    set_pending([&job.id], false);
                 }
             });
         }
@@ -398,5 +432,5 @@ pub fn make_all(
     for j in undone {
         end_making(&j.src);
     }
-    PENDING.fetch_sub(left, Ordering::Relaxed);
+    set_pending(undone.iter().map(|j| &j.id), false);
 }

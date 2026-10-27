@@ -187,10 +187,12 @@ export interface Backend {
   plugins(): Promise<PluginReport>
   /** プラグインを入れる・外すなどの操作。できない環境にはない。使うプラグインが変わったら、reloadPlugins で読み直す。 */
   pluginActions?: PluginActions
-  /** 裏でプラグインを使っている処理（サムネイルや波形の作成）の、残りの数。 */
-  pluginWork?(): Promise<number>
-  /** 裏でプラグインを使っている処理を、いまの 1 件で打ち切らせる。 */
+  /** 裏でプラグインを使っている処理（サムネイルや波形の作成）の、まだ済んでいない素材の id。 */
+  pluginWork?(): Promise<string[]>
+  /** 裏でプラグインを使っている処理を、いまの 1 件で打ち切らせる。あとから頼んだものは作る。 */
   stopPluginWork?(): Promise<void>
+  /** 前に開いたときの写しから開いた環境で、裏でファイルと突き合わせているところか。 */
+  checking?(): Promise<boolean>
   /** ライブラリを開き直さずに、プラグインだけを読み直す。wait なら裏の処理が終わるのを待ち、でなければ打ち切る。 */
   reloadPlugins?(wait: boolean): Promise<Opened>
   /** 素材の詳細に出すもの。受け持つプラグインが決める。決まらなければ null。 */

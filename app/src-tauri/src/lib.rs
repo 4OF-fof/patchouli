@@ -10,7 +10,7 @@ mod tidy;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use cache::Cache;
@@ -357,7 +357,11 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
         ui_reads: HashMap::new(),
     });
     if checking {
-        std::thread::spawn(move || check(&app, id, &root, &plugins, &cache, &thumbs));
+        CHECKING.fetch_add(1, Ordering::Relaxed);
+        std::thread::spawn(move || {
+            check(&app, id, &root, &plugins, &cache, &thumbs);
+            CHECKING.fetch_sub(1, Ordering::Relaxed);
+        });
     }
     Ok(opened)
 }
@@ -397,19 +401,25 @@ async fn reload_plugins(
     Ok(opened)
 }
 
-/// 裏で作っているサムネイルの、残りの数。
+/// 裏でサムネイルを作っている素材の id。
 #[tauri::command]
-fn plugin_work() -> usize {
-    thumb::pending()
+fn plugin_work() -> Vec<String> {
+    thumb::pending_items()
 }
 
-/// 裏でプラグインを使う処理を、いまの 1 件で打ち切らせる。
+/// 裏でプラグインを使う処理を、いまの 1 件で打ち切らせる。あとから頼んだものは作る。
 #[tauri::command]
-async fn stop_plugin_work(cur: State<'_, Current>) -> Result<(), String> {
-    with_session(&cur, |s| {
-        s.plugins.stop();
-        Ok(())
-    })
+fn stop_plugin_work() {
+    thumb::stop();
+}
+
+/// 写しから開いたライブラリを、ファイルと突き合わせている数。
+static CHECKING: AtomicUsize = AtomicUsize::new(0);
+
+/// 写しから開いたライブラリを、ファイルと突き合わせているところか。
+#[tauri::command]
+fn checking() -> bool {
+    CHECKING.load(Ordering::Relaxed) > 0
 }
 
 /// 裏でサムネイルの要らなくなったものを消し、足りないものを作る。
@@ -1185,6 +1195,7 @@ pub fn run() {
             reload_plugins,
             plugin_work,
             stop_plugin_work,
+            checking,
             set_plugin_setting,
             item_view,
             item_decoded,
