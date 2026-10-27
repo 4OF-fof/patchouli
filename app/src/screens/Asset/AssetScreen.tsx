@@ -17,6 +17,7 @@ import type { ItemView, Part } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
 import shared from '../screen.module.css'
 import styles from './AssetScreen.module.css'
+import { Icon } from '../../components/base/Icon/Icon'
 
 /** 詳細に出すものを受け持つプラグインに聞き、組み込み UI に窓口を渡す。 */
 export interface AssetViewHost {
@@ -190,13 +191,14 @@ export function AssetScreen(props: AssetScreenProps) {
               when={info()}
               fallback={
                 <FloatingPill class={styles.pill} kbd="I" aria-expanded={false} onClick={() => setInfo(true)}>
-                  ⓘ 情報
+                  <Icon name="info" size={14} />
+                  情報
                 </FloatingPill>
               }
             >
               <aside class={styles.info} aria-label="情報">
                 <ScrollArea viewClass={styles.infoView}>
-                  <FloatingCard title="ⓘ 情報" onClose={() => setInfo(false)}>
+                  <FloatingCard title="情報" onClose={() => setInfo(false)}>
                     <label class={styles.fl}>
                       <span class={styles.k}>プロジェクト</span>
                       <select
@@ -213,7 +215,8 @@ export function AssetScreen(props: AssetScreenProps) {
                         <For each={a().tags}>
                           {(t) => (
                             <Chip aria-label={`# ${t} を削除`} onClick={() => props.onTag?.(a().id, t, false)}>
-                              # {t} ✕
+                              # {t}
+                              <Icon name="close" size={12} />
                             </Chip>
                           )}
                         </For>

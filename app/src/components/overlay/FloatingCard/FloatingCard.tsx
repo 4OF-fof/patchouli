@@ -1,5 +1,6 @@
 import type { JSX } from 'solid-js'
 import styles from './FloatingCard.module.css'
+import { Icon } from '../../base/Icon/Icon'
 
 export interface FloatingCardProps {
   title?: string
@@ -16,7 +17,7 @@ export function FloatingCard(props: FloatingCardProps) {
           <b>{props.title}</b>
           {props.onClose && (
             <button type="button" aria-label="閉じる" onClick={props.onClose}>
-              ✕
+              <Icon name="close" size={14} />
             </button>
           )}
         </header>

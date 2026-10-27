@@ -7,6 +7,7 @@ import { type Item, type Library, type TagCandidate, thumbOf } from '../../model
 import shared from '../screen.module.css'
 import styles from './TidyScreen.module.css'
 import { TidyPanel } from './TidyPanel'
+import { Icon } from '../../components/base/Icon/Icon'
 
 export interface TidyScreenProps {
   lib: Library
@@ -113,7 +114,9 @@ export function TidyScreen(props: TidyScreenProps) {
           >
             <Thumb {...thumbOf(x)} />
             <Show when={decided().includes(x.id)}>
-              <i class={styles.ok}>✓</i>
+              <i class={styles.ok}>
+                <Icon name="check" size={12} />
+              </i>
             </Show>
           </button>
         )}

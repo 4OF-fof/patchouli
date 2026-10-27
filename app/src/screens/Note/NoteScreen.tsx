@@ -8,6 +8,7 @@ import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { type Library, type NoteBlock, refsOfBlocks, relDay, splitLinks } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './NoteScreen.module.css'
+import { Icon } from '../../components/base/Icon/Icon'
 
 export interface NoteScreenProps {
   lib: Library
@@ -134,13 +135,14 @@ export function NoteScreen(props: NoteScreenProps) {
             when={heads()}
             fallback={
               <FloatingPill class={`${styles.pill} ${styles.l}`} count={h2s().length} onClick={() => setHeads(true)}>
-                ≡ 見出し
+                <Icon name="list" size={14} />
+                見出し
               </FloatingPill>
             }
           >
             <aside class={`${styles.card} ${styles.l}`} aria-label="見出し">
               <ScrollArea viewClass={styles.cardView}>
-                <FloatingCard title={`≡ 見出し ${h2s().length}`} onClose={() => setHeads(false)}>
+                <FloatingCard title={`見出し ${h2s().length}`} onClose={() => setHeads(false)}>
                   <div>
                     <LinkRow label={n().name} current />
                     <For each={h2s()}>{(h) => <LinkRow label={h.text} indent />}</For>
@@ -164,7 +166,7 @@ export function NoteScreen(props: NoteScreenProps) {
           >
             <aside class={`${styles.card} ${styles.r}`} aria-label="リンク">
               <ScrollArea viewClass={styles.cardView}>
-                <FloatingCard title={`リンク ${into().length + from().length} ⇄`} onClose={() => setLinks(false)}>
+                <FloatingCard title={`リンク ${into().length + from().length}`} onClose={() => setLinks(false)}>
                   <div>
                     <LinkCaption>このノートへのリンク</LinkCaption>
                     <Show when={into().length} fallback={<LinkNone>まだありません</LinkNone>}>
@@ -195,7 +197,8 @@ export function NoteScreen(props: NoteScreenProps) {
                     </Show>
                   </div>
                   <button type="button" class={styles.connect}>
-                    ＋ リンクを追加
+                    <Icon name="plus" size={14} />
+                    リンクを追加
                   </button>
                 </FloatingCard>
               </ScrollArea>

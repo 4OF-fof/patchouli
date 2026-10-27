@@ -1,5 +1,6 @@
 import type { JSX } from 'solid-js'
 import styles from './Toast.module.css'
+import { Icon } from '../../base/Icon/Icon'
 
 export interface ToastProps {
   message: JSX.Element
@@ -23,7 +24,7 @@ export function Toast(props: ToastProps) {
       )}
       {props.onClose && (
         <button type="button" class={styles.x} aria-label="閉じる" onClick={() => props.onClose?.()}>
-          ✕
+          <Icon name="close" size={14} />
         </button>
       )}
     </div>

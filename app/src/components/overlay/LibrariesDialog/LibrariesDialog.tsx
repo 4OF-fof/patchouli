@@ -4,6 +4,7 @@ import { touchedLabel } from '../../../model/library'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import styles from './LibrariesDialog.module.css'
+import { Icon } from '../../base/Icon/Icon'
 
 export interface LibrariesDialogProps {
   /** 最後に開いた順。ないあいだは読み込み中と出す。 */
@@ -90,7 +91,7 @@ export function LibrariesDialog(props: LibrariesDialogProps) {
                             disabled={busy() !== undefined}
                             onClick={() => void run('', () => props.onForget!(l.path))}
                           >
-                            ✕
+                            <Icon name="close" size={14} />
                           </button>
                         </Show>
                       </li>

@@ -5,6 +5,7 @@ import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
 import { type CoverPart, type Library, dueLabel } from '../../model/library'
 import { DetailPart } from '../Detail/DetailPart'
 import styles from './CoverPart.module.css'
+import { Icon } from '../../components/base/Icon/Icon'
 
 /** プロジェクトの表紙に足せる部品の名前と説明。 */
 export const PARTS: Record<CoverPart['type'], { label: string; note: string }> = {
@@ -39,11 +40,12 @@ export function CoverPartView(props: CoverPartViewProps) {
               {(x) => (
                 <span class={styles.link}>
                   <a href={x.u} target="_blank" rel="noopener">
-                    {x.t} ↗
+                    {x.t}
+                    <Icon name="external" size={12} />
                   </a>
                   {ed && (
                     <button type="button" class={styles.x} aria-label="削除">
-                      ✕
+                      <Icon name="close" size={14} />
                     </button>
                   )}
                 </span>
@@ -79,7 +81,7 @@ export function CoverPartView(props: CoverPartViewProps) {
                   <>
                     <input type="date" class={styles.due} aria-label={`${x.t} の期日`} value={x.due ?? ''} />
                     <button type="button" class={styles.x} aria-label="削除">
-                      ✕
+                      <Icon name="close" size={14} />
                     </button>
                   </>
                 ) : (

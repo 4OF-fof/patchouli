@@ -4,6 +4,7 @@ import { Kbd } from '../../components/base/Kbd/Kbd'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { type Item, type Library, type TagCandidate, monthDay, thumbOf } from '../../model/library'
 import styles from './TidyPanel.module.css'
+import { Icon } from '../../components/base/Icon/Icon'
 
 export interface TidyPanelProps {
   lib: Library
@@ -56,7 +57,9 @@ export function TidyPanel(props: TidyPanelProps) {
               <label class={styles.cand} data-on={t.on}>
                 <input type="checkbox" checked={t.on} onChange={(e) => props.onTag(k(), e.currentTarget.checked)} />
                 <span>
-                  <i class={styles.mark}>{t.on ? '✓' : '#'}</i>
+                  <i class={styles.mark}>
+                    <Icon name={t.on ? 'check' : 'hash'} size={12} />
+                  </i>
                   {t.tag}
                 </span>
                 <small>{t.conf}</small>
@@ -107,7 +110,8 @@ export function TidyPanel(props: TidyPanelProps) {
           保留 <Kbd>→</Kbd>
         </button>
         <button type="button" class={styles.ok2} disabled={nothing()} onClick={() => props.onApprove()}>
-          ✓ 承認 <Kbd>Enter</Kbd>
+          <Icon name="check" size={14} />
+          承認 <Kbd>Enter</Kbd>
         </button>
       </div>
     </ScrollArea>

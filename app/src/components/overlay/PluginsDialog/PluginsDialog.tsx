@@ -421,7 +421,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
         <nav class={styles.side}>
           <h2>プラグイン</h2>
           <label class={styles.search}>
-            <span aria-hidden="true">⌕</span>
+            <Icon name="search" size={14} />
             <input
               type="search"
               placeholder="検索"
@@ -486,9 +486,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
           <Show when={a().install}>
             <div class={styles.foot}>
               <Button class={styles.addButton} variant="primary" disabled={busy() !== undefined} onClick={install}>
-                <span class={styles.plus} aria-hidden="true">
-                  ＋
-                </span>
+                <Icon name="plus" size={14} />
                 プラグインを追加
               </Button>
             </div>

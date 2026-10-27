@@ -1,4 +1,5 @@
 import { type JSX, createEffect } from 'solid-js'
+import { Icon, type IconName } from '../../base/Icon/Icon'
 import { Kbd } from '../../base/Kbd/Kbd'
 import { Thumb, type ThumbProps } from '../../media/Thumb/Thumb'
 import styles from './ResultRow.module.css'
@@ -18,11 +19,11 @@ export interface ResultRowProps {
   onClick?: () => void
 }
 
-const ICON: Record<Exclude<ResultKind, 'asset'>, string> = {
-  command: '›',
-  project: 'PJ',
-  note: '▤',
-  create: '＋',
+const ICON: Record<Exclude<ResultKind, 'asset'>, IconName> = {
+  command: 'chevron',
+  project: 'folder',
+  note: 'note',
+  create: 'plus',
 }
 
 /** 検索バーの結果の 1 行。 */
@@ -44,7 +45,7 @@ export function ResultRow(props: ResultRowProps) {
       onClick={() => props.onClick?.()}
     >
       <span class={styles.ic}>
-        {props.kind === 'asset' ? <Thumb {...props.thumb} class={styles.thumb} /> : ICON[props.kind]}
+        {props.kind === 'asset' ? <Thumb {...props.thumb} class={styles.thumb} /> : <Icon name={ICON[props.kind]} />}
       </span>
       <span class={styles.tx}>
         <b>{props.title}</b>

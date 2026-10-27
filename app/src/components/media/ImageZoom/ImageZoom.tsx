@@ -1,5 +1,6 @@
 import { createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
 import styles from './ImageZoom.module.css'
+import { Icon } from '../../base/Icon/Icon'
 
 export interface ImageZoomProps {
   src: string
@@ -123,11 +124,11 @@ export function ImageZoom(props: ImageZoomProps) {
       </div>
       <div class={styles.bar} role="group" aria-label="表示倍率">
         <button type="button" class={styles.btn} aria-label="縮小" onClick={() => zoomCenter(scale() / STEP)}>
-          −
+          <Icon name="minus" size={14} />
         </button>
         <span class={styles.pct}>{Math.round(scale() * 100)}%</span>
         <button type="button" class={styles.btn} aria-label="拡大" onClick={() => zoomCenter(scale() * STEP)}>
-          ＋
+          <Icon name="plus" size={14} />
         </button>
         <button type="button" class={styles.mode} aria-pressed={zoom() === null} onClick={reset}>
           全体

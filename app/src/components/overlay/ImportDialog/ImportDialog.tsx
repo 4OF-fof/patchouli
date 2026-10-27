@@ -4,6 +4,7 @@ import { Kbd } from '../../base/Kbd/Kbd'
 import { Button } from '../../controls/Button/Button'
 import { Tabs } from '../../controls/Tabs/Tabs'
 import styles from './ImportDialog.module.css'
+import { Icon } from '../../base/Icon/Icon'
 
 /** 落としたフォルダの 1 つ。 */
 export interface DropFolder {
@@ -64,7 +65,9 @@ export function ImportDialog(props: ImportDialogProps) {
             <For each={props.folders}>
               {(f) => (
                 <li>
-                  <i>{modeOf(f.key) === 'project' ? '▦' : '▤'}</i>
+                  <i>
+                    <Icon name={modeOf(f.key) === 'project' ? 'folder' : 'library'} />
+                  </i>
                   <div class={styles.what}>
                     <b title={f.name}>{f.name}</b>
                     <small>
