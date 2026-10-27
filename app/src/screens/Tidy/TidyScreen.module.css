@@ -86,8 +86,8 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
-  background: #3ba776;
-  color: #fff;
+  background: var(--ok);
+  color: var(--on-accent);
   font-size: var(--fs-tiny);
   font-style: normal;
 }
