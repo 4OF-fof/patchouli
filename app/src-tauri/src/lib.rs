@@ -28,8 +28,8 @@ struct Session {
     lib: Library,
     thumbs: PathBuf,
     plugins: Arc<Registry>,
-    /// 詳細の表示に使う。
-    runner: Runner,
+    /// 詳細の表示に使う。プラグインが長く動いてもほかの操作を止めないよう、Session のロックを放してから使う。
+    runner: Arc<Mutex<Runner>>,
     /// 組み込み UI がサムネイルを作るあいだに、WASM が読んだ設定（素材の id → 設定）。put_thumbnail で使う。
     ui_reads: HashMap<String, Reads>,
 }
@@ -105,6 +105,42 @@ fn with_session<T>(
     let mut g = cur.0.lock().map_err(|e| e.to_string())?;
     let s = g.as_mut().ok_or("ライブラリを開いていません")?;
     f(s)
+}
+
+/// 素材と、それを受け持つプラグインを呼ぶのに要るもの。Session のロックを放してから使う。
+struct Target {
+    path: PathBuf,
+    ext: String,
+    runner: Arc<Mutex<Runner>>,
+    plugins: Arc<Registry>,
+    thumbs: PathBuf,
+}
+
+impl Target {
+    fn of(cur: &State<Current>, id: &str) -> Result<Target, String> {
+        with_session(cur, |s| {
+            let (path, ext) = s.lib.asset(id)?;
+            Ok(Target {
+                path: path.to_owned(),
+                ext,
+                runner: Arc::clone(&s.runner),
+                plugins: Arc::clone(&s.plugins),
+                thumbs: s.thumbs.clone(),
+            })
+        })
+    }
+
+    /// プラグインを呼ぶ。ほかの呼び出しが使っているあいだは待たず、新しく作って使う。
+    fn run<T>(&self, f: impl FnOnce(&mut Runner, &str, &Path) -> T) -> T {
+        match self.runner.try_lock() {
+            Ok(mut r) => f(&mut r, &self.ext, &self.path),
+            Err(_) => f(
+                &mut Runner::new(Arc::clone(&self.plugins)),
+                &self.ext,
+                &self.path,
+            ),
+        }
+    }
 }
 
 /// 前に作ったときに読んだ設定（ext の素材）を、いまの値で埋めたもの。
@@ -242,7 +278,7 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
             }
         };
     opened.problems.extend(plugin_problems);
-    let runner = Runner::new(Arc::clone(&plugins));
+    let runner = Arc::new(Mutex::new(Runner::new(Arc::clone(&plugins))));
     *cur.0.lock().map_err(|e| e.to_string())? = Some(Session {
         lib,
         thumbs: thumbs.clone(),
@@ -496,32 +532,27 @@ async fn set_plugin_setting(
 /// 素材の詳細に出すもの。受け持つプラグインが決める。
 #[tauri::command]
 async fn item_view(cur: State<'_, Current>, id: String) -> Result<Option<ViewOut>, String> {
-    with_session(&cur, |s| {
-        let (path, ext) = s.lib.asset(&id)?;
-        let path = path.to_owned();
-        Ok(s.runner.view(&ext, &path))
-    })
+    Ok(Target::of(&cur, &id)?.run(|r, ext, path| r.view(ext, path)))
 }
 
 /// 詳細に出す画像を、詳細を受け持つ WASM が PNG にしたもの。
 #[tauri::command]
 async fn item_decoded(cur: State<'_, Current>, id: String) -> Result<tauri::ipc::Response, String> {
-    let png = with_session(&cur, |s| {
-        let (path, ext) = s.lib.asset(&id)?;
-        let path = path.to_owned();
-        let keep = s.plugins.keeps_decoded(&ext).and_then(|(plugin, format)| {
-            let dir = thumb::decoded_dir(&s.thumbs, plugin, format);
-            thumb::path_for(&dir, &path, &Reads::new())
+    let t = Target::of(&cur, &id)?;
+    let keep = t
+        .plugins
+        .keeps_decoded(&t.ext)
+        .and_then(|(plugin, format)| {
+            let dir = thumb::decoded_dir(&t.thumbs, plugin, format);
+            thumb::path_for(&dir, &t.path, &Reads::new())
         });
-        if let Some(png) = keep.as_ref().and_then(|p| std::fs::read(p).ok()) {
-            return Ok(png);
-        }
-        let png = s.runner.decode(&ext, &path)?;
-        if let Some(out) = keep {
-            thumb::keep_decoded(&out, &png);
-        }
-        Ok(png)
-    })?;
+    if let Some(png) = keep.as_ref().and_then(|p| std::fs::read(p).ok()) {
+        return Ok(tauri::ipc::Response::new(png));
+    }
+    let png = t.run(|r, ext, path| r.decode(ext, path))?;
+    if let Some(out) = keep {
+        thumb::keep_decoded(&out, &png);
+    }
     Ok(tauri::ipc::Response::new(png))
 }
 
@@ -550,17 +581,19 @@ async fn plugin_call(
     method: String,
     args: String,
 ) -> Result<String, String> {
-    with_session(&cur, |s| {
-        let (path, ext) = s.lib.asset(&id)?;
-        let path = path.to_owned();
-        let (r, reads) = s
-            .runner
-            .reading(|r| r.call_ui(&ext, part, &path, plugin.as_deref(), &method, &args));
-        if part == Part::Thumbnail {
-            s.ui_reads.entry(id).or_default().extend(reads);
-        }
-        r
-    })
+    let t = Target::of(&cur, &id)?;
+    let (r, reads) = t.run(|r, ext, path| {
+        r.reading(|r| r.call_ui(ext, part, path, plugin.as_deref(), &method, &args))
+    });
+    // 呼んでいるあいだにライブラリを開き直していたら、読んだ設定は残さない
+    if part == Part::Thumbnail
+        && let Ok(mut g) = cur.0.lock()
+        && let Some(s) = g.as_mut()
+        && Arc::ptr_eq(&s.plugins, &t.plugins)
+    {
+        s.ui_reads.entry(id).or_default().extend(reads);
+    }
+    r
 }
 
 /// 組み込み UI のプラグインが自分で残した値。

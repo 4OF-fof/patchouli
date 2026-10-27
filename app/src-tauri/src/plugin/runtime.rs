@@ -5,11 +5,12 @@ use std::fs::File as FsFile;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::Value;
 use wasmtime::component::{Component, Linker, ResourceTable};
-use wasmtime::{Engine, Store};
+use wasmtime::{Config, Engine, Store, UpdateDeadline};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 use super::{By, Choice, Part, Reads, Registry, SettingDecl, SettingKind, UiRef, commands, os};
@@ -23,9 +24,74 @@ use patchouli::plugin::types;
 /// 一度に読ませる量の上限。
 pub const READ_MAX: u32 = 16 << 20;
 
+/// WASM が続けて動いてよい長さ。外部ツールを動かしている時間は数えない。
+const SETTINGS_LIMIT: Duration = Duration::from_secs(2);
+const THUMBNAIL_LIMIT: Duration = Duration::from_secs(10);
+const VIEW_LIMIT: Duration = Duration::from_secs(30);
+
+/// 長さを確かめる間隔。
+const TICK: Duration = Duration::from_millis(100);
+
 fn engine() -> &'static Engine {
     static E: OnceLock<Engine> = OnceLock::new();
-    E.get_or_init(Engine::default)
+    E.get_or_init(|| {
+        let mut config = Config::new();
+        config.epoch_interruption(true);
+        let engine = Engine::new(&config).expect("WASM の実行環境を作れない");
+        let ticker = engine.clone();
+        std::thread::spawn(move || {
+            loop {
+                std::thread::sleep(TICK);
+                ticker.increment_epoch();
+            }
+        });
+        engine
+    })
+}
+
+/// WASM が limit のうちに終わらなかった。
+#[derive(Debug)]
+struct TimedOut(Duration);
+
+impl std::fmt::Display for TimedOut {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} 秒以内に終わりませんでした", self.0.as_secs())
+    }
+}
+
+impl std::error::Error for TimedOut {}
+
+/// limit を過ぎたら止める store を作る。
+fn store(state: HostState) -> Store<HostState> {
+    let mut store = Store::new(engine(), state);
+    store.epoch_deadline_callback(|s| {
+        let st = s.data();
+        if st.started.elapsed().saturating_sub(st.outside) > st.limit {
+            return Err(wasmtime::Error::new(TimedOut(st.limit)));
+        }
+        Ok(UpdateDeadline::Continue(1))
+    });
+    store
+}
+
+/// ここから limit の長さだけ動かせるようにする。
+fn start(store: &mut Store<HostState>, limit: Duration) {
+    let st = store.data_mut();
+    st.limit = limit;
+    st.started = Instant::now();
+    st.outside = Duration::ZERO;
+    store.set_epoch_deadline(1);
+}
+
+/// プラグイン id の呼び出しが失敗したときの文。
+fn failed(id: &str, e: &wasmtime::Error) -> String {
+    match e.downcast_ref::<TimedOut>() {
+        Some(t) => format!(
+            "プラグイン「{id}」の処理が {} 秒以内に終わらなかったため、停止しました",
+            t.0.as_secs()
+        ),
+        None => format!("{id}: {e}"),
+    }
 }
 
 pub struct HostState {
@@ -40,6 +106,10 @@ pub struct HostState {
     reg: Option<Arc<Registry>>,
     /// Runner::reading のあいだに読んだ設定。
     reads: Option<Reads>,
+    /// いまの呼び出しを始めた時刻と、動かしてよい長さ、そのうち外部ツールを動かしていた長さ。
+    started: Instant,
+    limit: Duration,
+    outside: Duration,
 }
 
 impl HostState {
@@ -53,6 +123,9 @@ impl HostState {
             index: 0,
             reg,
             reads: None,
+            started: Instant::now(),
+            limit: Duration::ZERO,
+            outside: Duration::ZERO,
         }
     }
 
@@ -118,7 +191,10 @@ impl patchouli::plugin::host::Host for HostState {
         let timeout = timeout_ms.map_or(commands::TIMEOUT, |ms| {
             std::time::Duration::from_millis(u64::from(ms))
         });
-        let out = commands::run(&path, &args, timeout)?;
+        let begun = Instant::now();
+        let out = commands::run(&path, &args, timeout);
+        self.outside += begun.elapsed();
+        let out = out?;
         Ok(CommandOutput {
             code: out.code,
             stdout: out.stdout,
@@ -246,10 +322,11 @@ impl Prepared {
 
     /// 設定の項目を聞く。
     pub fn settings(&self, id: &str) -> Result<Vec<SettingDecl>, String> {
-        let mut store = Store::new(engine(), HostState::new(None));
+        let mut store = store(HostState::new(None));
         store.data_mut().current = id.to_owned();
-        let p = self.0.instantiate(&mut store).map_err(|e| e.to_string())?;
-        let list = p.call_settings(&mut store).map_err(|e| e.to_string())?;
+        start(&mut store, SETTINGS_LIMIT);
+        let p = self.0.instantiate(&mut store).map_err(|e| failed(id, &e))?;
+        let list = p.call_settings(&mut store).map_err(|e| failed(id, &e))?;
         Ok(list.into_iter().map(decl).collect())
     }
 }
@@ -280,7 +357,7 @@ pub struct Runner {
 impl Runner {
     pub fn new(reg: Arc<Registry>) -> Runner {
         Runner {
-            store: Store::new(engine(), HostState::new(Some(Arc::clone(&reg)))),
+            store: store(HostState::new(Some(Arc::clone(&reg)))),
             reg,
             instances: HashMap::new(),
         }
@@ -297,24 +374,27 @@ impl Runner {
         part: Part,
         by: By,
         path: &Path,
+        limit: Duration,
         f: impl FnOnce(&Plugin, &mut Store<HostState>, &str, File) -> wasmtime::Result<R>,
     ) -> Option<Result<R, String>> {
         let (i, format) = self.reg.part(ext, part, by)?;
         let format = format.to_owned();
-        Some(self.run(i, &format, ext, path, f))
+        Some(self.run(i, &format, ext, path, limit, f))
     }
 
-    /// i 番目のプラグインで f を呼ぶ。
+    /// i 番目のプラグインで f を呼ぶ。起動から数えて limit のうちに終わらなければ止める。
     fn run<R>(
         &mut self,
         i: usize,
         format: &str,
         ext: &str,
         path: &Path,
+        limit: Duration,
         f: impl FnOnce(&Plugin, &mut Store<HostState>, &str, File) -> wasmtime::Result<R>,
     ) -> Result<R, String> {
         let id = self.reg.plugins[i].manifest.id.clone();
         let size = std::fs::metadata(path).map_or(0, |m| m.len());
+        start(&mut self.store, limit);
         if !self.instances.contains_key(&i) {
             let Some(pre) = self.reg.plugins[i].wasm.as_ref() else {
                 return Err(format!("プラグイン「{id}」の plugin.wasm が見つかりません"));
@@ -322,6 +402,10 @@ impl Runner {
             match pre.0.instantiate(&mut self.store) {
                 Ok(p) => {
                     self.instances.insert(i, p);
+                }
+                Err(e) if e.is::<TimedOut>() => {
+                    self.reset();
+                    return Err(failed(&id, &e));
                 }
                 Err(e) => return Err(format!("プラグイン「{id}」の起動に失敗しました：{e}")),
             }
@@ -339,10 +423,17 @@ impl Runner {
         let r = f(plugin, &mut self.store, format, file);
         self.store.data_mut().files.clear();
         r.map_err(|e| {
-            // 止まったプラグインは作り直す
-            self.instances.remove(&i);
-            format!("{id}: {e}")
+            self.reset();
+            failed(&id, &e)
         })
+    }
+
+    /// 止まったプラグインを作り直す。止まったあとの store には入れないので、store から作り直す。
+    fn reset(&mut self) {
+        let reads = self.store.data_mut().reads.take();
+        self.store = store(HostState::new(Some(Arc::clone(&self.reg))));
+        self.store.data_mut().reads = reads;
+        self.instances.clear();
     }
 
     /// f を呼び、そのあいだにプラグインが読んだ設定も返す。
@@ -355,9 +446,14 @@ impl Runner {
     /// サムネイルの PNG と、素材そのものの大きさ。受け持つプラグインがない、または作らなかったときは None。
     pub fn thumbnail(&mut self, ext: &str, path: &Path, edge: u32) -> Result<Option<Made>, String> {
         let (t, reads) = self.reading(|r| {
-            r.call(ext, Part::Thumbnail, By::Wasm, path, |p, s, fmt, file| {
-                p.call_thumbnail(s, fmt, &file, edge)
-            })
+            r.call(
+                ext,
+                Part::Thumbnail,
+                By::Wasm,
+                path,
+                THUMBNAIL_LIMIT,
+                |p, s, fmt, file| p.call_thumbnail(s, fmt, &file, edge),
+            )
         });
         let t = t.unwrap_or(Ok(Ok(None)))??;
         Ok(t.map(|t| (t.png, t.size.map(|d| (d.width, d.height)), reads)))
@@ -368,9 +464,14 @@ impl Runner {
         if let Some(ui) = self.reg.ui_of(ext, Part::View) {
             return Some(ViewOut::Ui(ui));
         }
-        let r = self.call(ext, Part::View, By::Wasm, path, |p, s, fmt, file| {
-            p.call_view(s, fmt, &file)
-        })?;
+        let r = self.call(
+            ext,
+            Part::View,
+            By::Wasm,
+            path,
+            VIEW_LIMIT,
+            |p, s, fmt, file| p.call_view(s, fmt, &file),
+        )?;
         let v = match r {
             Ok(v) => v?,
             Err(e) => {
@@ -388,9 +489,14 @@ impl Runner {
 
     /// 詳細に出す PNG。view が decoded を返した形式で使う。
     pub fn decode(&mut self, ext: &str, path: &Path) -> Result<Vec<u8>, String> {
-        self.call(ext, Part::View, By::Wasm, path, |p, s, fmt, file| {
-            p.call_decode(s, fmt, &file)
-        })
+        self.call(
+            ext,
+            Part::View,
+            By::Wasm,
+            path,
+            VIEW_LIMIT,
+            |p, s, fmt, file| p.call_decode(s, fmt, &file),
+        )
         .ok_or("詳細表示に対応するプラグインがありません")??
     }
 
@@ -425,7 +531,7 @@ impl Runner {
         };
         // 読んだ設定はサムネイルを受け持つプラグインのものとして残すので、依存先が読んだものは残さない
         let reads = target.and_then(|_| self.store.data_mut().reads.take());
-        let r = self.run(i, &format, ext, path, |p, s, fmt, file| {
+        let r = self.run(i, &format, ext, path, VIEW_LIMIT, |p, s, fmt, file| {
             p.call_call(s, fmt, &file, method, args)
         });
         if reads.is_some() {
