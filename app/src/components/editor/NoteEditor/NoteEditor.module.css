@@ -28,12 +28,14 @@
 }
 /* 置き換えた部分の両側に入る画像は、そこで行を折り返させて「。」だけを次の行に送ってしまう。
    文中の隠した記号はカーソルが近づくと元の文字に戻るので、カーソルの隣に来ることはなく、要らない。
-   行の頭の印は戻さないので残す。消すと、上下の移動でその行を飛ばしてしまう */
+   行の頭の印と埋め込みは戻さないので残す。消すと、上下の移動でその行を飛ばしてしまう */
 .root :global(.cm-widgetBuffer) {
   display: none;
 }
 .root :global(.cm-widgetBuffer):has(+ .lineMark),
-.root .lineMark + :global(.cm-widgetBuffer) {
+.root .lineMark + :global(.cm-widgetBuffer),
+.root :global(.cm-widgetBuffer):has(+ .embed),
+.root .embed + :global(.cm-widgetBuffer) {
   display: inline;
 }
 
@@ -203,6 +205,11 @@
   display: inline-block;
   max-width: 100%;
   vertical-align: bottom;
+}
+.embed[data-selected='true'] {
+  border-radius: var(--radius-md);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .embed img,
 .embed video {

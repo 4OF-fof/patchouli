@@ -1,4 +1,4 @@
-import { type JSX, Show } from 'solid-js'
+import { Show } from 'solid-js'
 import { Thumb, type ThumbProps } from '../../media/Thumb/Thumb'
 import styles from './QuickView.module.css'
 
@@ -14,8 +14,6 @@ export interface QuickViewProps {
   thumb?: ThumbProps
   left: number
   top: number
-  /** 下に添える操作。 */
-  children?: JSX.Element
 }
 
 /** リンク先の中身を小さく見せる。 */
@@ -42,10 +40,7 @@ export function QuickView(props: QuickViewProps) {
         </Show>
         <Show when={props.thumb}>{(t) => <Thumb {...t()} fit="contain" height={180} />}</Show>
       </Show>
-      <div class={styles.foot}>
-        {props.children}
-        <span class={styles.hint}>Ctrl+クリックで開く</span>
-      </div>
+      <span class={styles.hint}>Ctrl+クリックで開く</span>
     </div>
   )
 }

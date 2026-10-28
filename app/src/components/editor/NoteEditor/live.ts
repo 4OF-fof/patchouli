@@ -187,6 +187,8 @@ interface EmbedSpec {
   alt: string
   name: string | undefined
   version: number
+  /** カーソルが接しているか。 */
+  selected: boolean
 }
 
 class EmbedView extends WidgetType {
@@ -195,6 +197,7 @@ class EmbedView extends WidgetType {
   readonly alt: string
   readonly name: string | undefined
   readonly version: number
+  readonly selected: boolean
   readonly hooks: LiveHooks
 
   constructor(spec: EmbedSpec, hooks: LiveHooks) {
@@ -204,13 +207,25 @@ class EmbedView extends WidgetType {
     this.alt = spec.alt
     this.name = spec.name
     this.version = spec.version
+    this.selected = spec.selected
     this.hooks = hooks
   }
 
-  eq(o: EmbedView) {
+  private same(o: EmbedView) {
     return (
       o.id === this.id && o.src === this.src && o.alt === this.alt && o.name === this.name && o.version === this.version
     )
+  }
+
+  eq(o: EmbedView) {
+    return this.same(o) && o.selected === this.selected
+  }
+
+  /** カーソルが接しただけなら、読み込んだ中身はそのままにして印だけ付け替える。 */
+  updateDOM(dom: HTMLElement, _view: EditorView, from: this) {
+    if (!this.same(from)) return false
+    dom.dataset.selected = String(this.selected)
+    return true
   }
 
   toDOM() {
@@ -218,6 +233,7 @@ class EmbedView extends WidgetType {
     const { id, name } = this
     const dom = document.createElement('span')
     dom.className = classes.embed ?? ''
+    dom.dataset.selected = String(this.selected)
     if (!id) {
       const img = document.createElement('img')
       img.src = this.src
@@ -403,7 +419,13 @@ const INLINE: Record<string, [cls: string, mark: string]> = {
   InlineCode: ['code', 'CodeMark'],
 }
 
-function build(state: EditorState, h: LiveHooks, version: number): DecorationSet {
+interface Built {
+  deco: DecorationSet
+  /** カーソルや削除で、ひとまとまりに扱う範囲（埋め込み）。 */
+  atoms: DecorationSet
+}
+
+function build(state: EditorState, h: LiveHooks, version: number): Built {
   const tree = ensureSyntaxTree(state, state.doc.length, 100) ?? syntaxTree(state)
   const focused = state.field(focusField)
   const { ranges } = state.selection
@@ -418,6 +440,7 @@ function build(state: EditorState, h: LiveHooks, version: number): DecorationSet
   const c = h.classes
   const cls = (name: string) => c[name] ?? ''
   const out: Range<Decoration>[] = []
+  const atoms: Range<Decoration>[] = []
   /** 箇条書きの行の頭と、その深さ。 */
   const depth = new Map<number, number>()
   const hide = (from: number, to: number) => {
@@ -504,14 +527,12 @@ function build(state: EditorState, h: LiveHooks, version: number): DecorationSet
         case 'Image': {
           const r = refOf(state, n)
           if (!r) return false
-          if (near(n.from, n.to)) {
-            mark('raw', n.from, n.to, r.id ? { 'data-ref': r.id } : undefined)
-            return false
-          }
           const alt = state.sliceDoc(r.label.from, r.label.to)
           const name = r.id ? h.nameOf(r.id) : undefined
-          const widget = new EmbedView({ id: r.id, src: r.href, alt, name, version }, h)
+          const selected = near(n.from, n.to)
+          const widget = new EmbedView({ id: r.id, src: r.href, alt, name, version, selected }, h)
           out.push(Decoration.replace({ widget }).range(n.from, n.to))
+          atoms.push(Decoration.mark({}).range(n.from, n.to))
           return false
         }
         case 'Escape':
@@ -620,7 +641,7 @@ function build(state: EditorState, h: LiveHooks, version: number): DecorationSet
   })
   for (const [from, d] of depth)
     out.push(Decoration.line({ class: cls('listLine'), attributes: { style: `--depth: ${d}` } }).range(from))
-  return Decoration.set(out, true)
+  return { deco: Decoration.set(out, true), atoms: Decoration.set(atoms, true) }
 }
 
 const PREFIX = /^\s*(?:(?:#{1,6}|>|[-*+](?:\s+\[[ xX]\])?|\d+[.)])(?:\s+|$))*/
@@ -725,14 +746,17 @@ const intoTable = (forward: boolean) => (view: EditorView) => {
 /** カーソルのない書式は記号を隠し、カーソルのある書式だけ Markdown の書き方を見せる。 */
 export function live(hooks: () => LiveHooks): Extension {
   let version = 0
-  const field = StateField.define<DecorationSet>({
+  const field = StateField.define<Built>({
     create: (s) => build(s, hooks(), version),
-    update(deco, tr) {
+    update(built, tr) {
       if (tr.effects.some((e) => e.is(refresh))) version++
       if (tr.docChanged || tr.selection || tr.effects.length) return build(tr.state, hooks(), version)
-      return deco.map(tr.changes)
+      return built
     },
-    provide: (f) => EditorView.decorations.from(f),
+    provide: (f) => [
+      EditorView.decorations.from(f, (b) => b.deco),
+      EditorView.atomicRanges.of((v) => v.state.field(f).atoms),
+    ],
   })
   return [
     focusField,

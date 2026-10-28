@@ -441,13 +441,10 @@ export function NoteEditor(props: NoteEditorProps) {
     setPicking({ embed: false, from, to, mark: true })
   }
 
-  /** 浮かべて見せるリンク先。ホバーしているものを先にし、なければカーソルのある埋め込み。 */
+  /** ホバーしているリンク先。カーソルのあるリンクはメニューを出すので浮かべない。 */
   const shown = () => {
     const h = hover()
-    const a = active()
-    if (h && h.id !== a?.id) return { id: h.id, left: h.left, top: h.bottom + 6, actions: false }
-    if (a?.kind === 'embed' && a.id && !picking()) return { id: a.id, left: a.left, top: a.bottom + 6, actions: true }
-    return undefined
+    return h && h.id !== active()?.id ? { id: h.id, left: h.left, top: h.bottom + 6 } : undefined
   }
 
   return (
@@ -491,35 +488,46 @@ export function NoteEditor(props: NoteEditorProps) {
           </div>
         )}
       </Show>
-      <Show when={!picking() && !selected() && active()?.kind === 'link' && active()?.id ? active() : undefined}>
-        {(r) => (
-          <div
-            class={styles.linkMenu}
-            role="toolbar"
-            tabIndex={-1}
-            aria-label="リンク"
-            style={{ left: `${r().left}px`, top: `${r().bottom + 6}px` }}
-            onMouseDown={(e) => e.preventDefault()}
-          >
-            <button type="button" onClick={() => props.onOpenRef?.(r().id ?? '')}>
-              開く
-            </button>
-            <button type="button" onClick={() => setPicking({ embed: false, from: r().from, to: r().to })}>
-              アセットを選択
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const v = view
-                if (!v) return
-                unlinkAt(v, r().from, r().to)
-                v.focus()
+      <Show when={!picking() && !selected() && active()?.id ? active() : undefined}>
+        {(r) => {
+          const embed = () => r().kind === 'embed'
+          // 埋め込みは中身を隠さないよう上に出す。上が狭いときだけ下に出す
+          const above = () => embed() && r().top > 80
+          return (
+            <div
+              class={styles.linkMenu}
+              role="toolbar"
+              tabIndex={-1}
+              aria-label={embed() ? '埋め込み' : 'リンク'}
+              style={{
+                left: `${r().left}px`,
+                top: `${above() ? r().top - 6 : r().bottom + 6}px`,
+                transform: above() ? 'translateY(-100%)' : undefined,
               }}
+              onMouseDown={(e) => e.preventDefault()}
             >
-              リンクを解除
-            </button>
-          </div>
-        )}
+              <button type="button" onClick={() => props.onOpenRef?.(r().id ?? '')}>
+                開く
+              </button>
+              <button type="button" onClick={() => setPicking({ embed: embed(), from: r().from, to: r().to })}>
+                アセットを選択
+              </button>
+              <Show when={!embed()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const v = view
+                    if (!v) return
+                    unlinkAt(v, r().from, r().to)
+                    v.focus()
+                  }}
+                >
+                  リンクを解除
+                </button>
+              </Show>
+            </div>
+          )
+        }}
       </Show>
       <Show when={!selected() && shown()}>
         {(s) => {
@@ -536,28 +544,7 @@ export function NoteEditor(props: NoteEditorProps) {
               })()}
               left={s().left}
               top={s().top}
-            >
-              <Show when={s().actions && active()}>
-                {(a) => (
-                  <>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => props.onOpenRef?.(s().id)}
-                    >
-                      開く
-                    </button>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => setPicking({ embed: true, from: a().from, to: a().to })}
-                    >
-                      アセットを選択
-                    </button>
-                  </>
-                )}
-              </Show>
-            </QuickView>
+            />
           )
         }}
       </Show>

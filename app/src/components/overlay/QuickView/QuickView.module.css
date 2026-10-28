@@ -46,27 +46,8 @@
   font-family: var(--f-mono);
   font-size: var(--fs-meta);
 }
-.foot {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.foot button {
-  height: 26px;
-  padding: 0 9px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: none;
-  color: var(--ink);
-  font-size: var(--fs-list);
-  white-space: nowrap;
-  cursor: pointer;
-}
-.foot button:hover {
-  background: var(--accent-soft);
-}
 .hint {
-  margin-left: auto;
+  align-self: flex-end;
   color: var(--muted);
   font-size: var(--fs-meta);
 }
