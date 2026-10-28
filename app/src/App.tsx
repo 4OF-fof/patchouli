@@ -43,7 +43,8 @@ import type { Blocker } from './components/media/Unsupported/Unsupported'
 import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
 import { NoteScreen } from './screens/Note/NoteScreen'
-import type { Embed, NoteEditorApi } from './components/editor/NoteEditor/NoteEditor'
+import type { NoteEditorApi } from './components/editor/NoteEditor/NoteEditor'
+import { embedOf as embedFor } from './screens/Note/embed'
 import { ProjectScreen } from './screens/Project/ProjectScreen'
 import { ProjectListScreen } from './screens/ProjectList/ProjectListScreen'
 import { ScreenFrame } from './screens/ScreenFrame'
@@ -253,14 +254,14 @@ export function App(props: AppProps) {
     const it = await addNote(name, null)
     if (it) go({ s: 'note', id: it.id })
   }
-  const embedOf = async (it: Item): Promise<Embed | undefined> => {
-    const v = await backend.itemView?.(it.id).catch(() => null)
-    // 読み解いた画像の URL は次に開いた素材で捨てられるので、本文ではサムネイルを使う
-    if (v?.kind === 'image' && !v.url && it.src) return { kind: 'image', src: it.src }
-    if (v?.kind === 'image' && it.thumb) return { kind: 'image', src: it.thumb }
-    if ((v?.kind === 'video' || v?.kind === 'audio') && it.src) return { kind: v.kind, src: it.src }
-    return { kind: 'card', thumb: it.thumb }
-  }
+  const embedOf = (it: Item) =>
+    embedFor(it, {
+      format: (ext) => lib().formats.get(ext),
+      view: backend.itemView,
+      waveform: backend.waveform,
+      ui: backend.uiApi,
+      uiUrl: backend.uiUrl,
+    })
   const renameTag = (from: string, to: string) => {
     const re = retag(from, to)
     const before = lib()

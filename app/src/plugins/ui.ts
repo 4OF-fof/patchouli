@@ -44,7 +44,7 @@ const isFn = (v: unknown) => v === undefined || typeof v === 'function'
 const isModule = (m: unknown): m is UiModule =>
   typeof m === 'object' &&
   m !== null &&
-  ['mount', 'thumbnail', 'waveform', 'hover'].every((k) => isFn(Reflect.get(m, k)))
+  ['mount', 'thumbnail', 'waveform', 'hover', 'embed'].every((k) => isFn(Reflect.get(m, k)))
 
 export const loadUi = (url: string): Promise<UiModule> => {
   let m = loaded.get(url)
@@ -52,7 +52,9 @@ export const loadUi = (url: string): Promise<UiModule> => {
     m = import(/* @vite-ignore */ url).then((ns: unknown) => {
       const mod: unknown = typeof ns === 'object' && ns !== null ? Reflect.get(ns, 'default') : undefined
       if (!isModule(mod))
-        throw new Error('default で書き出したものの mount・thumbnail・waveform・hover のいずれかが関数ではありません')
+        throw new Error(
+          'default で書き出したものの mount・thumbnail・waveform・hover・embed のいずれかが関数ではありません',
+        )
       return mod
     })
     loaded.set(url, m)

@@ -31,6 +31,7 @@ const PART: Record<Part, string> = {
   waveform: '波形',
   hover: 'ホバー表示',
   details: 'ファイルの詳細',
+  embed: '埋め込み表示',
 }
 
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [

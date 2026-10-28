@@ -6,7 +6,19 @@ import audio from '../../plugins/audio/plugin.json'
 import image from '../../plugins/image/plugin.json'
 import note from '../../plugins/note/plugin.json'
 import video from '../../plugins/video/plugin.json'
-import type { Cap, Deps, Fit, FormatInfo, Hover, Manifest, Part, PluginReport, PluginStatus, Problem } from './types'
+import type {
+  Cap,
+  Deps,
+  Embed,
+  Fit,
+  FormatInfo,
+  Hover,
+  Manifest,
+  Part,
+  PluginReport,
+  PluginStatus,
+  Problem,
+} from './types'
 
 export interface RawManifest extends Omit<Manifest, 'formats'> {
   formats: Record<
@@ -17,6 +29,7 @@ export interface RawManifest extends Omit<Manifest, 'formats'> {
       ratio?: number
       fit?: string
       hover?: string
+      embed?: string
       parts?: string[]
       ui?: string[]
       keepDecoded?: boolean
@@ -24,9 +37,10 @@ export interface RawManifest extends Omit<Manifest, 'formats'> {
   >
 }
 
-const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover', 'details']
+const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover', 'details', 'embed']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
 const HOVERS: readonly Hover[] = ['video']
+const EMBEDS: readonly Embed[] = ['view', 'card']
 
 const partsOf = (raw?: string[]) => (raw ?? []).flatMap((p) => PARTS.find((x) => x === p) ?? [])
 
@@ -39,6 +53,7 @@ export const readManifest = (raw: RawManifest): Manifest => ({
         ...d,
         fit: FITS.find((f) => f === d.fit),
         hover: HOVERS.find((h) => h === d.hover),
+        embed: EMBEDS.find((e) => e === d.embed),
         parts: partsOf(d.parts),
         ui: partsOf(d.ui),
       },
@@ -79,6 +94,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
     let ratio: number | undefined
     let fit: Fit | undefined
     let hover: Hover | undefined
+    let embed: Embed | undefined
     const parts = new Map<Part, Manifest | 'wasm'>()
     const seen = new Set<string>()
     let at: Manifest | undefined = owner
@@ -95,6 +111,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
       ratio ??= d.ratio
       fit ??= d.fit
       hover ??= d.hover
+      embed ??= d.embed
       for (const p of d.parts ?? []) if (!parts.has(p)) parts.set(p, 'wasm')
       for (const p of d.ui ?? []) if (!parts.has(p) && at.ui) parts.set(p, at)
       if (!d.extends) break
@@ -106,6 +123,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
     const ui = parts.get('thumbnail')
     const wave = parts.get('waveform')
     const hoverUi = parts.get('hover')
+    const embedUi = parts.get('embed')
     formats.set(ext, {
       ext,
       label: label ?? ext.toUpperCase(),
@@ -117,6 +135,8 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
       ...(wave && wave !== 'wasm' && wave.ui && { uiWaveform: { plugin: wave.id, module: wave.ui } }),
       ...(hover && { hover }),
       ...(hoverUi && hoverUi !== 'wasm' && hoverUi.ui && { uiHover: { plugin: hoverUi.id, module: hoverUi.ui } }),
+      ...(embed && { embed }),
+      ...(embedUi && embedUi !== 'wasm' && embedUi.ui && { uiEmbed: { plugin: embedUi.id, module: embedUi.ui } }),
     })
   }
   return { formats, problems }

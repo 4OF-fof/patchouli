@@ -20,7 +20,12 @@ export const idOfHref = (href: unknown) =>
 
 export const escapeLabel = (s: string) => s.replace(/[\\[\]]/g, '\\$&')
 
-export type Embed = { kind: 'image' | 'video' | 'audio'; src: string } | { kind: 'card'; thumb?: string }
+export type Embed =
+  | { kind: 'image'; src: string }
+  /** error があれば、埋め込めないことを知らせるカードにする */
+  | { kind: 'card'; thumb?: string; error?: string }
+  /** 中身を mount で描く。key が同じあいだは描き直さない。mount が返した関数は、消すときに呼ぶ */
+  | { kind: 'mount'; key: string; mount: (el: HTMLElement) => () => void }
 
 export interface LiveHooks {
   nameOf: (id: string) => string | undefined
@@ -173,8 +178,17 @@ class Check extends WidgetType {
 }
 
 const embeds = new Map<string, Promise<Embed | undefined>>()
-/** 埋め込みに描いた中身。 */
-const drawn = new WeakMap<HTMLElement, string>()
+/** 埋め込みに描いた中身と、mount で描いたものを消す関数。 */
+const drawn = new WeakMap<HTMLElement, { sig: string; off?: () => void }>()
+
+const unmount = (dom: HTMLElement) => {
+  try {
+    drawn.get(dom)?.off?.()
+  } catch (e) {
+    console.warn('埋め込みを閉じられない', e)
+  }
+  drawn.delete(dom)
+}
 
 const spanOf = (cls: string | undefined, s: string) => {
   const el = document.createElement('span')
@@ -267,33 +281,44 @@ class EmbedView extends WidgetType {
     }
     void p.then((e) => {
       if (!e) return
-      const sig = JSON.stringify(e)
-      if (drawn.get(dom) === sig) return
-      drawn.set(dom, sig)
+      const sig = e.kind === 'mount' ? `mount:${e.key}` : JSON.stringify(e)
+      if (drawn.get(dom)?.sig === sig) return
+      unmount(dom)
+      delete dom.dataset.wide
+      if (e.kind === 'mount') {
+        const box = document.createElement('span')
+        box.className = classes.mounted ?? ''
+        dom.dataset.wide = 'true'
+        dom.replaceChildren(box)
+        drawn.set(dom, { sig, off: e.mount(box) })
+        return
+      }
+      drawn.set(dom, { sig })
       if (e.kind === 'card') {
-        const card = spanOf(classes.card, name)
+        const card = spanOf(e.error ? `${classes.card} ${classes.cardError}` : classes.card, name)
         if (e.thumb) {
           const img = document.createElement('img')
           img.src = e.thumb
           img.alt = ''
           card.prepend(img)
         }
+        if (e.error) card.append(spanOf(classes.cardNote, e.error))
         dom.replaceChildren(card)
         return
       }
-      const el = document.createElement(e.kind === 'image' ? 'img' : e.kind)
-      el.setAttribute('src', e.src)
-      if (el instanceof HTMLImageElement) el.alt = name
-      else if (el instanceof HTMLMediaElement) {
-        el.controls = true
-        el.preload = 'metadata'
-      }
-      dom.replaceChildren(el)
+      const img = document.createElement('img')
+      img.src = e.src
+      img.alt = name
+      dom.replaceChildren(img)
     })
   }
 
+  destroy(dom: HTMLElement) {
+    unmount(dom)
+  }
+
   ignoreEvent(e: Event) {
-    return e.target instanceof HTMLMediaElement
+    return e.target instanceof Element && !!e.target.closest(`.${this.hooks.classes.mounted}`)
   }
 }
 

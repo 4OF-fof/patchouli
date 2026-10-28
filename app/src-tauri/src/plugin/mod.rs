@@ -42,6 +42,7 @@ pub enum Part {
     Waveform,
     Hover,
     Details,
+    Embed,
     #[serde(other)]
     Unknown,
 }
@@ -50,6 +51,15 @@ pub enum Part {
 #[serde(rename_all = "lowercase")]
 pub enum Hover {
     Video,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Embed {
+    View,
+    Card,
     #[serde(other)]
     Unknown,
 }
@@ -79,6 +89,7 @@ pub struct FormatDecl {
     pub ratio: Option<f64>,
     pub fit: Option<Fit>,
     pub hover: Option<Hover>,
+    pub embed: Option<Embed>,
     #[serde(default)]
     pub parts: Vec<Part>,
     #[serde(default)]
@@ -321,6 +332,7 @@ struct Resolved {
     ratio: f64,
     fit: Fit,
     hover: Option<Hover>,
+    embed: Option<Embed>,
     parts: HashMap<Part, Handler>,
 }
 
@@ -360,6 +372,10 @@ pub struct FormatInfo {
     pub hover: Option<Hover>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_hover: Option<UiRef>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub embed: Option<Embed>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_embed: Option<UiRef>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -595,6 +611,7 @@ impl Registry {
             let mut ratio = None;
             let mut fit = None;
             let mut hover = None;
+            let mut embed = None;
             let mut parts = HashMap::new();
             let mut seen = HashSet::new();
             let (mut at, mut fmt) = (owner, ext.clone());
@@ -611,6 +628,7 @@ impl Registry {
                 ratio = ratio.or(decl.ratio);
                 fit = fit.or(decl.fit.filter(|&f| f != Fit::Unknown));
                 hover = hover.or(decl.hover.filter(|&h| h != Hover::Unknown));
+                embed = embed.or(decl.embed.filter(|&e| e != Embed::Unknown));
                 let own = decl.parts.iter().map(|&p| (p, By::Wasm));
                 for (part, by) in own.chain(decl.ui.iter().map(|&p| (p, By::Ui))) {
                     if part != Part::Unknown {
@@ -645,6 +663,7 @@ impl Registry {
                     ratio: ratio.unwrap_or(DEFAULT_RATIO),
                     fit: fit.unwrap_or(Fit::Center),
                     hover,
+                    embed,
                     parts,
                 },
             );
@@ -828,6 +847,8 @@ impl Registry {
                 ui_waveform: self.ui_of(ext, Part::Waveform),
                 hover: f.hover,
                 ui_hover: self.ui_of(ext, Part::Hover),
+                embed: f.embed,
+                ui_embed: self.ui_of(ext, Part::Embed),
             })
             .collect();
         out.sort_by(|a, b| a.ext.cmp(&b.ext));

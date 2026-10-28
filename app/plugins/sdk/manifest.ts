@@ -1,13 +1,20 @@
 /* plugin.json の形。 */
 
 /**
- * 形式ごとに受け持つもの。waveform は音の波形、hover はカーソルを合わせたときにサムネイルの上に重ねる表示で、
- * どちらも組み込み UI だけが受け持てる。details はファイルの詳細に足す行で、WASM だけが受け持てる。
+ * 形式ごとに受け持つもの。waveform は音の波形、hover はカーソルを合わせたときにサムネイルの上に重ねる表示、
+ * embed はノートに埋め込んだときの表示で、どれも組み込み UI だけが受け持てる。
+ * details はファイルの詳細に足す行で、WASM だけが受け持てる。
  */
-export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details'
+export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details' | 'embed'
 
 /** カーソルを合わせたときに、本体がサムネイルの上で見せるもの。video は元のファイルを音を消して再生する。 */
 export type Hover = 'video'
+
+/**
+ * ノートに埋め込んだときに、本体が見せるもの。view は詳細と同じ表示（画像・動画・音声）、card はサムネイルと名前のカード。
+ * 詳細を組み込み UI で描く形式は、view でも埋め込みには描かない。
+ */
+export type Embed = 'view' | 'card'
 
 /** サムネイルを決まった形の枠に入れるときの収め方。center 真ん中を残して切り抜く / top 上の端を残して切り抜く / contain 切り抜かずに収める。 */
 export type Fit = 'center' | 'top' | 'contain'
@@ -47,6 +54,8 @@ export interface FormatDecl {
   fit?: Fit
   /** カーソルを合わせたときに、本体が見せるもの。組み込み UI の hover があれば、そちらを使う。 */
   hover?: Hover
+  /** ノートに埋め込んだときに、本体が見せるもの。書かなければ view。組み込み UI の embed があれば、そちらを使う。 */
+  embed?: Embed
   /** WASM で受け持つもの。 */
   parts?: Part[]
   /** 組み込み UI で受け持つもの。 */

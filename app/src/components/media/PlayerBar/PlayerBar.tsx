@@ -7,6 +7,8 @@ export interface PlayerBarProps {
   /** 操る動画や音声。描いたあとに決まるので、関数で渡す。 */
   media: () => HTMLMediaElement | undefined
   fullscreen?: () => HTMLElement | undefined
+  /** あれば、キーはこの中にフォーカスがあるときだけ受ける。なければ画面のどこにあっても受ける */
+  scope?: () => HTMLElement | undefined
   class?: string
 }
 
@@ -16,9 +18,12 @@ const SKIP = 5
 
 const pct = (v: number, max: number) => `${max > 0 ? Math.min(100, (v / max) * 100) : 0}%`
 
-const typing = (t: EventTarget | null) =>
-  t instanceof HTMLElement &&
-  !!t.closest('input:not([type="range"]), select, textarea, [contenteditable], [role="dialog"], [role="menu"]')
+const typing = (t: EventTarget | null, within?: HTMLElement) => {
+  const hit =
+    t instanceof HTMLElement &&
+    t.closest('input:not([type="range"]), select, textarea, [contenteditable], [role="dialog"], [role="menu"]')
+  return !!hit && (!within || within.contains(hit))
+}
 
 export function PlayerBar(props: PlayerBarProps) {
   const [playing, setPlaying] = createSignal(false)
@@ -81,7 +86,9 @@ export function PlayerBar(props: PlayerBarProps) {
   }
   const onFull = () => setFull(!!document.fullscreenElement)
   const onKey = (e: KeyboardEvent) => {
-    if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target)) return
+    const scope = props.scope?.()
+    if (scope && !(e.target instanceof Node && scope.contains(e.target))) return
+    if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target, scope)) return
     if (e.key === ' ') {
       // ボタンにフォーカスがあっても、押したことにはせず再生を切り替える
       e.preventDefault()

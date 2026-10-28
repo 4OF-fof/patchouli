@@ -93,6 +93,11 @@ export interface PluginModule<T extends PluginTypes = PluginTypes> {
    */
   hover?(el: HTMLElement, api: Api<T>): void | (() => void)
   /**
+   * ノートに埋め込んだときの表示。el の中に描く。el の幅は本文の幅で、高さは描いたものに合わせて決まる。
+   * 返した関数は、埋め込みが消えるときに呼ぶ。
+   */
+  embed?(el: HTMLElement, api: Api<T>): void | (() => void)
+  /**
    * 音の波形。素材の頭から終わりまでを points 個の区間に等分し、区間ごとの音の大きさ（二乗平均の平方根、0 以上）を返す。
    * 作らないときは null。
    */

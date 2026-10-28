@@ -6,10 +6,11 @@
   min-width: 0;
   min-height: 0;
 }
+/* 置き場所に高さがないときは、--player-wave-height で波形の高さを決める */
 .wave {
   position: relative;
   flex: 1;
-  min-height: 0;
+  min-height: var(--player-wave-height, 0);
   align-self: stretch;
   cursor: pointer;
   touch-action: none;

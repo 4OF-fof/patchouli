@@ -14,6 +14,11 @@
   align-items: center;
   justify-content: center;
 }
+/* 置き場所の側で、--player-screen-max で高さの上限を決められる */
+.screen[data-fixed='true'] {
+  flex: none;
+  max-height: var(--player-screen-max, none);
+}
 .video {
   display: block;
   width: 100%;

@@ -1,10 +1,11 @@
 /* プラグインの形。plugin.json と、Rust 側（src-tauri/src/plugin/）から届くもの。Rust 側と合わせる。 */
 
-import type { Deps, Fit, Hover, Part, SettingValue } from '../../plugins/sdk'
+import type { Deps, Embed, Fit, Hover, Part, SettingValue } from '../../plugins/sdk'
 
 export type {
   CommandDep,
   Deps,
+  Embed,
   Fit,
   FormatDecl,
   Hover,
@@ -38,6 +39,8 @@ export interface FormatInfo {
   uiWaveform?: UiRef
   hover?: Hover
   uiHover?: UiRef
+  embed?: Embed
+  uiEmbed?: UiRef
 }
 
 export interface Problem {

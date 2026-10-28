@@ -6,6 +6,8 @@ export interface AudioPlayerProps {
   src: string
   wave?: Uint8Array | null
   name: string
+  /** キーを、この中にフォーカスがあるときだけ受ける */
+  local?: boolean
   class?: string
   /** 読み込めたとき。読めなかったときも呼ぶ */
   onReady?: () => void
@@ -47,6 +49,7 @@ function draw(canvas: HTMLCanvasElement, wave: Uint8Array | null | undefined, w:
 }
 
 export function AudioPlayer(props: AudioPlayerProps) {
+  const [root, setRoot] = createSignal<HTMLDivElement>()
   let area!: HTMLDivElement
   let base!: HTMLCanvasElement
   let done!: HTMLCanvasElement
@@ -111,7 +114,7 @@ export function AudioPlayer(props: AudioPlayerProps) {
   })
   const played = () => (length() > 0 ? Math.min(100, (at() / length()) * 100) : 0)
   return (
-    <div class={`${styles.root} ${props.class ?? ''}`}>
+    <div ref={setRoot} class={`${styles.root} ${props.class ?? ''}`}>
       <div ref={area} class={styles.wave} role="img" aria-label={props.name} onPointerDown={onDown}>
         <canvas ref={base} class={styles.base} />
         <canvas ref={done} class={styles.done} style={{ 'clip-path': `inset(0 ${100 - played()}% 0 0)` }} />
@@ -124,7 +127,7 @@ export function AudioPlayer(props: AudioPlayerProps) {
         onLoadedMetadata={() => props.onReady?.()}
         onError={() => props.onReady?.()}
       />
-      <PlayerBar media={audio} class={styles.bar} />
+      <PlayerBar media={audio} scope={props.local ? root : undefined} class={styles.bar} />
     </div>
   )
 }
