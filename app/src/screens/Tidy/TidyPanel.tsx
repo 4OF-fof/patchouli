@@ -1,6 +1,7 @@
 import { For, Show } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Kbd } from '../../components/base/Kbd/Kbd'
+import { Select } from '../../components/controls/Select/Select'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { type Item, type Library, type TagCandidate, monthDay, thumbOf } from '../../model/library'
 import styles from './TidyPanel.module.css'
@@ -65,16 +66,17 @@ export function TidyPanel(props: TidyPanelProps) {
       </div>
       <div class={styles.fl}>
         <span class={styles.sub}>プロジェクト</span>
-        <div class={styles.pselect}>
-          <select
-            aria-label="プロジェクトを選択"
-            value={props.project}
-            onChange={(e) => props.onProject(e.currentTarget.value)}
-          >
-            <option value="">指定なし</option>
-            <For each={lib().projects.filter((p) => p.name !== '日記')}>{(p) => <option>{p.name}</option>}</For>
-          </select>
-        </div>
+        <Select
+          aria-label="プロジェクトを選択"
+          value={props.project}
+          options={[
+            { value: '', label: '指定なし' },
+            ...lib()
+              .projects.filter((p) => p.name !== '日記')
+              .map((p) => ({ value: p.name, label: p.name })),
+          ]}
+          onChange={(v) => props.onProject(v)}
+        />
       </div>
       <div class={styles.fl}>
         <span class={styles.sub}># {firstTag()} の類似項目</span>

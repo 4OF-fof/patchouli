@@ -104,7 +104,6 @@
   letter-spacing: 0.04em;
   color: var(--muted);
 }
-.fl select,
 .fl input,
 .fl textarea {
   width: 100%;
@@ -115,14 +114,10 @@
   color: var(--ink);
   font-size: var(--fs-list);
 }
-.fl select:focus-visible,
 .fl input:focus-visible,
 .fl textarea:focus-visible {
   border-color: var(--accent);
   outline: 0;
-}
-.fl option {
-  background: var(--float);
 }
 .fl textarea {
   height: calc(8 * 1.5em + 12px);

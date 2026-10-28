@@ -196,12 +196,12 @@ export function App(props: AppProps) {
       { tags: on ? { add: [tag] } : { remove: [tag] } },
     )
   }
-  const aliasItem = (id: string, alias: string, on: boolean) => {
-    const aliases = lib().byId.get(id)?.aliases ?? []
+  const setAliases = (id: string, aliases: string[]) => {
+    const old = lib().byId.get(id)?.aliases ?? []
     editItem(
       id,
-      { aliases: on ? [...aliases, alias] : aliases.filter((a) => a !== alias) },
-      { aliases: on ? { add: [alias] } : { remove: [alias] } },
+      { aliases },
+      { aliases: { add: aliases.filter((a) => !old.includes(a)), remove: old.filter((a) => !aliases.includes(a)) } },
     )
   }
   // 先に画面を変えておき、ファイルを変えられなかったら元に戻す
@@ -541,7 +541,7 @@ export function App(props: AppProps) {
       onBody={(id, body) => editItem(id, { body }, { body })}
       onRename={renameItem}
       onProject={moveItem}
-      onAlias={aliasItem}
+      onAliases={setAliases}
       onTag={tagItem}
       recentTags={recentTags()}
       onCreateNote={addNote}

@@ -1,4 +1,5 @@
 .root {
+  container-type: inline-size;
   min-height: 300px;
 }
 .root :global(.cm-editor) {
@@ -195,9 +196,12 @@
   display: none;
 }
 
+/* 左右を空け、隣に来たカーソルを選んだときの枠の外に出す。--embed-room は、その分を除いた本文の幅 */
 .embed {
+  --embed-room: calc(100cqw - 12px);
   display: inline-block;
-  max-width: 100%;
+  max-width: var(--embed-room);
+  margin: 0 6px;
   vertical-align: bottom;
 }
 .embed[data-selected='true'] {
@@ -205,14 +209,20 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* 大きさは、ふだんの大きさ（本文の幅か、高さ 520px までに収めた画像）に --embed-scale を掛ける */
 .embed[data-wide='true'] {
-  width: 100%;
+  width: calc(var(--embed-room) * var(--embed-scale, 1));
 }
 .embed > img {
   display: block;
   max-width: 100%;
   max-height: 520px;
   border-radius: var(--radius-md);
+}
+.embed[data-scaled='true'] > img {
+  width: calc(min(var(--natural-width), var(--embed-room), 520px * var(--natural-ratio)) * var(--embed-scale));
+  max-width: var(--embed-room);
+  max-height: none;
 }
 .mounted {
   --player-screen-max: 520px;
@@ -375,8 +385,19 @@
   white-space: nowrap;
   cursor: pointer;
 }
-.linkMenu button:hover {
+.linkMenu button:hover,
+.linkMenu button[aria-expanded='true'] {
   background: var(--accent-soft);
+}
+.linkMenu button[aria-pressed='true'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+.menuSep {
+  align-self: stretch;
+  width: 1px;
+  margin: 3px 2px;
+  background: var(--line-2);
 }
 .caret {
   position: fixed;

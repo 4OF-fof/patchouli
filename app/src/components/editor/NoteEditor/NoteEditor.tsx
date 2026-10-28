@@ -4,7 +4,7 @@ import { EditorState, Prec, Transaction } from '@codemirror/state'
 import { EditorView, type ViewUpdate, keymap } from '@codemirror/view'
 import { GFM } from '@lezer/markdown'
 import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
-import { type Item, LINK_SCHEME, type Library, plainText, thumbOf } from '../../../model/library'
+import { EMBED_SCALES, type Item, type Library, hrefOf, plainText, thumbOf } from '../../../model/library'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { LinkPicker } from '../../nav/LinkPicker/LinkPicker'
 import { QuickView } from '../../overlay/QuickView/QuickView'
@@ -67,6 +67,8 @@ interface Picking {
   restore?: string
   /** 選んだ文字をリンクの表示名にする。 */
   mark?: boolean
+  /** 置き換える埋め込みの大きさ。 */
+  scale?: number
 }
 
 interface Hover extends At {
@@ -108,7 +110,23 @@ function scrollerOf(v: EditorView) {
   return undefined
 }
 
-const refText = (it: Item, embed: boolean) => `${embed ? '!' : ''}[${escapeLabel(it.name)}](${LINK_SCHEME}${it.id})`
+const refText = (it: Item, embed: boolean, scale?: number) =>
+  `${embed ? '!' : ''}[${escapeLabel(it.name)}](${hrefOf(it.id, scale)})`
+
+/** 埋め込みの左右の空き（NoteEditor.module.css の .embed の margin）。 */
+const EMBED_GAP = 12
+
+/**
+ * 埋め込みに選べる大きさ。本文の幅を超えるものは出さない。
+ * 本文の幅いっぱいに描くものは 100% まで、画像はふだんの大きさ（高さ 520px・本文の幅まで）から数える。
+ */
+function scalesOf(embed: HTMLElement, width: number) {
+  if (embed.dataset.wide === 'true') return EMBED_SCALES.filter((s) => s <= 100)
+  const img = embed.querySelector('img')
+  if (!img?.naturalWidth || !img.naturalHeight) return []
+  const base = Math.min(img.naturalWidth, width, (520 * img.naturalWidth) / img.naturalHeight)
+  return EMBED_SCALES.filter((s) => (base * s) / 100 <= width + 0.5)
+}
 
 const coords = (v: EditorView, pos: number): At | undefined => {
   const c = v.coordsAtPos(pos)
@@ -493,7 +511,7 @@ export function NoteEditor(props: NoteEditorProps) {
     setPicking(undefined)
     const v = view
     if (!v || !p) return
-    const text = p.mark ? `[${v.state.sliceDoc(p.from, p.to)}](${LINK_SCHEME}${it.id})` : refText(it, p.embed)
+    const text = p.mark ? `[${v.state.sliceDoc(p.from, p.to)}](${hrefOf(it.id)})` : refText(it, p.embed, p.scale)
     v.dispatch({
       changes: { from: p.from, to: p.to, insert: text },
       selection: { anchor: p.from + text.length },
@@ -508,6 +526,25 @@ export function NoteEditor(props: NoteEditorProps) {
     const { from, to } = v.state.selection.main
     if (unlinkAt(v, from, to)) return
     setPicking({ embed: false, from, to, mark: true })
+  }
+
+  const [sizing, setSizing] = createSignal(false)
+  createEffect(
+    on(
+      () => active()?.from,
+      () => setSizing(false),
+    ),
+  )
+  const scales = (r: Ref) => {
+    const el =
+      r.id && root.querySelector<HTMLElement>(`.${styles.embed}[data-ref="${CSS.escape(r.id)}"][data-selected="true"]`)
+    return el ? scalesOf(el, root.clientWidth - EMBED_GAP) : []
+  }
+  const resize = (r: Ref, scale: number) => {
+    const v = view
+    if (!v || !r.id) return
+    v.dispatch({ changes: { from: r.url.from, to: r.url.to, insert: hrefOf(r.id, scale) } })
+    v.focus()
   }
 
   /** ホバーしているリンク先。カーソルのあるリンクはメニューを出すので浮かべない。 */
@@ -578,9 +615,27 @@ export function NoteEditor(props: NoteEditorProps) {
               <button type="button" onClick={() => props.onOpenRef?.(r().id ?? '')}>
                 開く
               </button>
-              <button type="button" onClick={() => setPicking({ embed: embed(), from: r().from, to: r().to })}>
+              <button
+                type="button"
+                onClick={() => setPicking({ embed: embed(), from: r().from, to: r().to, scale: r().scale })}
+              >
                 アセットを選択
               </button>
+              <Show when={embed() && scales(r()).length > 1}>
+                <button type="button" aria-expanded={sizing()} onClick={() => setSizing(!sizing())}>
+                  サイズを変更
+                </button>
+                <Show when={sizing()}>
+                  <span class={styles.menuSep} />
+                  <For each={scales(r())}>
+                    {(s) => (
+                      <button type="button" aria-pressed={r().scale === s} onClick={() => resize(r(), s)}>
+                        {s}%
+                      </button>
+                    )}
+                  </For>
+                </Show>
+              </Show>
               <Show when={!embed()}>
                 <button
                   type="button"

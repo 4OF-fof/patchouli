@@ -1,7 +1,9 @@
 import { For, Show, createEffect, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
+import { Select } from '../../components/controls/Select/Select'
 import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
+import { TextList } from '../../components/controls/TextList/TextList'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
@@ -26,7 +28,7 @@ export interface NoteScreenProps {
   onBody?: (id: string, body: string) => void
   onRename?: (id: string, name: string) => void
   onProject?: (id: string, folder: string | null) => void
-  onAlias?: (id: string, alias: string, on: boolean) => void
+  onAliases?: (id: string, aliases: string[]) => void
   onTag?: (id: string, tag: string, on: boolean) => void
   recentTags?: string[]
   suggestTags?: (id: string) => Promise<string[]>
@@ -91,12 +93,10 @@ export function NoteScreen(props: NoteScreenProps) {
   )
   const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
 
-  const addAlias = (el: HTMLInputElement) => {
-    const n = note()
-    const a = el.value.trim()
-    el.value = ''
-    if (n && a && a !== n.name && !n.aliases?.includes(a)) props.onAlias?.(n.id, a, true)
-  }
+  const projectOptions = () => [
+    { value: '', label: 'プロジェクトなし' },
+    ...lib().projects.map((p) => ({ value: p.name, label: p.name })),
+  ]
 
   const rename = (el: HTMLInputElement) => {
     const n = note()
@@ -143,36 +143,20 @@ export function NoteScreen(props: NoteScreenProps) {
                 <dl class={styles.panel}>
                   <dt>プロジェクト</dt>
                   <dd>
-                    <select
+                    <Select
                       aria-label="プロジェクト"
                       value={n().folder ?? ''}
-                      onChange={(e) => props.onProject?.(n().id, e.currentTarget.value || null)}
-                    >
-                      <option value="">プロジェクトなし</option>
-                      <For each={lib().projects}>{(p) => <option value={p.name}>{p.name}</option>}</For>
-                    </select>
+                      options={projectOptions()}
+                      onChange={(v) => props.onProject?.(n().id, v || null)}
+                    />
                   </dd>
-                  <dt>別名</dt>
-                  <dd class={styles.chips}>
-                    <For each={n().aliases ?? []}>
-                      {(a) => (
-                        <Chip aria-label={`別名「${a}」を削除`} onClick={() => props.onAlias?.(n().id, a, false)}>
-                          {a}
-                          <Icon name="close" size={12} />
-                        </Chip>
-                      )}
-                    </For>
-                    <input
-                      class={styles.alias}
-                      type="text"
-                      placeholder="別名を追加"
-                      aria-label="別名を追加"
-                      onKeyDown={(e) => {
-                        if (e.key !== 'Enter' || e.isComposing) return
-                        e.preventDefault()
-                        addAlias(e.currentTarget)
-                      }}
-                      onBlur={(e) => addAlias(e.currentTarget)}
+                  <dt class={styles.top}>別名</dt>
+                  <dd>
+                    <TextList
+                      name="別名"
+                      values={n().aliases ?? []}
+                      reject={(v) => v === n().name}
+                      onChange={(list) => props.onAliases?.(n().id, list)}
                     />
                   </dd>
                   <dt>タグ</dt>

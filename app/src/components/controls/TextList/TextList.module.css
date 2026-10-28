@@ -1,0 +1,34 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-list);
+}
+.input:focus-visible {
+  border-color: var(--accent);
+  outline: 0;
+}
+.remove {
+  flex: none;
+}
+.add {
+  margin-top: 2px;
+}

@@ -1,5 +1,6 @@
-import { For, Match, Switch, createUniqueId } from 'solid-js'
+import { Match, Switch, createUniqueId } from 'solid-js'
 import type { Setting, SettingValue } from '../../../plugins/types'
+import { Select } from '../Select/Select'
 import styles from './SettingField.module.css'
 
 export interface SettingFieldProps {
@@ -65,15 +66,14 @@ export function SettingField(props: SettingFieldProps) {
           />
         </Match>
         <Match when={s().kind === 'choice'}>
-          <select
+          <Select
             id={id}
-            class={styles.input}
+            class={styles.choice}
             value={String(s().value)}
+            options={choices()}
             disabled={props.disabled}
-            onChange={(e) => props.onChange?.(e.currentTarget.value)}
-          >
-            <For each={choices()}>{(o) => <option value={o.value}>{o.label}</option>}</For>
-          </select>
+            onChange={(v) => props.onChange?.(v)}
+          />
         </Match>
       </Switch>
       {s().help && <p class={styles.help}>{s().help}</p>}

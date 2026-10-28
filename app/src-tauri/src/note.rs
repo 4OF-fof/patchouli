@@ -143,7 +143,7 @@ fn code_end(b: &[u8], mut j: usize, n: usize) -> Option<usize> {
     None
 }
 
-/// i の `[` から始まる patchouli: のリンクの、終わりの位置と表示名と ID。
+/// i の `[` から始まる patchouli: のリンクの、終わりの位置と表示名とリンク先（ID と、埋め込みの大きさなどの ?〜）。
 fn link_at(line: &str, i: usize) -> Option<(usize, &str, &str)> {
     let b = line.as_bytes();
     let mut j = i + 1;
@@ -182,12 +182,13 @@ fn rename_in_line<'a>(
                 i = code_end(b, i + n, n).unwrap_or(i + n);
             }
             b'[' => match link_at(line, i) {
-                Some((end, text, id)) => {
+                Some((end, text, target)) => {
+                    let id = target.split('?').next().unwrap_or(target);
                     if let Some(name) = name_of(id)
                         && unescape(text) != name
                     {
                         out.push_str(&line[copied..i]);
-                        out.push_str(&format!("[{}]({LINK_SCHEME}{id})", escape(name)));
+                        out.push_str(&format!("[{}]({LINK_SCHEME}{target})", escape(name)));
                         copied = end;
                         changed = true;
                     }

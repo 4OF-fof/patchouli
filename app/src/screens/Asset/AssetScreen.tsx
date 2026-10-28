@@ -17,6 +17,7 @@ import { Chip } from '../../components/controls/Chip/Chip'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
+import { Select } from '../../components/controls/Select/Select'
 import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
 import { AudioPlayer } from '../../components/media/AudioPlayer/AudioPlayer'
@@ -372,16 +373,18 @@ export function AssetScreen(props: AssetScreenProps) {
                       <span class={styles.k}>名前</span>
                       <NameField value={a().name} onChange={(name) => props.onRename?.(a().id, name)} />
                     </div>
-                    <label class={styles.fl}>
+                    <div class={styles.fl}>
                       <span class={styles.k}>プロジェクト</span>
-                      <select
+                      <Select
+                        aria-label="プロジェクト"
                         value={a().folder ?? ''}
-                        onChange={(e) => props.onProject?.(a().id, e.currentTarget.value || null)}
-                      >
-                        <option value="">プロジェクトなし</option>
-                        <For each={lib().projects}>{(p) => <option value={p.name}>{p.name}</option>}</For>
-                      </select>
-                    </label>
+                        options={[
+                          { value: '', label: 'プロジェクトなし' },
+                          ...lib().projects.map((p) => ({ value: p.name, label: p.name })),
+                        ]}
+                        onChange={(v) => props.onProject?.(a().id, v || null)}
+                      />
+                    </div>
                     <div class={styles.fl}>
                       <span class={styles.k}>タグ</span>
                       <div class={styles.tags}>

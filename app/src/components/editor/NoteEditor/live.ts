@@ -12,11 +12,10 @@ import {
 import { Decoration, type DecorationSet, EditorView, WidgetType, keymap } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import type { Mounted } from 'pele/lazy'
-import { LINK_SCHEME } from '../../../model/library'
+import { targetOf } from '../../../model/library'
 import { TableWidget, enterTable } from './table'
 
-export const idOfHref = (href: unknown) =>
-  typeof href === 'string' && href.startsWith(LINK_SCHEME) ? href.slice(LINK_SCHEME.length) : undefined
+export const idOfHref = (href: unknown) => (typeof href === 'string' ? targetOf(href)?.id : undefined)
 
 export const escapeLabel = (s: string) => s.replace(/[\\[\]]/g, '\\$&')
 
@@ -41,7 +40,10 @@ export interface Ref {
   to: number
   href: string
   id?: string
+  /** 埋め込みの大きさ（%）。 */
+  scale: number
   label: { from: number; to: number }
+  url: { from: number; to: number }
 }
 
 const refOf = (state: EditorState, n: SyntaxNode): Ref | undefined => {
@@ -51,13 +53,16 @@ const refOf = (state: EditorState, n: SyntaxNode): Ref | undefined => {
   const close = marks[1]
   if (!url || !open || !close) return undefined
   const href = state.sliceDoc(url.from, url.to)
+  const t = targetOf(href)
   return {
     kind: n.name === 'Image' ? 'embed' : 'link',
     from: n.from,
     to: n.to,
     href,
-    id: idOfHref(href),
+    id: t?.id,
+    scale: t?.scale ?? 100,
     label: { from: open.to, to: close.from },
+    url: { from: url.from, to: url.to },
   }
 }
 
@@ -202,9 +207,28 @@ interface EmbedSpec {
   src: string
   alt: string
   name: string | undefined
+  scale: number
   version: number
   /** カーソルが接しているか。 */
   selected: boolean
+}
+
+/** 画像のもとの大きさを、ふだんの大きさを CSS で決めるために渡す。 */
+const imageOf = (src: string, alt: string) => {
+  const img = document.createElement('img')
+  img.addEventListener('load', () => {
+    if (!img.naturalWidth || !img.naturalHeight) return
+    img.style.setProperty('--natural-width', `${img.naturalWidth}px`)
+    img.style.setProperty('--natural-ratio', String(img.naturalWidth / img.naturalHeight))
+  })
+  img.src = src
+  img.alt = alt
+  return img
+}
+
+const scaleTo = (dom: HTMLElement, scale: number) => {
+  dom.dataset.scaled = String(scale !== 100)
+  dom.style.setProperty('--embed-scale', String(scale / 100))
 }
 
 class EmbedView extends WidgetType {
@@ -212,6 +236,7 @@ class EmbedView extends WidgetType {
   readonly src: string
   readonly alt: string
   readonly name: string | undefined
+  readonly scale: number
   readonly version: number
   readonly selected: boolean
   readonly hooks: LiveHooks
@@ -222,17 +247,18 @@ class EmbedView extends WidgetType {
     this.src = spec.src
     this.alt = spec.alt
     this.name = spec.name
+    this.scale = spec.scale
     this.version = spec.version
     this.selected = spec.selected
     this.hooks = hooks
   }
 
   private same(o: EmbedView) {
-    return o.id === this.id && o.src === this.src && o.alt === this.alt && o.name === this.name
+    return o.id === this.id && (!!this.id || o.src === this.src) && o.alt === this.alt && o.name === this.name
   }
 
   eq(o: EmbedView) {
-    return this.same(o) && o.selected === this.selected && o.version === this.version
+    return this.same(o) && o.selected === this.selected && o.scale === this.scale && o.version === this.version
   }
 
   /**
@@ -242,6 +268,7 @@ class EmbedView extends WidgetType {
   updateDOM(dom: HTMLElement, _view: EditorView, from: this) {
     if (!this.same(from)) return false
     dom.dataset.selected = String(this.selected)
+    scaleTo(dom, this.scale)
     if (from.version !== this.version) this.load(dom)
     return true
   }
@@ -252,11 +279,9 @@ class EmbedView extends WidgetType {
     const dom = document.createElement('span')
     dom.className = classes.embed ?? ''
     dom.dataset.selected = String(this.selected)
+    scaleTo(dom, this.scale)
     if (!id) {
-      const img = document.createElement('img')
-      img.src = this.src
-      img.alt = this.alt
-      dom.append(img)
+      dom.append(imageOf(this.src, this.alt))
       return dom
     }
     dom.dataset.ref = id
@@ -306,10 +331,7 @@ class EmbedView extends WidgetType {
         dom.replaceChildren(card)
         return
       }
-      const img = document.createElement('img')
-      img.src = e.src
-      img.alt = name
-      dom.replaceChildren(img)
+      dom.replaceChildren(imageOf(e.src, name))
     })
   }
 
@@ -569,7 +591,7 @@ function build(state: EditorState, h: LiveHooks, version: number): Built {
           const alt = state.sliceDoc(r.label.from, r.label.to)
           const name = r.id ? h.nameOf(r.id) : undefined
           const selected = near(n.from, n.to)
-          const widget = new EmbedView({ id: r.id, src: r.href, alt, name, version, selected }, h)
+          const widget = new EmbedView({ id: r.id, src: r.href, alt, name, scale: r.scale, version, selected }, h)
           out.push(Decoration.replace({ widget }).range(n.from, n.to))
           atoms.push(Decoration.mark({}).range(n.from, n.to))
           return false

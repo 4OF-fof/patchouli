@@ -49,7 +49,20 @@ export interface Project {
 
 export const LINK_SCHEME = 'patchouli:'
 
-const LINK_RE = /!?\[((?:\\.|[^\]\\])*)\]\(patchouli:([^)\s]+)\)/g
+/** 埋め込みの大きさ。ふだんの大きさに対する %。リンク先の後ろに ?w=50% のように書き、100 のときは書かない */
+export const EMBED_SCALES = [25, 50, 75, 100, 125, 150, 200]
+
+/** リンク先の ID と、?w= に書いた埋め込みの大きさ。 */
+export function targetOf(href: string): { id: string; scale: number } | undefined {
+  if (!href.startsWith(LINK_SCHEME)) return undefined
+  const [id = '', query = ''] = href.slice(LINK_SCHEME.length).split('?', 2)
+  const w = Number(/(?:^|&)w=(\d+)%(?:&|$)/.exec(query)?.[1])
+  return id ? { id, scale: EMBED_SCALES.includes(w) ? w : 100 } : undefined
+}
+
+export const hrefOf = (id: string, scale = 100) => `${LINK_SCHEME}${id}${scale === 100 ? '' : `?w=${scale}%`}`
+
+const LINK_RE = /!?\[((?:\\.|[^\]\\])*)\]\(patchouli:([^)\s?]+)[^)\s]*\)/g
 
 export function refsOf(body: string): string[] {
   const out = new Set<string>()

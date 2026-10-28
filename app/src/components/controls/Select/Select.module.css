@@ -1,0 +1,85 @@
+/* 置き場所の側で、--select-width と --select-min-width で幅を変えられる */
+.root {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: var(--select-width, 100%);
+  min-width: var(--select-min-width, 0);
+  height: 28px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-list);
+  text-align: left;
+  cursor: pointer;
+}
+.root:hover {
+  border-color: var(--faint);
+}
+.root:focus-visible,
+.root[aria-expanded='true'] {
+  border-color: var(--accent);
+  outline: 0;
+}
+.root:disabled {
+  color: var(--faint);
+  cursor: default;
+}
+.value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chevron {
+  flex: none;
+  color: var(--muted);
+  rotate: 90deg;
+  transition: rotate 0.15s ease;
+}
+.root[aria-expanded='true'] .chevron {
+  rotate: -90deg;
+}
+
+.list {
+  position: fixed;
+  z-index: 60;
+  max-height: 260px;
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--menu);
+  box-shadow: var(--shadow-float);
+  outline: 0;
+}
+.list[data-up='true'] {
+  transform: translateY(-100%);
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  font-size: var(--fs-list);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.option > span {
+  flex: 1;
+}
+.option[data-active='true'] {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.option[aria-selected='true'] {
+  color: var(--accent);
+  font-weight: 600;
+}

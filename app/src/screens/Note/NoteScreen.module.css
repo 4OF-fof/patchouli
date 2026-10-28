@@ -61,39 +61,19 @@
   align-self: center;
   color: var(--muted);
 }
+/* 何行にもなる欄は、名前を 1 行目にそろえる */
+.panel dt.top {
+  align-self: start;
+  line-height: 28px;
+}
 .panel dd {
   margin: 0;
-}
-.panel select,
-.alias {
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-  color: var(--ink);
-  font-size: var(--fs-list);
-}
-.panel select {
-  width: 100%;
-}
-.panel select:focus-visible,
-.alias:focus-visible {
-  border-color: var(--accent);
-  outline: 0;
-}
-.panel option {
-  background: var(--float);
 }
 .chips {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-}
-.alias {
-  flex: 1;
-  min-width: 120px;
 }
 .tags {
   position: relative;

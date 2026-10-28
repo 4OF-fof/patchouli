@@ -84,26 +84,6 @@
   background: none;
   font-size: var(--fs-meta);
 }
-.pselect {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  border-radius: var(--radius-md);
-  background: var(--card);
-  color: var(--ink-2);
-}
-.pselect select {
-  flex: 1;
-  min-width: 0;
-  height: 30px;
-  border: 0;
-  background: transparent;
-  color: inherit;
-  font-size: var(--fs-list);
-  font-weight: 400;
-  cursor: pointer;
-}
 .hint {
   font-size: var(--fs-meta);
   color: var(--faint);
