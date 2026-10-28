@@ -49,7 +49,7 @@ export interface Project {
 
 export const LINK_SCHEME = 'patchouli:'
 
-const LINK_RE = /!?\[([^\]]*)\]\(patchouli:([^)\s]+)\)/g
+const LINK_RE = /!?\[((?:\\.|[^\]\\])*)\]\(patchouli:([^)\s]+)\)/g
 
 export function refsOf(body: string): string[] {
   const out = new Set<string>()
@@ -59,9 +59,10 @@ export function refsOf(body: string): string[] {
 
 const inlineText = (s: string) =>
   s
-    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/!\[(?:\\.|[^\]\\])*\]\([^)]*\)/g, '')
+    .replace(/\[((?:\\.|[^\]\\])*)\]\([^)]*\)/g, '$1')
     .replace(/[*`~]+/g, '')
+    .replace(/\\([!-/:-@[-`{-~])/g, '$1')
 
 const FENCE_RE = /^ {0,3}(```|~~~)/
 

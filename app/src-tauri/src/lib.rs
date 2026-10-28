@@ -330,6 +330,12 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
     opened.problems.extend(plugin_problems);
     let runner = Arc::new(Mutex::new(Runner::new(Arc::clone(&plugins))));
     let id = next_session();
+    let mut lib = lib;
+    for it in lib.sync_link_names() {
+        if let Some(x) = opened.items.iter_mut().find(|x| x.id == it.id) {
+            *x = it;
+        }
+    }
     *cur.0.lock().map_err(|e| e.to_string())? = Some(Session {
         id,
         lib,
@@ -441,7 +447,14 @@ fn check(
             return;
         };
         match g.as_mut() {
-            Some(s) if s.id == id => s.lib.apply(fresh, scan),
+            Some(s) if s.id == id => {
+                let mut changes = s.lib.apply(fresh, scan);
+                for it in s.lib.sync_link_names() {
+                    changes.items.retain(|x| x.id != it.id);
+                    changes.items.push(it);
+                }
+                changes
+            }
             _ => return,
         }
     };
@@ -1129,11 +1142,20 @@ async fn move_item(
 
 #[tauri::command]
 async fn rename_item(
+    app: tauri::AppHandle,
     cur: State<'_, Current>,
     id: String,
     name: String,
 ) -> Result<StoredItem, String> {
-    with(&cur, |l| l.rename_item(&id, &name))
+    let (it, renamed) = with(&cur, |l| Ok((l.rename_item(&id, &name)?, l.sync_link_names())))?;
+    if !renamed.is_empty() {
+        let changes = library::Changes {
+            items: renamed,
+            ..library::Changes::default()
+        };
+        let _ = app.emit("library-changed", &changes);
+    }
+    Ok(it)
 }
 
 #[tauri::command]

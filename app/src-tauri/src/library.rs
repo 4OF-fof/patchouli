@@ -781,6 +781,45 @@ impl Library {
         Ok(row.item)
     }
 
+    /// ノートのリンクの表示名を、リンク先のいまの名前に書き換える。書き換えたノートを返す。
+    pub fn sync_link_names(&mut self) -> Vec<StoredItem> {
+        let rows = self.cache.rows();
+        let names: HashMap<&str, &str> = rows
+            .values()
+            .map(|r| (r.item.id.as_str(), r.item.name.as_str()))
+            .collect();
+        // 外で変わったまま読み直していないものは、読み直したあとに回す
+        let stale: Vec<(String, String)> = rows
+            .values()
+            .filter(|r| r.item.note && r.sig == Sig::of(&r.item.file, true))
+            .filter_map(|r| {
+                let body = r.item.body.as_deref()?;
+                let new = note::rename_links(body, |id| names.get(id).copied())?;
+                Some((r.item.id.clone(), new))
+            })
+            .collect();
+        stale
+            .into_iter()
+            .filter_map(|(id, body)| {
+                let patch = ItemPatch {
+                    body: Some(body),
+                    ..ItemPatch::default()
+                };
+                match self.save_item(&id, &patch) {
+                    Ok(Some(it)) => Some(it),
+                    Ok(None) => {
+                        let path = self.entry(&id).ok()?.path.clone();
+                        self.cache.row(&path).map(|r| r.item)
+                    }
+                    Err(e) => {
+                        log::warn!("リンクの表示名を書き換えられない: {e}");
+                        None
+                    }
+                }
+            })
+            .collect()
+    }
+
     fn ensure_saved(&mut self, id: &str) -> Result<(), String> {
         match self.entries.get(id) {
             Some(e) if !e.saved => self.save_item(id, &ItemPatch::default()).map(drop),
