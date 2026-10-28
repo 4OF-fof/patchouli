@@ -17,8 +17,15 @@
     margin-right: auto;
   }
 }
-.doc h1 {
+.name {
+  width: 100%;
   margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
   font-size: var(--fs-title);
   font-weight: 700;
   line-height: 1.25;
@@ -65,42 +72,6 @@
   background: var(--card);
   font-size: var(--fs-list);
 }
-.body {
-  min-height: 300px;
-  font-size: var(--note-body);
-  line-height: 1.9;
-  color: var(--ink-2);
-}
-.body p {
-  margin: 0 0 14px;
-}
-.body h2 {
-  margin: 22px 0 8px;
-  font-size: var(--note-h2);
-  font-weight: 700;
-  line-height: 1.35;
-  color: var(--ink);
-}
-.body ul {
-  margin: 0 0 14px;
-  padding-left: 1.4em;
-}
-.wl {
-  display: inline;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  color: var(--wl);
-  text-decoration: underline dotted;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-.wl[data-missing='true'] {
-  color: var(--faint);
-  text-decoration-style: dashed;
-}
-
 .bar {
   --top-bar-z: 6;
   transition:

@@ -1,4 +1,4 @@
-import type { CoverPart, Item, Library, NoteBlock, Project, TagCoverPart, Thumbnail } from '../model/library'
+import type { CoverPart, Item, Library, Project, TagCoverPart, Thumbnail } from '../model/library'
 import type { ItemDetails, ItemView, Part, PluginActions, PluginReport, UiRef } from '../plugins/types'
 import type { UiApi, UiItem } from '../plugins/ui'
 
@@ -19,7 +19,7 @@ export interface ItemPatch {
   aliases?: ListDiff
   rating?: number
   memo?: string
-  blocks?: NoteBlock[]
+  body?: string
 }
 
 export interface Opened {

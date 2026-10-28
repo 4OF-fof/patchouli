@@ -1,11 +1,6 @@
 import { BUILTIN_FORMATS } from '../plugins/builtin'
 import type { Fit, FormatInfo } from '../plugins/types'
 
-export interface NoteBlock {
-  type: 'p' | 'h2' | 'li'
-  text: string
-}
-
 export interface TagCandidate {
   tag: string
   conf: string
@@ -30,7 +25,7 @@ export interface Item {
   ext: string
   rating: number
   memo: string
-  blocks?: NoteBlock[]
+  body?: string
   aliases?: string[]
   suggestion?: Suggestion
   src?: string
@@ -52,31 +47,55 @@ export interface Project {
   cover: CoverPart[]
 }
 
+export const LINK_SCHEME = 'patchouli:'
+
 const LINK_RE = /!?\[([^\]]*)\]\(patchouli:([^)\s]+)\)/g
 
-export function refsOfBlocks(blocks: NoteBlock[]): string[] {
+export function refsOf(body: string): string[] {
   const out = new Set<string>()
-  for (const b of blocks) for (const m of b.text.matchAll(LINK_RE)) if (m[2]) out.add(m[2])
+  for (const m of body.matchAll(LINK_RE)) if (m[2]) out.add(m[2])
   return [...out]
 }
 
-export function plainText(blocks: NoteBlock[]): string {
-  return blocks
-    .map((b) => b.text.replace(LINK_RE, '$1'))
+const inlineText = (s: string) =>
+  s
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*`~]+/g, '')
+
+const FENCE_RE = /^ {0,3}(```|~~~)/
+
+export function plainText(body: string): string {
+  return body
+    .split('\n')
+    .filter((l) => !FENCE_RE.test(l) && !/^\s*\|?\s*:?-{3,}/.test(l))
+    .map((l) =>
+      inlineText(
+        l
+          .replace(/^ {0,3}#{1,6}\s+/, '')
+          .replace(/^\s*(?:>\s?)+/, '')
+          .replace(/^\s*(?:[-*+]|\d+[.)])\s+(?:\[[ xX]\]\s+)?/, ''),
+      ).replace(/\|/g, ' '),
+    )
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim()
 }
 
-export function splitLinks(text: string): ({ text: string } | { ref: string; label: string })[] {
-  const out: ({ text: string } | { ref: string; label: string })[] = []
-  let last = 0
-  for (const m of text.matchAll(LINK_RE)) {
-    if (m.index > last) out.push({ text: text.slice(last, m.index) })
-    out.push({ ref: m[2] ?? '', label: m[1] ?? '' })
-    last = m.index + m[0].length
+export interface Heading {
+  level: number
+  text: string
+}
+
+export function headingsOf(body: string): Heading[] {
+  const out: Heading[] = []
+  let fence = false
+  for (const l of body.split('\n')) {
+    if (FENCE_RE.test(l)) fence = !fence
+    if (fence) continue
+    const m = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(l)
+    if (m?.[1] && m[2]) out.push({ level: m[1].length, text: inlineText(m[2]) })
   }
-  if (last < text.length) out.push({ text: text.slice(last) })
   return out
 }
 
@@ -119,8 +138,8 @@ export function buildLibrary(
   const links = new Map<string, Item[]>()
   const back = new Map<string, Item[]>()
   for (const n of items) {
-    if (!n.note || !n.blocks) continue
-    const to = refsOfBlocks(n.blocks)
+    if (!n.note || !n.body) continue
+    const to = refsOf(n.body)
       .map((r) => byId.get(r))
       .filter((x): x is Item => !!x && x !== n)
     links.set(n.id, to)
@@ -231,7 +250,7 @@ export const emptyNote = (id: string, name: string, folder: string | null = null
   ratio: 0.8,
   rating: 0,
   memo: '',
-  blocks: [],
+  body: '',
   aliases: [],
 })
 
@@ -323,7 +342,7 @@ export type CardSize = 'L' | 'M' | 'S' | 'X'
 export function thumbOf(it: Item, size: CardSize = 'M') {
   if (!it.note) return { hue: it.hue, sat: it.sat, src: it.thumb, id: it.id, fit: it.fit }
   if (size === 'X') return { note: true, excerpt: it.name }
-  const ex = plainText(it.blocks ?? [])
+  const ex = plainText(it.body ?? '')
   const lim = size === 'L' ? 140 : size === 'S' ? 0 : 46
   return { note: true, title: it.name, excerpt: lim ? ex.slice(0, lim) + (ex.length > lim ? '…' : '') : '' }
 }
@@ -336,7 +355,7 @@ export function coverOf(lib: Library, p: Project, n: number) {
 }
 
 export const coverTile = (it: Item) =>
-  it.note ? { note: true, title: it.name, excerpt: plainText(it.blocks ?? []).slice(0, 400) } : thumbOf(it)
+  it.note ? { note: true, title: it.name, excerpt: plainText(it.body ?? '').slice(0, 400) } : thumbOf(it)
 
 export function nextDue(p: Project): string | undefined {
   return p.cover

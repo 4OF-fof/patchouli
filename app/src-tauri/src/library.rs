@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use crate::cache::{Cache, Row, Sig};
-use crate::note::{self, Block};
+use crate::note;
 use crate::plugin::{FormatInfo, Registry};
 
 pub const ID_KEY: &str = "patchouli-id";
@@ -51,7 +51,7 @@ pub struct StoredItem {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aliases: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub blocks: Option<Vec<Block>>,
+    pub body: Option<String>,
     pub mtime: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub width: Option<u32>,
@@ -145,12 +145,12 @@ pub struct ItemPatch {
     pub aliases: Option<ListDiff>,
     pub rating: Option<u8>,
     pub memo: Option<String>,
-    pub blocks: Option<Vec<Block>>,
+    pub body: Option<String>,
 }
 
 impl ItemPatch {
     fn has_text(&self) -> bool {
-        self.memo.is_some() || self.blocks.is_some()
+        self.memo.is_some() || self.body.is_some()
     }
 }
 
@@ -585,7 +585,7 @@ impl Library {
                 rating: r.rating,
                 memo: r.memo,
                 aliases: r.aliases,
-                blocks: r.blocks,
+                body: r.body,
                 mtime: mtime_of(path),
                 width: None,
                 height: None,
@@ -609,8 +609,8 @@ impl Library {
         };
         let r = read.ok()?;
         let it = &mut row.item;
-        (it.tags, it.rating, it.memo, it.aliases, it.blocks) =
-            (r.tags, r.rating, r.memo, r.aliases, r.blocks);
+        (it.tags, it.rating, it.memo, it.aliases, it.body) =
+            (r.tags, r.rating, r.memo, r.aliases, r.body);
         it.mtime = mtime_of(&path);
         row.saved = true;
         row.sig = Sig::of(&path, note);
@@ -658,7 +658,7 @@ impl Library {
                 aliases: patch.aliases.clone(),
                 rating: patch.rating,
                 memo: None,
-                blocks: None,
+                body: None,
             };
             &stripped
         } else {
@@ -850,7 +850,7 @@ impl Library {
             rating: 0,
             memo: String::new(),
             aliases: Some(vec![]),
-            blocks: Some(vec![]),
+            body: Some(String::new()),
             mtime: mtime_of(&path),
             width: None,
             height: None,
@@ -970,7 +970,7 @@ struct Read {
     rating: u8,
     memo: String,
     aliases: Option<Vec<String>>,
-    blocks: Option<Vec<Block>>,
+    body: Option<String>,
 }
 
 fn read_note(path: &Path) -> Result<Read, String> {
@@ -983,7 +983,7 @@ fn read_note(path: &Path) -> Result<Read, String> {
         rating: 0,
         memo: String::new(),
         aliases: Some(note::list_of(&v, "aliases")),
-        blocks: Some(note::blocks_of(parts.body)),
+        body: Some(parts.body.trim_start_matches(['\r', '\n']).to_owned()),
     })
 }
 
@@ -1002,7 +1002,7 @@ fn read_asset(path: &Path) -> Result<Read, String> {
             .unwrap_or_default()
             .to_owned(),
         aliases: None,
-        blocks: None,
+        body: None,
     })
 }
 
@@ -1019,8 +1019,8 @@ fn save_note(path: &Path, id: &str, patch: &ItemPatch) -> Result<(), String> {
             }
         }
     }
-    let body = match &patch.blocks {
-        Some(b) => note::body_of(b),
+    let body = match &patch.body {
+        Some(b) => format!("\n{}", b.trim_start_matches(['\r', '\n'])),
         None if parts.front.is_none() => format!("\n{}", parts.body),
         None => parts.body.to_owned(),
     };

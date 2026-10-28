@@ -4,7 +4,7 @@ import { Kbd } from '../../base/Kbd/Kbd'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import styles from './SearchPalette.module.css'
 
-export type SearchMode = 'search' | 'prompt' | 'link'
+export type SearchMode = 'search' | 'prompt' | 'link' | 'embed'
 
 const MODES: Record<SearchMode, { label: string; placeholder: string; hints: [string, string][] }> = {
   search: {
@@ -31,6 +31,15 @@ const MODES: Record<SearchMode, { label: string; placeholder: string; hints: [st
     placeholder: 'リンクするノートや素材を検索',
     hints: [
       ['Enter', 'リンク'],
+      ['Ctrl Enter', 'ノートを作成'],
+      ['Esc', '閉じる'],
+    ],
+  },
+  embed: {
+    label: '埋め込み',
+    placeholder: '埋め込む素材を検索',
+    hints: [
+      ['Enter', '埋め込む'],
       ['Esc', '閉じる'],
     ],
   },

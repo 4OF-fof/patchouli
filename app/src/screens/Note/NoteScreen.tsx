@@ -1,11 +1,12 @@
-import { For, type JSX, Show, createSignal } from 'solid-js'
+import { For, Show, createSignal, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { LinkCaption, LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
-import { type Library, type NoteBlock, refsOfBlocks, relDay, splitLinks } from '../../model/library'
+import { type Embed, NoteEditor, type NoteEditorApi } from '../../components/editor/NoteEditor/NoteEditor'
+import { type Item, type Library, headingsOf, refsOf, relDay } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './NoteScreen.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
@@ -19,48 +20,54 @@ export interface NoteScreenProps {
   idle?: boolean
   onOpenRef?: (id: string) => void
   onTogglePin?: (id: string) => void
+  onBody?: (id: string, body: string) => void
+  onRename?: (id: string, name: string) => void
+  onCreateNote?: (name: string, folder: string | null) => Promise<Item | undefined>
+  embedOf?: (it: Item) => Promise<Embed | undefined>
 }
+
+const NARROW = '(max-width: 860px)'
+const narrow = () => typeof matchMedia === 'function' && matchMedia(NARROW).matches
+
+/** ファイル名に使えない文字と、末尾の . を消す。 */
+export const fileSafe = (name: string) =>
+  name
+    // oxlint-disable-next-line no-control-regex
+    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, '')
+    .trim()
+    .replace(/\.+$/, '')
+    .trim()
 
 export function NoteScreen(props: NoteScreenProps) {
   const lib = () => props.lib
   const note = () => lib().byId.get(props.noteId)
-  const [heads, setHeads] = createSignal(props.headsOpen ?? true)
+  const [heads, setHeads] = createSignal(props.headsOpen ?? !narrow())
   const [links, setLinks] = createSignal(!!props.linksOpen)
   const [propsOpen, setPropsOpen] = createSignal(!!props.propsOpen)
-  const blocks = () => note()?.blocks ?? []
-  const h2s = () => blocks().filter((b) => b.type === 'h2')
+  let editor: NoteEditorApi | undefined
+  const body = () => note()?.body ?? ''
+  const headings = () => headingsOf(body())
+  const top = () => Math.min(...headings().map((h) => h.level))
   const into = () => {
     const n = note()
     return n ? lib().backOf(n) : []
   }
-  const from = () => refsOfBlocks(blocks())
-  const inline = (text: string): JSX.Element => (
-    <For each={splitLinks(text)}>
-      {(s) =>
-        'ref' in s ? (
-          <button
-            type="button"
-            class={styles.wl}
-            data-missing={!lib().byId.has(s.ref)}
-            title="Ctrl クリックで開く"
-            onClick={(e) => (e.ctrlKey || e.metaKey) && props.onOpenRef?.(s.ref)}
-          >
-            {lib().byId.get(s.ref)?.name ?? s.label}
-          </button>
-        ) : (
-          s.text
-        )
-      }
-    </For>
-  )
-  const groups = () => {
-    const out: (NoteBlock | NoteBlock[])[] = []
-    for (const b of blocks()) {
-      const last = out.at(-1)
-      if (b.type === 'li' && Array.isArray(last)) last.push(b)
-      else out.push(b.type === 'li' ? [b] : b)
-    }
-    return out
+  const from = () => refsOf(body())
+
+  onMount(() => {
+    if (typeof matchMedia !== 'function') return
+    const mq = matchMedia(NARROW)
+    const close = () => mq.matches && setHeads(false)
+    mq.addEventListener('change', close)
+    onCleanup(() => mq.removeEventListener('change', close))
+  })
+
+  const rename = (el: HTMLInputElement) => {
+    const n = note()
+    if (!n) return
+    const name = fileSafe(el.value)
+    el.value = name || n.name
+    if (name && name !== n.name) props.onRename?.(n.id, name)
   }
 
   return (
@@ -69,7 +76,24 @@ export function NoteScreen(props: NoteScreenProps) {
         <section class={shared.screen} data-idle={!!props.idle} data-heads={heads()} aria-label="ノート">
           <ScrollArea class={styles.scroll}>
             <article class={styles.doc}>
-              <h1>{n().name}</h1>
+              <input
+                class={styles.name}
+                type="text"
+                aria-label="ノートの名前"
+                value={n().name}
+                onKeyDown={(e) => {
+                  if (e.isComposing) return
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    rename(e.currentTarget)
+                    editor?.focus()
+                  } else if (e.key === 'Escape') {
+                    e.currentTarget.value = n().name
+                    e.currentTarget.blur()
+                  }
+                }}
+                onBlur={(e) => rename(e.currentTarget)}
+              />
               <button type="button" class={styles.props} onClick={() => setPropsOpen(!propsOpen())}>
                 <Show when={n().tags.length} fallback={<span>タグなし</span>}>
                   <For each={n().tags}>{(t) => <span class={styles.tag}># {t}</span>}</For>
@@ -94,21 +118,17 @@ export function NoteScreen(props: NoteScreenProps) {
                   <dd>{relDay(lib(), n().moved)}</dd>
                 </dl>
               </Show>
-              <div class={styles.body}>
-                <For each={groups()}>
-                  {(g) =>
-                    Array.isArray(g) ? (
-                      <ul>
-                        <For each={g}>{(b) => <li>{inline(b.text)}</li>}</For>
-                      </ul>
-                    ) : g.type === 'h2' ? (
-                      <h2>{inline(g.text)}</h2>
-                    ) : (
-                      <p>{inline(g.text)}</p>
-                    )
-                  }
-                </For>
-              </div>
+              <NoteEditor
+                lib={lib()}
+                noteId={n().id}
+                folder={n().folder}
+                value={body()}
+                onChange={(md) => props.onBody?.(n().id, md)}
+                onOpenRef={props.onOpenRef}
+                onCreateNote={async (name) => props.onCreateNote?.(name, n().folder)}
+                embedOf={props.embedOf}
+                ref={(api) => (editor = api)}
+              />
             </article>
           </ScrollArea>
 
@@ -126,7 +146,11 @@ export function NoteScreen(props: NoteScreenProps) {
           <Show
             when={heads()}
             fallback={
-              <FloatingPill class={`${styles.pill} ${styles.l}`} count={h2s().length} onClick={() => setHeads(true)}>
+              <FloatingPill
+                class={`${styles.pill} ${styles.l}`}
+                count={headings().length}
+                onClick={() => setHeads(true)}
+              >
                 <Icon name="list" size={14} />
                 見出し
               </FloatingPill>
@@ -134,10 +158,19 @@ export function NoteScreen(props: NoteScreenProps) {
           >
             <aside class={`${styles.card} ${styles.l}`} aria-label="見出し">
               <ScrollArea viewClass={styles.cardView}>
-                <FloatingCard title={`見出し ${h2s().length}`} onClose={() => setHeads(false)}>
+                <FloatingCard title={`見出し ${headings().length}`} onClose={() => setHeads(false)}>
                   <div>
                     <LinkRow label={n().name} current />
-                    <For each={h2s()}>{(h) => <LinkRow label={h.text} indent />}</For>
+                    <For each={headings()}>
+                      {(h, i) => (
+                        <LinkRow
+                          label={h.text}
+                          indent
+                          depth={h.level - top()}
+                          onClick={() => editor?.scrollToHeading(i())}
+                        />
+                      )}
+                    </For>
                   </div>
                 </FloatingCard>
               </ScrollArea>
@@ -174,13 +207,13 @@ export function NoteScreen(props: NoteScreenProps) {
                     <Show when={from().length} fallback={<LinkNone>まだありません</LinkNone>}>
                       <For each={from()}>
                         {(id) => {
-                          const it = lib().byId.get(id)
+                          const it = () => lib().byId.get(id)
                           return (
                             <LinkRow
                               mark="→"
-                              label={it?.name ?? id}
-                              sub={!it ? '見つかりません' : it.note ? 'ノート' : '素材'}
-                              missing={!it}
+                              label={it()?.name ?? id}
+                              sub={!it() ? '見つかりません' : it()?.note ? 'ノート' : '素材'}
+                              missing={!it()}
                               onClick={() => props.onOpenRef?.(id)}
                             />
                           )
@@ -188,7 +221,7 @@ export function NoteScreen(props: NoteScreenProps) {
                       </For>
                     </Show>
                   </div>
-                  <button type="button" class={styles.connect}>
+                  <button type="button" class={styles.connect} onClick={() => editor?.pickLink()}>
                     <Icon name="plus" size={14} />
                     リンクを追加
                   </button>

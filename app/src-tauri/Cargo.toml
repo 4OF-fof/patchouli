@@ -23,7 +23,6 @@ log = "0.4"
 tauri = { version = "2.12.5", features = ["protocol-asset"] }
 tauri-plugin-log = "2"
 serde_yaml_ng = { version = "0.10.0", default-features = false }
-pulldown-cmark = { version = "0.13", default-features = false }
 imagesize = "0.15.0"
 uuid = { version = "1.29.0", features = ["v4"] }
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp", "gif", "bmp"] }

@@ -3,7 +3,7 @@
  * （scripts/dev-library.ts）の両方がここから作る。スクリプトは Node が TS をそのまま読むので、
  * ここでは型のほかは何も import しない。
  */
-import type { Item, NoteBlock, Project, Suggestion, TagCoverPart } from '../model/library'
+import type { Item, Project, Suggestion, TagCoverPart } from '../model/library'
 
 export const TODAY = new Date(2026, 9, 22, 12)
 
@@ -56,7 +56,7 @@ const TAG_COVERS: Record<string, TagCoverPart[]> = {
   UI: [{ type: 'kids' }, { type: 'exts' }],
 }
 
-type RawBlock = [NoteBlock['type'], string]
+type RawBlock = ['p' | 'h2' | 'li', string]
 type RawAsset = [name: string, ext: string, tags: string[], moved: number]
 type RawNote = [name: string, moved: number, tags: string[], blocks: RawBlock[]]
 
@@ -446,7 +446,16 @@ const secOf = (media: Media, name: string) =>
 const ratioOf = (media: Media, size?: [number, number]) =>
   size ? size[0] / size[1] : media === 'note' || media === 'text' ? 0.8 : media === 'video' ? 16 / 9 : 1.6
 
-const blocks = (raw: RawBlock[]): NoteBlock[] => raw.map(([type, text]) => ({ type, text }))
+function markdown(raw: RawBlock[]) {
+  let body = ''
+  let prev = ''
+  for (const [type, text] of raw) {
+    if (body) body += type === 'li' && prev === 'li' ? '\n' : '\n\n'
+    body += type === 'h2' ? `## ${text}` : type === 'li' ? `- ${text}` : text
+    prev = type
+  }
+  return `${body}\n`
+}
 
 export function sampleSpec(): Spec {
   let seed = 20261022
@@ -497,7 +506,7 @@ export function sampleSpec(): Spec {
         moved,
         hue: h,
         sat: 16,
-        blocks: blocks(raw),
+        body: markdown(raw),
         aliases: name === '配色メモ：秋の企画' ? ['秋の配色'] : [],
       })
     }
@@ -511,7 +520,7 @@ export function sampleSpec(): Spec {
     const name = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
     const raw: RawBlock[] = [['p', DAILY[(d * 3) % DAILY.length] ?? '']]
     if (d % 2 === 0) raw.push(['p', `候補：[[${pick()}]]、[[${pick()}]]。`])
-    add({ name, ext: 'md', folder: '日記', tags: [], moved: d, hue: 262, sat: 14, blocks: blocks(raw), aliases: [] })
+    add({ name, ext: 'md', folder: '日記', tags: [], moved: d, hue: 262, sat: 14, body: markdown(raw), aliases: [] })
   }
 
   let order = 0
@@ -540,12 +549,11 @@ export function sampleSpec(): Spec {
   let lost = 0
   const lostId = new Map<string, string>()
   for (const it of items)
-    for (const b of it.blocks ?? [])
-      b.text = b.text.replace(/\[\[([^\]]+)\]\]/g, (_, name: string) => {
-        const id = byName.get(name)?.id ?? lostId.get(name) ?? `lost${++lost}`
-        if (!byName.has(name)) lostId.set(name, id)
-        return `[${name}](patchouli:${id})`
-      })
+    it.body = it.body?.replace(/\[\[([^\]]+)\]\]/g, (_, name: string) => {
+      const id = byName.get(name)?.id ?? lostId.get(name) ?? `lost${++lost}`
+      if (!byName.has(name)) lostId.set(name, id)
+      return `[${name}](patchouli:${id})`
+    })
   const projects: Project[] = PROJECTS.map(({ name, hue, touched, cover }) => ({
     name,
     hue,

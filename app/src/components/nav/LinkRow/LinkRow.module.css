@@ -29,7 +29,7 @@
   font-weight: 600;
 }
 .root[data-indent='true'] {
-  padding-left: 22px;
+  padding-left: calc(22px + 12px * var(--depth, 0));
 }
 .root em {
   width: 14px;

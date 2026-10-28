@@ -8,6 +8,8 @@ export interface LinkRowProps {
   current?: boolean
   missing?: boolean
   indent?: boolean
+  /** 字下げの段。indent のときだけ効く。 */
+  depth?: number
   onClick?: () => void
 }
 
@@ -19,6 +21,7 @@ export function LinkRow(props: LinkRowProps) {
       data-current={props.current}
       data-missing={props.missing}
       data-indent={props.indent}
+      style={props.depth ? { '--depth': props.depth } : undefined}
       onClick={() => props.onClick?.()}
     >
       {props.mark && <em>{props.mark}</em>}

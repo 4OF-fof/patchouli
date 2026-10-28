@@ -41,6 +41,7 @@ import type { Blocker } from './components/media/Unsupported/Unsupported'
 import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
 import { NoteScreen } from './screens/Note/NoteScreen'
+import type { Embed } from './components/editor/NoteEditor/NoteEditor'
 import { ProjectScreen } from './screens/Project/ProjectScreen'
 import { ProjectListScreen } from './screens/ProjectList/ProjectListScreen'
 import { ScreenFrame } from './screens/ScreenFrame'
@@ -223,14 +224,25 @@ export function App(props: AppProps) {
       fail(e)
     }
   }
-  const createNote = async (name?: string) => {
+  const addNote = async (name: string | undefined, folder: string | null) => {
     try {
-      const it = await backend.createNote(newNoteName(lib(), name), null)
+      const it = await backend.createNote(newNoteName(lib(), name), folder)
       setLib(withItem(lib(), it))
-      go({ s: 'note', id: it.id })
+      return it
     } catch (e) {
       fail(e)
+      return undefined
     }
+  }
+  const createNote = async (name?: string) => {
+    const it = await addNote(name, null)
+    if (it) go({ s: 'note', id: it.id })
+  }
+  const embedOf = async (it: Item): Promise<Embed | undefined> => {
+    const v = await backend.itemView?.(it.id).catch(() => null)
+    if (v?.kind === 'image' && (v.url || it.src)) return { kind: 'image', src: v.url ?? it.src ?? '' }
+    if ((v?.kind === 'video' || v?.kind === 'audio') && it.src) return { kind: v.kind, src: it.src }
+    return { kind: 'card', thumb: it.thumb }
   }
   const renameTag = (from: string, to: string) => {
     const re = retag(from, to)
@@ -351,7 +363,11 @@ export function App(props: AppProps) {
             : undefined
 
   const onKey = (e: KeyboardEvent) => {
-    if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, [role="dialog"], [role="menu"]'))
+    if (e.defaultPrevented) return
+    if (
+      e.target instanceof HTMLElement &&
+      (e.target.isContentEditable || e.target.closest('input, textarea, select, [role="dialog"], [role="menu"]'))
+    )
       return
     if (e.key === 'Escape') goBack()
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'u') {
@@ -556,7 +572,16 @@ export function App(props: AppProps) {
                   <Match when={view().s === 'note' && view()} keyed>
                     {(v) =>
                       v.s === 'note' && (
-                        <NoteScreen lib={lib()} noteId={v.id} onOpenRef={openRef} onTogglePin={togglePin} />
+                        <NoteScreen
+                          lib={lib()}
+                          noteId={v.id}
+                          onOpenRef={openRef}
+                          onTogglePin={togglePin}
+                          onBody={(id, body) => editItem(id, { body }, { body })}
+                          onRename={renameItem}
+                          onCreateNote={addNote}
+                          embedOf={embedOf}
+                        />
                       )
                     }
                   </Match>

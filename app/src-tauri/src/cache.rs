@@ -9,7 +9,7 @@ use crate::library::{LibraryState, StoredItem, StoredProject, meta_path, mtime_o
 use crate::plugin::Reads;
 
 /// 中身の形を変えたら上げる。違う版の写しは捨てて作り直す。
-const VERSION: i32 = 1;
+const VERSION: i32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Sig {

@@ -1,12 +1,4 @@
-import {
-  type CoverPart,
-  type Item,
-  type NoteBlock,
-  type Project,
-  buildLibrary,
-  daysBefore,
-  touchedLabel,
-} from '../model/library'
+import { type CoverPart, type Item, type Project, buildLibrary, daysBefore, touchedLabel } from '../model/library'
 import type { FormatInfo } from '../plugins/types'
 import type { Changed, LibraryState, Opened } from './types'
 
@@ -20,7 +12,7 @@ export interface StoredItem {
   rating: number
   memo: string
   aliases?: string[]
-  blocks?: NoteBlock[]
+  body?: string
   mtime: number
   width?: number
   height?: number
@@ -89,7 +81,7 @@ export function toItem(
     ext: s.ext,
     rating: s.rating,
     memo: s.memo,
-    ...(s.blocks && { blocks: s.blocks }),
+    ...(s.body !== undefined && { body: s.body }),
     ...(s.aliases && { aliases: s.aliases }),
     ...(urls.src && { src: urls.src }),
     ...(urls.thumb && { thumb: urls.thumb }),

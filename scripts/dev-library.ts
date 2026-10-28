@@ -145,15 +145,7 @@ function markdown(it: SpecItem) {
     `aliases: ${JSON.stringify(it.aliases ?? [])}`,
     '---',
   ]
-  let body = ''
-  let prev = ''
-  for (const b of it.blocks ?? []) {
-    const line = b.type === 'h2' ? `## ${b.text}` : b.type === 'li' ? `- ${b.text}` : b.text
-    if (body) body += b.type === 'li' && prev === 'li' ? '\n' : '\n\n'
-    body += line
-    prev = b.type
-  }
-  return `${front.join('\n')}\n\n${body}\n`
+  return `${front.join('\n')}\n\n${it.body ?? ''}`
 }
 
 const json = (v: unknown) => `${JSON.stringify(v, null, 2)}\n`
