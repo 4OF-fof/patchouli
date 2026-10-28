@@ -1,5 +1,14 @@
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
-import { type EditorState, type Extension, Prec, type Range, StateEffect, StateField } from '@codemirror/state'
+import {
+  EditorSelection,
+  EditorState,
+  type Extension,
+  type Line,
+  Prec,
+  type Range,
+  StateEffect,
+  StateField,
+} from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView, WidgetType, keymap } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import type { Mounted } from 'pele/lazy'
@@ -415,6 +424,10 @@ function build(state: EditorState, h: LiveHooks, version: number): DecorationSet
   const mark = (name: string, from: number, to: number, attributes?: Record<string, string>) => {
     if (from < to) out.push(Decoration.mark({ class: cls(name), attributes }).range(from, to))
   }
+  /** 行の頭の、カーソルが来ても戻さない印。 */
+  const lineMark = (from: number, to: number, widget: WidgetType = new Text('', cls('lineMark'))) => {
+    if (from < to) out.push(Decoration.replace({ widget }).range(from, to))
+  }
   const line = (name: string, pos: number) => out.push(Decoration.line({ class: cls(name) }).range(lineOf(pos).from))
   const spaceAfter = (to: number) => (state.sliceDoc(to, to + 1) === ' ' ? to + 1 : to)
   const tableHooks = {
@@ -502,24 +515,29 @@ function build(state: EditorState, h: LiveHooks, version: number): DecorationSet
         case 'Escape':
           if (!near(n.from, n.to)) hide(n.from, n.from + 1)
           return undefined
-        case 'Autolink':
+        case 'Autolink': {
+          const show = near(n.from, n.to)
+          for (const m of n.getChildren('LinkMark')) {
+            if (show) mark('mark', m.from, m.to)
+            else hide(m.from, m.to)
+          }
+          return undefined
+        }
         case 'URL':
           if (n.parent?.name !== 'Link' && n.parent?.name !== 'Image') mark('extLink', n.from, n.to)
           return undefined
         case 'ListMark': {
           const item = n.parent
           const task = item?.getChild('Task')?.getChild('TaskMarker')
-          if (onLine(n.from)) mark('mark', n.from, n.to)
-          else if (task) hide(n.from, task.from)
+          if (task) lineMark(n.from, task.from)
           else if (item?.parent?.name === 'BulletList')
-            out.push(Decoration.replace({ widget: new Text('•', cls('bullet')) }).range(n.from, n.to))
+            lineMark(n.from, n.to, new Text('•', `${cls('bullet')} ${cls('lineMark')}`))
           return undefined
         }
         case 'TaskMarker': {
           const checked = /x/i.test(state.sliceDoc(n.from, n.to))
           if (checked) line('done', n.from)
-          if (onLine(n.from)) mark('mark', n.from, n.to)
-          else out.push(Decoration.replace({ widget: new Check(checked, cls('check')) }).range(n.from, n.to))
+          lineMark(n.from, n.to, new Check(checked, `${cls('check')} ${cls('lineMark')}`))
           return undefined
         }
         case 'Blockquote':
@@ -529,12 +547,10 @@ function build(state: EditorState, h: LiveHooks, version: number): DecorationSet
           }
           return undefined
         case 'QuoteMark':
-          if (onLine(n.from)) mark('mark', n.from, n.to)
-          else hide(n.from, spaceAfter(n.to))
+          lineMark(n.from, spaceAfter(n.to))
           return undefined
         case 'HorizontalRule':
-          if (onLine(n.from)) mark('mark', n.from, n.to)
-          else out.push(Decoration.replace({ widget: new Rule(cls('hr')) }).range(n.from, n.to))
+          lineMark(n.from, n.to, new Rule(`${cls('hr')} ${cls('lineMark')}`))
           return false
         case 'FencedCode':
         case 'CodeBlock': {
@@ -600,10 +616,14 @@ const lineEdge = (forward: boolean, extend: boolean) => (view: EditorView) => {
   const line = state.doc.lineAt(sel.head)
   const visual = view.moveToLineBoundary(sel, forward).head
   const edge = forward ? line.to : line.from + (PREFIX.exec(line.text)?.[0].length ?? 0)
-  const a = view.coordsAtPos(visual)
   // 隠した記号の中は位置が取れないか、高さのない位置になる。そのときは、見た目の端との間は隠した文字だけなので同じ並び
-  const b = view.coordsAtPos(edge, forward ? -1 : 1)
-  const head = !b || b.bottom - b.top < 1 || (a && Math.abs(a.top - b.top) < 2) ? edge : visual
+  const at = (pos: number, side?: -1 | 1) => {
+    const r = view.coordsAtPos(pos, side)
+    return r && r.bottom - r.top >= 1 ? r : undefined
+  }
+  const a = at(visual)
+  const b = at(edge, forward ? -1 : 1)
+  const head = !a || !b || (a.top < b.bottom && b.top < a.bottom) ? edge : visual
   view.dispatch({
     selection: extend ? { anchor: sel.anchor, head } : { anchor: head },
     scrollIntoView: true,
@@ -611,6 +631,53 @@ const lineEdge = (forward: boolean, extend: boolean) => (view: EditorView) => {
   })
   return true
 }
+
+/** 行の頭で、いつも隠しておく印（箇条書きの点・チェックボックス・引用の記号）の範囲。 */
+function leadOf(state: EditorState, line: Line) {
+  let from = -1
+  let to = -1
+  syntaxTree(state).iterate({
+    from: line.from,
+    to: line.to,
+    enter: (n) => {
+      if (n.from > line.to) return false
+      if (n.from < line.from) return undefined
+      let end: number | undefined
+      if (n.name === 'QuoteMark') end = n.to
+      else if (n.name === 'ListMark') {
+        const task = n.node.parent?.getChild('Task')?.getChild('TaskMarker')
+        if (task) end = task.to
+        else if (n.node.parent?.parent?.name === 'BulletList') end = n.to
+      }
+      if (end === undefined) return undefined
+      if (from < 0) from = n.from
+      to = Math.max(to, state.sliceDoc(end, end + 1) === ' ' ? end + 1 : end)
+      return undefined
+    },
+  })
+  return from < 0 ? undefined : { from, to }
+}
+
+/** カーソルを、隠した印の内側に置かない。印のすぐ後ろから左へ動いたときは、前の行の終わりへ移す。 */
+const skipLead = EditorState.transactionFilter.of((tr) => {
+  if (!tr.selection || tr.docChanged) return tr
+  const { state } = tr
+  const before = tr.startState.selection.main.head
+  let moved = false
+  const sel = EditorSelection.create(
+    tr.selection.ranges.map((r) => {
+      const line = state.doc.lineAt(r.head)
+      const lead = leadOf(state, line)
+      if (!lead || r.head < lead.from || r.head >= lead.to) return r
+      const back = before >= lead.to && before <= line.to && r.head < before && line.number > 1
+      const head = back ? line.from - 1 : lead.to
+      moved = true
+      return r.empty ? EditorSelection.cursor(head) : EditorSelection.range(r.anchor, head)
+    }),
+    tr.selection.mainIndex,
+  )
+  return moved ? [tr, { selection: sel, sequential: true }] : tr
+})
 
 /** 上下のカーソル移動で表をまたぐときは、表のセルの編集に入る。 */
 const intoTable = (forward: boolean) => (view: EditorView) => {
@@ -651,6 +718,7 @@ export function live(hooks: () => LiveHooks): Extension {
     focusField,
     EditorView.focusChangeEffect.of((_, focusing) => setFocus.of(focusing)),
     field,
+    skipLead,
     Prec.high(
       keymap.of([
         { key: 'ArrowDown', run: intoTable(true) },
