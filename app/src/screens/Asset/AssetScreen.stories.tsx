@@ -1,7 +1,7 @@
 import { createSignal } from 'solid-js'
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { expect, userEvent, within } from 'storybook/test'
-import { withChanged } from '../../model/library'
+import { type Item, withChanged } from '../../model/library'
 import type { ItemView } from '../../plugins/types'
 import { sampleLibrary } from '../../samples/library'
 import { ScreenFrame } from '../ScreenFrame'
@@ -157,4 +157,48 @@ export const Audio: Story = {
     withFile('voice-1019', 'voice-1019.mp3', { kind: 'audio' }, async () =>
       Uint8Array.from({ length: 4000 }, (_, i) => 255 * Math.abs(Math.sin((Math.PI * i) / 450))),
     ),
+}
+export const Rename: Story = {
+  name: '名前を変えて読み直す',
+  render: () => {
+    const files: Record<string, [string, ItemView]> = {
+      IMG_3310: ['IMG_3310.jpg', { kind: 'image' }],
+      'clip-0412': ['clip-0412.mp4', { kind: 'video' }],
+      'voice-1019': ['voice-1019.mp3', { kind: 'audio' }],
+    }
+    const first = sampleLibrary()
+    const views = new Map<string, ItemView>()
+    for (const it of first.items) {
+      const f = files[it.name]
+      if (!f) continue
+      it.src = `/dev-library/${f[0]}`
+      views.set(it.id, f[1])
+    }
+    const [lib, setLib] = createSignal(first)
+    // アプリと同じく、名前を先に変え、ファイルを動かし終えてから src を替える
+    const put = (id: string, change: Partial<Item>) => {
+      const it = lib().byId.get(id)
+      if (it) setLib(withChanged(lib(), [{ ...it, ...change }], []))
+    }
+    const onRename = (id: string, name: string) => {
+      put(id, { name })
+      const src = lib().byId.get(id)?.src?.split('?')[0]
+      setTimeout(() => put(id, { src: `${src}?name=${encodeURIComponent(name)}` }), 300)
+    }
+    return (
+      <ScreenFrame>
+        <AssetScreen
+          lib={lib()}
+          list={[...views.keys()]}
+          infoOpen
+          onRename={onRename}
+          host={{
+            view: async (id) => views.get(id) ?? null,
+            waveform: async () =>
+              Uint8Array.from({ length: 4000 }, (_, i) => 255 * Math.abs(Math.sin((Math.PI * i) / 450))),
+          }}
+        />
+      </ScreenFrame>
+    )
+  },
 }

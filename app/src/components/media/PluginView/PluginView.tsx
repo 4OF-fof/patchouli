@@ -6,6 +6,8 @@ export interface PluginViewProps {
   url: string
   api: UiApi
   class?: string
+  /** 読み込めたとき。読めなかったときも呼ぶ */
+  onReady?: () => void
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
@@ -24,6 +26,7 @@ export function PluginView(props: PluginViewProps) {
         unmount = mod.mount(el, api) ?? undefined
       })
       .catch((e: unknown) => setError(`プラグインの表示に失敗しました：${message(e)}`))
+      .finally(() => closed || props.onReady?.())
   })
   onCleanup(() => {
     closed = true

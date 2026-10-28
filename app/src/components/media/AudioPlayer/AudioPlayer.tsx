@@ -7,6 +7,8 @@ export interface AudioPlayerProps {
   wave?: Uint8Array | null
   name: string
   class?: string
+  /** 読み込めたとき。読めなかったときも呼ぶ */
+  onReady?: () => void
 }
 
 /** 棒の幅と、棒と次の棒の間（CSS px）。src-tauri/src/thumb.rs の WAVE_BAR・WAVE_GAP と合わせる。 */
@@ -115,7 +117,13 @@ export function AudioPlayer(props: AudioPlayerProps) {
         <canvas ref={done} class={styles.done} style={{ 'clip-path': `inset(0 ${100 - played()}% 0 0)` }} />
       </div>
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- 素材に字幕はない */}
-      <audio ref={setAudio} src={props.src} preload="metadata" />
+      <audio
+        ref={setAudio}
+        src={props.src}
+        preload="metadata"
+        onLoadedMetadata={() => props.onReady?.()}
+        onError={() => props.onReady?.()}
+      />
       <PlayerBar media={audio} class={styles.bar} />
     </div>
   )

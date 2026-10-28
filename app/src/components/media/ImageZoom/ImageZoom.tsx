@@ -6,6 +6,8 @@ export interface ImageZoomProps {
   src: string
   name: string
   class?: string
+  /** 読み込めたとき。読めなかったときも呼ぶ */
+  onReady?: () => void
 }
 
 const MAX = 16
@@ -107,7 +109,11 @@ export function ImageZoom(props: ImageZoomProps) {
             height: `${natural().h}px`,
             transform: `translate(${shown().x}px, ${shown().y}px) scale(${scale()})`,
           }}
-          onLoad={(e) => setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
+          onLoad={(e) => {
+            setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })
+            props.onReady?.()
+          }}
+          onError={() => props.onReady?.()}
         />
       </div>
       <div class={styles.bar} role="group" aria-label="表示倍率">

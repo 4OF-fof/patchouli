@@ -7,6 +7,8 @@ export interface VideoPlayerProps {
   poster?: string
   name: string
   class?: string
+  /** 読み込めたとき。読めなかったときも呼ぶ */
+  onReady?: () => void
 }
 
 export function VideoPlayer(props: VideoPlayerProps) {
@@ -30,6 +32,8 @@ export function VideoPlayer(props: VideoPlayerProps) {
           preload="metadata"
           aria-label={props.name}
           onClick={toggle}
+          onLoadedData={() => props.onReady?.()}
+          onError={() => props.onReady?.()}
         />
       </div>
       <PlayerBar media={video} fullscreen={root} class={styles.bar} />

@@ -10,6 +10,7 @@ import {
   createSignal,
   onCleanup,
   onMount,
+  untrack,
 } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
@@ -20,13 +21,12 @@ import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
 import { AudioPlayer } from '../../components/media/AudioPlayer/AudioPlayer'
 import { ImageZoom } from '../../components/media/ImageZoom/ImageZoom'
-import { MediaView } from '../../components/media/MediaView/MediaView'
 import { PluginView } from '../../components/media/PluginView/PluginView'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { type Blocker, Unsupported } from '../../components/media/Unsupported/Unsupported'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
-import { type Library, relDay, thumbOf } from '../../model/library'
+import { type Item, type Library, relDay, thumbOf } from '../../model/library'
 import type { ItemDetails, ItemView, Part } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
 import shared from '../screen.module.css'
@@ -132,6 +132,20 @@ function NameField(props: { value: string; onChange: (name: string) => void }) {
 /** タグセレクタの高さを、少なくともこれだけは取る。 */
 const MIN_PICKER = 280
 
+/** 舞台に出すもの。同じ素材でも、これが変わったら読み直す。 */
+type Look =
+  | { id: string; kind: 'image' | 'video' | 'audio'; src: string }
+  | { id: string; kind: 'ui'; src: string; item: UiItem; api: () => UiApi }
+
+const sameLook = (x: Look | undefined, y: Look | undefined) =>
+  x === y ||
+  (!!x &&
+    !!y &&
+    x.id === y.id &&
+    x.kind === y.kind &&
+    x.src === y.src &&
+    (x.kind !== 'ui' || (y.kind === 'ui' && x.item.name === y.item.name && x.item.url === y.item.url)))
+
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 
 function bytes(n: number) {
@@ -172,20 +186,55 @@ export function AssetScreen(props: AssetScreenProps) {
     { equals: (x, y) => x?.id === y?.id && x?.thumb === y?.thumb },
   )
   const [wave] = createResource(waveOf, async ({ id }) => (await props.host?.waveform?.(id).catch(() => null)) ?? null)
+  const shownWave = createMemo<{ id: string; wave: Uint8Array | null } | undefined>((prev) => {
+    const id = it()?.id
+    if (!id) return undefined
+    if (wave.loading && prev?.id === id) return prev
+    return { id, wave: wave.state === 'ready' ? wave() : null }
+  })
   /** いまの素材について決まったもの。決まるまでは、前の素材のものもサムネイルも出さない。 */
   const settled = () => !props.host || view.state === 'ready'
-  const current = () => (view.state === 'ready' ? view() : undefined)
-  const media = () => {
-    const v = current()
-    const src = (v?.kind === 'image' && v.url) || it()?.src
-    return v && v.kind !== 'ui' && src ? { kind: v.kind, src } : undefined
+  const look = createMemo<Look | undefined>(
+    () => {
+      const v = view.state === 'ready' ? view() : undefined
+      const a = it()
+      if (!v || !a) return undefined
+      if (v.kind === 'ui') {
+        const make = props.host?.ui
+        const item = { id: a.id, name: a.name, ext: a.ext, url: a.src }
+        return make && { id: a.id, kind: 'ui', src: v.url, item, api: () => make(item, 'view', v.plugin) }
+      }
+      const src = (v.kind === 'image' && v.url) || a.src
+      return src ? { id: a.id, kind: v.kind, src } : undefined
+    },
+    undefined,
+    { equals: sameLook },
+  )
+  /** 先頭が出しているもの、2 つ目が裏で読んでいるもの。同じ素材のまま変わったときは、読めるまで前のものを出しておく。 */
+  const [looks, setLooks] = createSignal<Look[]>([])
+  createEffect(() => {
+    const next = look()
+    const [now] = untrack(looks)
+    setLooks(!next ? [] : now?.id !== next.id || sameLook(now, next) ? [next] : [now, next])
+  })
+  const ready = (l: Look) => {
+    if (looks()[1] === l) setLooks([l])
   }
-  const ui = () => {
-    const v = current()
-    const a = it()
-    const make = props.host?.ui
-    if (v?.kind !== 'ui' || !a || !make) return undefined
-    return { url: v.url, api: make({ id: a.id, name: a.name, ext: a.ext, url: a.src }, 'view', v.plugin) }
+  const lookView = (l: Look, a: () => Item) => {
+    const onReady = () => ready(l)
+    if (l.kind === 'ui') return <PluginView url={l.src} api={l.api()} class={styles.page} onReady={onReady} />
+    if (l.kind === 'image') return <ImageZoom src={l.src} name={a().name} class={styles.player} onReady={onReady} />
+    if (l.kind === 'video')
+      return <VideoPlayer src={l.src} poster={a().thumb} name={a().name} class={styles.player} onReady={onReady} />
+    return (
+      <AudioPlayer
+        src={l.src}
+        wave={shownWave()?.wave ?? null}
+        name={a().name}
+        class={styles.player}
+        onReady={onReady}
+      />
+    )
   }
   const onKey = (e: KeyboardEvent) => {
     // Shift ＋ ← → は、再生の操作の帯が受け持つ
@@ -275,29 +324,19 @@ export function AssetScreen(props: AssetScreenProps) {
                     />
                   </Show>
                 </Match>
-                <Match when={ui()} keyed>
-                  {(u) => <PluginView url={u.url} api={u.api} class={styles.page} />}
-                </Match>
-                <Match when={media()?.kind === 'image' && media()}>
-                  {(m) => <ImageZoom src={m().src} name={a().name} class={styles.player} />}
-                </Match>
-                <Match when={media()?.kind === 'video' && media()}>
-                  {(m) => <VideoPlayer src={m().src} poster={a().thumb} name={a().name} class={styles.player} />}
-                </Match>
-                <Match when={media()?.kind === 'audio' && media()}>
-                  {(m) => (
-                    <AudioPlayer
-                      src={m().src}
-                      wave={wave.state === 'ready' ? wave() : null}
-                      name={a().name}
-                      class={styles.player}
-                    />
-                  )}
-                </Match>
-                <Match when={media()}>
-                  {(m) => (
-                    <MediaView kind={m().kind} src={m().src} thumb={a().thumb} name={a().name} class={styles.view} />
-                  )}
+                <Match when={looks().length}>
+                  <For each={looks()}>
+                    {(l, n) => (
+                      <div class={styles.look} data-next={n() > 0 || undefined}>
+                        {lookView(l, a)}
+                      </div>
+                    )}
+                  </For>
+                  <Show when={looks().length > 1}>
+                    <div class={styles.veil}>
+                      <Spinner size={28} />
+                    </div>
+                  </Show>
                 </Match>
               </Switch>
             </div>
