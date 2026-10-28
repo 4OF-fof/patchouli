@@ -185,7 +185,7 @@ export function EditionScreen(props: EditionScreenProps) {
                   <span>タグの承認待ち {recent().length} 件</span>
                   <button type="button" class={styles.tidy} onClick={() => props.onTidy?.()}>
                     分類結果を確認
-                    <Icon name="chevron" size={14} />
+                    <Icon name="chevron" size={14} withText />
                   </button>
                 </div>
                 <ThumbStrip

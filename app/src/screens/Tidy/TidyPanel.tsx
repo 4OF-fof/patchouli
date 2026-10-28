@@ -106,7 +106,7 @@ export function TidyPanel(props: TidyPanelProps) {
           保留 <Kbd>→</Kbd>
         </button>
         <button type="button" class={styles.ok2} disabled={nothing()} onClick={() => props.onApprove()}>
-          <Icon name="check" size={14} />
+          <Icon name="check" size={14} withText />
           承認 <Kbd>Enter</Kbd>
         </button>
       </div>

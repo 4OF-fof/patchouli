@@ -361,7 +361,7 @@ export function AssetScreen(props: AssetScreenProps) {
               when={info()}
               fallback={
                 <FloatingPill class={styles.pill} kbd="I" aria-expanded={false} onClick={() => setInfo(true)}>
-                  <Icon name="info" size={14} />
+                  <Icon name="info" size={14} withText />
                   情報
                 </FloatingPill>
               }
@@ -392,7 +392,7 @@ export function AssetScreen(props: AssetScreenProps) {
                           {(t) => (
                             <Chip aria-label={`# ${t} を削除`} onClick={() => props.onTag?.(a().id, t, false)}>
                               # {t}
-                              <Icon name="close" size={12} />
+                              <Icon name="close" size={12} withText />
                             </Chip>
                           )}
                         </For>
@@ -403,7 +403,7 @@ export function AssetScreen(props: AssetScreenProps) {
                           aria-haspopup="dialog"
                           onClick={togglePicker}
                         >
-                          <Icon name="plus" size={12} />
+                          <Icon name="plus" size={12} withText />
                           追加
                         </Chip>
                       </div>

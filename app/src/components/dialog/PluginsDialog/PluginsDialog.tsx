@@ -176,7 +176,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
           aria-expanded={open()}
           onClick={() => setClosed(open() ? [...closed(), label] : closed().filter((k) => k !== label))}
         >
-          <Icon name="chevron" class={styles.chev} />
+          <Icon name="chevron" class={styles.chev} withText />
           <span>{label}</span>
           <em>{count}</em>
         </button>
@@ -441,7 +441,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
         <nav class={styles.side}>
           <h2>プラグイン</h2>
           <label class={styles.search}>
-            <Icon name="search" size={14} />
+            <Icon name="search" size={14} withText />
             <input
               type="search"
               placeholder="検索"
@@ -506,7 +506,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
           <Show when={a().install}>
             <div class={styles.foot}>
               <Button class={styles.addButton} variant="primary" disabled={busy() !== undefined} onClick={install}>
-                <Icon name="plus" size={14} />
+                <Icon name="plus" size={14} withText />
                 プラグインを追加
               </Button>
             </div>

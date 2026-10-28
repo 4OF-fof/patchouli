@@ -165,12 +165,12 @@ export function NoteScreen(props: NoteScreenProps) {
                       {(t) => (
                         <Chip aria-label={`# ${t} を削除`} onClick={() => props.onTag?.(n().id, t, false)}>
                           # {t}
-                          <Icon name="close" size={12} />
+                          <Icon name="close" size={12} withText />
                         </Chip>
                       )}
                     </For>
                     <Chip ref={addBtn} dashed aria-expanded={picking()} aria-haspopup="dialog" onClick={togglePicker}>
-                      <Icon name="plus" size={12} />
+                      <Icon name="plus" size={12} withText />
                       追加
                     </Chip>
                     <Show when={picking()}>
@@ -228,7 +228,7 @@ export function NoteScreen(props: NoteScreenProps) {
                 count={headings().length}
                 onClick={() => setHeads(true)}
               >
-                <Icon name="list" size={14} />
+                <Icon name="list" size={14} withText />
                 見出し
               </FloatingPill>
             }

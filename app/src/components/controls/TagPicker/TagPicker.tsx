@@ -93,7 +93,7 @@ export function TagPicker(props: TagPickerProps) {
       aria-label="タグを選ぶ"
     >
       <label class={styles.search}>
-        <Icon name="search" size={13} />
+        <Icon name="search" size={13} withText />
         <input
           ref={input}
           type="text"
@@ -107,7 +107,7 @@ export function TagPicker(props: TagPickerProps) {
       <Show when={fresh()}>
         {(t) => (
           <button type="button" class={styles.fresh} onClick={() => (props.onToggle(t(), true), setQ(''))}>
-            <Icon name="plus" size={13} />「{t()}」を新しいタグとして付ける
+            <Icon name="plus" size={13} withText />「{t()}」を新しいタグとして付ける
           </button>
         )}
       </Show>

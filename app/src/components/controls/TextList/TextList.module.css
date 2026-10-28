@@ -34,7 +34,3 @@
   margin-left: -10px;
   padding: 0 6px;
 }
-/* 日本語の字面は行の箱より少し下に寄るので、＋をそれに合わせる */
-.plus {
-  translate: 0 1px;
-}

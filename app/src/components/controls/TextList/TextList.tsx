@@ -96,7 +96,7 @@ export function TextList(props: TextListProps) {
         when={adding()}
         fallback={
           <Button class={styles.add} variant="ghost" size="sm" onClick={() => setAdding(true)}>
-            <Icon name="plus" size={12} class={styles.plus} />
+            <Icon name="plus" size={12} withText />
             追加
           </Button>
         }

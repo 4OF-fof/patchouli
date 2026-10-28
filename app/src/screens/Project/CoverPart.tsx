@@ -39,7 +39,7 @@ export function CoverPartView(props: CoverPartViewProps) {
                 <span class={styles.link}>
                   <a href={x.u} target="_blank" rel="noopener">
                     {x.t}
-                    <Icon name="external" size={12} />
+                    <Icon name="external" size={12} withText />
                   </a>
                   {ed && (
                     <button type="button" class={styles.x} aria-label="削除">

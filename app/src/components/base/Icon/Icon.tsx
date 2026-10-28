@@ -57,6 +57,7 @@ import {
   X,
 } from 'lucide-solid'
 import { Dynamic } from 'solid-js/web'
+import styles from './Icon.module.css'
 
 const ICONS = {
   box: Package,
@@ -125,6 +126,8 @@ export interface IconProps {
   name: IconName
   size?: number
   class?: string
+  /** 文字と横に並べる。字面の高さに合わせて少し下げる */
+  withText?: boolean
 }
 
 export function Icon(props: IconProps) {
@@ -134,7 +137,7 @@ export function Icon(props: IconProps) {
       component={ICONS[props.name]}
       size={size()}
       strokeWidth={size() <= 14 ? 2 : size() >= 20 ? 1.5 : 1.75}
-      class={props.class}
+      class={[props.withText && styles.withText, props.class].filter(Boolean).join(' ') || undefined}
       aria-hidden="true"
     />
   )

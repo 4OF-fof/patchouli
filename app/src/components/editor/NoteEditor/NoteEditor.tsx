@@ -584,7 +584,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   onMouseEnter={() => setSlashIdx(i())}
                   onClick={() => chooseSlash(it.action)}
                 >
-                  <Icon name={it.icon} />
+                  <Icon name={it.icon} withText />
                   {it.label}
                 </div>
               )}

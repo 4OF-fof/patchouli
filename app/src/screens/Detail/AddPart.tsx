@@ -12,7 +12,7 @@ export function AddPart(props: AddPartProps) {
   return (
     <>
       <button type="button" class={styles.add} aria-expanded={!!props.open} onClick={() => props.onToggle?.()}>
-        <Icon name="plus" size={14} />
+        <Icon name="plus" size={14} withText />
         セクションを追加
       </button>
       <Show when={props.open}>

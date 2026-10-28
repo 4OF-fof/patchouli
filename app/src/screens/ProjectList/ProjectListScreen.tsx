@@ -66,7 +66,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
             <span class={shared.meta}>{lib().projects.length} 件 · 最終更新順</span>
             <span class={shared.end}>
               <Button onClick={() => props.onCreate?.()}>
-                <Icon name="plus" size={14} />
+                <Icon name="plus" size={14} withText />
                 新しいプロジェクト
               </Button>
             </span>

@@ -64,7 +64,7 @@ export function NavMenu(props: NavMenuProps) {
               title={it.title}
               onClick={() => props.onSelect?.(it.id)}
             >
-              <i>{it.icon && <Icon name={it.icon} />}</i>
+              <i>{it.icon && <Icon name={it.icon} withText />}</i>
               {it.label}
               {it.count != null && <small>{it.count}</small>}
               {it.hint && <small>{it.hint}</small>}

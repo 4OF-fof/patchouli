@@ -69,7 +69,7 @@ export function SearchPalette(props: SearchPaletteProps) {
     >
       <div class={styles.root} role="search">
         <div class={styles.in}>
-          <Icon name="search" size={14} class={styles.glass} />
+          <Icon name="search" size={14} class={styles.glass} withText />
           <span class={styles.md} data-ai={props.mode === 'prompt'}>
             {mode().label}
           </span>

@@ -64,7 +64,7 @@ export function ActivityButton(props: ActivityButtonProps) {
           <For each={props.activities}>
             {(a) => (
               <div class={styles.row}>
-                <Icon name={a.icon} size={14} class={styles.icon} />
+                <Icon name={a.icon} size={14} class={styles.icon} withText />
                 <span class={styles.label}>{a.label}</span>
                 <Show when={a.total}>
                   {(total) => (
