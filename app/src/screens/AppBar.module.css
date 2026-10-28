@@ -52,24 +52,37 @@
   cursor: pointer;
 }
 .crumb:hover,
-.crumb[aria-expanded='true'] {
+.crumb[data-open='true'] {
   background: var(--card);
   color: var(--ink);
 }
 .crumb[aria-current='page'] {
   max-width: 40vw;
   color: var(--ink);
+  cursor: default;
 }
-.placesAt {
+.crumbAt {
   position: relative;
-  flex: none;
+  min-width: 0;
   display: flex;
+}
+.crumbAt:last-child {
+  flex: none;
+}
+/* 段からメニューへ移るあいだにポインタが外れないよう、すき間は余白で取る */
+.drop {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  z-index: 30;
+  padding-top: 6px;
+  --nav-menu-height: min(420px, 70vh);
 }
 .sep {
   color: var(--disabled);
 }
 @media (max-width: 760px) {
-  .crumbs > .crumb,
+  .crumbAt:not(:last-child),
   .sep {
     display: none;
   }

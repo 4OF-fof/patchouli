@@ -23,7 +23,6 @@ export type Place = 'home' | 'all' | 'tags' | 'projects' | 'tidy'
 export type BarState =
   | 'closed'
   | 'menu'
-  | 'places'
   | 'search'
   | 'prompt'
   | 'help'
@@ -43,6 +42,9 @@ export interface AppBarProps {
   crumbs?: string[]
   onBack?: () => void
   onCrumb?: (i: number) => void
+  siblingsOf?: (i: number) => NavMenuEntry[] | undefined
+  onSibling?: (i: number, id: string) => void
+  crumbMenu?: number
   initial?: BarState
   query?: string
   readOnly?: boolean
@@ -83,7 +85,6 @@ export function AppBar(props: AppBarProps) {
   const lib = () => props.lib
   const searching = () => state() === 'search' || state() === 'prompt'
   const menuOpen = () => state() === 'menu'
-  const placesOpen = () => state() === 'places'
   const close = () => {
     setState('closed')
     setQuery('')
@@ -145,13 +146,11 @@ export function AppBar(props: AppBarProps) {
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
   let menuEl!: HTMLDivElement
-  let placesEl: HTMLSpanElement | undefined
   const away = (e: PointerEvent) => {
-    const at = placesOpen() ? placesEl : menuEl
-    if (e.target instanceof Node && !at?.contains(e.target)) close()
+    if (e.target instanceof Node && !menuEl.contains(e.target)) close()
   }
   createEffect(() => {
-    if (!menuOpen() && !placesOpen()) return
+    if (!menuOpen()) return
     document.addEventListener('pointerdown', away)
     onCleanup(() => document.removeEventListener('pointerdown', away))
   })
@@ -214,6 +213,17 @@ export function AppBar(props: AppBarProps) {
     { id: 'notices', icon: 'notices', label: '権利表示' },
     { id: 'settings', icon: 'settings', label: '設定' },
   ]
+  const [drop, setDrop] = createSignal(props.crumbMenu)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const hover = (i: number) => {
+    clearTimeout(timer)
+    timer = setTimeout(() => setDrop(i), 500)
+  }
+  const leave = () => {
+    clearTimeout(timer)
+    setDrop(undefined)
+  }
+  onCleanup(() => clearTimeout(timer))
   const onMenu = (id: string) => {
     if (id === 'settings') return setState('settings')
     if (id === 'theme') return toggleTheme()
@@ -225,7 +235,7 @@ export function AppBar(props: AppBarProps) {
       close()
       return props.onChooseLibrary?.()
     }
-    setState('closed')
+    close()
     if (id === 'home' || id === 'all' || id === 'tags' || id === 'projects') props.onGo?.(id)
   }
 
@@ -294,41 +304,49 @@ export function AppBar(props: AppBarProps) {
         </Show>
         <nav class={styles.crumbs} aria-label="いまの場所">
           <For each={props.crumbs ?? []}>
-            {(c, i) => (
-              <>
-                <Show when={i() > 0}>
-                  <span class={styles.sep} aria-hidden="true">
-                    /
-                  </span>
-                </Show>
-                <Show
-                  when={i() === (props.crumbs?.length ?? 0) - 1}
-                  fallback={
-                    <button type="button" class={styles.crumb} onClick={() => props.onCrumb?.(i())}>
-                      {c}
-                    </button>
-                  }
-                >
-                  <span class={styles.placesAt} ref={placesEl}>
+            {(c, i) => {
+              const last = () => i() === (props.crumbs?.length ?? 0) - 1
+              const items = () => (drop() === i() ? (i() === 0 ? placeItems() : props.siblingsOf?.(i())) : undefined)
+              return (
+                <>
+                  <Show when={i() > 0}>
+                    <span class={styles.sep} aria-hidden="true">
+                      /
+                    </span>
+                  </Show>
+                  <span class={styles.crumbAt} onPointerEnter={() => hover(i())} onPointerLeave={leave}>
                     <button
                       type="button"
                       class={styles.crumb}
-                      aria-current="page"
-                      aria-haspopup="menu"
-                      aria-expanded={placesOpen()}
-                      onClick={() => (placesOpen() ? close() : setState('places'))}
+                      aria-current={last() ? 'page' : undefined}
+                      data-open={!!items()?.length}
+                      onClick={() => {
+                        if (last()) return
+                        leave()
+                        props.onCrumb?.(i())
+                      }}
                     >
                       {c}
                     </button>
-                    <Show when={placesOpen()}>
-                      <div class={styles.menu}>
-                        <NavMenu focusFirst items={placeItems()} onSelect={onMenu} onClose={close} />
-                      </div>
+                    <Show when={items()?.length ? items() : undefined}>
+                      {(list) => (
+                        <div class={styles.drop}>
+                          <NavMenu
+                            items={list()}
+                            onSelect={(id) => {
+                              leave()
+                              if (i() === 0) void onMenu(id)
+                              else props.onSibling?.(i(), id)
+                            }}
+                            onClose={leave}
+                          />
+                        </div>
+                      )}
                     </Show>
                   </span>
-                </Show>
-              </>
-            )}
+                </>
+              )
+            }}
           </For>
         </nav>
       </TitleBar>

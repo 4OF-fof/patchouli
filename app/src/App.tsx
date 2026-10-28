@@ -14,6 +14,7 @@ import { ImportDialog } from './components/dialog/ImportDialog/ImportDialog'
 import { Toast } from './components/overlay/Toast/Toast'
 import { Peek } from './components/overlay/Peek/Peek'
 import {
+  hasTag,
   type Item,
   type Library,
   newNoteName,
@@ -35,6 +36,7 @@ import { FormatsProvider } from './plugins/formats'
 import { type HoverHost, HoverHostProvider } from './components/media/HoverPreview/HoverPreview'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import type { Activity } from './components/nav/ActivityButton/ActivityButton'
+import type { NavMenuEntry } from './components/nav/NavMenu/NavMenu'
 import type { IconName } from './components/base/Icon/Icon'
 import { ThumbMakingProvider } from './components/media/Thumb/Thumb'
 import { AllScreen } from './screens/All/AllScreen'
@@ -131,15 +133,59 @@ export function App(props: AppProps) {
   const crumbs = () => stack().map(labelOf)
   const go = (v: View) => setStack([...stack(), v])
   const goBack = () => setStack(stack().length > 1 ? stack().slice(0, -1) : stack())
-  const openItem = (id: string, list?: string[]) => {
+  const itemView = (id: string, list?: string[]): View | undefined => {
     const it = lib().byId.get(id)
-    if (!it) return
-    if (it.note) {
-      go({ s: 'note', id })
-      return
-    }
+    if (!it) return undefined
+    if (it.note) return { s: 'note', id }
     const l = (list ?? [id]).filter((x) => lib().byId.get(x)?.note === false)
-    go({ s: 'asset', list: l, index: Math.max(0, l.indexOf(id)) })
+    return { s: 'asset', list: l, index: Math.max(0, l.indexOf(id)) }
+  }
+  const openItem = (id: string, list?: string[]) => {
+    const v = itemView(id, list)
+    if (v) go(v)
+  }
+  const siblingItems = (v: View): Item[] | undefined => {
+    if (v.s === 'project') return lib().inProject(v.name)
+    if (v.s === 'tag') return lib().items.filter((i) => hasTag(i, v.tag))
+    const n = v.s === 'note' ? lib().byId.get(v.id) : undefined
+    return n && lib().linksOf(n)
+  }
+  const siblingsOf = (i: number): NavMenuEntry[] | undefined => {
+    const p = stack()[i - 1]
+    const v = stack()[i]
+    if (!p || !v) return undefined
+    if (p.s === 'plist')
+      return lib().projects.map((pr) => ({
+        id: pr.name,
+        icon: 'folder',
+        label: pr.name,
+        current: v.s === 'project' && v.name === pr.name,
+      }))
+    if (p.s === 'tlist')
+      return [...lib().tagGroups().keys()]
+        .toSorted((a, b) => a.localeCompare(b, 'ja'))
+        .map((t) => ({ id: t, icon: 'hash', label: t, current: v.s === 'tag' && v.tag === t }))
+    const here = v.s === 'note' ? v.id : v.s === 'asset' ? v.list[assetIndex.get(v) ?? v.index] : undefined
+    return siblingItems(p)?.map((it) => ({
+      id: it.id,
+      icon: it.note ? 'note' : 'file',
+      label: it.name,
+      current: it.id === here,
+    }))
+  }
+  const toSibling = (i: number, id: string) => {
+    const p = stack()[i - 1]
+    if (!p) return
+    const v: View | undefined =
+      p.s === 'plist'
+        ? { s: 'project', name: id }
+        : p.s === 'tlist'
+          ? { s: 'tag', tag: id }
+          : itemView(
+              id,
+              siblingItems(p)?.map((it) => it.id),
+            )
+    if (v) setStack([...stack().slice(0, i), v])
   }
   const [peek, setPeek] = createSignal<string>()
   const openRef = (id: string) => {
@@ -613,6 +659,8 @@ export function App(props: AppProps) {
                 crumbs={crumbs()}
                 onBack={stack().length > 1 ? goBack : undefined}
                 onCrumb={(i) => setStack(stack().slice(0, i + 1))}
+                siblingsOf={siblingsOf}
+                onSibling={toSibling}
                 onGo={onGo}
                 onOpenProject={(name) => go({ s: 'project', name })}
                 onOpenItem={(id) => openItem(id)}

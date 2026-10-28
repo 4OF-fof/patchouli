@@ -40,7 +40,7 @@ export const Crumbs: Story = {
 }
 export const Places: Story = {
   name: 'いまの場所から画面を選ぶ',
-  render: () => bar({ initial: 'places' }),
+  render: () => bar({ crumbMenu: 0 }),
 }
 export const Menu: Story = { name: 'メニュー', render: () => bar({ initial: 'menu' }) }
 export const Search: Story = { name: '検索を開く', render: () => bar({ initial: 'search' }) }

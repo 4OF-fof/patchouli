@@ -1,5 +1,7 @@
 .root {
   width: 240px;
+  max-height: var(--nav-menu-height, none);
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   padding: 6px;
@@ -15,6 +17,7 @@
   margin: 5px 4px;
 }
 .root button {
+  flex: none;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -36,6 +39,11 @@
   display: flex;
   font-style: normal;
   color: var(--faint);
+}
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .root button small {
   margin-left: auto;

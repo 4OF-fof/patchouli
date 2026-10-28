@@ -1,4 +1,4 @@
-import { For, createEffect, on } from 'solid-js'
+import { For, createEffect, on, onMount } from 'solid-js'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { Kbd } from '../../base/Kbd/Kbd'
 import styles from './NavMenu.module.css'
@@ -36,6 +36,7 @@ export function NavMenu(props: NavMenuProps) {
       },
     ),
   )
+  onMount(() => el.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' }))
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.stopPropagation()
@@ -65,7 +66,7 @@ export function NavMenu(props: NavMenuProps) {
               onClick={() => props.onSelect?.(it.id)}
             >
               <i>{it.icon && <Icon name={it.icon} withText />}</i>
-              {it.label}
+              <span class={styles.label}>{it.label}</span>
               {it.count != null && <small>{it.count}</small>}
               {it.hint && <small>{it.hint}</small>}
               {it.kbd && <Kbd class={styles.kbd}>{it.kbd}</Kbd>}
