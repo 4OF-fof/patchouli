@@ -5,6 +5,7 @@ import {
   defaultValueCtx,
   remarkStringifyOptionsCtx,
   rootCtx,
+  serializerCtx,
 } from '@milkdown/kit/core'
 import type { Ctx } from '@milkdown/kit/ctx'
 import { clipboard } from '@milkdown/kit/plugin/clipboard'
@@ -29,7 +30,7 @@ import { gfm, insertTableCommand, toggleStrikethroughCommand } from '@milkdown/k
 import { Fragment, type Node } from '@milkdown/kit/prose/model'
 import { TextSelection } from '@milkdown/kit/prose/state'
 import type { EditorView } from '@milkdown/kit/prose/view'
-import { callCommand, getMarkdown, replaceAll } from '@milkdown/kit/utils'
+import { callCommand, replaceAll } from '@milkdown/kit/utils'
 import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
 import { type Item, LINK_SCHEME, type Library } from '../../../model/library'
 import { Icon, type IconName } from '../../base/Icon/Icon'
@@ -44,11 +45,16 @@ import {
   codeBlocks,
   diagramEditing,
   embeds,
+  forgetRaw,
   links,
   patchouliImage,
   patchouliLink,
+  type RawLink,
+  rawLinks,
   refreshLinks,
+  savedDoc,
   triggers,
+  unlinkRaw,
 } from './prose'
 import styles from './NoteEditor.module.css'
 
@@ -92,6 +98,8 @@ interface Picking {
   restore?: string
   /** 選んだ文字にリンクを付ける。 */
   mark?: boolean
+  /** 元の書き方に戻しているリンクを置き換える。 */
+  raw?: boolean
 }
 
 const BAR: { mark: string; icon: IconName; label: string; run: () => ReturnType<typeof callCommand> }[] = [
@@ -118,6 +126,7 @@ export function NoteEditor(props: NoteEditorProps) {
   const [slashIdx, setSlashIdx] = createSignal(0)
   const [selected, setSelected] = createSignal<Selected>()
   const [picking, setPicking] = createSignal<Picking>()
+  const [raw, setRaw] = createSignal<RawLink>()
   const items = () => slashMatches(slash()?.query ?? '')
 
   const act = <T,>(f: (ctx: Ctx) => T) => editor?.action(f)
@@ -196,6 +205,7 @@ export function NoteEditor(props: NoteEditorProps) {
       return false
     },
     onOpenRef: (id) => props.onOpenRef?.(id),
+    onRaw: (r) => setRaw(r),
     nameOf: (id) => props.lib.byId.get(id)?.name,
     embedOf: async (id) => {
       const it = props.lib.byId.get(id)
@@ -208,6 +218,7 @@ export function NoteEditor(props: NoteEditorProps) {
       card: styles.card,
       diagram: styles.diagram,
       editing: styles.editing,
+      raw: styles.raw,
     },
   }
 
@@ -232,6 +243,7 @@ export function NoteEditor(props: NoteEditorProps) {
       const href = LINK_SCHEME + it.id
       const link = linkSchema.type(ctx)
       let tr = ev.state.tr
+      if (p.raw) tr = forgetRaw(tr)
       if (p.embed) {
         tr = tr.replaceWith(p.from, p.to, imageSchema.type(ctx).create({ src: href, alt: it.name }))
       } else if (p.mark) {
@@ -313,7 +325,11 @@ export function NoteEditor(props: NoteEditorProps) {
           },
           handleDrop: (v, ev) => takeFiles(ev.dataTransfer, posOf(v, { x: ev.clientX, y: ev.clientY })),
         }))
-        ctx.get(listenerCtx).markdownUpdated((c, md) => emit(md, c.get(editorViewCtx).state.doc))
+        // 渡される文字は、元の書き方に戻したリンクをそのまま書いたものなので使わない
+        ctx.get(listenerCtx).updated((c) => {
+          const doc = savedDoc(c.get(editorViewCtx).state, hooks.nameOf)
+          emit(c.get(serializerCtx)(doc), doc)
+        })
       })
       // 空の段落を <br /> で書き出す仕組みを外す
       .use(commonmark.filter((p) => !remarkPreserveEmptyLinePlugin.includes(p)))
@@ -328,6 +344,7 @@ export function NoteEditor(props: NoteEditorProps) {
       .use(embeds(() => hooks))
       .use(codeBlocks(() => hooks))
       .use(diagramEditing(() => hooks))
+      .use(rawLinks(() => hooks))
     await e.create()
     editor = e
     base = view()?.state.doc
@@ -353,11 +370,10 @@ export function NoteEditor(props: NoteEditorProps) {
     const e = editor
     editor = undefined
     if (!e) return
-    const md = e.action(getMarkdown())
-    emit(
-      md,
-      e.action((ctx) => ctx.get(editorViewCtx).state.doc),
-    )
+    e.action((ctx) => {
+      const doc = savedDoc(ctx.get(editorViewCtx).state, hooks.nameOf)
+      emit(ctx.get(serializerCtx)(doc), doc)
+    })
     void e.destroy()
   })
 
@@ -441,6 +457,40 @@ export function NoteEditor(props: NoteEditorProps) {
                 </div>
               )}
             </For>
+          </div>
+        )}
+      </Show>
+      <Show when={!picking() && !selected() && raw()}>
+        {(r) => (
+          <div
+            class={styles.linkMenu}
+            role="toolbar"
+            tabIndex={-1}
+            aria-label="リンク"
+            style={{ left: `${r().left}px`, top: `${r().bottom + 6}px` }}
+            onMouseDown={(e) => e.preventDefault()}
+          >
+            <Show when={r().id}>
+              {(id) => (
+                <button type="button" onClick={() => props.onOpenRef?.(id())}>
+                  開く
+                </button>
+              )}
+            </Show>
+            <button type="button" onClick={() => setPicking({ embed: false, from: r().from, to: r().to, raw: true })}>
+              アセットを選択
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const v = view()
+                if (!v) return
+                unlinkRaw(v, hooks.nameOf)
+                v.focus()
+              }}
+            >
+              リンクを解除
+            </button>
           </div>
         )}
       </Show>

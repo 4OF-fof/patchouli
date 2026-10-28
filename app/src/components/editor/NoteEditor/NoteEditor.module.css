@@ -171,7 +171,7 @@
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 3px;
-  cursor: pointer;
+  cursor: text;
 }
 .link {
   color: var(--wl);
@@ -251,6 +251,36 @@
 .item[aria-selected='true'] {
   background: var(--accent-soft);
   color: var(--ink);
+}
+.raw {
+  color: var(--wl);
+  font-family: var(--f-mono);
+  font-size: 0.88em;
+}
+.linkMenu {
+  position: fixed;
+  z-index: 40;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--menu);
+  box-shadow: var(--shadow-float);
+}
+.linkMenu button {
+  height: 26px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font-size: var(--fs-list);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.linkMenu button:hover {
+  background: var(--accent-soft);
 }
 .caret {
   position: fixed;

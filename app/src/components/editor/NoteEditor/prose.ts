@@ -1,7 +1,7 @@
 import { codeBlockSchema, imageSchema, linkSchema } from '@milkdown/kit/preset/commonmark'
 import type { Mounted } from 'pele/lazy'
 import type { Node } from '@milkdown/kit/prose/model'
-import { type EditorState, Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state'
+import { type EditorState, Plugin, PluginKey, TextSelection, type Transaction } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet, type EditorView, type NodeView } from '@milkdown/kit/prose/view'
 import { $prose, $view } from '@milkdown/kit/utils'
 import { LINK_SCHEME } from '../../../model/library'
@@ -34,9 +34,19 @@ export interface Hooks {
   /** `/` の一覧が開いているときのキー。受け持ったら true。 */
   onMenuKey: (e: KeyboardEvent) => boolean
   onOpenRef: (id: string) => void
+  /** カーソルが入って元の書き方に戻しているリンク。 */
+  onRaw: (r: RawLink | undefined) => void
   nameOf: (id: string) => string | undefined
   embedOf: (id: string) => Promise<Embed | undefined>
-  classes: { link: string; missing: string; embed: string; card: string; diagram: string; editing: string }
+  classes: {
+    link: string
+    missing: string
+    embed: string
+    card: string
+    diagram: string
+    editing: string
+    raw: string
+  }
 }
 
 const at = (view: EditorView, pos: number): At => {
@@ -149,7 +159,7 @@ function linkMarks(doc: Node, { classes, nameOf }: Hooks) {
           pos + node.nodeSize,
           nameOf(id) === undefined
             ? { class: classes.missing, 'data-id': id, title: 'リンク先が見つかりません' }
-            : { class: classes.link },
+            : { class: classes.link, title: 'Ctrl+クリックで開く' },
         ),
       )
     }
@@ -182,12 +192,199 @@ export const links = (hooks: () => Hooks) =>
               const a = t?.closest('a')
               if (!a) return false
               e.preventDefault()
-              const id = idOfHref(a.getAttribute('href'))
-              if (id) hooks().onOpenRef(id)
+              if (e.ctrlKey || e.metaKey) return true
+              // 端を押したときも元の書き方に戻す
+              const pos = view.posAtCoords({ left: e.clientX, top: e.clientY })?.pos
+              if (pos !== undefined && idOfHref(a.getAttribute('href')))
+                view.dispatch(
+                  view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)).setMeta(REVEAL, true),
+                )
+              return true
+            },
+            // 押したときにカーソルが入って元の書き方に変わる前に開く
+            mousedown: (_, e) => {
+              if (!(e.ctrlKey || e.metaKey) || e.button !== 0) return false
+              const a = e.target instanceof Element ? e.target.closest('a') : null
+              const id = idOfHref(a?.getAttribute('href'))
+              if (!id) return false
+              e.preventDefault()
+              hooks().onOpenRef(id)
               return true
             },
           },
         },
+      }),
+  )
+
+export interface RawLink extends At {
+  from: number
+  to: number
+  id?: string
+}
+
+interface Raw {
+  from: number
+  to: number
+}
+
+const rawKey = new PluginKey<Raw | undefined>('patchouli-raw')
+const isRaw = (v: unknown): v is Raw =>
+  typeof v === 'object' &&
+  v !== null &&
+  'from' in v &&
+  'to' in v &&
+  typeof v.from === 'number' &&
+  typeof v.to === 'number'
+const REVEAL = 'patchouli-reveal'
+const RAW_RE = /\[((?:\\.|[^\]\\])*)\]\(patchouli:([^)\s]+)\)/g
+const escapeLabel = (s: string) => s.replace(/[\\[\]]/g, '\\$&')
+const unescapeLabel = (s: string) => s.replace(/\\([!-/:-@[-`{-~])/g, '$1')
+
+interface Span {
+  from: number
+  to: number
+  href: string
+  text: string
+}
+
+/** pos を含むリンクの範囲。edge なら端も含める。 */
+function linkAt(doc: Node, pos: number, edge: boolean): Span | undefined {
+  const $pos = doc.resolve(pos)
+  const parent = $pos.parent
+  if (!parent.isTextblock || parent.type.spec.code) return undefined
+  const inside = (s: Span) => (edge ? s.from <= pos && pos <= s.to : s.from < pos && pos < s.to)
+  const start = $pos.start()
+  let cur: Span | undefined
+  let found: Span | undefined
+  parent.forEach((child, offset) => {
+    if (found) return
+    const mark = child.marks.find((m) => m.type.name === 'link' && idOfHref(m.attrs.href))
+    const href = child.isText && mark ? String(mark.attrs.href) : undefined
+    const from = start + offset
+    if (href && cur?.href === href && cur.to === from) {
+      cur.to += child.nodeSize
+      cur.text += child.text ?? ''
+      return
+    }
+    if (cur && inside(cur)) found = cur
+    cur = href ? { from, to: from + child.nodeSize, href, text: child.text ?? '' } : undefined
+  })
+  if (!found && cur && inside(cur)) found = cur
+  return found
+}
+
+/** 範囲の中の [表示名](patchouli:ID) を見つける。位置は文書の中のもの。 */
+function rawMatches(doc: Node, raw: Raw) {
+  const out: { from: number; to: number; label: string; id: string }[] = []
+  if (raw.from >= raw.to || raw.to > doc.content.size) return out
+  doc.nodesBetween(raw.from, raw.to, (node, pos) => {
+    if (!node.isTextblock) return true
+    const text = node.textBetween(0, node.content.size, undefined, '￼')
+    for (const m of text.matchAll(RAW_RE)) {
+      const from = pos + 1 + m.index
+      const to = from + m[0].length
+      if (to > raw.from && from < raw.to) out.push({ from, to, label: unescapeLabel(m[1] ?? ''), id: m[2] ?? '' })
+    }
+    return false
+  })
+  return out
+}
+
+/** 元の書き方に戻していた範囲を、リンクに戻す。plain なら文字だけにする。 */
+function collapse(tr: Transaction, raw: Raw, nameOf: Hooks['nameOf'], plain = false) {
+  const { schema } = tr.doc.type
+  for (const m of rawMatches(tr.doc, raw).toReversed()) {
+    const label = nameOf(m.id) ?? (m.label || m.id)
+    const marks = (tr.doc.nodeAt(m.from)?.marks ?? []).filter((x) => x.type.name !== 'link')
+    const link = schema.marks.link?.create({ href: LINK_SCHEME + m.id })
+    tr.replaceWith(m.from, m.to, schema.text(label, plain || !link ? marks : [...marks, link]))
+  }
+  return tr
+}
+
+function reveal(tr: Transaction, s: Span, head: number): Raw {
+  const raw = `[${escapeLabel(s.text)}](${s.href})`
+  const marks = (tr.doc.nodeAt(s.from)?.marks ?? []).filter((x) => x.type.name !== 'link')
+  tr.replaceWith(s.from, s.to, tr.doc.type.schema.text(raw, marks))
+  const off = Math.min(head - s.from, s.text.length)
+  tr.setSelection(TextSelection.create(tr.doc, s.from + 1 + off))
+  return { from: s.from, to: s.from + raw.length }
+}
+
+/** 保存する文書。元の書き方に戻している範囲があれば、リンクに戻したもの。 */
+export function savedDoc(state: EditorState, nameOf: Hooks['nameOf']) {
+  const raw = rawKey.getState(state)
+  return raw ? collapse(state.tr, raw, nameOf).doc : state.doc
+}
+
+/** 元の書き方に戻している範囲のリンクを外して、文字だけにする。 */
+export function unlinkRaw(view: EditorView, nameOf: Hooks['nameOf']) {
+  const raw = rawKey.getState(view.state)
+  if (!raw) return
+  view.dispatch(collapse(view.state.tr, raw, nameOf, true).setMeta(rawKey, null))
+}
+
+/** 元の書き方に戻している範囲を、ほかの操作で置き換えたときに忘れる。 */
+export const forgetRaw = (tr: Transaction) => tr.setMeta(rawKey, null)
+
+function reportRaw(view: EditorView, hooks: Hooks) {
+  const raw = rawKey.getState(view.state)
+  if (!raw || raw.to > view.state.doc.content.size || !view.hasFocus()) return hooks.onRaw(undefined)
+  const id = rawMatches(view.state.doc, raw)[0]?.id
+  hooks.onRaw({ ...at(view, raw.from), from: raw.from, to: raw.to, id })
+}
+
+export const rawLinks = (hooks: () => Hooks) =>
+  $prose(
+    () =>
+      new Plugin<Raw | undefined>({
+        key: rawKey,
+        state: {
+          init: () => undefined,
+          apply(tr, raw) {
+            const meta: unknown = tr.getMeta(rawKey)
+            if (meta !== undefined) return isRaw(meta) ? meta : undefined
+            if (!raw) return undefined
+            const from = tr.mapping.map(raw.from, -1)
+            const to = tr.mapping.map(raw.to, 1)
+            return from < to ? { from, to } : undefined
+          },
+        },
+        appendTransaction(trs, _old, state) {
+          if (trs.some((t) => t.getMeta(rawKey) !== undefined)) return null
+          const edge = trs.some((t) => t.getMeta(REVEAL))
+          if (!edge && !trs.some((t) => t.selectionSet || t.docChanged)) return null
+          const raw = rawKey.getState(state)
+          const sel = state.selection
+          if (raw && sel.from >= raw.from && sel.to <= raw.to) return null
+          const tr = state.tr
+          if (raw) collapse(tr, raw, hooks().nameOf)
+          const s = tr.selection.empty ? linkAt(tr.doc, tr.selection.head, edge) : undefined
+          const next = s ? reveal(tr, s, tr.selection.head) : null
+          if (!raw && !next) return null
+          return tr.setMeta(rawKey, next).setMeta('addToHistory', false)
+        },
+        props: {
+          decorations: (s) => {
+            const raw = rawKey.getState(s)
+            if (!raw || raw.to > s.doc.content.size) return null
+            return DecorationSet.create(s.doc, [Decoration.inline(raw.from, raw.to, { class: hooks().classes.raw })])
+          },
+          handleDOMEvents: {
+            focus: (view) => {
+              reportRaw(view, hooks())
+              return false
+            },
+            blur: () => {
+              hooks().onRaw(undefined)
+              return false
+            },
+          },
+        },
+        view: () => ({
+          update: (view) => reportRaw(view, hooks()),
+          destroy: () => hooks().onRaw(undefined),
+        }),
       }),
   )
 
