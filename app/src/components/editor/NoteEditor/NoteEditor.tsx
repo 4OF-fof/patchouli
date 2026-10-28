@@ -22,8 +22,8 @@ export interface Point {
 
 export interface NoteEditorApi {
   focus: () => void
+  /** 見出しの番号の位置まで送る。-1 ならノートの頭。 */
   scrollToHeading: (index: number) => void
-  pickLink: () => void
   /** ファイルを落とす先を示す。undefined で消す。 */
   dropAt: (p: Point | undefined) => void
   /** 素材を入れる。動画・音声・画像は埋め込み、ほかはリンクにする。p がなければカーソルの位置に入れる。 */
@@ -41,6 +41,8 @@ export interface NoteEditorProps {
   embedOf?: (it: Item) => Promise<Embed | undefined>
   /** 貼り付けたり落としたりしたファイルを素材として取り込む。 */
   onImport?: (files: File[]) => Promise<Item[]>
+  /** 読んでいる見出しの番号が変わった。見出しより前なら -1。 */
+  onSection?: (index: number) => void
   ref?: (api: NoteEditorApi) => void
   class?: string
 }
@@ -80,6 +82,31 @@ const BAR: { mark: string; icon: IconName; label: string; wrap: string }[] = [
 
 const HEADING_RE = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/
 const FENCE_RE = /^ {0,3}(```|~~~)/
+
+/** 見出しの行の頭。見出しの一覧（headingsOf）と同じ数え方。 */
+function headingLines(state: EditorState) {
+  const out: number[] = []
+  let fence = false
+  for (let l = 1; l <= state.doc.lines; l++) {
+    const line = state.doc.line(l)
+    if (FENCE_RE.test(line.text)) fence = !fence
+    if (fence) continue
+    const m = HEADING_RE.exec(line.text)
+    if (m?.[1] && m[2]) out.push(line.from)
+  }
+  return out
+}
+
+const SECTION_TOP = 120
+
+/** 本文を送っている要素。エディタは自分では送らず、置かれた画面の側で送る。 */
+function scrollerOf(v: EditorView) {
+  for (let el = v.dom.parentElement; el; el = el.parentElement) {
+    const { overflowY } = getComputedStyle(el)
+    if (overflowY === 'auto' || overflowY === 'scroll') return el
+  }
+  return undefined
+}
 
 const refText = (it: Item, embed: boolean) => `${embed ? '!' : ''}[${escapeLabel(it.name)}](${LINK_SCHEME}${it.id})`
 
@@ -193,6 +220,32 @@ export function NoteEditor(props: NoteEditorProps) {
       const ev = u.view
       ev.requestMeasure({ read: () => place(ev, u.docChanged && typed), key: 'patchouli-place' })
     }
+    if (u.docChanged || u.geometryChanged) {
+      const ev = u.view
+      ev.requestMeasure({ read: () => findSection(ev), key: 'patchouli-section' })
+    }
+  }
+
+  /**
+   * 読んでいる見出しを、見えている範囲の上の端近く（SECTION_TOP まで）に頭が来た最後の見出しにする。
+   * 終わりまで送ったときは、それより下の見出しはそこまで上がってこないので、見えている最後の見出しにする。
+   */
+  let section: number | undefined
+  let pinned = false
+  const unpin = () => (pinned = false)
+  const findSection = (v: EditorView) => {
+    const el = scrollerOf(v)
+    if (!el || !props.onSection || pinned) return
+    const r = el.getBoundingClientRect()
+    const end = el.scrollTop > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 2
+    const line = end ? r.bottom : r.top + SECTION_TOP
+    let at = -1
+    headingLines(v.state).forEach((pos, i) => {
+      if (v.lineBlockAt(pos).top + v.documentTop <= line) at = i
+    })
+    if (at === section) return
+    section = at
+    props.onSection(at)
   }
 
   const takeFiles = (data: DataTransfer | null, at: number) => {
@@ -314,24 +367,33 @@ export function NoteEditor(props: NoteEditorProps) {
       scrollToHeading: (i) => {
         const v = view
         if (!v) return
-        let fence = false
-        let n = 0
-        for (let l = 1; l <= v.state.doc.lines; l++) {
-          const line = v.state.doc.line(l)
-          if (FENCE_RE.test(line.text)) fence = !fence
-          if (fence) continue
-          const m = HEADING_RE.exec(line.text)
-          if (!m?.[1] || !m[2]) continue
-          if (n++ !== i) continue
-          v.dispatch({ effects: EditorView.scrollIntoView(line.from, { y: 'start' }) })
+        const el = scrollerOf(v)
+        if (!el) return
+        const at = headingLines(v.state)[i]
+        // 送ったあとは、自分で送るか打つまで、選んだ見出しを読んでいる見出しにする
+        pinned = true
+        section = at === undefined ? -1 : i
+        props.onSection?.(section)
+        if (at === undefined) {
+          el.scrollTo({ top: 0 })
           return
         }
-      },
-      pickLink: () => {
-        const v = view
-        if (!v) return
-        const { from, to, empty } = v.state.selection.main
-        setPicking({ embed: false, from, to, mark: !empty })
+        // 上に重なる帯に隠れないよう、少し下に置く。まだ描いていない行の高さは見積もりなので、描いてから合わせ直す
+        const topOf = () => {
+          const { node } = v.domAtPos(at)
+          const line = (node instanceof Element ? node : node.parentElement)?.closest('.cm-line')
+          return line && at >= v.viewport.from && at <= v.viewport.to
+            ? line.getBoundingClientRect().top
+            : v.lineBlockAt(at).top + v.documentTop
+        }
+        const go = (tries: number) => {
+          const off = topOf() - el.getBoundingClientRect().top - SECTION_TOP / 2
+          if (Math.abs(off) < 2) return
+          const before = el.scrollTop
+          el.scrollTo({ top: before + off })
+          if (tries > 0 && el.scrollTop !== before) requestAnimationFrame(() => go(tries - 1))
+        }
+        go(6)
       },
       dropAt: (p) => {
         const v = view
@@ -386,12 +448,19 @@ export function NoteEditor(props: NoteEditorProps) {
     frame = requestAnimationFrame(() => {
       frame = 0
       const v = view
-      if (v) place(v, false)
+      if (!v) return
+      place(v, false)
+      findSection(v)
     })
   }
-  onMount(() => document.addEventListener('scroll', onScroll, true))
+  const UNPIN = ['wheel', 'keydown', 'touchmove', 'pointerdown'] as const
+  onMount(() => {
+    document.addEventListener('scroll', onScroll, true)
+    for (const t of UNPIN) document.addEventListener(t, unpin, { capture: true, passive: true })
+  })
   onCleanup(() => {
     document.removeEventListener('scroll', onScroll, true)
+    for (const t of UNPIN) document.removeEventListener(t, unpin, { capture: true })
     cancelAnimationFrame(frame)
   })
 

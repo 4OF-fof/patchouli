@@ -4,7 +4,7 @@ import { LinkCaption, LinkNone, LinkRow } from './LinkRow'
 const meta = {
   title: '部品/nav/LinkRow',
   component: LinkRow,
-  args: { mark: '→', label: 'moodboard-01', sub: '素材', onClick: () => {} },
+  args: { mark: '→', label: 'moodboard-01', sub: 'JPG', onClick: () => {} },
   decorators: [
     (Story) => (
       <div style={{ width: '280px' }}>
@@ -25,7 +25,7 @@ export const Group: Story = {
       <LinkCaption>このノートへのリンク</LinkCaption>
       <LinkRow mark="←" label="秋の企画：進め方" sub="ノート" />
       <LinkCaption>このノートからのリンク</LinkCaption>
-      <LinkRow mark="→" label="moodboard-01" sub="素材" />
+      <LinkRow mark="→" label="moodboard-01" sub="JPG" />
       <LinkRow mark="→" label="差し色の比較" sub="未作成" missing />
       <LinkCaption>この素材へのリンク</LinkCaption>
       <LinkNone>まだありません</LinkNone>

@@ -116,19 +116,6 @@
 .cardView > section {
   width: 100%;
 }
-.connect {
-  align-self: flex-start;
-  margin: 0 6px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent);
-  font-size: var(--fs-meta);
-  cursor: pointer;
-}
-.connect:hover {
-  text-decoration: underline;
-}
 @media (max-width: 860px) {
   .card {
     width: 260px;

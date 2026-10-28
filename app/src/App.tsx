@@ -526,6 +526,7 @@ export function App(props: AppProps) {
     <NoteScreen
       lib={lib()}
       noteId={noteId}
+      headsOpen={main ? undefined : false}
       onOpenRef={openRef}
       onTogglePin={togglePin}
       onBody={(id, body) => editItem(id, { body }, { body })}

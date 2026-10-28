@@ -3,6 +3,7 @@ import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
+import { HeadingTree } from '../../components/nav/HeadingTree/HeadingTree'
 import { LinkCaption, LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { type Embed, NoteEditor, type NoteEditorApi } from '../../components/editor/NoteEditor/NoteEditor'
@@ -49,7 +50,7 @@ export function NoteScreen(props: NoteScreenProps) {
   let editor: NoteEditorApi | undefined
   const body = () => note()?.body ?? ''
   const headings = () => headingsOf(body())
-  const top = () => Math.min(...headings().map((h) => h.level))
+  const [section, setSection] = createSignal(-1)
   const into = () => {
     const n = note()
     return n ? lib().backOf(n) : []
@@ -132,6 +133,7 @@ export function NoteScreen(props: NoteScreenProps) {
                 onCreateNote={async (name) => props.onCreateNote?.(name, n().folder)}
                 embedOf={props.embedOf}
                 onImport={props.onImport && ((files) => props.onImport?.(files, n().folder) ?? Promise.resolve([]))}
+                onSection={setSection}
                 ref={(api) => {
                   editor = api
                   props.editorRef?.(api)
@@ -167,19 +169,12 @@ export function NoteScreen(props: NoteScreenProps) {
             <aside class={`${styles.card} ${styles.l}`} aria-label="見出し">
               <ScrollArea viewClass={styles.cardView}>
                 <FloatingCard title={`見出し ${headings().length}`} onClose={() => setHeads(false)}>
-                  <div>
-                    <LinkRow label={n().name} current />
-                    <For each={headings()}>
-                      {(h, i) => (
-                        <LinkRow
-                          label={h.text}
-                          indent
-                          depth={h.level - top()}
-                          onClick={() => editor?.scrollToHeading(i())}
-                        />
-                      )}
-                    </For>
-                  </div>
+                  <HeadingTree
+                    title={n().name}
+                    headings={headings()}
+                    current={section()}
+                    onSelect={(i) => editor?.scrollToHeading(i)}
+                  />
                 </FloatingCard>
               </ScrollArea>
             </aside>
@@ -220,7 +215,7 @@ export function NoteScreen(props: NoteScreenProps) {
                             <LinkRow
                               mark="→"
                               label={it()?.name ?? id}
-                              sub={!it() ? '見つかりません' : it()?.note ? 'ノート' : '素材'}
+                              sub={!it() ? '見つかりません' : it()?.note ? 'ノート' : it()?.ext.toUpperCase()}
                               missing={!it()}
                               onClick={() => props.onOpenRef?.(id)}
                             />
@@ -229,10 +224,6 @@ export function NoteScreen(props: NoteScreenProps) {
                       </For>
                     </Show>
                   </div>
-                  <button type="button" class={styles.connect} onClick={() => editor?.pickLink()}>
-                    <Icon name="plus" size={14} />
-                    リンクを追加
-                  </button>
                 </FloatingCard>
               </ScrollArea>
             </aside>

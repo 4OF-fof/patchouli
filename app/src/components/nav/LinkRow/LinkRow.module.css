@@ -28,9 +28,6 @@
 .root[data-current='true'] {
   font-weight: 600;
 }
-.root[data-indent='true'] {
-  padding-left: calc(22px + 12px * var(--depth, 0));
-}
 .root em {
   width: 14px;
   flex: none;
