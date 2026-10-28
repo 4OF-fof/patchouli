@@ -14,7 +14,7 @@ type Story = StoryObj
 const tag = (o: Partial<TagScreenProps> = {}, name = '写真') => {
   const lib = sampleLibrary()
   return (
-    <ScreenFrame bar={<AppBar lib={lib} crumbs={['タグ一覧', `# ${name}`]} onBack={() => {}} />}>
+    <ScreenFrame bar={<AppBar lib={lib} crumbs={['タグ一覧', `# ${name}`]} />}>
       <TagScreen lib={lib} tag={name} pinned={PINNED_TAGS.includes(name)} {...o} />
     </ScreenFrame>
   )

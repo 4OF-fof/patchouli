@@ -16,7 +16,7 @@ export default meta
 type Story = StoryObj
 
 const frame = (lib: Library, name: string, screen: JSX.Element, extra?: JSX.Element) => (
-  <ScreenFrame bar={<AppBar lib={lib} crumbs={['ホーム', name]} onBack={() => {}} />}>
+  <ScreenFrame bar={<AppBar lib={lib} crumbs={['ホーム', name]} />}>
     {screen}
     {extra}
   </ScreenFrame>

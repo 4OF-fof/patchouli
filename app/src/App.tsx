@@ -659,7 +659,6 @@ export function App(props: AppProps) {
                 lib={lib()}
                 here={here()}
                 crumbs={crumbs()}
-                onBack={stack().length > 1 ? goBack : undefined}
                 onCrumb={(i) => setStack(stack().slice(0, i + 1))}
                 siblingsOf={siblingsOf}
                 onSibling={toSibling}

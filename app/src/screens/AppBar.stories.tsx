@@ -35,8 +35,8 @@ const desktop = (Story: () => JSX.Element) => (
 export const Default: Story = { name: 'web（窓のボタンなし）', render: () => bar() }
 export const Desktop: Story = { name: 'デスクトップ', decorators: [desktop], render: () => bar() }
 export const Crumbs: Story = {
-  name: '戻ると道のり',
-  render: () => bar({ here: 'projects', crumbs: ['プロジェクト一覧', '秋の企画'], onBack: () => {} }),
+  name: '道のり',
+  render: () => bar({ here: 'projects', crumbs: ['プロジェクト一覧', '秋の企画'] }),
 }
 export const Places: Story = {
   name: 'いまの場所から画面を選ぶ',

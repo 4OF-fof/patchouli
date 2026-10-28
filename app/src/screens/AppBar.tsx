@@ -40,7 +40,6 @@ export interface AppBarProps {
   lib: Library
   here?: Place
   crumbs?: string[]
-  onBack?: () => void
   onCrumb?: (i: number) => void
   siblingsOf?: (i: number) => NavMenuEntry[] | undefined
   onSibling?: (i: number, id: string) => void
@@ -291,17 +290,6 @@ export function AppBar(props: AppBarProps) {
             </div>
           </Show>
         </div>
-        <Show when={props.onBack}>
-          <button
-            type="button"
-            class={styles.ib}
-            aria-label="戻る"
-            data-tip="戻る（Esc）"
-            onClick={() => props.onBack?.()}
-          >
-            <Icon name="back" />
-          </button>
-        </Show>
         <nav class={styles.crumbs} aria-label="いまの場所">
           <For each={props.crumbs ?? []}>
             {(c, i) => {
