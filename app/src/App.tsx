@@ -132,7 +132,6 @@ export function App(props: AppProps) {
             : LABEL[v.s]
   const crumbs = () => stack().map(labelOf)
   const go = (v: View) => setStack([...stack(), v])
-  const goBack = () => setStack(stack().length > 1 ? stack().slice(0, -1) : stack())
   const itemView = (id: string, list?: string[]): View | undefined => {
     const it = lib().byId.get(id)
     if (!it) return undefined
@@ -435,10 +434,6 @@ export function App(props: AppProps) {
       (e.target.isContentEditable || e.target.closest('input, textarea, select, [role="dialog"], [role="menu"]'))
     )
       return
-    if (e.key === 'Escape') {
-      if (peek()) setPeek(undefined)
-      else goBack()
-    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'u') {
       e.preventDefault()
       go({ s: 'tidy' })

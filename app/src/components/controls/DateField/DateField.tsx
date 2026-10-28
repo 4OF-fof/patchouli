@@ -101,7 +101,7 @@ export function DateField(props: DateFieldProps) {
     }
     const run = keys[e.key]
     if (!run) return
-    // Esc で画面を戻さない
+    // Esc で外側を閉じない
     e.stopPropagation()
     e.preventDefault()
     run()

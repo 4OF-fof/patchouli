@@ -89,7 +89,7 @@ export function Select(props: SelectProps) {
     }
     const run = keys[e.key]
     if (!run) return
-    // Esc で画面を戻さない
+    // Esc で外側を閉じない
     e.stopPropagation()
     if (e.key !== 'Tab') e.preventDefault()
     run()

@@ -35,7 +35,7 @@ export function TagPicker(props: TagPickerProps) {
     return t && !known().has(t) && !props.tags.includes(t) ? t : undefined
   }
   const toggle = (t: string) => props.onToggle(t, !props.tags.includes(t))
-  // 先に受けて、画面を戻す Esc にしない
+  // 先に受けて、外側を閉じる Esc にしない
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return
     e.stopPropagation()
