@@ -133,11 +133,10 @@ export function NoteScreen(props: NoteScreenProps) {
               />
               <button type="button" class={styles.props} onClick={() => setPropsOpen(!propsOpen())}>
                 <span>{n().folder ?? 'プロジェクトなし'}</span>
-                <span>·</span>
+                <span>/</span>
                 <Show when={n().tags.length} fallback={<span>タグなし</span>}>
                   <For each={n().tags}>{(t) => <span class={styles.tag}># {t}</span>}</For>
                 </Show>
-                <span>·</span>
                 <span>{propsOpen() ? '閉じる ▾' : '詳細 ▸'}</span>
               </button>
               <Show when={propsOpen()}>
