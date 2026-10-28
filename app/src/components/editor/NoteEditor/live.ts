@@ -173,6 +173,8 @@ class Check extends WidgetType {
 }
 
 const embeds = new Map<string, Promise<Embed | undefined>>()
+/** 埋め込みに描いた中身。 */
+const drawn = new WeakMap<HTMLElement, string>()
 
 const spanOf = (cls: string | undefined, s: string) => {
   const el = document.createElement('span')
@@ -212,24 +214,26 @@ class EmbedView extends WidgetType {
   }
 
   private same(o: EmbedView) {
-    return (
-      o.id === this.id && o.src === this.src && o.alt === this.alt && o.name === this.name && o.version === this.version
-    )
+    return o.id === this.id && o.src === this.src && o.alt === this.alt && o.name === this.name
   }
 
   eq(o: EmbedView) {
-    return this.same(o) && o.selected === this.selected
+    return this.same(o) && o.selected === this.selected && o.version === this.version
   }
 
-  /** カーソルが接しただけなら、読み込んだ中身はそのままにして印だけ付け替える。 */
+  /**
+   * 同じリンク先なら作り直さない。ライブラリが変わったとき（ノートを保存するたびに変わる）は中身を確かめ直し、
+   * 変わっていたときだけ描き直す。作り直すと読み込み直す間に高さが変わり、本文がずれる。
+   */
   updateDOM(dom: HTMLElement, _view: EditorView, from: this) {
     if (!this.same(from)) return false
     dom.dataset.selected = String(this.selected)
+    if (from.version !== this.version) this.load(dom)
     return true
   }
 
   toDOM() {
-    const { classes, embedOf } = this.hooks
+    const { classes } = this.hooks
     const { id, name } = this
     const dom = document.createElement('span')
     dom.className = classes.embed ?? ''
@@ -247,6 +251,14 @@ class EmbedView extends WidgetType {
       return dom
     }
     dom.append(spanOf(classes.card, name))
+    this.load(dom)
+    return dom
+  }
+
+  private load(dom: HTMLElement) {
+    const { classes, embedOf } = this.hooks
+    const { id, name } = this
+    if (!id || name === undefined) return
     const key = `${this.version}:${id}`
     let p = embeds.get(key)
     if (!p) {
@@ -255,6 +267,9 @@ class EmbedView extends WidgetType {
     }
     void p.then((e) => {
       if (!e) return
+      const sig = JSON.stringify(e)
+      if (drawn.get(dom) === sig) return
+      drawn.set(dom, sig)
       if (e.kind === 'card') {
         const card = spanOf(classes.card, name)
         if (e.thumb) {
@@ -275,7 +290,6 @@ class EmbedView extends WidgetType {
       }
       dom.replaceChildren(el)
     })
-    return dom
   }
 
   ignoreEvent(e: Event) {
