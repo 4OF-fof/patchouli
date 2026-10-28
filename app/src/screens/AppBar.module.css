@@ -59,6 +59,8 @@
 .crumb[aria-current='page'] {
   max-width: 40vw;
   color: var(--ink);
+}
+.crumb[aria-current='page']:not([aria-haspopup]) {
   cursor: default;
 }
 .crumbAt {

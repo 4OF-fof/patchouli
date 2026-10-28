@@ -36,7 +36,7 @@ import { FormatsProvider } from './plugins/formats'
 import { type HoverHost, HoverHostProvider } from './components/media/HoverPreview/HoverPreview'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import type { Activity } from './components/nav/ActivityButton/ActivityButton'
-import type { NavMenuEntry } from './components/nav/NavMenu/NavMenu'
+import type { NavMenuItem } from './components/nav/NavMenu/NavMenu'
 import type { IconName } from './components/base/Icon/Icon'
 import { ThumbMakingProvider } from './components/media/Thumb/Thumb'
 import { AllScreen } from './screens/All/AllScreen'
@@ -150,28 +150,30 @@ export function App(props: AppProps) {
     const n = v.s === 'note' ? lib().byId.get(v.id) : undefined
     return n && lib().linksOf(n)
   }
-  const siblingsOf = (i: number): NavMenuEntry[] | undefined => {
+  const siblingsOf = (i: number): NavMenuItem[] | undefined => {
     const p = stack()[i - 1]
     const v = stack()[i]
     if (!p || !v) return undefined
-    if (p.s === 'plist')
-      return lib().projects.map((pr) => ({
-        id: pr.name,
-        icon: 'folder',
-        label: pr.name,
-        current: v.s === 'project' && v.name === pr.name,
-      }))
-    if (p.s === 'tlist')
-      return [...lib().tagGroups().keys()]
-        .toSorted((a, b) => a.localeCompare(b, 'ja'))
-        .map((t) => ({ id: t, icon: 'hash', label: t, current: v.s === 'tag' && v.tag === t }))
     const here = v.s === 'note' ? v.id : v.s === 'asset' ? v.list[assetIndex.get(v) ?? v.index] : undefined
-    return siblingItems(p)?.map((it) => ({
-      id: it.id,
-      icon: it.note ? 'note' : 'file',
-      label: it.name,
-      current: it.id === here,
-    }))
+    const list: NavMenuItem[] | undefined =
+      p.s === 'plist'
+        ? lib().projects.map((pr) => ({
+            id: pr.name,
+            icon: 'folder',
+            label: pr.name,
+            current: v.s === 'project' && v.name === pr.name,
+          }))
+        : p.s === 'tlist'
+          ? [...lib().tagGroups().keys()]
+              .toSorted((a, b) => a.localeCompare(b, 'ja'))
+              .map((t) => ({ id: t, icon: 'hash', label: t, current: v.s === 'tag' && v.tag === t }))
+          : siblingItems(p)?.map((it) => ({
+              id: it.id,
+              icon: it.note ? 'note' : 'file',
+              label: it.name,
+              current: it.id === here,
+            }))
+    return list?.toSorted((a, b) => Number(!!b.current) - Number(!!a.current))
   }
   const toSibling = (i: number, id: string) => {
     const p = stack()[i - 1]

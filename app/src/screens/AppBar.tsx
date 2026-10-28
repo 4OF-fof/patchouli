@@ -214,6 +214,7 @@ export function AppBar(props: AppBarProps) {
     { id: 'settings', icon: 'settings', label: '設定' },
   ]
   const [drop, setDrop] = createSignal(props.crumbMenu)
+  const [clicked, setClicked] = createSignal(false)
   let timer: ReturnType<typeof setTimeout> | undefined
   const hover = (i: number) => {
     clearTimeout(timer)
@@ -222,6 +223,7 @@ export function AppBar(props: AppBarProps) {
   const leave = () => {
     clearTimeout(timer)
     setDrop(undefined)
+    setClicked(false)
   }
   onCleanup(() => clearTimeout(timer))
   const onMenu = (id: string) => {
@@ -306,6 +308,7 @@ export function AppBar(props: AppBarProps) {
           <For each={props.crumbs ?? []}>
             {(c, i) => {
               const last = () => i() === (props.crumbs?.length ?? 0) - 1
+              const places = () => i() === 0 && last()
               const items = () => (drop() === i() ? (i() === 0 ? placeItems() : props.siblingsOf?.(i())) : undefined)
               return (
                 <>
@@ -319,8 +322,19 @@ export function AppBar(props: AppBarProps) {
                       type="button"
                       class={styles.crumb}
                       aria-current={last() ? 'page' : undefined}
+                      aria-haspopup={places() ? 'menu' : undefined}
+                      aria-expanded={places() ? drop() === 0 : undefined}
                       data-open={!!items()?.length}
                       onClick={() => {
+                        if (places()) {
+                          const open = drop() === 0
+                          leave()
+                          if (!open) {
+                            setClicked(true)
+                            setDrop(0)
+                          }
+                          return
+                        }
                         if (last()) return
                         leave()
                         props.onCrumb?.(i())
@@ -332,6 +346,7 @@ export function AppBar(props: AppBarProps) {
                       {(list) => (
                         <div class={styles.drop}>
                           <NavMenu
+                            focusFirst={clicked()}
                             items={list()}
                             onSelect={(id) => {
                               leave()
