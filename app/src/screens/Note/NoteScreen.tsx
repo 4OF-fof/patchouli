@@ -17,7 +17,7 @@ export interface NoteScreenProps {
   linksOpen?: boolean
   propsOpen?: boolean
   idle?: boolean
-  onOpenRef?: (name: string) => void
+  onOpenRef?: (id: string) => void
   onTogglePin?: (id: string) => void
 }
 
@@ -41,11 +41,11 @@ export function NoteScreen(props: NoteScreenProps) {
           <button
             type="button"
             class={styles.wl}
-            data-missing={!lib().byName.has(s.ref)}
+            data-missing={!lib().byId.has(s.ref)}
             title="Ctrl クリックで開く"
             onClick={(e) => (e.ctrlKey || e.metaKey) && props.onOpenRef?.(s.ref)}
           >
-            {s.ref}
+            {lib().byId.get(s.ref)?.name ?? s.label}
           </button>
         ) : (
           s.text
@@ -164,7 +164,7 @@ export function NoteScreen(props: NoteScreenProps) {
                     <Show when={into().length} fallback={<LinkNone>まだありません</LinkNone>}>
                       <For each={into()}>
                         {(x) => (
-                          <LinkRow mark="←" label={x.name} sub="ノート" onClick={() => props.onOpenRef?.(x.name)} />
+                          <LinkRow mark="←" label={x.name} sub="ノート" onClick={() => props.onOpenRef?.(x.id)} />
                         )}
                       </For>
                     </Show>
@@ -173,15 +173,15 @@ export function NoteScreen(props: NoteScreenProps) {
                     <LinkCaption>このノートからのリンク</LinkCaption>
                     <Show when={from().length} fallback={<LinkNone>まだありません</LinkNone>}>
                       <For each={from()}>
-                        {(name) => {
-                          const it = lib().byName.get(name)
+                        {(id) => {
+                          const it = lib().byId.get(id)
                           return (
                             <LinkRow
                               mark="→"
-                              label={name}
-                              sub={!it ? '未作成' : it.note ? 'ノート' : '素材'}
+                              label={it?.name ?? id}
+                              sub={!it ? '見つかりません' : it.note ? 'ノート' : '素材'}
                               missing={!it}
-                              onClick={() => props.onOpenRef?.(name)}
+                              onClick={() => props.onOpenRef?.(id)}
                             />
                           )
                         }}

@@ -109,6 +109,7 @@ pub fn join(front: &str, body: &str) -> String {
 pub fn blocks_of(body: &str) -> Vec<Block> {
     let mut out = Vec::new();
     let mut cur: Option<Block> = None;
+    let mut dests: Vec<Option<String>> = Vec::new();
     let flush = |cur: &mut Option<Block>, out: &mut Vec<Block>| {
         if let Some(mut b) = cur.take() {
             b.text = b.text.trim().to_owned();
@@ -139,6 +140,24 @@ pub fn blocks_of(body: &str) -> Vec<Block> {
             Event::End(
                 TagEnd::Heading(_) | TagEnd::Paragraph | TagEnd::Item | TagEnd::CodeBlock,
             ) => flush(&mut cur, &mut out),
+            // 本文の段は文字だけを持つので、patchouli: のリンクだけは記法ごと残す
+            Event::Start(tag @ (Tag::Link { .. } | Tag::Image { .. })) => {
+                let (open, dest) = match tag {
+                    Tag::Image { dest_url, .. } => ("![", dest_url),
+                    Tag::Link { dest_url, .. } => ("[", dest_url),
+                    _ => unreachable!(),
+                };
+                let keep = dest.starts_with("patchouli:");
+                if let (true, Some(b)) = (keep, cur.as_mut()) {
+                    b.text.push_str(open);
+                }
+                dests.push(keep.then(|| dest.into_string()));
+            }
+            Event::End(TagEnd::Link | TagEnd::Image) => {
+                if let (Some(Some(dest)), Some(b)) = (dests.pop(), cur.as_mut()) {
+                    b.text.push_str(&format!("]({dest})"));
+                }
+            }
             Event::Text(t) | Event::Code(t) => {
                 if let Some(b) = cur.as_mut() {
                     b.text.push_str(&t);

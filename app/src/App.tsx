@@ -137,9 +137,8 @@ export function App(props: AppProps) {
     const l = (list ?? [id]).filter((x) => lib().byId.get(x)?.note === false)
     go({ s: 'asset', list: l, index: Math.max(0, l.indexOf(id)) })
   }
-  const openRef = (name: string) => {
-    const it = lib().byName.get(name)
-    if (it) openItem(it.id)
+  const openRef = (id: string) => {
+    if (lib().byId.has(id)) openItem(id)
   }
   const onGo = (to: Place) => {
     if (to === 'tidy') go({ s: 'tidy' })

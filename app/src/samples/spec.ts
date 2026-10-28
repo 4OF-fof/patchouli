@@ -536,6 +536,16 @@ export function sampleSpec(): Spec {
   add({ name: 'ポスター案', ext: 'psd', tags: [], folder: '秋の企画', moved: 3, hue: 28, sat: 20 })
 
   const byName = new Map(items.map((i) => [i.name, i]))
+  // 見本では [[名前]] で書き、ファイルの形の [名前](patchouli:ID) に直す。ない名前は、リンク切れの見本として使う
+  let lost = 0
+  const lostId = new Map<string, string>()
+  for (const it of items)
+    for (const b of it.blocks ?? [])
+      b.text = b.text.replace(/\[\[([^\]]+)\]\]/g, (_, name: string) => {
+        const id = byName.get(name)?.id ?? lostId.get(name) ?? `lost${++lost}`
+        if (!byName.has(name)) lostId.set(name, id)
+        return `[${name}](patchouli:${id})`
+      })
   const projects: Project[] = PROJECTS.map(({ name, hue, touched, cover }) => ({
     name,
     hue,

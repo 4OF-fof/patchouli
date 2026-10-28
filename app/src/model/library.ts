@@ -52,11 +52,11 @@ export interface Project {
   cover: CoverPart[]
 }
 
-const LINK_RE = /\[\[([^\]]+)\]\]/g
+const LINK_RE = /!?\[([^\]]*)\]\(patchouli:([^)\s]+)\)/g
 
 export function refsOfBlocks(blocks: NoteBlock[]): string[] {
   const out = new Set<string>()
-  for (const b of blocks) for (const m of b.text.matchAll(LINK_RE)) if (m[1]) out.add(m[1])
+  for (const b of blocks) for (const m of b.text.matchAll(LINK_RE)) if (m[2]) out.add(m[2])
   return [...out]
 }
 
@@ -68,12 +68,12 @@ export function plainText(blocks: NoteBlock[]): string {
     .trim()
 }
 
-export function splitLinks(text: string): ({ text: string } | { ref: string })[] {
-  const out: ({ text: string } | { ref: string })[] = []
+export function splitLinks(text: string): ({ text: string } | { ref: string; label: string })[] {
+  const out: ({ text: string } | { ref: string; label: string })[] = []
   let last = 0
   for (const m of text.matchAll(LINK_RE)) {
     if (m.index > last) out.push({ text: text.slice(last, m.index) })
-    out.push({ ref: m[1] ?? '' })
+    out.push({ ref: m[2] ?? '', label: m[1] ?? '' })
     last = m.index + m[0].length
   }
   if (last < text.length) out.push({ text: text.slice(last) })
@@ -121,7 +121,7 @@ export function buildLibrary(
   for (const n of items) {
     if (!n.note || !n.blocks) continue
     const to = refsOfBlocks(n.blocks)
-      .map((r) => byName.get(r))
+      .map((r) => byId.get(r))
       .filter((x): x is Item => !!x && x !== n)
     links.set(n.id, to)
     for (const t of to) back.set(t.id, [...(back.get(t.id) ?? []), n])
