@@ -63,7 +63,7 @@ export function NavMenu(props: NavMenuProps) {
                 role="menuitem"
                 aria-current={it.current ? 'page' : undefined}
                 data-heading={it.heading}
-                title={it.title}
+                data-tip={it.title}
                 onClick={() => props.onSelect?.(it.id)}
               >
                 <i>{it.icon && <Icon name={it.icon} withText />}</i>

@@ -1,5 +1,6 @@
 import type { Preview } from 'storybook-solidjs-vite'
 import '../src/index.css'
+import { TooltipHost } from '../src/components/overlay/Tooltip/Tooltip'
 
 document.documentElement.lang = 'ja'
 
@@ -22,7 +23,12 @@ const preview: Preview = {
   decorators: [
     (Story, context) => {
       document.documentElement.dataset.theme = context.globals.theme
-      return <Story />
+      return (
+        <>
+          <Story />
+          <TooltipHost />
+        </>
+      )
     },
   ],
   parameters: {

@@ -103,7 +103,7 @@ export function TidyScreen(props: TidyScreenProps) {
             class={styles.q}
             data-later={later().includes(x.id) && !decided().includes(x.id)}
             aria-current={x.id === current()?.id}
-            title={x.name}
+            data-tip={x.name}
             aria-label={x.name}
             style={{ '--ar': x.ratio }}
             onClick={() => (decided().includes(x.id) ? props.onOpenItem?.(x.id) : setCur(x.id))}

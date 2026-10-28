@@ -247,7 +247,7 @@ export function AppBar(props: AppBarProps) {
         end={
           <span class={styles.end}>
             <Show when={props.readOnly}>
-              <span class={styles.ro} role="status" title="保存先に書き込めないため、読み取り専用になっています">
+              <span class={styles.ro} role="status" data-tip="保存先に書き込めないため、読み取り専用になっています">
                 <b>読み取り専用</b>
                 <button type="button">編集を有効にする</button>
               </span>
@@ -257,7 +257,7 @@ export function AppBar(props: AppBarProps) {
               type="button"
               class={styles.ib}
               aria-label="新しいノート"
-              title="新しいノート"
+              data-tip="新しいノート"
               onClick={() => props.onCreate?.()}
             >
               <Icon name="newNote" />
@@ -266,7 +266,7 @@ export function AppBar(props: AppBarProps) {
               type="button"
               class={styles.ib}
               aria-label="検索"
-              title="検索（Ctrl P）"
+              data-tip="検索（Ctrl P）"
               aria-expanded={searching()}
               onClick={() => (searching() ? close() : setState('search'))}
             >
@@ -280,7 +280,7 @@ export function AppBar(props: AppBarProps) {
             type="button"
             class={styles.ib}
             aria-label="メニュー"
-            title="メニュー"
+            data-tip="メニュー"
             aria-haspopup="menu"
             aria-expanded={menuOpen()}
             onClick={() => (menuOpen() ? close() : setState('menu'))}
@@ -298,7 +298,7 @@ export function AppBar(props: AppBarProps) {
             type="button"
             class={styles.ib}
             aria-label="戻る"
-            title="戻る（Esc）"
+            data-tip="戻る（Esc）"
             onClick={() => props.onBack?.()}
           >
             <Icon name="back" />

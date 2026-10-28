@@ -138,9 +138,21 @@
   max-height: var(--picker-max);
 }
 .sum {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: var(--fs-meta);
   color: var(--accent);
   cursor: pointer;
+}
+.sum::-webkit-details-marker {
+  display: none;
+}
+.sumIcon {
+  transition: rotate 0.15s;
+}
+details[open] > .sum > .sumIcon {
+  rotate: 90deg;
 }
 .fi {
   display: grid;

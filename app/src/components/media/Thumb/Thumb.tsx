@@ -45,7 +45,7 @@ export function Thumb(props: ThumbProps) {
         </>
       )}
       {waiting() && <Spinner class={styles.making} />}
-      {props.dirty && <span class={styles.dirty} title="未保存" />}
+      {props.dirty && <span class={styles.dirty} role="img" aria-label="未保存" data-tip="未保存" />}
     </span>
   )
 }

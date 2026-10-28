@@ -346,7 +346,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                             }
                           >
                             {(path) => (
-                              <span class={styles.path} title={path()}>
+                              <span class={styles.path} data-tip={path()}>
                                 {c()?.version ? `${c()?.version}　${path()}` : path()}
                               </span>
                             )}
@@ -364,7 +364,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
           {(s) => (
             <section>
               <h4>取得先</h4>
-              <p class={styles.source} title={sourceLabel(s())}>
+              <p class={styles.source} data-tip={sourceLabel(s())}>
                 {sourceLabel(s())}
               </p>
             </section>
@@ -398,7 +398,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
           <span class={styles.badge}>{TOOLS}</span>
         </div>
       </header>
-      <p class={styles.where} data-ok={!!c().path} title={c().path}>
+      <p class={styles.where} data-ok={!!c().path} data-tip={c().path}>
         {c().path ?? '未検出'}
       </p>
       <For
@@ -416,7 +416,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 <span class={styles.chips}>
                   <For each={ps()}>
                     {(u) => (
-                      <button type="button" class={styles.user} title={u.p.id} onClick={() => setPicked(u.p.id)}>
+                      <button type="button" class={styles.user} data-tip={u.p.id} onClick={() => setPicked(u.p.id)}>
                         {u.p.name}
                       </button>
                     )}

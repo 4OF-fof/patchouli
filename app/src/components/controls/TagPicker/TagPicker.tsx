@@ -70,7 +70,7 @@ export function TagPicker(props: TagPickerProps) {
             type="button"
             role="checkbox"
             aria-checked={props.tags.includes(t)}
-            title={t}
+            data-tip={t}
             onClick={() => toggle(t)}
           >
             <span class={styles.box}>

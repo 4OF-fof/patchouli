@@ -32,11 +32,6 @@
   --select-width: auto;
   --select-min-width: 160px;
 }
-.number {
-  min-width: 0;
-  width: 96px;
-  font-family: var(--f-mono);
-}
 .toggle {
   appearance: none;
   position: relative;

@@ -66,7 +66,7 @@ export function ImportDialog(props: ImportDialogProps) {
                     <Icon name={modeOf(f.key) === 'project' ? 'folder' : 'library'} />
                   </i>
                   <div class={styles.what}>
-                    <b title={f.name}>{f.name}</b>
+                    <b data-tip={f.name}>{f.name}</b>
                     <small>
                       {f.files} 件{f.subfolders > 0 && ` · サブフォルダ ${f.subfolders} 件`}
                     </small>

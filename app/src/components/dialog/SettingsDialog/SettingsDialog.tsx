@@ -138,7 +138,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               <Show when={props.onRemoveUnused}>
                 {(remove) => (
                   <div class={styles.row}>
-                    <b title={props.unused?.map((p) => p.name).join('、')}>未使用のプラグイン</b>
+                    <b data-tip={props.unused?.map((p) => p.name).join('、')}>未使用のプラグイン</b>
                     <span class={styles.mono}>
                       {props.unused ? `${props.unused.length} 件 · ${bytesLabel(unusedBytes())}` : '…'}
                     </span>
@@ -202,7 +202,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                             >
                               {(p) => (
                                 <div class={styles.place}>
-                                  <span class={styles.path} title={p}>
+                                  <span class={styles.path} data-tip={p}>
                                     {p}
                                   </span>
                                   <Button

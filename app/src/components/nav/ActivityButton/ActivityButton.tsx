@@ -50,7 +50,7 @@ export function ActivityButton(props: ActivityButtonProps) {
           type="button"
           class={styles.button}
           aria-label="処理中"
-          title="処理中"
+          data-tip="処理中"
           aria-haspopup="dialog"
           aria-expanded={open()}
           onClick={() => setOpen(!open())}
@@ -77,7 +77,7 @@ export function ActivityButton(props: ActivityButtonProps) {
                   <button
                     type="button"
                     class={styles.stop}
-                    title={stopping().has(a.key) ? '止めています' : '止める'}
+                    data-tip={stopping().has(a.key) ? '止めています' : '止める'}
                     aria-label={stopping().has(a.key) ? '止めています' : '止める'}
                     disabled={stopping().has(a.key)}
                     onClick={() => stop(a)}

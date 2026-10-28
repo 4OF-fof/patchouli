@@ -1,0 +1,17 @@
+.root {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  max-width: min(360px, calc(100vw - 8px));
+  padding: 4px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--menu);
+  box-shadow: var(--shadow-pill);
+  color: var(--ink-2);
+  font: 400 var(--fs-meta) / 1.5 var(--f-sans);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}

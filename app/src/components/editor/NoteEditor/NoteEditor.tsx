@@ -687,7 +687,7 @@ export function NoteEditor(props: NoteEditorProps) {
               {(b) => (
                 <button
                   type="button"
-                  title={b.label}
+                  data-tip={b.label}
                   aria-label={b.label}
                   aria-pressed={s().marks.includes(b.mark)}
                   onClick={() => view && toggleWrap(view, b.wrap)}
@@ -698,7 +698,7 @@ export function NoteEditor(props: NoteEditorProps) {
             </For>
             <button
               type="button"
-              title="リンク"
+              data-tip="リンク"
               aria-label="リンク"
               aria-pressed={s().marks.includes('link')}
               onClick={linkSelection}

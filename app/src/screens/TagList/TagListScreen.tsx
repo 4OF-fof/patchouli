@@ -55,13 +55,13 @@ export function TagListScreen(props: TagListScreenProps) {
               class={styles.tw}
               aria-expanded={isOpen()}
               aria-label={isOpen() ? 'サブタグを折りたたむ' : 'サブタグを展開'}
-              title={isOpen() ? 'サブタグを折りたたむ' : 'サブタグを展開'}
+              data-tip={isOpen() ? 'サブタグを折りたたむ' : 'サブタグを展開'}
               onClick={() => setOpen(toggled(open(), r.tag))}
             >
               <Icon name="chevron" class={styles.twi} />
             </button>
           </Show>
-          <button type="button" class={styles.link} title="タグを開く" onClick={() => props.onOpenTag?.(r.tag)}>
+          <button type="button" class={styles.link} data-tip="タグを開く" onClick={() => props.onOpenTag?.(r.tag)}>
             <span class={styles.tn}>
               <b>
                 {sub ? (

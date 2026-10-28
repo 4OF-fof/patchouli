@@ -70,7 +70,7 @@ export function HeadingTree(props: HeadingTreeProps) {
                   class={styles.tw}
                   aria-expanded={open()}
                   aria-label={open() ? '見出しを折りたたむ' : '見出しを展開'}
-                  title={open() ? '見出しを折りたたむ' : '見出しを展開'}
+                  data-tip={open() ? '見出しを折りたたむ' : '見出しを展開'}
                   onClick={() => setClosed(toggled(closed(), r.index))}
                 >
                   <Icon name="chevron" class={styles.twi} />

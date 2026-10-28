@@ -3,9 +3,8 @@
   align-items: flex-start;
   gap: 8px;
 }
-.todo input[type='checkbox'] {
-  margin-top: 5px;
-  accent-color: var(--accent);
+.check {
+  margin-top: 3px;
 }
 .todo[data-done='true'] > span {
   color: var(--muted);
@@ -25,10 +24,11 @@
 .due[data-late='true'] {
   color: var(--danger);
 }
-/* .root は DetailPart の箱に付け、DetailPart の入力欄の決まりより強くする */
-.root .todo input.due {
-  width: auto;
-  padding: 1px 6px;
+/* .root は DetailPart の箱に付け、DateField の決まりより強くする */
+.root .dueField {
+  margin-left: auto;
+  flex: none;
+  height: 24px;
   font-size: var(--fs-meta);
 }
 .link {

@@ -14,7 +14,7 @@ export function IconButton(props: IconButtonProps) {
       class={`${styles.root} ${local.class ?? ''}`}
       data-look={local.look ?? 'plain'}
       aria-label={local.label}
-      title={local.label}
+      data-tip={local.label}
       {...rest}
     >
       {local.children}

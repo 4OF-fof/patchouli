@@ -1,6 +1,8 @@
 import { For, type JSX, Show } from 'solid-js'
 import { NoneText } from '../../components/base/NoneText/NoneText'
 import { Button } from '../../components/controls/Button/Button'
+import { Checkbox } from '../../components/controls/Checkbox/Checkbox'
+import { DateField } from '../../components/controls/DateField/DateField'
 import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
 import { type CoverPart, type Library, dueLabel } from '../../model/library'
 import { DetailPart } from '../Detail/DetailPart'
@@ -66,7 +68,7 @@ export function CoverPartView(props: CoverPartViewProps) {
             const due = x.due ? dueLabel(lib(), x.due) : null
             return (
               <label class={styles.todo} data-done={x.done}>
-                <input type="checkbox" checked={x.done} />
+                <Checkbox class={styles.check} checked={x.done} />
                 <span>
                   {x.t}
                   {x.ref && (
@@ -77,7 +79,13 @@ export function CoverPartView(props: CoverPartViewProps) {
                 </span>
                 {ed ? (
                   <>
-                    <input type="date" class={styles.due} aria-label={`${x.t} の期日`} value={x.due ?? ''} />
+                    <DateField
+                      class={styles.dueField}
+                      aria-label={`${x.t} の期日`}
+                      placeholder="期日なし"
+                      value={x.due ?? ''}
+                      today={lib().today}
+                    />
                     <button type="button" class={styles.x} aria-label="削除">
                       <Icon name="close" size={14} />
                     </button>
@@ -85,7 +93,7 @@ export function CoverPartView(props: CoverPartViewProps) {
                 ) : (
                   <Show when={due}>
                     {(d) => (
-                      <span class={styles.due} title={d().left} data-late={!x.done && d().late}>
+                      <span class={styles.due} data-tip={d().left} data-late={!x.done && d().late}>
                         {d().date}
                       </span>
                     )}

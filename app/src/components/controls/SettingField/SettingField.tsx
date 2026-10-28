@@ -1,5 +1,6 @@
 import { Match, Switch, createUniqueId } from 'solid-js'
 import type { Setting, SettingValue } from '../../../plugins/types'
+import { NumberField } from '../NumberField/NumberField'
 import { Select } from '../Select/Select'
 import styles from './SettingField.module.css'
 
@@ -20,10 +21,6 @@ export function SettingField(props: SettingFieldProps) {
     const x = s()
     return x.kind === 'choice' ? x.choices : []
   }
-  const num = (v: string) => {
-    const n = Number(v)
-    if (v.trim() !== '' && Number.isFinite(n)) props.onChange?.(n)
-  }
   return (
     <div class={styles.root}>
       <label class={styles.label} for={id}>
@@ -42,16 +39,14 @@ export function SettingField(props: SettingFieldProps) {
         </Match>
         <Match when={range()}>
           {(r) => (
-            <input
+            <NumberField
               id={id}
-              class={`${styles.input} ${styles.number}`}
-              type="number"
-              value={String(r().value)}
+              value={Number(r().value)}
               min={r().min ?? undefined}
               max={r().max ?? undefined}
-              step={r().step ?? 'any'}
+              step={r().step ?? undefined}
               disabled={props.disabled}
-              onChange={(e) => num(e.currentTarget.value)}
+              onChange={(n) => props.onChange?.(n)}
             />
           )}
         </Match>

@@ -71,7 +71,7 @@ export function LibrariesDialog(props: LibrariesDialogProps) {
                           type="button"
                           class={styles.open}
                           disabled={!l.exists || l.current || busy() !== undefined}
-                          title={l.path}
+                          data-tip={l.path}
                           onClick={() =>
                             void run(`${l.name} を開いています`, props.onOpen && (() => props.onOpen!(l.path)))
                           }
@@ -87,7 +87,7 @@ export function LibrariesDialog(props: LibrariesDialogProps) {
                             type="button"
                             class={styles.forget}
                             aria-label={`${l.name} を履歴から削除`}
-                            title="履歴から削除"
+                            data-tip="履歴から削除"
                             disabled={busy() !== undefined}
                             onClick={() => void run('', () => props.onForget!(l.path))}
                           >

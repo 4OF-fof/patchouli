@@ -29,11 +29,11 @@ export function Peek(props: PeekProps) {
       </div>
       <div class={styles.tools}>
         {props.onExpand && (
-          <button type="button" title="全画面表示" aria-label="全画面表示" onClick={() => props.onExpand?.()}>
+          <button type="button" data-tip="全画面表示" aria-label="全画面表示" onClick={() => props.onExpand?.()}>
             <Icon name="fullscreen" size={16} />
           </button>
         )}
-        <button type="button" title="閉じる" aria-label="閉じる" onClick={() => props.onClose()}>
+        <button type="button" data-tip="閉じる" aria-label="閉じる" onClick={() => props.onClose()}>
           <Icon name="close" size={16} />
         </button>
       </div>

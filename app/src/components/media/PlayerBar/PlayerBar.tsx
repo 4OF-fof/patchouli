@@ -115,7 +115,7 @@ export function PlayerBar(props: PlayerBarProps) {
         type="button"
         class={styles.btn}
         aria-label={playing() ? '一時停止' : '再生'}
-        title={playing() ? '一時停止（Space）' : '再生（Space）'}
+        data-tip={playing() ? '一時停止（Space）' : '再生（Space）'}
         onClick={toggle}
       >
         <Icon name={playing() ? 'pause' : 'play'} />
@@ -133,7 +133,7 @@ export function PlayerBar(props: PlayerBarProps) {
         onInput={(e) => seekTo(e.currentTarget.valueAsNumber)}
       />
       <span class={styles.time}>{clock(length())}</span>
-      <button type="button" class={styles.rate} aria-label="再生速度" title="再生速度" onClick={nextRate}>
+      <button type="button" class={styles.rate} aria-label="再生速度" data-tip="再生速度" onClick={nextRate}>
         {rate()}×
       </button>
       <span class={styles.vol}>
@@ -141,7 +141,7 @@ export function PlayerBar(props: PlayerBarProps) {
           type="button"
           class={styles.btn}
           aria-label={muted() ? '消音を解除' : '消音'}
-          title={muted() ? '消音を解除（M）' : '消音（M）'}
+          data-tip={muted() ? '消音を解除（M）' : '消音（M）'}
           onClick={toggleMute}
         >
           <Icon name={muted() || volume() === 0 ? 'muted' : 'volume'} />
@@ -168,7 +168,7 @@ export function PlayerBar(props: PlayerBarProps) {
           type="button"
           class={styles.btn}
           aria-label={full() ? '全画面を終了' : '全画面'}
-          title={full() ? '全画面を終了' : '全画面'}
+          data-tip={full() ? '全画面を終了' : '全画面'}
           onClick={toggleFull}
         >
           <Icon name={full() ? 'unfullscreen' : 'fullscreen'} />

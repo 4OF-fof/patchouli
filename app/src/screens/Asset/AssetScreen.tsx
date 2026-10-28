@@ -423,7 +423,10 @@ export function AssetScreen(props: AssetScreenProps) {
                       </Show>
                     </div>
                     <details open={fileOpen()} onToggle={(e) => setFileOpen(e.currentTarget.open)}>
-                      <summary class={styles.sum}>ファイルの詳細</summary>
+                      <summary class={styles.sum}>
+                        <Icon name="chevron" size={12} class={styles.sumIcon} withText />
+                        ファイルの詳細
+                      </summary>
                       <div class={styles.fi}>
                         <span>種類</span>
                         <span>{a().ext}</span>
