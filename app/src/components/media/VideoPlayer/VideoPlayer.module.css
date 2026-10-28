@@ -32,7 +32,7 @@
 }
 .root:fullscreen {
   padding: 0 0 16px;
-  background: #000;
+  background: var(--stage);
 }
 /* 全画面では「情報」が出ないので、置き場所の幅の指定によらず広げる */
 .root:fullscreen .bar {

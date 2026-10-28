@@ -49,6 +49,6 @@
   stroke-width: 1;
 }
 .buttons .close:hover {
-  background: #c42b1c;
-  color: #fff;
+  background: var(--danger);
+  color: var(--glyph);
 }

@@ -28,7 +28,7 @@
   border-radius: var(--radius-md);
   background: var(--float);
   color: var(--muted);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-pill);
 }
 .root[data-look='float'][aria-pressed='true'] {
   color: var(--accent);

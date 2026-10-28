@@ -58,9 +58,10 @@ export default definePlugin<Text>({
     c.height = h
     const g = c.getContext('2d')
     if (!g) return null
-    g.fillStyle = '#f7f5ef'
+    const theme = getComputedStyle(document.documentElement)
+    g.fillStyle = theme.getPropertyValue('--paper')
     g.fillRect(0, 0, w, h)
-    g.fillStyle = '#3a3a36'
+    g.fillStyle = theme.getPropertyValue('--ink')
     g.font = `${font}px monospace`
     text
       .split('\n')

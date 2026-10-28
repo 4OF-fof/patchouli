@@ -29,8 +29,8 @@
   bottom: 6px;
   padding: 0 5px;
   border-radius: var(--radius-sm);
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
+  background: var(--scrim);
+  color: var(--glyph);
   font-size: var(--fs-tiny);
   line-height: 17px;
   left: 6px;
@@ -42,7 +42,7 @@
   right: 0;
   bottom: 0;
   height: 2px;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--stage-btn);
 }
 .done {
   display: block;
