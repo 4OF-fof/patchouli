@@ -41,6 +41,8 @@ import {
   type Hooks,
   type Selected,
   type Slash,
+  codeBlocks,
+  diagramEditing,
   embeds,
   links,
   patchouliImage,
@@ -199,7 +201,14 @@ export function NoteEditor(props: NoteEditorProps) {
       const it = props.lib.byId.get(id)
       return it && props.embedOf ? props.embedOf(it) : undefined
     },
-    classes: { link: styles.link, missing: styles.missing, embed: styles.embed, card: styles.card },
+    classes: {
+      link: styles.link,
+      missing: styles.missing,
+      embed: styles.embed,
+      card: styles.card,
+      diagram: styles.diagram,
+      editing: styles.editing,
+    },
   }
 
   const closePicker = (v?: EditorView) => {
@@ -317,6 +326,8 @@ export function NoteEditor(props: NoteEditorProps) {
       .use(triggers(() => hooks))
       .use(links(() => hooks))
       .use(embeds(() => hooks))
+      .use(codeBlocks(() => hooks))
+      .use(diagramEditing(() => hooks))
     await e.create()
     editor = e
     base = view()?.state.doc

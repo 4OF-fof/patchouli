@@ -1,4 +1,5 @@
-import { imageSchema, linkSchema } from '@milkdown/kit/preset/commonmark'
+import { codeBlockSchema, imageSchema, linkSchema } from '@milkdown/kit/preset/commonmark'
+import type { Mounted } from 'pele/lazy'
 import type { Node } from '@milkdown/kit/prose/model'
 import { type EditorState, Plugin, PluginKey, TextSelection } from '@milkdown/kit/prose/state'
 import { Decoration, DecorationSet, type EditorView, type NodeView } from '@milkdown/kit/prose/view'
@@ -35,7 +36,7 @@ export interface Hooks {
   onOpenRef: (id: string) => void
   nameOf: (id: string) => string | undefined
   embedOf: (id: string) => Promise<Embed | undefined>
-  classes: { link: string; missing: string; embed: string; card: string }
+  classes: { link: string; missing: string; embed: string; card: string; diagram: string; editing: string }
 }
 
 const at = (view: EditorView, pos: number): At => {
@@ -189,6 +190,111 @@ export const links = (hooks: () => Hooks) =>
         },
       }),
   )
+
+const isDiagram = (n: Node) => n.type.name === 'code_block' && n.attrs.language === 'mermaid'
+
+/** カーソルのある図のブロックにだけ、元の文を見せる印を付ける。 */
+export const diagramEditing = (hooks: () => Hooks) =>
+  $prose(
+    () =>
+      new Plugin({
+        props: {
+          decorations: (s) => {
+            const { $head } = s.selection
+            const n = $head.parent
+            if (!isDiagram(n) || $head.depth === 0) return null
+            const from = $head.before()
+            return DecorationSet.create(s.doc, [
+              Decoration.node(from, from + n.nodeSize, { class: hooks().classes.editing }),
+            ])
+          },
+        },
+      }),
+  )
+
+let pele: Promise<typeof import('pele/lazy')> | undefined
+
+export const codeBlocks = (hooks: () => Hooks) =>
+  $view(codeBlockSchema.node, () => (initial, view, getPos): NodeView => {
+    let node = initial
+    const pre = document.createElement('pre')
+    const code = document.createElement('code')
+    pre.append(code)
+    const setLanguage = (l: unknown) => {
+      if (typeof l === 'string' && l) pre.dataset.language = l
+      else delete pre.dataset.language
+    }
+    setLanguage(node.attrs.language)
+    if (!isDiagram(node))
+      return {
+        dom: pre,
+        contentDOM: code,
+        update: (n) => {
+          if (n.type !== node.type || isDiagram(n)) return false
+          node = n
+          setLanguage(n.attrs.language)
+          return true
+        },
+      }
+
+    const dom = document.createElement('div')
+    dom.className = hooks().classes.diagram
+    const shown = document.createElement('div')
+    shown.contentEditable = 'false'
+    dom.append(pre, shown)
+    let mounted: Mounted | undefined
+    let gone = false
+    let loading = false
+    const draw = () => {
+      const src = node.textContent
+      if (!src.trim()) {
+        mounted?.destroy()
+        mounted = undefined
+        shown.replaceChildren()
+        return
+      }
+      if (mounted) {
+        if (mounted.source !== src) mounted.update(src)
+        return
+      }
+      if (loading) return
+      loading = true
+      void (pele ??= import('pele/lazy'))
+        .then((p) => p.mountAsync(shown, src))
+        .then((m) => {
+          loading = false
+          if (gone) return m.destroy()
+          mounted = m
+          if (m.source !== node.textContent) draw()
+        })
+    }
+    draw()
+    // 図を押したら、元の文の終わりにカーソルを置く
+    shown.addEventListener('mousedown', (e) => {
+      const pos = getPos()
+      if (pos === undefined) return
+      e.preventDefault()
+      const end = pos + 1 + node.content.size
+      view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, end)))
+      view.focus()
+    })
+    return {
+      dom,
+      contentDOM: code,
+      update: (n) => {
+        if (n.type !== node.type || !isDiagram(n)) return false
+        node = n
+        draw()
+        return true
+      },
+      stopEvent: (e) => e.target instanceof globalThis.Node && shown.contains(e.target),
+      ignoreMutation: (m) => m.type !== 'selection' && shown.contains(m.target),
+      destroy: () => {
+        gone = true
+        mounted?.destroy()
+      },
+    }
+  })
 
 const text = (cls: string, s: string) => {
   const el = document.createElement('span')

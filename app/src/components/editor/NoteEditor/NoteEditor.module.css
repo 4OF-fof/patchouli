@@ -114,6 +114,34 @@
   background: none;
   font-size: inherit;
 }
+.diagram {
+  --pele-bg: transparent;
+  --pele-fg: var(--ink);
+  --pele-muted: var(--muted);
+  --pele-line: var(--ink-2);
+  --pele-surface: var(--side);
+  --pele-surface-alt: var(--card);
+  --pele-border: var(--line-2);
+  --pele-accent: var(--accent);
+  --pele-font: inherit;
+  --pele-radius: var(--radius-sm);
+  margin: 0 0 14px;
+}
+.diagram:not(.editing) > pre {
+  display: none;
+}
+.diagram.editing > pre {
+  margin-bottom: 8px;
+}
+.diagram > div {
+  overflow-x: auto;
+  line-height: normal;
+  white-space: normal;
+  cursor: text;
+}
+.diagram > div:empty {
+  display: none;
+}
 .pm hr {
   margin: 22px 0;
   border: 0;
