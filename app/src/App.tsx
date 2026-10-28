@@ -41,7 +41,7 @@ import type { Blocker } from './components/media/Unsupported/Unsupported'
 import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
 import { NoteScreen } from './screens/Note/NoteScreen'
-import type { Embed } from './components/editor/NoteEditor/NoteEditor'
+import type { Embed, NoteEditorApi } from './components/editor/NoteEditor/NoteEditor'
 import { ProjectScreen } from './screens/Project/ProjectScreen'
 import { ProjectListScreen } from './screens/ProjectList/ProjectListScreen'
 import { ScreenFrame } from './screens/ScreenFrame'
@@ -240,7 +240,9 @@ export function App(props: AppProps) {
   }
   const embedOf = async (it: Item): Promise<Embed | undefined> => {
     const v = await backend.itemView?.(it.id).catch(() => null)
-    if (v?.kind === 'image' && (v.url || it.src)) return { kind: 'image', src: v.url ?? it.src ?? '' }
+    // 読み解いた画像の URL は次に開いた素材で捨てられるので、本文ではサムネイルを使う
+    if (v?.kind === 'image' && !v.url && it.src) return { kind: 'image', src: it.src }
+    if (v?.kind === 'image' && it.thumb) return { kind: 'image', src: it.thumb }
     if ((v?.kind === 'video' || v?.kind === 'audio') && it.src) return { kind: v.kind, src: it.src }
     return { kind: 'card', thumb: it.thumb }
   }
@@ -423,30 +425,63 @@ export function App(props: AppProps) {
     return v.s === 'project' ? v.name : null
   }
   const [importing, setImporting] = createSignal(0)
-  const importDropped = async (projects: number[]) => {
-    if (!backend.importDropped) return
+  const importDropped = async (projects: number[], folder = dropFolder()) => {
+    if (!backend.importDropped) return []
     setImporting(importing() + 1)
     try {
-      const r = await backend.importDropped(dropFolder(), projects)
+      const r = await backend.importDropped(folder, projects)
       if (r.failed.length) console.warn('取り込めなかったもの', r.failed)
       setLib(withAdded(lib(), r.items, r.projects))
       setNotice(importedNotice(r))
+      return r.items
     } catch (e) {
       setNotice(`取り込めませんでした：${e instanceof Error ? e.message : String(e)}`)
+      return []
     } finally {
       setImporting(importing() - 1)
     }
   }
+  const importFiles = async (files: File[], folder: string | null) => {
+    const take = backend.importData
+    if (!take) return []
+    setImporting(importing() + 1)
+    try {
+      const done = await Promise.allSettled(files.map((f) => take(f, folder)))
+      const items = done.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
+      const failed = done.flatMap((r) => (r.status === 'rejected' ? [r.reason] : []))
+      if (failed.length) console.warn('取り込めなかったもの', failed)
+      setLib(withAdded(lib(), items))
+      if (failed.length) setNotice(`${failed.length} 件を取り込めませんでした`)
+      return items
+    } finally {
+      setImporting(importing() - 1)
+    }
+  }
+  let noteEditor: NoteEditorApi | undefined
+  const intoNote = () => {
+    const v = view()
+    return v.s === 'note' && noteEditor
+      ? { editor: noteEditor, folder: lib().byId.get(v.id)?.folder ?? null }
+      : undefined
+  }
   const stopDrag =
     backend.onFileDrag?.((e) => {
+      const into = intoNote()
       if (e.type === 'enter') setDrag(e.dropped)
+      else if (e.type === 'over') into?.editor.dropAt(e)
       else if (e.type === 'drop') {
         const d = drag()
         setDrag(undefined)
+        into?.editor.dropAt(undefined)
         if (!d?.files) return
-        if (d.folders.length) setAsking(d)
+        const at = { x: e.x, y: e.y }
+        if (into) void importDropped([], into.folder).then((items) => into.editor.insertItems(items, at))
+        else if (d.folders.length) setAsking(d)
         else void importDropped([])
-      } else if (e.type === 'leave') setDrag(undefined)
+      } else if (e.type === 'leave') {
+        setDrag(undefined)
+        into?.editor.dropAt(undefined)
+      }
     }) ?? (() => {})
   onCleanup(stopDrag)
   const making = progress()
@@ -581,6 +616,8 @@ export function App(props: AppProps) {
                           onRename={renameItem}
                           onCreateNote={addNote}
                           embedOf={embedOf}
+                          onImport={backend.importData && importFiles}
+                          editorRef={(api) => (noteEditor = api)}
                         />
                       )
                     }
@@ -630,7 +667,7 @@ export function App(props: AppProps) {
                 />
               )}
             </Show>
-            <Show when={drag()}>
+            <Show when={!intoNote() && drag()}>
               {(d) => (
                 <DropZone
                   title={d().files ? `${d().files} 件のファイルを取り込む` : '取り込めるファイルがありません'}

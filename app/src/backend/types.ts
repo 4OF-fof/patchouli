@@ -129,6 +129,7 @@ export interface Backend {
   developer?: DeveloperActions
   onFileDrag?(cb: (e: FileDrag) => void): () => void
   importDropped?(folder: string | null, projects: number[]): Promise<Imported>
+  importData?: (file: File, folder: string | null) => Promise<Item>
   onThumbnail(cb: (id: string, thumb: Thumbnail) => void): () => void
   onChanged?(cb: (c: Changed) => void): () => void
   plugins(): Promise<PluginReport>

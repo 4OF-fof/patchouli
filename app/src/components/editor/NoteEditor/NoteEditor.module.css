@@ -224,6 +224,15 @@
   background: var(--accent-soft);
   color: var(--ink);
 }
+.caret {
+  position: fixed;
+  z-index: 40;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
 .bar {
   position: fixed;
   z-index: 40;

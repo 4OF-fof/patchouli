@@ -315,6 +315,14 @@ export function tauriBackend(): Backend {
         failed: r.failed,
       }
     },
+    async importData(file, folder) {
+      const it = await invoke<TauriItem>('import_data', await file.arrayBuffer(), {
+        headers: { meta: asciiJson([file.name, folder]) },
+      })
+      void makeUiThumbs([it])
+      void makeWaves([it])
+      return toItem(it, new Date(), formats, urlsOf(it))
+    },
     onThumbnail(cb) {
       for (const [id, t] of ready.splice(0)) cb(id, t)
       subs.add(cb)

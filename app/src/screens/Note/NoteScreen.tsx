@@ -24,6 +24,8 @@ export interface NoteScreenProps {
   onRename?: (id: string, name: string) => void
   onCreateNote?: (name: string, folder: string | null) => Promise<Item | undefined>
   embedOf?: (it: Item) => Promise<Embed | undefined>
+  onImport?: (files: File[], folder: string | null) => Promise<Item[]>
+  editorRef?: (api: NoteEditorApi | undefined) => void
 }
 
 const NARROW = '(max-width: 860px)'
@@ -61,6 +63,7 @@ export function NoteScreen(props: NoteScreenProps) {
     mq.addEventListener('change', close)
     onCleanup(() => mq.removeEventListener('change', close))
   })
+  onCleanup(() => props.editorRef?.(undefined))
 
   const rename = (el: HTMLInputElement) => {
     const n = note()
@@ -127,7 +130,11 @@ export function NoteScreen(props: NoteScreenProps) {
                 onOpenRef={props.onOpenRef}
                 onCreateNote={async (name) => props.onCreateNote?.(name, n().folder)}
                 embedOf={props.embedOf}
-                ref={(api) => (editor = api)}
+                onImport={props.onImport && ((files) => props.onImport?.(files, n().folder) ?? Promise.resolve([]))}
+                ref={(api) => {
+                  editor = api
+                  props.editorRef?.(api)
+                }}
               />
             </article>
           </ScrollArea>

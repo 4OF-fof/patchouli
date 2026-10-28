@@ -487,6 +487,37 @@ async fn import_files(
     Ok(out)
 }
 
+#[tauri::command]
+async fn import_data(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    request: tauri::ipc::Request<'_>,
+) -> Result<StoredItem, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("リクエスト本文がファイルの中身ではありません".into());
+    };
+    let head = |k: &str| request.headers().get(k).and_then(|v| v.to_str().ok());
+    let meta: (String, Option<String>) = head("meta")
+        .map(serde_json::from_str)
+        .ok_or("ファイル名が指定されていません")?
+        .map_err(|e| format!("meta の読み込みに失敗しました：{e}"))?;
+    let (name, folder) = meta;
+    let (item, thumbs, plugins, cache) = with_session(&cur, |s| {
+        Ok((
+            s.lib.import_data(&name, bytes, folder.as_deref())?,
+            s.thumbs.clone(),
+            Arc::clone(&s.plugins),
+            s.lib.cache(),
+        ))
+    })?;
+    let mut items = vec![item];
+    let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut items);
+    if !jobs.is_empty() {
+        std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
+    }
+    items.pop().ok_or_else(|| "取り込めませんでした".into())
+}
+
 #[derive(Clone, Serialize)]
 struct ThumbReady<'a> {
     id: &'a str,
@@ -1176,6 +1207,7 @@ pub fn run() {
             plugin_data,
             set_plugin_data,
             put_thumbnail,
+            import_data,
             missing_waveforms,
             put_waveform,
             waveform,

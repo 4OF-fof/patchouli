@@ -174,6 +174,26 @@ impl Library {
     }
 
     fn copy_in(&mut self, src: &Path, dir: &Path, folder: Option<&str>, out: &mut Imported) {
+        let name = src.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        let put = |to: &Path| fs::copy(src, to).and_then(|_| touch(to)).map(drop);
+        match self.put_in(name, dir, folder, put) {
+            Ok((item, problems)) => {
+                out.items.extend(item);
+                out.failed.extend(problems);
+            }
+            Err(e) => out.failed.push(format!("{}: {e}", src.display())),
+        }
+    }
+
+    /// file_name の名前で dir に書き、項目として読む。同じ名前があれば番号を付ける。
+    fn put_in(
+        &mut self,
+        file_name: &str,
+        dir: &Path,
+        folder: Option<&str>,
+        write: impl FnOnce(&Path) -> std::io::Result<()>,
+    ) -> Result<(Option<StoredItem>, Vec<String>), String> {
+        let src = Path::new(file_name);
         let stem = src.file_stem().and_then(|n| n.to_str()).unwrap_or_default();
         let ext = src.extension().and_then(|e| e.to_str());
         let file = |n: &str| match ext {
@@ -183,15 +203,43 @@ impl Library {
         // 前のファイルの .meta だけが残っていると、それを引き継いでしまうので避ける
         let name = numbered(stem, |n| file(n).exists() || meta_path(&file(n)).exists());
         let to = file(&name);
-        if let Err(e) = fs::copy(src, &to).and_then(|_| touch(&to)) {
-            out.failed.push(format!("{}: {e}", src.display()));
-            return;
-        }
+        write(&to).map_err(|e| e.to_string())?;
         let mut problems = Vec::new();
-        if let Some(row) = self.read_item(&to, folder, None, &mut problems) {
-            self.remember(&row);
-            out.items.push(row.item);
+        let row = self.read_item(&to, folder, None, &mut problems);
+        if let Some(row) = &row {
+            self.remember(row);
         }
-        out.failed.extend(problems);
+        Ok((row.map(|r| r.item), problems))
+    }
+
+    /// 貼り付けたものなど、ファイルのないデータを取り込む。
+    pub fn import_data(
+        &mut self,
+        file_name: &str,
+        bytes: &[u8],
+        folder: Option<&str>,
+    ) -> Result<StoredItem, String> {
+        let file_name = Path::new(file_name)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .filter(|n| check_name(n).is_ok() && listed(Path::new(n)))
+            .ok_or_else(|| format!("「{file_name}」はファイル名に使えません"))?;
+        let dir = match folder {
+            Some(f) => {
+                check_name(f)?;
+                self.root().join(f)
+            }
+            None => self.root().to_owned(),
+        };
+        if !dir.is_dir() {
+            return Err(format!("プロジェクト「{}」が見つかりません", folder.unwrap_or_default()));
+        }
+        let (item, problems) = self.put_in(file_name, &dir, folder, |to| fs::write(to, bytes))?;
+        item.ok_or_else(|| {
+            problems
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| format!("「{file_name}」を読み込めませんでした"))
+        })
     }
 }
