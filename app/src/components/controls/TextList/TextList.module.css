@@ -29,6 +29,8 @@
 .remove {
   flex: none;
 }
+/* 枠がないので、＋を欄の左端にそろえる */
 .add {
-  padding: 0 8px;
+  margin-left: -10px;
+  padding: 0 6px;
 }
