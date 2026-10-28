@@ -52,7 +52,7 @@
   aspect-ratio: 4 / 3;
   border-radius: var(--radius-sm);
 }
-/* 暗い舞台の上なので、浮いたボタンの地と文字を舞台の色にする */
+/* 舞台の上なので、浮いたボタンの地と文字を舞台の色にする */
 .bar {
   --float: var(--stage-bar);
   --muted: var(--stage-ink);
@@ -88,6 +88,11 @@
   flex-direction: column;
   border-radius: var(--radius-lg);
   color: var(--ink);
+}
+/* カードの影がスクロールの枠で切れないよう、影の分だけ枠を外へ広げる */
+.infoView {
+  padding: 16px 24px 32px;
+  margin: -16px -24px -32px;
 }
 .infoView > section {
   width: 100%;

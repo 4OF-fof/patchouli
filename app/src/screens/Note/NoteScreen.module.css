@@ -130,6 +130,11 @@
   display: flex;
   flex-direction: column;
 }
+/* カードの影がスクロールの枠で切れないよう、影の分だけ枠を外へ広げる */
+.cardView {
+  padding: 16px 24px 32px;
+  margin: -16px -24px -32px;
+}
 .cardView > section {
   width: 100%;
 }

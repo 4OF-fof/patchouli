@@ -89,6 +89,10 @@
   --glyph: rgba(255, 255, 255, 0.88);
   --tl: 74%;
   --menu: var(--paper);
+  --stage: oklch(0.945 0 0);
+  --stage-ink: var(--ink);
+  --stage-bar: oklch(0.99 0 0 / 0.86);
+  --stage-btn: rgba(0, 0, 0, 0.06);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12);
   color-scheme: light;

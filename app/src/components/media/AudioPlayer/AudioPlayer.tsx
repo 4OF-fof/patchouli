@@ -55,11 +55,13 @@ export function AudioPlayer(props: AudioPlayerProps) {
   let done!: HTMLCanvasElement
   const [audio, setAudio] = createSignal<HTMLAudioElement>()
   const [box, setBox] = createSignal({ w: 0, h: 0 })
+  const [theme, setTheme] = createSignal(0)
   const [at, setAt] = createSignal(0)
   const [length, setLength] = createSignal(0)
   createEffect(() => {
     const { w, h } = box()
     const wave = props.wave
+    theme()
     if (!w || !h) return
     draw(base, wave, w, h)
     draw(done, wave, w, h)
@@ -110,7 +112,13 @@ export function AudioPlayer(props: AudioPlayerProps) {
       if (e) setBox({ w: e.contentRect.width, h: e.contentRect.height })
     })
     ro.observe(area)
-    onCleanup(() => ro.disconnect())
+    // 波形の色は描くときに読むので、テーマが変わったら描き直す
+    const mo = new MutationObserver(() => setTheme((n) => n + 1))
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    onCleanup(() => {
+      ro.disconnect()
+      mo.disconnect()
+    })
   })
   const played = () => (length() > 0 ? Math.min(100, (at() / length()) * 100) : 0)
   return (
