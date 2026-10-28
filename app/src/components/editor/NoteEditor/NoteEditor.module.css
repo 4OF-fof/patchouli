@@ -27,6 +27,15 @@
 .root :global(.cm-content ::selection) {
   background: var(--accent-soft);
 }
+/* 本文の選択は selection.ts が描く */
+.root :global(.cm-line ::selection),
+.root :global(.cm-line::selection) {
+  background: transparent;
+}
+.selection {
+  border-radius: 3px;
+  background: var(--accent-soft);
+}
 /* 置き換えた部分の両側に入る画像は、そこで行を折り返させて「。」だけを次の行に送ってしまう。
    文中の隠した記号はカーソルが近づくと元の文字に戻るので、カーソルの隣に来ることはなく、要らない。
    行の頭の印と埋め込みは戻さないので残す。消すと、上下の移動でその行を飛ばしてしまう */

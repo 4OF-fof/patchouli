@@ -12,6 +12,7 @@ import { type SlashAction, slashMatches } from './commands'
 import { runSlash, toggleWrap, unlinkAt } from './edit'
 import { type Embed, type LiveHooks, type Ref, escapeLabel, live, marksAt, refAt, refresh } from './live'
 import styles from './NoteEditor.module.css'
+import { selectionLayer } from './selection'
 
 export type { Embed } from './live'
 
@@ -339,6 +340,7 @@ export function NoteEditor(props: NoteEditorProps) {
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({ spellcheck: 'false', 'aria-label': '本文' }),
           live(() => hooks),
+          selectionLayer(styles.selection ?? ''),
           EditorView.updateListener.of(onUpdate),
           EditorView.domEventHandlers({
             mousedown: (e) => {
