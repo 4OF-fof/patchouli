@@ -19,15 +19,24 @@ export function HeadingTree(props: HeadingTreeProps) {
   const top = () => Math.min(...props.headings.map((h) => h.level))
   const rows = createMemo(() => {
     const hs = props.headings
-    const out: { index: number; depth: number; kids: boolean }[] = []
+    const out: { index: number; depth: number; kids: boolean; last: boolean; rails: number[] }[] = []
     // 折りたたんだ見出しの段。これより深い見出しは隠す
     let hideBelow = Infinity
     hs.forEach((h, index) => {
       if (h.level > hideBelow) return
       hideBelow = Infinity
       const kids = (hs[index + 1]?.level ?? 0) > h.level
-      out.push({ index, depth: h.level - top(), kids })
+      out.push({ index, depth: h.level - top(), kids, last: true, rails: [] })
       if (kids && closed().includes(index)) hideBelow = h.level
+    })
+    // 同じ親の下に続きがあるかで、線を下まで延ばすかを決める
+    const lastAt: boolean[] = []
+    out.forEach((r, i) => {
+      const next = out.slice(i + 1).find((x) => x.depth <= r.depth)
+      r.last = next?.depth !== r.depth
+      r.rails = lastAt.slice(0, r.depth).flatMap((last, k) => (!last ? [k] : []))
+      lastAt.length = r.depth
+      lastAt[r.depth] = r.last
     })
     return out
   })
@@ -53,6 +62,8 @@ export function HeadingTree(props: HeadingTreeProps) {
           const open = () => !closed().includes(r.index)
           return (
             <div class={styles.row} data-heading style={{ '--depth': r.depth }}>
+              <For each={r.rails}>{(k) => <span class={styles.rail} style={{ '--col': k }} />}</For>
+              <span class={styles.elbow} data-last={r.last} data-kids={r.kids} />
               <Show when={r.kids} fallback={<span class={styles.tw} />}>
                 <button
                   type="button"

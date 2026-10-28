@@ -1,5 +1,5 @@
 .root {
-  --step: 12px;
+  --step: 16px;
   display: flex;
   flex-direction: column;
 }
@@ -9,19 +9,42 @@
   align-items: center;
   min-width: 0;
 }
-/* 上の階層ごとに縦線を引く。線は、その階層の折りたたみの印の真ん中に来る */
+/* 線は、親の折りたたみの印の真ん中から下りて、自分の印か名前の手前で曲がる */
 .row[data-heading] {
   padding-left: calc(var(--step) * (var(--depth) + 1));
 }
-.row[data-heading]::before {
-  content: '';
+.rail,
+.elbow {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 8px;
-  width: calc(var(--step) * (var(--depth) + 1));
-  background: repeating-linear-gradient(to right, var(--line-2) 0 1px, transparent 1px var(--step));
   pointer-events: none;
+}
+.rail {
+  left: calc(8px + var(--step) * var(--col));
+  border-left: 1px solid var(--line-2);
+}
+.elbow {
+  left: calc(8px + var(--step) * var(--depth));
+}
+.elbow[data-last='false'] {
+  border-left: 1px solid var(--line-2);
+}
+.elbow::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 22px;
+  height: 50%;
+  border-left: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-2);
+}
+.elbow[data-last='false']::before {
+  left: -1px;
+}
+.elbow[data-kids='true']::before {
+  width: 9px;
 }
 .tw {
   display: grid;
@@ -73,5 +96,4 @@
 .label[data-current='true'] {
   background: var(--card);
   color: var(--ink);
-  box-shadow: inset 2px 0 0 var(--accent);
 }
