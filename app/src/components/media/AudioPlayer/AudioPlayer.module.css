@@ -21,8 +21,8 @@
   inset: 0;
   width: 100%;
   height: 100%;
+  fill: currentColor;
 }
-/* 色は描くときに color から読む */
 .base {
   color: var(--muted);
   opacity: 0.55;

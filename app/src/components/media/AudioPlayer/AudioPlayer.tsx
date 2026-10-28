@@ -1,4 +1,4 @@
-import { createEffect, createSignal, onCleanup, onMount } from 'solid-js'
+import { createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { PlayerBar } from '../PlayerBar/PlayerBar'
 import styles from './AudioPlayer.module.css'
 
@@ -17,15 +17,7 @@ export interface AudioPlayerProps {
 const BAR = 3
 const GAP = 1
 
-function draw(canvas: HTMLCanvasElement, wave: Uint8Array | null | undefined, w: number, h: number) {
-  const dpr = window.devicePixelRatio || 1
-  const cw = Math.max(1, Math.round(w * dpr))
-  const ch = Math.max(1, Math.round(h * dpr))
-  canvas.width = cw
-  canvas.height = ch
-  const g = canvas.getContext('2d')
-  if (!g) return
-  g.fillStyle = getComputedStyle(canvas).color
+function wavePath(wave: Uint8Array | null | undefined, w: number, h: number) {
   const vals = wave ?? new Uint8Array(1)
   const n = vals.length
   const count = Math.max(1, Math.floor((w + GAP) / (BAR + GAP)))
@@ -38,34 +30,31 @@ function draw(canvas: HTMLCanvasElement, wave: Uint8Array | null | undefined, w:
     levels.push(Math.sqrt(sq / (to - from)))
   }
   const top = Math.max(...levels)
-  const pitch = cw / count
-  const bw = BAR * dpr
+  const pitch = w / count
+  const r = BAR / 2
+  const f = (v: number) => +v.toFixed(2)
+  let d = ''
   for (let k = 0; k < count; k++) {
-    const len = Math.max(bw, top > 0 ? ((levels[k] ?? 0) / top) * ch : 0)
-    g.beginPath()
-    g.roundRect(k * pitch + (pitch - bw) / 2, (ch - len) / 2, bw, len, bw / 2)
-    g.fill()
+    const len = Math.max(BAR, top > 0 ? ((levels[k] ?? 0) / top) * h : 0)
+    const x = k * pitch + (pitch - BAR) / 2
+    const y = (h - len) / 2
+    d += `M${f(x)} ${f(y + r)}a${r} ${r} 0 0 1 ${BAR} 0v${f(len - BAR)}a${r} ${r} 0 0 1 ${-BAR} 0z`
   }
+  return d
 }
 
 export function AudioPlayer(props: AudioPlayerProps) {
   const [root, setRoot] = createSignal<HTMLDivElement>()
   let area!: HTMLDivElement
-  let base!: HTMLCanvasElement
-  let done!: HTMLCanvasElement
   const [audio, setAudio] = createSignal<HTMLAudioElement>()
   const [box, setBox] = createSignal({ w: 0, h: 0 })
-  const [theme, setTheme] = createSignal(0)
   const [at, setAt] = createSignal(0)
   const [length, setLength] = createSignal(0)
-  createEffect(() => {
+  const path = createMemo(() => {
     const { w, h } = box()
-    const wave = props.wave
-    theme()
-    if (!w || !h) return
-    draw(base, wave, w, h)
-    draw(done, wave, w, h)
+    return w && h ? wavePath(props.wave, w, h) : ''
   })
+  const view = () => `0 0 ${box().w || 1} ${box().h || 1}`
   createEffect(() => {
     const m = audio()
     if (!m) return
@@ -112,20 +101,23 @@ export function AudioPlayer(props: AudioPlayerProps) {
       if (e) setBox({ w: e.contentRect.width, h: e.contentRect.height })
     })
     ro.observe(area)
-    // 波形の色は描くときに読むので、テーマが変わったら描き直す
-    const mo = new MutationObserver(() => setTheme((n) => n + 1))
-    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-    onCleanup(() => {
-      ro.disconnect()
-      mo.disconnect()
-    })
+    onCleanup(() => ro.disconnect())
   })
   const played = () => (length() > 0 ? Math.min(100, (at() / length()) * 100) : 0)
   return (
     <div ref={setRoot} class={`${styles.root} ${props.class ?? ''}`}>
       <div ref={area} class={styles.wave} role="img" aria-label={props.name} onPointerDown={onDown}>
-        <canvas ref={base} class={styles.base} />
-        <canvas ref={done} class={styles.done} style={{ 'clip-path': `inset(0 ${100 - played()}% 0 0)` }} />
+        <svg class={styles.base} viewBox={view()} aria-hidden="true">
+          <path d={path()} />
+        </svg>
+        <svg
+          class={styles.done}
+          viewBox={view()}
+          aria-hidden="true"
+          style={{ 'clip-path': `inset(0 ${100 - played()}% 0 0)` }}
+        >
+          <path d={path()} />
+        </svg>
       </div>
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- 素材に字幕はない */}
       <audio
