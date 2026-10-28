@@ -1,65 +1,19 @@
-import {
-  Editor,
-  editorViewCtx,
-  editorViewOptionsCtx,
-  defaultValueCtx,
-  remarkStringifyOptionsCtx,
-  rootCtx,
-  serializerCtx,
-} from '@milkdown/kit/core'
-import type { Ctx } from '@milkdown/kit/ctx'
-import { clipboard } from '@milkdown/kit/plugin/clipboard'
-import { history } from '@milkdown/kit/plugin/history'
-import { listener, listenerCtx } from '@milkdown/kit/plugin/listener'
-import {
-  commonmark,
-  createCodeBlockCommand,
-  imageSchema,
-  insertHrCommand,
-  linkSchema,
-  remarkPreserveEmptyLinePlugin,
-  toggleEmphasisCommand,
-  toggleInlineCodeCommand,
-  toggleStrongCommand,
-  wrapInBlockquoteCommand,
-  wrapInBulletListCommand,
-  wrapInHeadingCommand,
-  wrapInOrderedListCommand,
-} from '@milkdown/kit/preset/commonmark'
-import { gfm, insertTableCommand, toggleStrikethroughCommand } from '@milkdown/kit/preset/gfm'
-import { Fragment, type Node } from '@milkdown/kit/prose/model'
-import { TextSelection } from '@milkdown/kit/prose/state'
-import type { EditorView } from '@milkdown/kit/prose/view'
-import { callCommand, replaceAll } from '@milkdown/kit/utils'
-import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
-import { type Item, LINK_SCHEME, type Library } from '../../../model/library'
+import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
+import { markdown, commonmarkLanguage } from '@codemirror/lang-markdown'
+import { EditorState, Prec, Transaction } from '@codemirror/state'
+import { EditorView, type ViewUpdate, keymap } from '@codemirror/view'
+import { GFM } from '@lezer/markdown'
+import { For, Show, createEffect, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { type Item, LINK_SCHEME, type Library, plainText } from '../../../model/library'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { LinkPicker } from '../../nav/LinkPicker/LinkPicker'
+import { QuickView, type QuickMedia } from '../../overlay/QuickView/QuickView'
 import { type SlashAction, slashMatches } from './commands'
-import {
-  type At,
-  type Embed,
-  type Hooks,
-  type Selected,
-  type Slash,
-  codeBlocks,
-  diagramEditing,
-  embeds,
-  escapeLabel,
-  links,
-  patchouliImage,
-  patchouliLink,
-  type RawLink,
-  rawMarks,
-  refreshLinks,
-  savedDoc,
-  textInput,
-  triggers,
-  unlinkRaw,
-} from './prose'
+import { runSlash, toggleWrap, unlinkAt } from './edit'
+import { type Embed, type LiveHooks, type Ref, escapeLabel, live, marksAt, refAt, refresh } from './live'
 import styles from './NoteEditor.module.css'
 
-export type { Embed } from './prose'
+export type { Embed } from './live'
 
 export interface Point {
   x: number
@@ -91,197 +45,154 @@ export interface NoteEditorProps {
   class?: string
 }
 
+interface At {
+  left: number
+  top: number
+  bottom: number
+}
+
+interface Slash extends At {
+  query: string
+  from: number
+  to: number
+}
+
 interface Picking {
   embed: boolean
   from: number
   to: number
   /** 閉じたときに戻す文字（`[[` で開いたとき）。 */
   restore?: string
-  /** 選んだ文字にリンクを付ける。 */
+  /** 選んだ文字をリンクの表示名にする。 */
   mark?: boolean
-  /** 元の書き方に戻しているリンクを、選んだ素材へのリンクの書き方に置き換える。 */
-  raw?: boolean
 }
 
-const BAR: { mark: string; icon: IconName; label: string; run: () => ReturnType<typeof callCommand> }[] = [
-  { mark: 'strong', icon: 'bold', label: '太字', run: () => callCommand(toggleStrongCommand.key) },
-  { mark: 'emphasis', icon: 'italic', label: '斜体', run: () => callCommand(toggleEmphasisCommand.key) },
-  {
-    mark: 'strike_through',
-    icon: 'strike',
-    label: '取り消し線',
-    run: () => callCommand(toggleStrikethroughCommand.key),
-  },
-  { mark: 'inlineCode', icon: 'code', label: 'コード', run: () => callCommand(toggleInlineCodeCommand.key) },
+interface Hover extends At {
+  id: string
+}
+
+const BAR: { mark: string; icon: IconName; label: string; wrap: string }[] = [
+  { mark: 'strong', icon: 'bold', label: '太字', wrap: '**' },
+  { mark: 'emphasis', icon: 'italic', label: '斜体', wrap: '*' },
+  { mark: 'strike', icon: 'strike', label: '取り消し線', wrap: '~~' },
+  { mark: 'code', icon: 'code', label: 'コード', wrap: '`' },
 ]
 
-const posOf = (v: EditorView, p?: Point) => (p && v.posAtCoords({ left: p.x, top: p.y })?.pos) ?? v.state.selection.from
+const HEADING_RE = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/
+const FENCE_RE = /^ {0,3}(```|~~~)/
+
+const refText = (it: Item, embed: boolean) => `${embed ? '!' : ''}[${escapeLabel(it.name)}](${LINK_SCHEME}${it.id})`
+
+const coords = (v: EditorView, pos: number): At | undefined => {
+  const c = v.coordsAtPos(pos)
+  return c ? { left: c.left, top: c.top, bottom: c.bottom } : undefined
+}
+
+const posOf = (v: EditorView, p?: Point) =>
+  (p && v.posAtCoords({ x: p.x, y: p.y }, false)) ?? v.state.selection.main.head
+
+const markKeys = (wrap: string) => (v: EditorView) => toggleWrap(v, wrap)
 
 export function NoteEditor(props: NoteEditorProps) {
   let root!: HTMLDivElement
-  let editor: Editor | undefined
-  let base: Node | undefined
-  let baseValue = props.value
+  let view: EditorView | undefined
   let last = props.value
+  let timer: ReturnType<typeof setTimeout> | undefined
   const [slash, setSlash] = createSignal<Slash>()
   const [slashIdx, setSlashIdx] = createSignal(0)
-  const [selected, setSelected] = createSignal<Selected>()
+  const [selected, setSelected] = createSignal<At & { marks: string[] }>()
   const [picking, setPicking] = createSignal<Picking>()
-  const [raw, setRaw] = createSignal<RawLink>()
+  const [active, setActive] = createSignal<Ref & At>()
+  const [hover, setHover] = createSignal<Hover>()
+  const [caret, setCaret] = createSignal<At>()
   const items = () => slashMatches(slash()?.query ?? '')
 
-  const act = <T,>(f: (ctx: Ctx) => T) => editor?.action(f)
-  const view = () => act((ctx) => ctx.get(editorViewCtx))
-  const emit = (md: string, doc: Node) => {
-    if (base && doc.eq(base) && last === baseValue) return
-    if (md === last) return
+  const flush = () => {
+    if (timer) clearTimeout(timer)
+    timer = undefined
+    const md = view?.state.doc.toString()
+    if (md === undefined || md === last) return
     last = md
     props.onChange?.(md)
   }
 
-  const runSlash = (a: SlashAction) => {
-    const s = slash()
-    const v = view()
-    if (!s || !v) return
-    setSlash(undefined)
-    v.dispatch(v.state.tr.delete(s.from, s.to))
-    if (a.type === 'link' || a.type === 'embed') {
-      setPicking({ embed: a.type === 'embed', from: s.from, to: s.from })
-      return
-    }
-    act((ctx) => {
-      if (a.type === 'heading') callCommand(wrapInHeadingCommand.key, a.level)(ctx)
-      else if (a.type === 'bullets' || a.type === 'tasks') callCommand(wrapInBulletListCommand.key)(ctx)
-      else if (a.type === 'numbers') callCommand(wrapInOrderedListCommand.key)(ctx)
-      else if (a.type === 'quote') callCommand(wrapInBlockquoteCommand.key)(ctx)
-      else if (a.type === 'code') callCommand(createCodeBlockCommand.key)(ctx)
-      else if (a.type === 'diagram') callCommand(createCodeBlockCommand.key, 'mermaid')(ctx)
-      else if (a.type === 'table') callCommand(insertTableCommand.key, { row: 3, col: 3 })(ctx)
-      else if (a.type === 'rule') callCommand(insertHrCommand.key)(ctx)
-      if (a.type === 'tasks') {
-        const ev = ctx.get(editorViewCtx)
-        const { $from } = ev.state.selection
-        for (let d = $from.depth; d > 0; d--) {
-          const n = $from.node(d)
-          if (n.type.name !== 'list_item') continue
-          ev.dispatch(ev.state.tr.setNodeMarkup($from.before(d), undefined, { ...n.attrs, checked: false }))
-          break
-        }
-      }
-    })
-    v.focus()
-  }
-
-  const hooks: Hooks = {
-    onLinkTrigger: (from, to) => {
-      queueMicrotask(() => {
-        const v = view()
-        if (!v) return
-        v.dispatch(v.state.tr.delete(from, to))
-        setPicking({ embed: false, from, to: from, restore: '[[' })
-      })
-    },
-    onSlash: (s) => {
-      if (s?.from !== slash()?.from) setSlashIdx(0)
-      setSlash(s)
-    },
-    onSelect: (s) => setSelected(s),
-    onMenuKey: (e) => {
-      if (!slash()) return false
-      const n = items().length
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        if (n) setSlashIdx((slashIdx() + (e.key === 'ArrowDown' ? 1 : n - 1)) % n)
-        return true
-      }
-      if (e.key === 'Enter' || e.key === 'Tab') {
-        const it = items()[slashIdx()]
-        if (!it) return false
-        runSlash(it.action)
-        return true
-      }
-      if (e.key === 'Escape') {
-        setSlash(undefined)
-        return true
-      }
-      return false
-    },
-    onOpenRef: (id) => props.onOpenRef?.(id),
-    onRaw: (r) => setRaw(r),
+  const hooks: LiveHooks = {
     nameOf: (id) => props.lib.byId.get(id)?.name,
     embedOf: async (id) => {
       const it = props.lib.byId.get(id)
       return it && props.embedOf ? props.embedOf(it) : undefined
     },
-    classes: {
-      link: styles.link,
-      missing: styles.missing,
-      embed: styles.embed,
-      card: styles.card,
-      diagram: styles.diagram,
-      editing: styles.editing,
-      raw: styles.raw,
-    },
+    onOpenRef: (id) => props.onOpenRef?.(id),
+    classes: styles,
   }
 
-  const closePicker = (v?: EditorView) => {
-    const p = picking()
-    setPicking(undefined)
-    const ev = v ?? view()
-    if (!ev || !p) return
-    let tr = ev.state.tr
-    if (p.restore) tr = tr.insertText(p.restore, p.from)
-    const pos = Math.min(p.from + (p.restore?.length ?? 0), tr.doc.content.size)
-    ev.dispatch(tr.setSelection(TextSelection.create(tr.doc, pos)))
-    ev.focus()
+  /** カーソルや選んでいる範囲に合わせて、浮かべる部品を出し直す。 */
+  let slashFrom: number | undefined
+  const place = (v: EditorView, typed: boolean) => {
+    const { state } = v
+    const sel = state.selection.main
+    const focused = v.hasFocus
+    const c = !sel.empty && focused ? coords(v, sel.from) : undefined
+    setSelected(c && { ...c, marks: marksAt(state, sel.from, sel.to) })
+    const r = sel.empty && focused ? refAt(state, sel.head) : undefined
+    const rc = r && coords(v, r.from)
+    setActive(r && rc ? { ...r, ...rc } : undefined)
+    const close = () => {
+      slashFrom = undefined
+      setSlash(undefined)
+    }
+    if (!sel.empty || !focused || v.composing) return close()
+    const line = state.doc.lineAt(sel.head)
+    const before = state.sliceDoc(line.from, sel.head)
+    const m = /(?:^|\s)\/([^\s/]*)$/.exec(before)
+    const from = m ? sel.head - (m[1]?.length ?? 0) - 1 : undefined
+    if (from === undefined || (slashFrom !== from && !(typed && m?.[1] === ''))) return close()
+    const sc = coords(v, from)
+    if (!sc) return close()
+    if (slashFrom !== from) setSlashIdx(0)
+    slashFrom = from
+    setSlash({ ...sc, query: m?.[1] ?? '', from, to: sel.head })
+    return undefined
   }
 
-  const insertRef = (it: Item) => {
-    const p = picking()
-    setPicking(undefined)
-    act((ctx) => {
-      const ev = ctx.get(editorViewCtx)
-      if (!p) return
-      const href = LINK_SCHEME + it.id
-      const link = linkSchema.type(ctx)
-      let tr = ev.state.tr
-      if (p.raw) {
-        const s = `[${escapeLabel(it.name)}](${href})`
-        tr = tr.insertText(s, p.from, p.to)
-        tr = tr.setSelection(TextSelection.create(tr.doc, p.from + s.length))
-      } else if (p.embed) {
-        tr = tr.replaceWith(p.from, p.to, imageSchema.type(ctx).create({ src: href, alt: it.name }))
-      } else if (p.mark) {
-        tr = tr.addMark(p.from, p.to, link.create({ href }))
-      } else {
-        const end = p.from + it.name.length
-        tr = tr.insertText(it.name, p.from, p.to).addMark(p.from, end, link.create({ href }))
-        tr = tr.setSelection(TextSelection.create(tr.doc, end)).removeStoredMark(link)
-      }
-      ev.dispatch(tr.scrollIntoView())
-      ev.focus()
-    })
+  /** カーソルが出たリンクの表示名を、リンク先のいまの名前にする。 */
+  let left: Ref | undefined
+  const rename = (u: ViewUpdate) => {
+    const prev = left && { ...left, from: u.changes.mapPos(left.from), to: u.changes.mapPos(left.to, 1) }
+    const now =
+      u.view.hasFocus && u.state.selection.main.empty ? refAt(u.state, u.state.selection.main.head) : undefined
+    left = now
+    if (!prev?.id || (now && now.from === prev.from) || u.view.composing) return
+    const r = refAt(u.state, prev.from + 1)
+    const name = r?.id && hooks.nameOf(r.id)
+    if (!r || r.from !== prev.from || !name) return
+    const label = escapeLabel(name)
+    if (u.state.sliceDoc(r.label.from, r.label.to) === label) return
+    const ev = u.view
+    queueMicrotask(() => ev.dispatch({ changes: { from: r.label.from, to: r.label.to, insert: label } }))
   }
 
-  const insertItems = async (list: Item[], at: number) => {
-    const kinds = await Promise.all(list.map(async (it) => (await props.embedOf?.(it))?.kind))
-    act((ctx) => {
-      const ev = ctx.get(editorViewCtx)
-      const { schema } = ev.state
-      const link = linkSchema.type(ctx)
-      const nodes = list.flatMap((it, i) => {
-        const href = LINK_SCHEME + it.id
-        const kind = kinds[i]
-        const n =
-          kind && kind !== 'card'
-            ? imageSchema.type(ctx).create({ src: href, alt: it.name })
-            : schema.text(it.name, [link.create({ href })])
-        return i ? [schema.text(' '), n] : [n]
+  const onUpdate = (u: ViewUpdate) => {
+    if (u.docChanged) {
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(flush, 150)
+    }
+    if (u.docChanged || u.selectionSet || u.focusChanged) rename(u)
+    const typed = u.transactions.some((t) => t.isUserEvent('input.type'))
+    const sel = u.state.selection.main
+    if (typed && sel.empty && u.state.sliceDoc(sel.head - 2, sel.head) === '[[') {
+      const from = sel.head - 2
+      const ev = u.view
+      queueMicrotask(() => {
+        ev.dispatch({ changes: { from, to: from + 2 } })
+        setPicking({ embed: false, from, to: from, restore: '[[' })
       })
-      if (!nodes.length) return
-      const tr = ev.state.tr.insert(Math.min(at, ev.state.doc.content.size), Fragment.from(nodes))
-      ev.dispatch(tr.removeStoredMark(link).scrollIntoView())
-      ev.focus()
-    })
+      return
+    }
+    if (u.docChanged || u.selectionSet || u.focusChanged || u.viewportChanged || u.geometryChanged) {
+      const ev = u.view
+      ev.requestMeasure({ read: () => place(ev, u.docChanged && typed), key: 'patchouli-place' })
+    }
   }
 
   const takeFiles = (data: DataTransfer | null, at: number) => {
@@ -292,105 +203,163 @@ export function NoteEditor(props: NoteEditorProps) {
     return true
   }
 
-  const [caret, setCaret] = createSignal<At>()
-  const dropAt = (p: Point | undefined) => {
-    const v = view()
-    const pos = p && v?.posAtCoords({ left: p.x, top: p.y })?.pos
-    const c = pos === undefined ? undefined : v?.coordsAtPos(pos)
-    setCaret(c && { left: c.left, top: c.top, bottom: c.bottom })
+  const insertItems = async (list: Item[], at: number) => {
+    const kinds = await Promise.all(list.map(async (it) => (await props.embedOf?.(it))?.kind))
+    const v = view
+    if (!v || !list.length) return
+    const text = list.map((it, i) => refText(it, !!kinds[i] && kinds[i] !== 'card')).join(' ')
+    const pos = Math.min(at, v.state.doc.length)
+    v.dispatch({ changes: { from: pos, insert: text }, selection: { anchor: pos + text.length }, scrollIntoView: true })
+    v.focus()
   }
 
-  const linkSelection = () => {
-    const v = view()
-    if (!v) return
-    const { from, to } = v.state.selection
-    const link = act((ctx) => linkSchema.type(ctx))
-    if (link && v.state.doc.rangeHasMark(from, to, link)) {
-      v.dispatch(v.state.tr.removeMark(from, to, link))
+  let hoverTimer: ReturnType<typeof setTimeout> | undefined
+  const hoverOn = (el: Element | null) => {
+    if (hoverTimer) clearTimeout(hoverTimer)
+    const id = el instanceof HTMLElement ? el.dataset.ref : undefined
+    if (!el || !id) {
+      hoverTimer = setTimeout(() => setHover(undefined), 120)
       return
     }
-    setPicking({ embed: false, from, to, mark: true })
+    if (hover()?.id === id) return
+    hoverTimer = setTimeout(() => {
+      const r = el.getBoundingClientRect()
+      setHover({ id, left: r.left, top: r.top, bottom: r.bottom })
+    }, 250)
   }
 
-  onMount(async () => {
-    const e = Editor.make()
-      .config((ctx) => {
-        ctx.set(rootCtx, root)
-        ctx.set(defaultValueCtx, props.value)
-        ctx.update(remarkStringifyOptionsCtx, (o) => ({ ...o, bullet: '-' as const, rule: '-' as const }))
-        ctx.update(editorViewOptionsCtx, (o) => ({
-          ...o,
-          attributes: { class: styles.pm ?? '', spellcheck: 'false' },
-          handlePaste: (v, ev) => {
-            const at = v.state.selection.from
-            if (!takeFiles(ev.clipboardData, at)) return false
-            v.dispatch(v.state.tr.deleteSelection())
-            return true
-          },
-          handleDrop: (v, ev) => takeFiles(ev.dataTransfer, posOf(v, { x: ev.clientX, y: ev.clientY })),
-          handleTextInput: (v, from, to, text) => textInput(v, from, to, text),
-        }))
-        // 渡される文字は、元の書き方に戻した書式をそのまま書いたものなので使わない
-        ctx.get(listenerCtx).updated((c) => {
-          const doc = savedDoc(c, c.get(editorViewCtx).state, hooks.nameOf)
-          emit(c.get(serializerCtx)(doc), doc)
-        })
-      })
-      // 空の段落を <br /> で書き出す仕組みを外す
-      .use(commonmark.filter((p) => !remarkPreserveEmptyLinePlugin.includes(p)))
-      .use(patchouliLink)
-      .use(patchouliImage)
-      .use(gfm)
-      .use(history)
-      .use(listener)
-      .use(clipboard)
-      .use(triggers(() => hooks))
-      .use(links(() => hooks))
-      .use(embeds(() => hooks))
-      .use(codeBlocks(() => hooks))
-      .use(diagramEditing(() => hooks))
-      .use(rawMarks(() => hooks))
-    await e.create()
-    editor = e
-    base = view()?.state.doc
+  const menuKey = (key: string) => () => {
+    if (!slash()) return false
+    const n = items().length
+    if (key === 'ArrowDown' || key === 'ArrowUp') {
+      if (n) setSlashIdx((slashIdx() + (key === 'ArrowDown' ? 1 : n - 1)) % n)
+      return true
+    }
+    if (key === 'Enter' || key === 'Tab') {
+      const it = items()[slashIdx()]
+      if (!it) return false
+      chooseSlash(it.action)
+      return true
+    }
+    setSlash(undefined)
+    return true
+  }
+
+  onMount(() => {
+    view = new EditorView({
+      parent: root,
+      state: EditorState.create({
+        doc: props.value,
+        extensions: [
+          history(),
+          markdown({ base: commonmarkLanguage, extensions: [GFM] }),
+          Prec.highest(
+            keymap.of(['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].map((key) => ({ key, run: menuKey(key) }))),
+          ),
+          keymap.of([
+            { key: 'Mod-b', run: markKeys('**') },
+            { key: 'Mod-i', run: markKeys('*') },
+            { key: 'Mod-e', run: markKeys('`') },
+            { key: 'Mod-Alt-x', run: markKeys('~~') },
+            indentWithTab,
+            ...historyKeymap,
+            ...defaultKeymap,
+          ]),
+          EditorView.lineWrapping,
+          EditorView.contentAttributes.of({ spellcheck: 'false', 'aria-label': '本文' }),
+          live(() => hooks),
+          EditorView.updateListener.of(onUpdate),
+          EditorView.domEventHandlers({
+            mousedown: (e) => {
+              if (!(e.ctrlKey || e.metaKey) || e.button !== 0) return false
+              const el = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-ref]') : null
+              const id = el?.dataset.ref
+              if (!id) return false
+              e.preventDefault()
+              setHover(undefined)
+              props.onOpenRef?.(id)
+              return true
+            },
+            mouseover: (e) => hoverOn(e.target instanceof Element ? e.target.closest('[data-ref]') : null),
+            mouseleave: () => hoverOn(null),
+            keydown: () => {
+              setHover(undefined)
+              return false
+            },
+            paste: (e, v) => {
+              if (!takeFiles(e.clipboardData, v.state.selection.main.from)) return false
+              e.preventDefault()
+              v.dispatch(v.state.replaceSelection(''))
+              return true
+            },
+            drop: (e, v) => {
+              if (!takeFiles(e.dataTransfer, posOf(v, { x: e.clientX, y: e.clientY }))) return false
+              e.preventDefault()
+              return true
+            },
+            blur: () => {
+              flush()
+              return false
+            },
+          }),
+        ],
+      }),
+    })
     props.ref?.({
-      focus: () => view()?.focus(),
-      scrollToHeading: (i) => root.querySelectorAll('h1, h2, h3, h4, h5, h6')[i]?.scrollIntoView({ block: 'start' }),
-      pickLink: () => {
-        const v = view()
+      focus: () => view?.focus(),
+      scrollToHeading: (i) => {
+        const v = view
         if (!v) return
-        const { from, to, empty } = v.state.selection
+        let fence = false
+        let n = 0
+        for (let l = 1; l <= v.state.doc.lines; l++) {
+          const line = v.state.doc.line(l)
+          if (FENCE_RE.test(line.text)) fence = !fence
+          if (fence) continue
+          const m = HEADING_RE.exec(line.text)
+          if (!m?.[1] || !m[2]) continue
+          if (n++ !== i) continue
+          v.dispatch({ effects: EditorView.scrollIntoView(line.from, { y: 'start' }) })
+          return
+        }
+      },
+      pickLink: () => {
+        const v = view
+        if (!v) return
+        const { from, to, empty } = v.state.selection.main
         setPicking({ embed: false, from, to, mark: !empty })
       },
-      dropAt,
+      dropAt: (p) => {
+        const v = view
+        const pos = p && v?.posAtCoords({ x: p.x, y: p.y }, false)
+        setCaret(pos === undefined || pos === null || !v ? undefined : coords(v, pos))
+      },
       insertItems: async (list, p) => {
         setCaret(undefined)
-        const v = view()
+        const v = view
         if (v) await insertItems(list, posOf(v, p))
       },
     })
   })
 
   onCleanup(() => {
-    const e = editor
-    editor = undefined
-    if (!e) return
-    e.action((ctx) => {
-      const doc = savedDoc(ctx, ctx.get(editorViewCtx).state, hooks.nameOf)
-      emit(ctx.get(serializerCtx)(doc), doc)
-    })
-    void e.destroy()
+    flush()
+    if (hoverTimer) clearTimeout(hoverTimer)
+    view?.destroy()
+    view = undefined
   })
 
   createEffect(
     on(
       () => props.value,
-      (v) => {
-        if (!editor || v === last) return
-        baseValue = v
-        last = v
-        editor.action(replaceAll(v))
-        base = view()?.state.doc
+      (val) => {
+        const v = view
+        if (!v || val === last || val === v.state.doc.toString()) return
+        last = val
+        v.dispatch({
+          changes: { from: 0, to: v.state.doc.length, insert: val },
+          annotations: Transaction.addToHistory.of(false),
+        })
         setSlash(undefined)
         setPicking(undefined)
       },
@@ -401,21 +370,19 @@ export function NoteEditor(props: NoteEditorProps) {
   createEffect(
     on(
       () => props.lib,
-      () => {
-        const v = view()
-        if (v) refreshLinks(v)
-      },
+      () => view?.dispatch({ effects: refresh.of(null) }),
       { defer: true },
     ),
   )
 
   let frame = 0
   const onScroll = () => {
-    if (frame || (!slash() && !selected())) return
+    setHover(undefined)
+    if (frame) return
     frame = requestAnimationFrame(() => {
       frame = 0
-      const v = view()
-      if (v) v.dispatch(v.state.tr)
+      const v = view
+      if (v) place(v, false)
     })
   }
   onMount(() => document.addEventListener('scroll', onScroll, true))
@@ -423,6 +390,70 @@ export function NoteEditor(props: NoteEditorProps) {
     document.removeEventListener('scroll', onScroll, true)
     cancelAnimationFrame(frame)
   })
+
+  const chooseSlash = (a: SlashAction) => {
+    const s = slash()
+    const v = view
+    if (!s || !v) return
+    setSlash(undefined)
+    v.dispatch({ changes: { from: s.from, to: s.to } })
+    if (a.type === 'link' || a.type === 'embed') {
+      setPicking({ embed: a.type === 'embed', from: s.from, to: s.from })
+      return
+    }
+    runSlash(v, a)
+    v.focus()
+  }
+
+  const closePicker = () => {
+    const p = picking()
+    setPicking(undefined)
+    const v = view
+    if (!v || !p) return
+    const insert = p.restore ?? ''
+    v.dispatch({ changes: { from: p.from, insert }, selection: { anchor: p.from + insert.length } })
+    v.focus()
+  }
+
+  const insertRef = (it: Item) => {
+    const p = picking()
+    setPicking(undefined)
+    const v = view
+    if (!v || !p) return
+    const text = p.mark ? `[${v.state.sliceDoc(p.from, p.to)}](${LINK_SCHEME}${it.id})` : refText(it, p.embed)
+    v.dispatch({
+      changes: { from: p.from, to: p.to, insert: text },
+      selection: { anchor: p.from + text.length },
+      scrollIntoView: true,
+    })
+    v.focus()
+  }
+
+  const linkSelection = () => {
+    const v = view
+    if (!v) return
+    const { from, to } = v.state.selection.main
+    if (unlinkAt(v, from, to)) return
+    setPicking({ embed: false, from, to, mark: true })
+  }
+
+  /** 浮かべて見せるリンク先。ホバーしているものを先にし、なければカーソルのある埋め込み。 */
+  const shown = () => {
+    const h = hover()
+    const a = active()
+    if (h && h.id !== a?.id) return { id: h.id, left: h.left, top: h.bottom + 6, actions: false }
+    if (a?.kind === 'embed' && a.id && !picking()) return { id: a.id, left: a.left, top: a.bottom + 6, actions: true }
+    return undefined
+  }
+  const [media] = createResource(
+    () => shown()?.id,
+    async (id): Promise<QuickMedia | undefined> => {
+      const it = props.lib.byId.get(id)
+      if (!it) return undefined
+      if (it.note) return { kind: 'text', text: plainText(it.body ?? '').slice(0, 240) }
+      return props.embedOf?.(it)
+    },
+  )
 
   return (
     <>
@@ -455,7 +486,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   tabIndex={-1}
                   aria-selected={i() === slashIdx()}
                   onMouseEnter={() => setSlashIdx(i())}
-                  onClick={() => runSlash(it.action)}
+                  onClick={() => chooseSlash(it.action)}
                 >
                   <Icon name={it.icon} />
                   {it.label}
@@ -465,7 +496,7 @@ export function NoteEditor(props: NoteEditorProps) {
           </div>
         )}
       </Show>
-      <Show when={!picking() && !selected() && raw()?.link ? raw() : undefined}>
+      <Show when={!picking() && !selected() && active()?.kind === 'link' && active()?.id ? active() : undefined}>
         {(r) => (
           <div
             class={styles.linkMenu}
@@ -475,24 +506,18 @@ export function NoteEditor(props: NoteEditorProps) {
             style={{ left: `${r().left}px`, top: `${r().bottom + 6}px` }}
             onMouseDown={(e) => e.preventDefault()}
           >
-            <button type="button" onClick={() => props.onOpenRef?.(r().link?.id ?? '')}>
+            <button type="button" onClick={() => props.onOpenRef?.(r().id ?? '')}>
               開く
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                const l = r().link
-                if (l) setPicking({ embed: false, from: l.from, to: l.to, raw: true })
-              }}
-            >
+            <button type="button" onClick={() => setPicking({ embed: false, from: r().from, to: r().to })}>
               アセットを選択
             </button>
             <button
               type="button"
               onClick={() => {
-                const v = view()
+                const v = view
                 if (!v) return
-                act((ctx) => unlinkRaw(ctx, v, hooks.nameOf))
+                unlinkAt(v, r().from, r().to)
                 v.focus()
               }}
             >
@@ -500,6 +525,42 @@ export function NoteEditor(props: NoteEditorProps) {
             </button>
           </div>
         )}
+      </Show>
+      <Show when={!selected() && shown()}>
+        {(s) => {
+          const it = () => props.lib.byId.get(s().id)
+          return (
+            <QuickView
+              id={s().id}
+              name={it()?.name}
+              kind={it()?.note ? 'ノート' : it()?.ext.toUpperCase()}
+              media={media()}
+              left={s().left}
+              top={s().top}
+            >
+              <Show when={s().actions && active()}>
+                {(a) => (
+                  <>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => props.onOpenRef?.(s().id)}
+                    >
+                      開く
+                    </button>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => setPicking({ embed: true, from: a().from, to: a().to })}
+                    >
+                      アセットを選択
+                    </button>
+                  </>
+                )}
+              </Show>
+            </QuickView>
+          )
+        }}
       </Show>
       <Show when={!picking() && selected()}>
         {(s) => (
@@ -518,7 +579,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   title={b.label}
                   aria-label={b.label}
                   aria-pressed={s().marks.includes(b.mark)}
-                  onClick={() => act(b.run())}
+                  onClick={() => view && toggleWrap(view, b.wrap)}
                 >
                   <Icon name={b.icon} />
                 </button>
