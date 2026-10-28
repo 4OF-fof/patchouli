@@ -6,6 +6,7 @@ import { GFM } from '@lezer/markdown'
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js'
 import { EMBED_SCALES, type Item, type Library, hrefOf, plainText, thumbOf } from '../../../model/library'
 import { Icon, type IconName } from '../../base/Icon/Icon'
+import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { LinkPicker } from '../../nav/LinkPicker/LinkPicker'
 import { QuickView } from '../../overlay/QuickView/QuickView'
 import { type SlashAction, slashMatches } from './commands'
@@ -572,23 +573,25 @@ export function NoteEditor(props: NoteEditorProps) {
             style={{ left: `${s().left}px`, top: `${s().bottom + 6}px` }}
             onMouseDown={(e) => e.preventDefault()}
           >
-            <For each={items()}>
-              {(it, i) => (
-                // キー操作は本文の ↑↓ Enter が受け持つので、行はマウスで押せるだけにする
-                // oxlint-disable-next-line jsx-a11y/click-events-have-key-events
-                <div
-                  class={styles.item}
-                  role="option"
-                  tabIndex={-1}
-                  aria-selected={i() === slashIdx()}
-                  onMouseEnter={() => setSlashIdx(i())}
-                  onClick={() => chooseSlash(it.action)}
-                >
-                  <Icon name={it.icon} withText />
-                  {it.label}
-                </div>
-              )}
-            </For>
+            <ScrollArea class={styles.menuScroll} viewClass={styles.menuList}>
+              <For each={items()}>
+                {(it, i) => (
+                  // キー操作は本文の ↑↓ Enter が受け持つので、行はマウスで押せるだけにする
+                  // oxlint-disable-next-line jsx-a11y/click-events-have-key-events
+                  <div
+                    class={styles.item}
+                    role="option"
+                    tabIndex={-1}
+                    aria-selected={i() === slashIdx()}
+                    onMouseEnter={() => setSlashIdx(i())}
+                    onClick={() => chooseSlash(it.action)}
+                  >
+                    <Icon name={it.icon} withText />
+                    {it.label}
+                  </div>
+                )}
+              </For>
+            </ScrollArea>
           </div>
         )}
       </Show>

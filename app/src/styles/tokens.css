@@ -98,8 +98,10 @@
 *::after {
   box-sizing: border-box;
 }
+/* ScrollArea を使えない所（エディタの表や図など）も、つまみの色をそろえる */
 * {
   scrollbar-width: thin;
+  scrollbar-color: var(--faint) transparent;
 }
 body {
   margin: 0;

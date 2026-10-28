@@ -1,6 +1,7 @@
-import { For, createEffect, on, onMount } from 'solid-js'
+import { For, createEffect, on } from 'solid-js'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { Kbd } from '../../base/Kbd/Kbd'
+import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import styles from './NavMenu.module.css'
 
 export interface NavMenuItem {
@@ -36,7 +37,6 @@ export function NavMenu(props: NavMenuProps) {
       },
     ),
   )
-  onMount(() => el.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' }))
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.stopPropagation()
@@ -52,28 +52,30 @@ export function NavMenu(props: NavMenuProps) {
   }
   return (
     <div class={styles.root} role="menu" tabIndex={-1} ref={el} onKeyDown={onKeyDown}>
-      <For each={props.items}>
-        {(it) =>
-          it === 'separator' ? (
-            <hr />
-          ) : (
-            <button
-              type="button"
-              role="menuitem"
-              aria-current={it.current ? 'page' : undefined}
-              data-heading={it.heading}
-              title={it.title}
-              onClick={() => props.onSelect?.(it.id)}
-            >
-              <i>{it.icon && <Icon name={it.icon} withText />}</i>
-              <span class={styles.label}>{it.label}</span>
-              {it.count != null && <small>{it.count}</small>}
-              {it.hint && <small>{it.hint}</small>}
-              {it.kbd && <Kbd class={styles.kbd}>{it.kbd}</Kbd>}
-            </button>
-          )
-        }
-      </For>
+      <ScrollArea class={styles.scroll} viewClass={styles.list}>
+        <For each={props.items}>
+          {(it) =>
+            it === 'separator' ? (
+              <hr />
+            ) : (
+              <button
+                type="button"
+                role="menuitem"
+                aria-current={it.current ? 'page' : undefined}
+                data-heading={it.heading}
+                title={it.title}
+                onClick={() => props.onSelect?.(it.id)}
+              >
+                <i>{it.icon && <Icon name={it.icon} withText />}</i>
+                <span class={styles.label}>{it.label}</span>
+                {it.count != null && <small>{it.count}</small>}
+                {it.hint && <small>{it.hint}</small>}
+                {it.kbd && <Kbd class={styles.kbd}>{it.kbd}</Kbd>}
+              </button>
+            )
+          }
+        </For>
+      </ScrollArea>
     </div>
   )
 }

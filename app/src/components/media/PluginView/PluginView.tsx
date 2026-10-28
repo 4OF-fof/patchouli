@@ -1,5 +1,6 @@
 import { Show, createSignal, onCleanup, onMount } from 'solid-js'
 import { type UiApi, loadUi } from '../../../plugins/ui'
+import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import styles from './PluginView.module.css'
 
 export interface PluginViewProps {
@@ -42,7 +43,7 @@ export function PluginView(props: PluginViewProps) {
   })
   return (
     <div class={`${styles.root} ${props.class ?? ''}`}>
-      <div ref={el} class={styles.mount} />
+      <ScrollArea ref={el} class={styles.mount} />
       <Show when={error()}>
         <p class={styles.error} role="alert">
           {error()}

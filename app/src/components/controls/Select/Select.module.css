@@ -48,14 +48,19 @@
 .list {
   position: fixed;
   z-index: 60;
-  max-height: 260px;
-  padding: 4px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
   background: var(--menu);
   box-shadow: var(--shadow-float);
   outline: 0;
+}
+.scroll {
+  max-height: 260px;
+}
+.options {
+  padding: 4px;
 }
 .list[data-up='true'] {
   transform: translateY(-100%);

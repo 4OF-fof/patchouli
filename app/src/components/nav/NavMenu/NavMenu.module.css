@@ -1,14 +1,17 @@
 .root {
   width: 240px;
-  max-height: var(--nav-menu-height, none);
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  padding: 6px;
   border-radius: var(--radius-lg);
   background: var(--menu);
   border: 1px solid var(--line-2);
   box-shadow: var(--shadow);
+}
+.scroll {
+  max-height: var(--nav-menu-height, none);
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
 }
 .root hr {
   border: 0;

@@ -1,6 +1,7 @@
 import { For, Show, createSignal, createUniqueId, onCleanup } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { Icon } from '../../base/Icon/Icon'
+import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import styles from './Select.module.css'
 
 export interface SelectOption {
@@ -131,28 +132,30 @@ export function Select(props: SelectProps) {
             style={{ left: `${pos().left}px`, top: `${pos().top}px`, 'min-width': `${pos().width}px` }}
             onKeyDown={onListKey}
           >
-            <For each={props.options}>
-              {(o, i) => (
-                // キー操作は一覧が受け持つので、行はマウスで押せるだけにする
-                // oxlint-disable-next-line jsx-a11y/click-events-have-key-events
-                <div
-                  id={`${listId}-${i()}`}
-                  class={styles.option}
-                  role="option"
-                  tabIndex={-1}
-                  data-index={i()}
-                  data-active={i() === at()}
-                  aria-selected={o.value === props.value}
-                  onPointerEnter={() => setAt(i())}
-                  onClick={() => choose(i())}
-                >
-                  <span>{o.label}</span>
-                  <Show when={o.value === props.value}>
-                    <Icon name="check" size={12} withText />
-                  </Show>
-                </div>
-              )}
-            </For>
+            <ScrollArea class={styles.scroll} viewClass={styles.options}>
+              <For each={props.options}>
+                {(o, i) => (
+                  // キー操作は一覧が受け持つので、行はマウスで押せるだけにする
+                  // oxlint-disable-next-line jsx-a11y/click-events-have-key-events
+                  <div
+                    id={`${listId}-${i()}`}
+                    class={styles.option}
+                    role="option"
+                    tabIndex={-1}
+                    data-index={i()}
+                    data-active={i() === at()}
+                    aria-selected={o.value === props.value}
+                    onPointerEnter={() => setAt(i())}
+                    onClick={() => choose(i())}
+                  >
+                    <span>{o.label}</span>
+                    <Show when={o.value === props.value}>
+                      <Icon name="check" size={12} withText />
+                    </Show>
+                  </div>
+                )}
+              </For>
+            </ScrollArea>
           </div>
         </Portal>
       </Show>
