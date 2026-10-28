@@ -1,7 +1,10 @@
+import { parserCtx, schemaCtx, serializerCtx } from '@milkdown/kit/core'
+import type { Ctx } from '@milkdown/kit/ctx'
 import { codeBlockSchema, imageSchema, linkSchema } from '@milkdown/kit/preset/commonmark'
 import type { Mounted } from 'pele/lazy'
-import type { Node } from '@milkdown/kit/prose/model'
+import { Fragment, type Node } from '@milkdown/kit/prose/model'
 import { type EditorState, Plugin, PluginKey, TextSelection, type Transaction } from '@milkdown/kit/prose/state'
+import { Transform } from '@milkdown/kit/prose/transform'
 import { Decoration, DecorationSet, type EditorView, type NodeView } from '@milkdown/kit/prose/view'
 import { $prose, $view } from '@milkdown/kit/utils'
 import { LINK_SCHEME } from '../../../model/library'
@@ -76,7 +79,7 @@ export const triggers = (hooks: () => Hooks) =>
               const { state } = view
               const sel = state.selection
               h.onSelect(
-                !sel.empty && sel instanceof TextSelection && view.hasFocus()
+                !sel.empty && sel instanceof TextSelection && view.hasFocus() && !inRaw(state)
                   ? { ...at(view, sel.from), marks: marksIn(state) }
                   : undefined,
               )
@@ -189,13 +192,13 @@ export const links = (hooks: () => Hooks) =>
                   view.dispatch(view.state.tr.setNodeMarkup(pos, undefined, { ...n.attrs, checked: !n.attrs.checked }))
                 return true
               }
-              const a = t?.closest('a')
-              if (!a) return false
-              e.preventDefault()
-              if (e.ctrlKey || e.metaKey) return true
+              const mark = t?.closest('strong, em, code, del, s, a')
+              if (!mark || mark.closest('pre')) return false
+              if (mark instanceof HTMLAnchorElement) e.preventDefault()
+              if (e.ctrlKey || e.metaKey) return mark instanceof HTMLAnchorElement
               // 端を押したときも元の書き方に戻す
               const pos = view.posAtCoords({ left: e.clientX, top: e.clientY })?.pos
-              if (pos !== undefined && idOfHref(a.getAttribute('href')))
+              if (pos !== undefined)
                 view.dispatch(
                   view.state.tr.setSelection(TextSelection.create(view.state.doc, pos)).setMeta(REVEAL, true),
                 )
@@ -219,7 +222,8 @@ export const links = (hooks: () => Hooks) =>
 export interface RawLink extends At {
   from: number
   to: number
-  id?: string
+  /** 範囲の中にある patchouli: のリンク。 */
+  link?: { from: number; to: number; id: string }
 }
 
 interface Raw {
@@ -237,106 +241,195 @@ const isRaw = (v: unknown): v is Raw =>
   typeof v.to === 'number'
 const REVEAL = 'patchouli-reveal'
 const RAW_RE = /\[((?:\\.|[^\]\\])*)\]\(patchouli:([^)\s]+)\)/g
-const escapeLabel = (s: string) => s.replace(/[\\[\]]/g, '\\$&')
-const unescapeLabel = (s: string) => s.replace(/\\([!-/:-@[-`{-~])/g, '$1')
+/** 元の書き方を見せる書式。 */
+const SHOWN = new Set(['strong', 'emphasis', 'inlineCode', 'strike_through', 'link'])
+/** 書き出した文の中で、カーソルの位置を探すための文字。 */
+const CARET = '\uE000'
 
-interface Span {
-  from: number
-  to: number
-  href: string
-  text: string
+export const escapeLabel = (s: string) => s.replace(/[\\[\]]/g, '\\$&')
+
+const isShown = (n: Node | null | undefined) => !!n?.isText && n.marks.some((m) => SHOWN.has(m.type.name))
+
+const rawOf = (state: EditorState) => {
+  const raw = rawKey.getState(state)
+  return raw && raw.from < raw.to && raw.to <= state.doc.content.size ? raw : undefined
 }
 
-/** pos を含むリンクの範囲。edge なら端も含める。 */
-function linkAt(doc: Node, pos: number, edge: boolean): Span | undefined {
+/** 選んでいる範囲が、元の書き方に戻している範囲の中にあるか。 */
+export const inRaw = (state: EditorState) => {
+  const raw = rawOf(state)
+  return !!raw && state.selection.from >= raw.from && state.selection.to <= raw.to
+}
+
+/** pos に触れている、書式の付いた文字のひと続き。edge でなければ、両側が書式の中のときだけ。 */
+function spanAt(doc: Node, pos: number, edge: boolean): Raw | undefined {
   const $pos = doc.resolve(pos)
   const parent = $pos.parent
   if (!parent.isTextblock || parent.type.spec.code) return undefined
-  const inside = (s: Span) => (edge ? s.from <= pos && pos <= s.to : s.from < pos && pos < s.to)
+  const before = isShown($pos.nodeBefore)
+  const after = isShown($pos.nodeAfter)
+  if (edge ? !before && !after : !(before && after)) return undefined
   const start = $pos.start()
-  let cur: Span | undefined
-  let found: Span | undefined
-  parent.forEach((child, offset) => {
-    if (found) return
-    const mark = child.marks.find((m) => m.type.name === 'link' && idOfHref(m.attrs.href))
-    const href = child.isText && mark ? String(mark.attrs.href) : undefined
-    const from = start + offset
-    if (href && cur?.href === href && cur.to === from) {
-      cur.to += child.nodeSize
-      cur.text += child.text ?? ''
-      return
-    }
-    if (cur && inside(cur)) found = cur
-    cur = href ? { from, to: from + child.nodeSize, href, text: child.text ?? '' } : undefined
-  })
-  if (!found && cur && inside(cur)) found = cur
-  return found
+  const kids: { from: number; to: number; on: boolean }[] = []
+  parent.forEach((c, off) => kids.push({ from: start + off, to: start + off + c.nodeSize, on: isShown(c) }))
+  let i = kids.findIndex((k) => k.on && k.from <= pos && pos <= k.to)
+  if (i < 0) return undefined
+  let j = i
+  while (kids[i - 1]?.on) i--
+  while (kids[j + 1]?.on) j++
+  const from = kids[i]?.from
+  const to = kids[j]?.to
+  return from === undefined || to === undefined ? undefined : { from, to }
 }
 
 /** 範囲の中の [表示名](patchouli:ID) を見つける。位置は文書の中のもの。 */
 function rawMatches(doc: Node, raw: Raw) {
-  const out: { from: number; to: number; label: string; id: string }[] = []
-  if (raw.from >= raw.to || raw.to > doc.content.size) return out
+  const out: { from: number; to: number; source: string; id: string }[] = []
   doc.nodesBetween(raw.from, raw.to, (node, pos) => {
     if (!node.isTextblock) return true
     const text = node.textBetween(0, node.content.size, undefined, '￼')
     for (const m of text.matchAll(RAW_RE)) {
       const from = pos + 1 + m.index
       const to = from + m[0].length
-      if (to > raw.from && from < raw.to) out.push({ from, to, label: unescapeLabel(m[1] ?? ''), id: m[2] ?? '' })
+      if (to > raw.from && from < raw.to) out.push({ from, to, source: m[1] ?? '', id: m[2] ?? '' })
     }
     return false
   })
   return out
 }
 
-/** 元の書き方に戻していた範囲を、リンクに戻す。plain なら文字だけにする。 */
-function collapse(tr: Transaction, raw: Raw, nameOf: Hooks['nameOf'], plain = false) {
-  const { schema } = tr.doc.type
-  for (const m of rawMatches(tr.doc, raw).toReversed()) {
-    const label = nameOf(m.id) ?? (m.label || m.id)
-    const marks = (tr.doc.nodeAt(m.from)?.marks ?? []).filter((x) => x.type.name !== 'link')
-    const link = schema.marks.link?.create({ href: LINK_SCHEME + m.id })
-    tr.replaceWith(m.from, m.to, schema.text(label, plain || !link ? marks : [...marks, link]))
+/** リンクの表示名を、リンク先のいまの名前にする。 */
+function renamed(content: Fragment, nameOf: Hooks['nameOf']) {
+  const nodes: Node[] = []
+  content.forEach((n, _, i) => {
+    const href = n.marks.find((m) => m.type.name === 'link')?.attrs.href
+    const id = idOfHref(href)
+    const name = id && nameOf(id)
+    const same = (k: Node | null) => k?.marks.some((m) => m.type.name === 'link' && m.attrs.href === href)
+    const alone =
+      !same(i > 0 ? content.child(i - 1) : null) && !same(i + 1 < content.childCount ? content.child(i + 1) : null)
+    nodes.push(name && n.isText && alone && n.text !== name ? n.type.schema.text(name, n.marks) : n)
+  })
+  return Fragment.from(nodes)
+}
+
+/** Markdown の文を、段落の中身として読む。段落 1 つにならないものは読まない。 */
+function parseInline(ctx: Ctx, text: string, nameOf: Hooks['nameOf']) {
+  const [, lead = '', body = '', tail = ''] = /^(\s*)([\s\S]*?)(\s*)$/.exec(text) ?? []
+  const schema = ctx.get(schemaCtx)
+  const space = (s: string) => (s ? [schema.text(s)] : [])
+  if (!body) return Fragment.from(space(text))
+  const doc = ctx.get(parserCtx)(body)
+  const first = doc.firstChild
+  if (doc.childCount !== 1 || first?.type.name !== 'paragraph') return undefined
+  const inner: Node[] = []
+  renamed(first.content, nameOf).forEach((n) => inner.push(n))
+  return Fragment.from([...space(lead), ...inner, ...space(tail)])
+}
+
+/** 元の書き方に戻していた範囲を、Markdown として読み直して書式に戻す。 */
+function collapse(ctx: Ctx, tr: Transaction, raw: Raw, nameOf: Hooks['nameOf']) {
+  if (raw.from >= raw.to || raw.to > tr.doc.content.size) return tr
+  const blocks: Raw[] = []
+  tr.doc.nodesBetween(raw.from, raw.to, (node, pos) => {
+    if (!node.isTextblock) return true
+    const from = Math.max(raw.from, pos + 1)
+    const to = Math.min(raw.to, pos + 1 + node.content.size)
+    if (from < to && !node.type.spec.code) blocks.push({ from, to })
+    return false
+  })
+  for (const b of blocks.toReversed()) {
+    let plain = true
+    tr.doc.nodesBetween(b.from, b.to, (n) => {
+      if (n.isInline && !n.isText) plain = false
+    })
+    if (!plain) continue
+    const content = parseInline(ctx, tr.doc.textBetween(b.from, b.to), nameOf)
+    if (content) tr.replaceWith(b.from, b.to, content)
   }
   return tr
 }
 
-function reveal(tr: Transaction, s: Span, head: number): Raw {
-  const raw = `[${escapeLabel(s.text)}](${s.href})`
-  const marks = (tr.doc.nodeAt(s.from)?.marks ?? []).filter((x) => x.type.name !== 'link')
-  tr.replaceWith(s.from, s.to, tr.doc.type.schema.text(raw, marks))
-  const off = Math.min(head - s.from, s.text.length)
-  tr.setSelection(TextSelection.create(tr.doc, s.from + 1 + off))
-  return { from: s.from, to: s.from + raw.length }
+/** 書式の付いた文字を、Markdown の書き方の文字に戻す。 */
+function reveal(ctx: Ctx, tr: Transaction, s: Raw, head: number): Raw | null {
+  const { schema } = tr.doc.type
+  const para = schema.nodes.paragraph
+  if (!para) return null
+  const t = new Transform(schema.topNodeType.create(null, para.create(null, tr.doc.slice(s.from, s.to).content)))
+  const pos = 1 + head - s.from
+  t.insert(pos, schema.text(CARET, t.doc.resolve(pos).marks()))
+  const md = ctx.get(serializerCtx)(t.doc).replace(/\n+$/, '')
+  const caret = md.indexOf(CARET)
+  const text = md.slice(0, caret) + md.slice(caret + 1)
+  if (caret < 0 || !text || text.includes('\n')) return null
+  tr.replaceWith(s.from, s.to, schema.text(text))
+  tr.setSelection(TextSelection.create(tr.doc, s.from + caret))
+  return { from: s.from, to: s.from + text.length }
 }
 
-/** 保存する文書。元の書き方に戻している範囲があれば、リンクに戻したもの。 */
-export function savedDoc(state: EditorState, nameOf: Hooks['nameOf']) {
-  const raw = rawKey.getState(state)
-  return raw ? collapse(state.tr, raw, nameOf).doc : state.doc
+/** 保存する文書。元の書き方に戻している範囲があれば、書式に戻したもの。 */
+export function savedDoc(ctx: Ctx, state: EditorState, nameOf: Hooks['nameOf']) {
+  const raw = rawOf(state)
+  return raw ? collapse(ctx, state.tr, raw, nameOf).doc : state.doc
 }
 
-/** 元の書き方に戻している範囲のリンクを外して、文字だけにする。 */
-export function unlinkRaw(view: EditorView, nameOf: Hooks['nameOf']) {
-  const raw = rawKey.getState(view.state)
+/** 元の書き方に戻している範囲の patchouli: のリンクを外して、表示名だけにする。 */
+export function unlinkRaw(ctx: Ctx, view: EditorView, nameOf: Hooks['nameOf']) {
+  const raw = rawOf(view.state)
   if (!raw) return
-  view.dispatch(collapse(view.state.tr, raw, nameOf, true).setMeta(rawKey, null))
+  const tr = view.state.tr
+  const { schema } = tr.doc.type
+  for (const m of rawMatches(tr.doc, raw).toReversed()) {
+    const label = m.source || m.id
+    if (label) tr.replaceWith(m.from, m.to, schema.text(label))
+    else tr.delete(m.from, m.to)
+  }
+  const mapped = { from: tr.mapping.map(raw.from, -1), to: tr.mapping.map(raw.to, 1) }
+  view.dispatch(collapse(ctx, tr, mapped, nameOf).setMeta(rawKey, null))
+}
+
+/**
+ * 文字の入力。元の書き方に戻している範囲では、書式に変える規則を使わずにそのまま入れる。
+ * まとめて入ってきた文字は、規則が 1 文字ずつを前提にしているので、入れてから最後の 1 文字で規則を試す。
+ */
+export function textInput(view: EditorView, from: number, to: number, text: string) {
+  const raw = rawOf(view.state)
+  const inside = !!raw && from >= raw.from && to <= raw.to
+  if (!inside && text.length <= 1) return false
+  view.dispatch(view.state.tr.insertText(text, from, to))
+  if (!inside) runInputRules(view)
+  return true
+}
+
+/** カーソルの前の 1 文字を、いま打ったものとして書式に変える規則を試す。日本語入力の確定のあとに使う。 */
+export function runInputRules(view: EditorView) {
+  const sel = view.state.selection
+  if (!(sel instanceof TextSelection) || !sel.empty || sel.$from.parentOffset === 0 || inRaw(view.state)) return
+  const pos = sel.from
+  const ch = view.state.doc.textBetween(pos - 1, pos)
+  if (!ch) return
+  for (const p of view.state.plugins) {
+    const f = p.props.handleTextInput
+    if (!('isInputRules' in p.spec) || !f) continue
+    f.call(p, view, pos - 1, pos, ch, () => view.state.tr.insertText(ch, pos - 1, pos))
+    return
+  }
 }
 
 /** 元の書き方に戻している範囲を、ほかの操作で置き換えたときに忘れる。 */
 export const forgetRaw = (tr: Transaction) => tr.setMeta(rawKey, null)
 
 function reportRaw(view: EditorView, hooks: Hooks) {
-  const raw = rawKey.getState(view.state)
-  if (!raw || raw.to > view.state.doc.content.size || !view.hasFocus()) return hooks.onRaw(undefined)
-  const id = rawMatches(view.state.doc, raw)[0]?.id
-  hooks.onRaw({ ...at(view, raw.from), from: raw.from, to: raw.to, id })
+  const raw = rawOf(view.state)
+  if (!raw || !view.hasFocus()) return hooks.onRaw(undefined)
+  const link = rawMatches(view.state.doc, raw)[0]
+  hooks.onRaw({ ...at(view, raw.from), from: raw.from, to: raw.to, link: link && { ...link } })
 }
 
-export const rawLinks = (hooks: () => Hooks) =>
+/** カーソルのある書式の文字を、Markdown の書き方で見せる。カーソルが出たら書式に戻す。 */
+export const rawMarks = (hooks: () => Hooks) =>
   $prose(
-    () =>
+    (ctx) =>
       new Plugin<Raw | undefined>({
         key: rawKey,
         state: {
@@ -354,20 +447,19 @@ export const rawLinks = (hooks: () => Hooks) =>
           if (trs.some((t) => t.getMeta(rawKey) !== undefined)) return null
           const edge = trs.some((t) => t.getMeta(REVEAL))
           if (!edge && !trs.some((t) => t.selectionSet || t.docChanged)) return null
-          const raw = rawKey.getState(state)
-          const sel = state.selection
-          if (raw && sel.from >= raw.from && sel.to <= raw.to) return null
+          if (inRaw(state)) return null
+          const raw = rawOf(state)
           const tr = state.tr
-          if (raw) collapse(tr, raw, hooks().nameOf)
-          const s = tr.selection.empty ? linkAt(tr.doc, tr.selection.head, edge) : undefined
-          const next = s ? reveal(tr, s, tr.selection.head) : null
+          if (raw) collapse(ctx, tr, raw, hooks().nameOf)
+          const s = tr.selection.empty ? spanAt(tr.doc, tr.selection.head, edge) : undefined
+          const next = s ? reveal(ctx, tr, s, tr.selection.head) : null
           if (!raw && !next) return null
           return tr.setMeta(rawKey, next).setMeta('addToHistory', false)
         },
         props: {
           decorations: (s) => {
-            const raw = rawKey.getState(s)
-            if (!raw || raw.to > s.doc.content.size) return null
+            const raw = rawOf(s)
+            if (!raw) return null
             return DecorationSet.create(s.doc, [Decoration.inline(raw.from, raw.to, { class: hooks().classes.raw })])
           },
           handleDOMEvents: {
@@ -377,6 +469,10 @@ export const rawLinks = (hooks: () => Hooks) =>
             },
             blur: () => {
               hooks().onRaw(undefined)
+              return false
+            },
+            compositionend: (view) => {
+              setTimeout(() => runInputRules(view))
               return false
             },
           },

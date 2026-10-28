@@ -253,9 +253,9 @@
   color: var(--ink);
 }
 .raw {
-  color: var(--wl);
-  font-family: var(--f-mono);
-  font-size: 0.88em;
+  border-radius: 3px;
+  background: var(--accent-soft);
+  color: var(--ink);
 }
 .linkMenu {
   position: fixed;

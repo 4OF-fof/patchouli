@@ -45,14 +45,15 @@ import {
   codeBlocks,
   diagramEditing,
   embeds,
-  forgetRaw,
+  escapeLabel,
   links,
   patchouliImage,
   patchouliLink,
   type RawLink,
-  rawLinks,
+  rawMarks,
   refreshLinks,
   savedDoc,
+  textInput,
   triggers,
   unlinkRaw,
 } from './prose'
@@ -98,7 +99,7 @@ interface Picking {
   restore?: string
   /** 選んだ文字にリンクを付ける。 */
   mark?: boolean
-  /** 元の書き方に戻しているリンクを置き換える。 */
+  /** 元の書き方に戻しているリンクを、選んだ素材へのリンクの書き方に置き換える。 */
   raw?: boolean
 }
 
@@ -243,8 +244,11 @@ export function NoteEditor(props: NoteEditorProps) {
       const href = LINK_SCHEME + it.id
       const link = linkSchema.type(ctx)
       let tr = ev.state.tr
-      if (p.raw) tr = forgetRaw(tr)
-      if (p.embed) {
+      if (p.raw) {
+        const s = `[${escapeLabel(it.name)}](${href})`
+        tr = tr.insertText(s, p.from, p.to)
+        tr = tr.setSelection(TextSelection.create(tr.doc, p.from + s.length))
+      } else if (p.embed) {
         tr = tr.replaceWith(p.from, p.to, imageSchema.type(ctx).create({ src: href, alt: it.name }))
       } else if (p.mark) {
         tr = tr.addMark(p.from, p.to, link.create({ href }))
@@ -324,10 +328,11 @@ export function NoteEditor(props: NoteEditorProps) {
             return true
           },
           handleDrop: (v, ev) => takeFiles(ev.dataTransfer, posOf(v, { x: ev.clientX, y: ev.clientY })),
+          handleTextInput: (v, from, to, text) => textInput(v, from, to, text),
         }))
-        // 渡される文字は、元の書き方に戻したリンクをそのまま書いたものなので使わない
+        // 渡される文字は、元の書き方に戻した書式をそのまま書いたものなので使わない
         ctx.get(listenerCtx).updated((c) => {
-          const doc = savedDoc(c.get(editorViewCtx).state, hooks.nameOf)
+          const doc = savedDoc(c, c.get(editorViewCtx).state, hooks.nameOf)
           emit(c.get(serializerCtx)(doc), doc)
         })
       })
@@ -344,7 +349,7 @@ export function NoteEditor(props: NoteEditorProps) {
       .use(embeds(() => hooks))
       .use(codeBlocks(() => hooks))
       .use(diagramEditing(() => hooks))
-      .use(rawLinks(() => hooks))
+      .use(rawMarks(() => hooks))
     await e.create()
     editor = e
     base = view()?.state.doc
@@ -371,7 +376,7 @@ export function NoteEditor(props: NoteEditorProps) {
     editor = undefined
     if (!e) return
     e.action((ctx) => {
-      const doc = savedDoc(ctx.get(editorViewCtx).state, hooks.nameOf)
+      const doc = savedDoc(ctx, ctx.get(editorViewCtx).state, hooks.nameOf)
       emit(ctx.get(serializerCtx)(doc), doc)
     })
     void e.destroy()
@@ -460,7 +465,7 @@ export function NoteEditor(props: NoteEditorProps) {
           </div>
         )}
       </Show>
-      <Show when={!picking() && !selected() && raw()}>
+      <Show when={!picking() && !selected() && raw()?.link ? raw() : undefined}>
         {(r) => (
           <div
             class={styles.linkMenu}
@@ -470,14 +475,16 @@ export function NoteEditor(props: NoteEditorProps) {
             style={{ left: `${r().left}px`, top: `${r().bottom + 6}px` }}
             onMouseDown={(e) => e.preventDefault()}
           >
-            <Show when={r().id}>
-              {(id) => (
-                <button type="button" onClick={() => props.onOpenRef?.(id())}>
-                  開く
-                </button>
-              )}
-            </Show>
-            <button type="button" onClick={() => setPicking({ embed: false, from: r().from, to: r().to, raw: true })}>
+            <button type="button" onClick={() => props.onOpenRef?.(r().link?.id ?? '')}>
+              開く
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const l = r().link
+                if (l) setPicking({ embed: false, from: l.from, to: l.to, raw: true })
+              }}
+            >
               アセットを選択
             </button>
             <button
@@ -485,7 +492,7 @@ export function NoteEditor(props: NoteEditorProps) {
               onClick={() => {
                 const v = view()
                 if (!v) return
-                unlinkRaw(v, hooks.nameOf)
+                act((ctx) => unlinkRaw(ctx, v, hooks.nameOf))
                 v.focus()
               }}
             >
