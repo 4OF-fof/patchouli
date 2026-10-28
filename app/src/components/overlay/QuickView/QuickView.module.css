@@ -30,17 +30,6 @@
   color: var(--muted);
   font-size: var(--fs-meta);
 }
-.media {
-  display: block;
-  width: 100%;
-  max-height: 200px;
-  object-fit: contain;
-  border-radius: var(--radius-sm);
-  background: var(--side);
-}
-.audio {
-  width: 100%;
-}
 .text {
   display: -webkit-box;
   margin: 0;

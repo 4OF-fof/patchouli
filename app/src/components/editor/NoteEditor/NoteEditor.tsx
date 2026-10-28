@@ -3,11 +3,11 @@ import { markdown, commonmarkLanguage } from '@codemirror/lang-markdown'
 import { EditorState, Prec, Transaction } from '@codemirror/state'
 import { EditorView, type ViewUpdate, keymap } from '@codemirror/view'
 import { GFM } from '@lezer/markdown'
-import { For, Show, createEffect, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
-import { type Item, LINK_SCHEME, type Library, plainText } from '../../../model/library'
+import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { type Item, LINK_SCHEME, type Library, plainText, thumbOf } from '../../../model/library'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { LinkPicker } from '../../nav/LinkPicker/LinkPicker'
-import { QuickView, type QuickMedia } from '../../overlay/QuickView/QuickView'
+import { QuickView } from '../../overlay/QuickView/QuickView'
 import { type SlashAction, slashMatches } from './commands'
 import { runSlash, toggleWrap, unlinkAt } from './edit'
 import { type Embed, type LiveHooks, type Ref, escapeLabel, live, marksAt, refAt, refresh } from './live'
@@ -280,7 +280,11 @@ export function NoteEditor(props: NoteEditorProps) {
               props.onOpenRef?.(id)
               return true
             },
-            mouseover: (e) => hoverOn(e.target instanceof Element ? e.target.closest('[data-ref]') : null),
+            mouseover: (e) => {
+              const el = e.target instanceof Element ? e.target.closest('[data-ref]') : null
+              // 埋め込みは中身がもう見えているので、浮かべない
+              hoverOn(el?.classList.contains(styles.embed) ? null : el)
+            },
             mouseleave: () => hoverOn(null),
             keydown: () => {
               setHover(undefined)
@@ -445,15 +449,6 @@ export function NoteEditor(props: NoteEditorProps) {
     if (a?.kind === 'embed' && a.id && !picking()) return { id: a.id, left: a.left, top: a.bottom + 6, actions: true }
     return undefined
   }
-  const [media] = createResource(
-    () => shown()?.id,
-    async (id): Promise<QuickMedia | undefined> => {
-      const it = props.lib.byId.get(id)
-      if (!it) return undefined
-      if (it.note) return { kind: 'text', text: plainText(it.body ?? '').slice(0, 240) }
-      return props.embedOf?.(it)
-    },
-  )
 
   return (
     <>
@@ -534,7 +529,11 @@ export function NoteEditor(props: NoteEditorProps) {
               id={s().id}
               name={it()?.name}
               kind={it()?.note ? 'ノート' : it()?.ext.toUpperCase()}
-              media={media()}
+              text={it()?.note ? plainText(it()?.body ?? '').slice(0, 240) : undefined}
+              thumb={(() => {
+                const x = it()
+                return x && !x.note ? thumbOf(x, 'L') : undefined
+              })()}
               left={s().left}
               top={s().top}
             >

@@ -1,10 +1,6 @@
 import { type JSX, Show } from 'solid-js'
+import { Thumb, type ThumbProps } from '../../media/Thumb/Thumb'
 import styles from './QuickView.module.css'
-
-export type QuickMedia =
-  | { kind: 'image' | 'video' | 'audio'; src: string }
-  | { kind: 'card'; thumb?: string }
-  | { kind: 'text'; text: string }
 
 export interface QuickViewProps {
   /** リンク先の名前。見つからないときは undefined。 */
@@ -12,21 +8,14 @@ export interface QuickViewProps {
   id: string
   /** ノート・素材の形式など。 */
   kind?: string
-  media?: QuickMedia
+  /** ノートの本文の書き出し。 */
+  text?: string
+  /** 素材のサムネイル。 */
+  thumb?: ThumbProps
   left: number
   top: number
   /** 下に添える操作。 */
   children?: JSX.Element
-}
-
-function body(m: QuickMedia) {
-  if (m.kind === 'image') return <img class={styles.media} src={m.src} alt="" />
-  // oxlint-disable-next-line jsx-a11y/media-has-caption -- 音を消した見本の再生
-  if (m.kind === 'video') return <video class={styles.media} src={m.src} muted autoplay loop playsinline />
-  // oxlint-disable-next-line jsx-a11y/media-has-caption -- 素材の音声
-  if (m.kind === 'audio') return <audio class={styles.audio} src={m.src} controls preload="metadata" />
-  if (m.kind === 'card') return m.thumb ? <img class={styles.media} src={m.thumb} alt="" /> : null
-  return 'text' in m ? <p class={styles.text}>{m.text || 'まだ本文がありません'}</p> : null
 }
 
 /** リンク先の中身を小さく見せる。 */
@@ -48,9 +37,10 @@ export function QuickView(props: QuickViewProps) {
             <span class={styles.kind}>{props.kind}</span>
           </Show>
         </div>
-        <Show when={props.media} keyed>
-          {(m) => body(m)}
+        <Show when={props.text !== undefined}>
+          <p class={styles.text}>{props.text || 'まだ本文がありません'}</p>
         </Show>
+        <Show when={props.thumb}>{(t) => <Thumb {...t()} fit="contain" height={180} />}</Show>
       </Show>
       <div class={styles.foot}>
         {props.children}

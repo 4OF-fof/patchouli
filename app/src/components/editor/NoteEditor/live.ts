@@ -418,6 +418,8 @@ function build(state: EditorState, h: LiveHooks, version: number): DecorationSet
   const c = h.classes
   const cls = (name: string) => c[name] ?? ''
   const out: Range<Decoration>[] = []
+  /** 箇条書きの行の頭と、その深さ。 */
+  const depth = new Map<number, number>()
   const hide = (from: number, to: number) => {
     if (from < to) out.push(Decoration.replace({}).range(from, to))
   }
@@ -526,20 +528,34 @@ function build(state: EditorState, h: LiveHooks, version: number): DecorationSet
         case 'URL':
           if (n.parent?.name !== 'Link' && n.parent?.name !== 'Image') mark('extLink', n.from, n.to)
           return undefined
+        case 'ListItem': {
+          let d = 0
+          for (let p = n.parent; p; p = p.parent) if (p.name === 'BulletList' || p.name === 'OrderedList') d++
+          for (let l = lineOf(n.from); ; l = state.doc.line(l.number + 1)) {
+            depth.set(l.from, d)
+            if (l.to >= lastLine(n).to) break
+          }
+          return undefined
+        }
         case 'ListMark': {
           const item = n.parent
           const task = item?.getChild('Task')?.getChild('TaskMarker')
-          if (task) lineMark(n.from, task.from)
-          else if (item?.parent?.name === 'BulletList')
+          const start = lineOf(n.from).from
+          if (!state.sliceDoc(start, n.from).trim()) lineMark(start, n.from)
+          if (task) {
+            if (near(n.from, spaceAfter(task.to))) mark('mark', n.from, task.to)
+            else {
+              const checked = /x/i.test(state.sliceDoc(task.from, task.to))
+              lineMark(n.from, task.from)
+              lineMark(task.from, task.to, new Check(checked, `${cls('check')} ${cls('lineMark')}`))
+            }
+          } else if (item?.parent?.name === 'BulletList')
             lineMark(n.from, n.to, new Text('•', `${cls('bullet')} ${cls('lineMark')}`))
           return undefined
         }
-        case 'TaskMarker': {
-          const checked = /x/i.test(state.sliceDoc(n.from, n.to))
-          if (checked) line('done', n.from)
-          lineMark(n.from, n.to, new Check(checked, `${cls('check')} ${cls('lineMark')}`))
+        case 'TaskMarker':
+          if (/x/i.test(state.sliceDoc(n.from, n.to))) line('done', n.from)
           return undefined
-        }
         case 'Blockquote':
           for (let l = lineOf(n.from); ; l = state.doc.line(l.number + 1)) {
             line('quote', l.from)
@@ -550,7 +566,8 @@ function build(state: EditorState, h: LiveHooks, version: number): DecorationSet
           lineMark(n.from, spaceAfter(n.to))
           return undefined
         case 'HorizontalRule':
-          lineMark(n.from, n.to, new Rule(`${cls('hr')} ${cls('lineMark')}`))
+          if (onLine(n.from)) mark('mark', n.from, n.to)
+          else lineMark(n.from, n.to, new Rule(`${cls('hr')} ${cls('lineMark')}`))
           return false
         case 'FencedCode':
         case 'CodeBlock': {
@@ -601,6 +618,8 @@ function build(state: EditorState, h: LiveHooks, version: number): DecorationSet
       }
     },
   })
+  for (const [from, d] of depth)
+    out.push(Decoration.line({ class: cls('listLine'), attributes: { style: `--depth: ${d}` } }).range(from))
   return Decoration.set(out, true)
 }
 
@@ -632,10 +651,11 @@ const lineEdge = (forward: boolean, extend: boolean) => (view: EditorView) => {
   return true
 }
 
-/** 行の頭で、いつも隠しておく印（箇条書きの点・チェックボックス・引用の記号）の範囲。 */
+/** 行の頭で、いつも隠しておく印（箇条書きの字下げと点・引用の記号）の範囲。 */
 function leadOf(state: EditorState, line: Line) {
   let from = -1
   let to = -1
+  const spaceAfter = (pos: number) => (state.sliceDoc(pos, pos + 1) === ' ' ? pos + 1 : pos)
   syntaxTree(state).iterate({
     from: line.from,
     to: line.to,
@@ -643,19 +663,19 @@ function leadOf(state: EditorState, line: Line) {
       if (n.from > line.to) return false
       if (n.from < line.from) return undefined
       let end: number | undefined
-      if (n.name === 'QuoteMark') end = n.to
+      if (n.name === 'QuoteMark') end = spaceAfter(n.to)
       else if (n.name === 'ListMark') {
-        const task = n.node.parent?.getChild('Task')?.getChild('TaskMarker')
-        if (task) end = task.to
-        else if (n.node.parent?.parent?.name === 'BulletList') end = n.to
+        const bullet = n.node.parent?.parent?.name === 'BulletList' && !n.node.parent.getChild('Task')
+        if (from < 0 && !state.sliceDoc(line.from, n.from).trim()) from = line.from
+        end = bullet ? spaceAfter(n.to) : n.from
       }
       if (end === undefined) return undefined
       if (from < 0) from = n.from
-      to = Math.max(to, state.sliceDoc(end, end + 1) === ' ' ? end + 1 : end)
+      to = Math.max(to, end)
       return undefined
     },
   })
-  return from < 0 ? undefined : { from, to }
+  return from >= 0 && from < to ? { from, to } : undefined
 }
 
 /** カーソルを、隠した印の内側に置かない。印のすぐ後ろから左へ動いたときは、前の行の終わりへ移す。 */

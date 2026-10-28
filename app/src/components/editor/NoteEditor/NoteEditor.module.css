@@ -117,6 +117,15 @@
   font-size: 0.75em;
 }
 
+/* 深さごとに字下げし、上の階層の点の位置に縦線を引く */
+.listLine {
+  --indent: 1.6em;
+  padding-left: calc((var(--depth) - 1) * var(--indent)) !important;
+  background-image: repeating-linear-gradient(to right, var(--line-2) 0 1px, transparent 1px var(--indent));
+  background-position: 0.3em 0;
+  background-size: calc((var(--depth) - 1) * var(--indent)) 100%;
+  background-repeat: no-repeat;
+}
 .bullet {
   display: inline-block;
   min-width: 0.9em;
@@ -227,6 +236,8 @@
 
 .table {
   position: relative;
+  width: fit-content;
+  max-width: 100%;
   padding: 6px 0;
 }
 .tableScroll {
@@ -257,6 +268,7 @@
 }
 .cellEditing input {
   box-sizing: border-box;
+  field-sizing: content;
   width: 100%;
   min-width: 80px;
   height: 34px;
