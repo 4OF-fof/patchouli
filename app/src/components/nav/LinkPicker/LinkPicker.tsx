@@ -1,5 +1,5 @@
 import { createMemo, createSignal } from 'solid-js'
-import type { Item, Library } from '../../../model/library'
+import { type Item, type Library, newerFirst } from '../../../model/library'
 import { findItems, searchTerms } from '../../../model/search'
 import { SearchPalette } from '../SearchPalette/SearchPalette'
 import { type Row, SearchResults } from '../SearchResults/SearchResults'
@@ -27,7 +27,7 @@ export function LinkPicker(props: LinkPickerProps) {
       ? findItems(props.lib, ts).filter(({ it }) => ok(it))
       : props.lib.items
           .filter(ok)
-          .toSorted((a, b) => a.moved - b.moved)
+          .toSorted(newerFirst)
           .map((it) => ({ it, where: `最近 · ${it.folder ?? 'プロジェクトなし'}` }))
     const out: Row[] = found
       .toSorted((a, b) => near(a.it) - near(b.it))

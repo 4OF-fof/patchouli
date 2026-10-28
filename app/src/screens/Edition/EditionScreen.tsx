@@ -16,8 +16,8 @@ import {
   coverOf,
   coverOrder,
   coverTile,
+  newerFirst,
   hasTag,
-  scoreOf,
   thumbOf,
 } from '../../model/library'
 import shared from '../screen.module.css'
@@ -106,7 +106,7 @@ export function EditionScreen(props: EditionScreenProps) {
       const from = k ? (TIERS[k - 1]?.until ?? 0) : -Infinity
       const list = lib()
         .items.filter((i) => i.moved > from && i.moved <= tier.until)
-        .toSorted((a, b) => scoreOf(lib(), b) - scoreOf(lib(), a) || a.moved - b.moved)
+        .toSorted(newerFirst)
       return list.map((it) => ({ tier, it, n: list.length }))
     }),
   )

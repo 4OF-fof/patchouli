@@ -5,7 +5,7 @@ import { Spinner } from '../../components/base/Spinner/Spinner'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
-import { type Library, thumbOf } from '../../model/library'
+import { type Library, newerFirst, thumbOf } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './AllScreen.module.css'
 
@@ -26,7 +26,7 @@ export function AllScreen(props: AllScreenProps) {
   const all = createMemo(() => {
     const pins = new Map(lib().pins.map((id, i) => [id, i]))
     const rank = (id: string) => pins.get(id) ?? pins.size
-    return lib().items.toSorted((a, b) => rank(a.id) - rank(b.id) || a.moved - b.moved)
+    return lib().items.toSorted((a, b) => rank(a.id) - rank(b.id) || newerFirst(a, b))
   })
   const [shown, setShown] = createSignal(FIRST)
   const visible = () => all().slice(0, shown())

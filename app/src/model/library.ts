@@ -19,6 +19,8 @@ export interface Item {
   folder: string | null
   tags: string[]
   moved: number
+  /** 更新した時刻（ミリ秒）。同じ日のものを並べるのに使う */
+  mtime?: number
   hue: number
   sat: number
   ratio: number
@@ -259,6 +261,7 @@ export const emptyNote = (id: string, name: string, folder: string | null = null
   ext: NOTE_EXT,
   tags: [],
   moved: 0,
+  mtime: Date.now(),
   hue: 210,
   sat: 14,
   ratio: 0.8,
@@ -322,6 +325,9 @@ export const relDay = (lib: Library, d: number) =>
 
 const startOfDay = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime()
 
+/** 更新が新しい順。日数が同じなら時刻で比べる */
+export const newerFirst = (a: Item, b: Item) => a.moved - b.moved || (b.mtime ?? 0) - (a.mtime ?? 0)
+
 export const daysBefore = (today: Date, t: Date) => Math.max(0, Math.round((startOfDay(today) - startOfDay(t)) / DAY))
 
 export function touchedLabel(today: Date, t: Date) {
@@ -364,7 +370,7 @@ export function thumbOf(it: Item, size: CardSize = 'M') {
 /** 表紙に使う順。ピン留めを先に、それぞれの中では更新が新しい順 */
 export function coverOrder(lib: Library) {
   const pinned = new Set(lib.pins)
-  return (a: Item, b: Item) => Number(pinned.has(b.id)) - Number(pinned.has(a.id)) || a.moved - b.moved
+  return (a: Item, b: Item) => Number(pinned.has(b.id)) - Number(pinned.has(a.id)) || newerFirst(a, b)
 }
 
 export function coverOf(lib: Library, p: Project, n: number) {
@@ -373,7 +379,7 @@ export function coverOf(lib: Library, p: Project, n: number) {
     .inProject(p.name)
     .toSorted(
       (a, b) =>
-        Number(pinned.has(b.id)) - Number(pinned.has(a.id)) || Number(a.note) - Number(b.note) || a.moved - b.moved,
+        Number(pinned.has(b.id)) - Number(pinned.has(a.id)) || Number(a.note) - Number(b.note) || newerFirst(a, b),
     )
     .slice(0, n)
 }
@@ -387,5 +393,3 @@ export function nextDue(p: Project): string | undefined {
     .flatMap((x) => (!x.done && x.due ? [x.due] : []))
     .toSorted()[0]
 }
-
-export const scoreOf = (lib: Library, it: Item) => lib.linkCount(it) * 2 + it.rating + (it.note ? 1 : 0)

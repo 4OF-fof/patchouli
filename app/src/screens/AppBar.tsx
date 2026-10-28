@@ -12,7 +12,7 @@ import { SettingsDialog } from '../components/dialog/SettingsDialog/SettingsDial
 import { type Activity, ActivityButton } from '../components/nav/ActivityButton/ActivityButton'
 import { NavMenu, type NavMenuEntry } from '../components/nav/NavMenu/NavMenu'
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
-import type { Library } from '../model/library'
+import { type Library, newerFirst } from '../model/library'
 import { builtinReport } from '../plugins/builtin'
 import type { PluginActions, PluginReport } from '../plugins/types'
 import { findItems, searchTerms } from '../model/search'
@@ -118,9 +118,7 @@ export function AppBar(props: AppBarProps) {
       .slice(0, ts.length ? 3 : 2))
       out.push({ type: 'proj', p })
     if (!ts.length) {
-      for (const it of lib()
-        .items.toSorted((a, b) => a.moved - b.moved)
-        .slice(0, 7))
+      for (const it of lib().items.toSorted(newerFirst).slice(0, 7))
         out.push({ type: 'item', it, where: `最近 · ${it.folder ?? 'プロジェクトなし'}` })
     } else for (const f of findItems(lib(), ts).slice(0, 8)) out.push({ type: 'item', ...f })
     if (query().trim()) out.push({ type: 'create', q: query().trim() })

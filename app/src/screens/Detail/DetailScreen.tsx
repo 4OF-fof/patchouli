@@ -4,7 +4,7 @@ import { useHoverPreview } from '../../components/media/HoverPreview/HoverPrevie
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
-import { type CardSize, type Item, thumbOf, toggled } from '../../model/library'
+import { type CardSize, type Item, newerFirst, thumbOf, toggled } from '../../model/library'
 import { useFormats } from '../../plugins/formats'
 import shared from '../screen.module.css'
 import styles from './DetailScreen.module.css'
@@ -46,8 +46,8 @@ export function DetailScreen(props: DetailScreenProps) {
       sort() === 'name'
         ? (a, b) => a.name.localeCompare(b.name, 'ja')
         : sort() === 'kind'
-          ? (a, b) => Number(b.note) - Number(a.note) || labelOf(a).localeCompare(labelOf(b), 'ja') || a.moved - b.moved
-          : (a, b) => a.moved - b.moved,
+          ? (a, b) => Number(b.note) - Number(a.note) || labelOf(a).localeCompare(labelOf(b), 'ja') || newerFirst(a, b)
+          : newerFirst,
     ),
   )
   const card = (it: Item, size: CardSize, list: () => Item[], clock: boolean) => (

@@ -137,7 +137,7 @@ export function NoteScreen(props: NoteScreenProps) {
                 <Show when={n().tags.length} fallback={<span>タグなし</span>}>
                   <For each={n().tags}>{(t) => <span class={styles.tag}># {t}</span>}</For>
                 </Show>
-                <span>{propsOpen() ? '閉じる ▾' : '詳細 ▸'}</span>
+                <span class={styles.more}>{propsOpen() ? '閉じる ▾' : '詳細 ▸'}</span>
               </button>
               <Show when={propsOpen()}>
                 <dl class={styles.panel}>

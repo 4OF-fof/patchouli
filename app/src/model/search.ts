@@ -1,4 +1,4 @@
-import { type Item, type Library, plainText } from './library'
+import { type Item, type Library, newerFirst, plainText } from './library'
 
 export const searchTerms = (q: string) => q.trim().toLowerCase().replace(/#\s*/g, '').split(/\s+/).filter(Boolean)
 
@@ -29,5 +29,5 @@ export function findItems(lib: Library, terms: string[]): { it: Item; where: str
     })
     if (ok) found.push({ it, sc, where: where.join(' · ') || (it.folder ?? 'プロジェクトなし') })
   }
-  return found.toSorted((a, b) => b.sc - a.sc || a.it.moved - b.it.moved).map(({ it, where }) => ({ it, where }))
+  return found.toSorted((a, b) => b.sc - a.sc || newerFirst(a.it, b.it)).map(({ it, where }) => ({ it, where }))
 }
