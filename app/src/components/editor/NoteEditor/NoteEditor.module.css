@@ -214,7 +214,8 @@
 }
 .embed audio {
   display: block;
-  width: min(100%, 420px);
+  width: 420px;
+  max-width: 100%;
 }
 .card {
   display: inline-flex;
