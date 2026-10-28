@@ -1,6 +1,6 @@
 import { For, Show, createSignal } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
-import { Chip } from '../Chip/Chip'
+import { Button } from '../Button/Button'
 import { IconButton } from '../IconButton/IconButton'
 import styles from './TextList.module.css'
 
@@ -95,10 +95,10 @@ export function TextList(props: TextListProps) {
       <Show
         when={adding()}
         fallback={
-          <Chip class={styles.add} dashed onClick={() => setAdding(true)}>
+          <Button class={styles.add} variant="ghost" size="sm" onClick={() => setAdding(true)}>
             <Icon name="plus" size={12} />
             追加
-          </Chip>
+          </Button>
         }
       >
         <div class={styles.row}>

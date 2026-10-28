@@ -3,7 +3,7 @@ import { markdown, commonmarkLanguage } from '@codemirror/lang-markdown'
 import { EditorState, Prec, Transaction } from '@codemirror/state'
 import { EditorView, type ViewUpdate, keymap } from '@codemirror/view'
 import { GFM } from '@lezer/markdown'
-import { For, Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js'
 import { EMBED_SCALES, type Item, type Library, hrefOf, plainText, thumbOf } from '../../../model/library'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { LinkPicker } from '../../nav/LinkPicker/LinkPicker'
@@ -531,12 +531,8 @@ export function NoteEditor(props: NoteEditorProps) {
   }
 
   const [sizing, setSizing] = createSignal(false)
-  createEffect(
-    on(
-      () => active()?.from,
-      () => setSizing(false),
-    ),
-  )
+  const activeAt = createMemo(() => active()?.from)
+  createEffect(on(activeAt, () => setSizing(false)))
   const scales = (r: Ref) => {
     const el =
       r.id && root.querySelector<HTMLElement>(`.${styles.embed}[data-ref="${CSS.escape(r.id)}"][data-selected="true"]`)
