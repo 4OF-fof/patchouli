@@ -132,12 +132,13 @@ export function NoteScreen(props: NoteScreenProps) {
                 onBlur={(e) => rename(e.currentTarget)}
               />
               <button type="button" class={styles.props} onClick={() => setPropsOpen(!propsOpen())}>
+                <span>{n().folder ?? 'プロジェクトなし'}</span>
+                <span>·</span>
                 <Show when={n().tags.length} fallback={<span>タグなし</span>}>
                   <For each={n().tags}>{(t) => <span class={styles.tag}># {t}</span>}</For>
                 </Show>
-                <span>
-                  · 別名 {n().aliases?.length ?? 0} · {propsOpen() ? '閉じる ▾' : '詳細 ▸'}
-                </span>
+                <span>·</span>
+                <span>{propsOpen() ? '閉じる ▾' : '詳細 ▸'}</span>
               </button>
               <Show when={propsOpen()}>
                 <dl class={styles.panel}>
