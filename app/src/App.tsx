@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import {
   type Backend,
   type Dropped,
@@ -12,11 +12,13 @@ import { DropZone } from './components/overlay/DropZone/DropZone'
 import { ReloadOverlay } from './components/overlay/ReloadOverlay/ReloadOverlay'
 import { ImportDialog } from './components/dialog/ImportDialog/ImportDialog'
 import { Toast } from './components/overlay/Toast/Toast'
+import { Peek } from './components/overlay/Peek/Peek'
 import {
   type Item,
   type Library,
   newNoteName,
   newProjectName,
+  refsOf,
   retag,
   retaggedItems,
   toggled,
@@ -138,9 +140,14 @@ export function App(props: AppProps) {
     const l = (list ?? [id]).filter((x) => lib().byId.get(x)?.note === false)
     go({ s: 'asset', list: l, index: Math.max(0, l.indexOf(id)) })
   }
+  const [peek, setPeek] = createSignal<string>()
   const openRef = (id: string) => {
-    if (lib().byId.has(id)) openItem(id)
+    if (lib().byId.has(id)) setPeek(id)
   }
+  createEffect(() => {
+    stack()
+    setPeek(undefined)
+  })
   const onGo = (to: Place) => {
     if (to === 'tidy') go({ s: 'tidy' })
     else setStack([{ s: to === 'all' ? 'all' : to === 'tags' ? 'tlist' : to === 'projects' ? 'plist' : 'edition' }])
@@ -371,7 +378,10 @@ export function App(props: AppProps) {
       (e.target.isContentEditable || e.target.closest('input, textarea, select, [role="dialog"], [role="menu"]'))
     )
       return
-    if (e.key === 'Escape') goBack()
+    if (e.key === 'Escape') {
+      if (peek()) setPeek(undefined)
+      else goBack()
+    }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'u') {
       e.preventDefault()
       go({ s: 'tidy' })
@@ -451,7 +461,7 @@ export function App(props: AppProps) {
       const failed = done.flatMap((r) => (r.status === 'rejected' ? [r.reason] : []))
       if (failed.length) console.warn('取り込めなかったもの', failed)
       setLib(withAdded(lib(), items))
-      if (failed.length) setNotice(`${failed.length} 件を取り込めませんでした`)
+      if (failed.length) setNotice(`${failed.length} 件の取り込みに失敗しました`)
       return items
     } finally {
       setImporting(importing() - 1)
@@ -460,7 +470,7 @@ export function App(props: AppProps) {
   let noteEditor: NoteEditorApi | undefined
   const intoNote = () => {
     const v = view()
-    return v.s === 'note' && noteEditor
+    return v.s === 'note' && noteEditor && !peek()
       ? { editor: noteEditor, folder: lib().byId.get(v.id)?.folder ?? null }
       : undefined
   }
@@ -512,6 +522,71 @@ export function App(props: AppProps) {
     return f ? `ドロップして「${f}」に追加します` : 'ドロップしてプロジェクト未指定で取り込みます'
   }
 
+  const noteScreen = (noteId: string, main: boolean) => (
+    <NoteScreen
+      lib={lib()}
+      noteId={noteId}
+      onOpenRef={openRef}
+      onTogglePin={togglePin}
+      onBody={(id, body) => editItem(id, { body }, { body })}
+      onRename={renameItem}
+      onCreateNote={addNote}
+      embedOf={embedOf}
+      onImport={backend.importData && importFiles}
+      editorRef={main ? (api) => (noteEditor = api) : undefined}
+    />
+  )
+  const assetScreen = (list: string[], index: number, onIndex?: (i: number) => void) => (
+    <AssetScreen
+      lib={lib()}
+      list={list}
+      index={index}
+      onIndex={onIndex}
+      onOpenNote={(id) => openItem(id)}
+      onTogglePin={togglePin}
+      onProject={moveItem}
+      onRename={renameItem}
+      onTag={tagItem}
+      recentTags={recentTags()}
+      onMemo={(id, memo) => editItem(id, { memo }, { memo })}
+      host={viewHost}
+      blocker={blockerOf}
+      onEnablePlugin={enablePlugin}
+      onOpenPlugins={(p) => setBarRequest({ state: 'plugins', plugin: p && { id: p.id, dev: p.dev } })}
+      onReveal={backend.revealItem}
+      onOpenDefault={backend.openItemDefault}
+    />
+  )
+
+  const [ignored, setIgnored] = createSignal<ReadonlySet<string>>(new Set())
+  const ignore = (id: string) => setIgnored(new Set([...ignored(), id]))
+  const broken = createMemo(() => {
+    const v = view()
+    const open = new Set([v.s === 'note' ? v.id : '', peek() ?? ''])
+    return lib().items.flatMap((it) => {
+      if (!it.note || open.has(it.id) || ignored().has(it.id)) return []
+      const lost = new Set(refsOf(it.body ?? '').filter((id) => !lib().byId.has(id)))
+      return lost.size ? [{ note: it, lost: lost.size }] : []
+    })
+  })
+  const brokenNotice = () => {
+    const [b, ...rest] = broken()
+    if (!b) return undefined
+    const more = rest.length ? `（ほか ${rest.length} 件のノートにもあります）` : ''
+    return (
+      <Toast
+        message={`「${b.note.name}」に、見つからないリンクが ${b.lost} 件あります${more}`}
+        actionLabel="修正"
+        onAction={() => {
+          ignore(b.note.id)
+          openItem(b.note.id)
+        }}
+        onClose={() => ignore(b.note.id)}
+        closeLabel="無視"
+      />
+    )
+  }
+
   return (
     <FormatsProvider value={() => lib().formats}>
       <ThumbMakingProvider value={(id) => making.ids().has(id) || waves.ids().has(id)}>
@@ -541,7 +616,14 @@ export function App(props: AppProps) {
                 activities={activities()}
               />
             }
-            toast={notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}
+            toast={
+              (notice() || broken().length > 0) && (
+                <>
+                  {notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}
+                  {brokenNotice()}
+                </>
+              )
+            }
           >
             {/* プラグインを読み直したら、組み込み UI を描き直すため、いまの画面を作り直す */}
             <For each={[plugged()]}>
@@ -605,48 +687,11 @@ export function App(props: AppProps) {
                     }
                   </Match>
                   <Match when={view().s === 'note' && view()} keyed>
-                    {(v) =>
-                      v.s === 'note' && (
-                        <NoteScreen
-                          lib={lib()}
-                          noteId={v.id}
-                          onOpenRef={openRef}
-                          onTogglePin={togglePin}
-                          onBody={(id, body) => editItem(id, { body }, { body })}
-                          onRename={renameItem}
-                          onCreateNote={addNote}
-                          embedOf={embedOf}
-                          onImport={backend.importData && importFiles}
-                          editorRef={(api) => (noteEditor = api)}
-                        />
-                      )
-                    }
+                    {(v) => v.s === 'note' && noteScreen(v.id, true)}
                   </Match>
                   <Match when={view().s === 'asset' && view()} keyed>
                     {(v) =>
-                      v.s === 'asset' && (
-                        <AssetScreen
-                          lib={lib()}
-                          list={v.list}
-                          index={assetIndex.get(v) ?? v.index}
-                          onIndex={(i) => assetIndex.set(v, i)}
-                          onOpenNote={(id) => openItem(id)}
-                          onTogglePin={togglePin}
-                          onProject={moveItem}
-                          onRename={renameItem}
-                          onTag={tagItem}
-                          recentTags={recentTags()}
-                          onMemo={(id, memo) => editItem(id, { memo }, { memo })}
-                          host={viewHost}
-                          blocker={blockerOf}
-                          onEnablePlugin={enablePlugin}
-                          onOpenPlugins={(p) =>
-                            setBarRequest({ state: 'plugins', plugin: p && { id: p.id, dev: p.dev } })
-                          }
-                          onReveal={backend.revealItem}
-                          onOpenDefault={backend.openItemDefault}
-                        />
-                      )
+                      v.s === 'asset' && assetScreen(v.list, assetIndex.get(v) ?? v.index, (i) => assetIndex.set(v, i))
                     }
                   </Match>
                   <Match when={view().s === 'tidy' && view()} keyed>
@@ -657,6 +702,23 @@ export function App(props: AppProps) {
                 </Switch>
               )}
             </For>
+            <Show when={peek()}>
+              {(id) => (
+                <Peek
+                  label={lib().byId.get(id())?.name ?? ''}
+                  onExpand={() => {
+                    const to = id()
+                    setPeek(undefined)
+                    openItem(to)
+                  }}
+                  onClose={() => setPeek(undefined)}
+                >
+                  <Show when={id()} keyed>
+                    {(to) => (lib().byId.get(to)?.note ? noteScreen(to, false) : assetScreen([to], 0))}
+                  </Show>
+                </Peek>
+              )}
+            </Show>
             <Show when={reloading()}>
               {(r) => (
                 <ReloadOverlay

@@ -21,3 +21,12 @@ export const LoadError: Story = {
     onClose: () => {},
   },
 }
+export const MissingLink: Story = {
+  args: {
+    message: '「配色メモ」に、見つからないリンクが 2 件あります',
+    actionLabel: '修正',
+    onAction: () => {},
+    onClose: () => {},
+    closeLabel: '無視',
+  },
+}

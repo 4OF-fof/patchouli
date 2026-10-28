@@ -7,6 +7,8 @@ export interface ToastProps {
   actionLabel?: string
   onAction?: () => void
   onClose?: () => void
+  /** 付けると、✕ の代わりにこの文字のボタンで閉じる。 */
+  closeLabel?: string
 }
 
 export function Toast(props: ToastProps) {
@@ -19,11 +21,16 @@ export function Toast(props: ToastProps) {
           {props.actionLabel}
         </button>
       )}
-      {props.onClose && (
-        <button type="button" class={styles.x} aria-label="閉じる" onClick={() => props.onClose?.()}>
-          <Icon name="close" size={14} />
-        </button>
-      )}
+      {props.onClose &&
+        (props.closeLabel ? (
+          <button type="button" class={styles.quiet} onClick={() => props.onClose?.()}>
+            {props.closeLabel}
+          </button>
+        ) : (
+          <button type="button" class={styles.x} aria-label="閉じる" onClick={() => props.onClose?.()}>
+            <Icon name="close" size={14} />
+          </button>
+        ))}
     </div>
   )
 }

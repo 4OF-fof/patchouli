@@ -515,7 +515,7 @@ async fn import_data(
     if !jobs.is_empty() {
         std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
-    items.pop().ok_or_else(|| "取り込めませんでした".into())
+    items.pop().ok_or_else(|| "取り込みに失敗しました".into())
 }
 
 #[derive(Clone, Serialize)]

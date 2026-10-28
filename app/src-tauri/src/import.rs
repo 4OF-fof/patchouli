@@ -223,7 +223,7 @@ impl Library {
             .file_name()
             .and_then(|n| n.to_str())
             .filter(|n| check_name(n).is_ok() && listed(Path::new(n)))
-            .ok_or_else(|| format!("「{file_name}」はファイル名に使えません"))?;
+            .ok_or_else(|| format!("「{file_name}」はファイル名として使用できません"))?;
         let dir = match folder {
             Some(f) => {
                 check_name(f)?;
@@ -239,7 +239,7 @@ impl Library {
             problems
                 .into_iter()
                 .next()
-                .unwrap_or_else(|| format!("「{file_name}」を読み込めませんでした"))
+                .unwrap_or_else(|| format!("「{file_name}」の読み込みに失敗しました"))
         })
     }
 }

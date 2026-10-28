@@ -91,6 +91,7 @@ export function NoteScreen(props: NoteScreenProps) {
                     rename(e.currentTarget)
                     editor?.focus()
                   } else if (e.key === 'Escape') {
+                    e.preventDefault()
                     e.currentTarget.value = n().name
                     e.currentTarget.blur()
                   }

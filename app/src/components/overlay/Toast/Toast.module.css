@@ -40,6 +40,13 @@
   color: var(--ai-ink);
   font-weight: 600;
 }
+.root .quiet {
+  padding: 0 10px 0 8px;
+  color: var(--muted);
+}
+.root .quiet:hover {
+  color: var(--ink);
+}
 .x {
   flex: none;
   width: 26px;
