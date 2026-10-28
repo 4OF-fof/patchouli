@@ -3,7 +3,7 @@ import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Icon } from '../../components/base/Icon/Icon'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
 import { ThumbStrip } from '../../components/media/ThumbStrip/ThumbStrip'
-import { type Item, type Library, toggled } from '../../model/library'
+import { type Item, type Library, coverOrder, toggled } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './TagListScreen.module.css'
 
@@ -77,7 +77,7 @@ export function TagListScreen(props: TagListScreenProps) {
                 {r.items.length} 件 · {projects} プロジェクト
               </span>
             </span>
-            <ThumbStrip class={styles.strip} items={r.items.toSorted((a, b) => a.moved - b.moved).slice(0, 8)} />
+            <ThumbStrip class={styles.strip} items={r.items.toSorted(coverOrder(lib())).slice(0, 8)} />
             <Icon name="chevron" class={styles.go} />
           </button>
         </div>

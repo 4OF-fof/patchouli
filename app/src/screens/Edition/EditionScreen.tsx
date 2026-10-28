@@ -14,6 +14,7 @@ import {
   type Item,
   type Library,
   coverOf,
+  coverOrder,
   coverTile,
   hasTag,
   scoreOf,
@@ -70,14 +71,14 @@ export function EditionScreen(props: EditionScreenProps) {
       ...(props.pinnedTags ?? []).flatMap((t) => {
         const list = lib()
           .items.filter((i) => !i.note && hasTag(i, t))
-          .toSorted((a, b) => a.moved - b.moved)
+          .toSorted(coverOrder(lib()))
         if (!list.length) return []
         return [
           {
             key: `t:${t}`,
             name: `# ${t}`,
             meta: `タグ · ${list.length} 件`,
-            moved: list[0].moved,
+            moved: Math.min(...list.map((i) => i.moved)),
             tiles: list.slice(0, 5),
             open: () => props.onOpenTag?.(t),
           },

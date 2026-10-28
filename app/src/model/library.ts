@@ -361,10 +361,20 @@ export function thumbOf(it: Item, size: CardSize = 'M') {
   return { note: true, title: it.name, excerpt: lim ? ex.slice(0, lim) + (ex.length > lim ? '…' : '') : '' }
 }
 
+/** 表紙に使う順。ピン留めを先に、それぞれの中では更新が新しい順 */
+export function coverOrder(lib: Library) {
+  const pinned = new Set(lib.pins)
+  return (a: Item, b: Item) => Number(pinned.has(b.id)) - Number(pinned.has(a.id)) || a.moved - b.moved
+}
+
 export function coverOf(lib: Library, p: Project, n: number) {
+  const pinned = new Set(lib.pins)
   return lib
     .inProject(p.name)
-    .toSorted((a, b) => Number(a.note) - Number(b.note) || a.moved - b.moved)
+    .toSorted(
+      (a, b) =>
+        Number(pinned.has(b.id)) - Number(pinned.has(a.id)) || Number(a.note) - Number(b.note) || a.moved - b.moved,
+    )
     .slice(0, n)
 }
 

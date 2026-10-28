@@ -857,10 +857,16 @@ impl Library {
             Some(f) => self.project_dir(f)?,
             None => self.root.clone(),
         };
-        let path = dir.join(format!("{name}.{NOTE_EXT}"));
-        if path.exists() {
-            return Err(format!("{} はすでに存在します", path.display()));
+        // 画面の知らないファイルがあっても作れるよう、かぶったら番号を付ける
+        let base = name;
+        let mut name = base.to_owned();
+        for k in 2.. {
+            if !dir.join(format!("{name}.{NOTE_EXT}")).exists() {
+                break;
+            }
+            name = format!("{base} {k}");
         }
+        let path = dir.join(format!("{name}.{NOTE_EXT}"));
         let id = new_id();
         let mut front = String::new();
         for (k, v) in [
@@ -882,7 +888,7 @@ impl Library {
         let item = StoredItem {
             id,
             note: true,
-            name: name.to_owned(),
+            name,
             ext: NOTE_EXT.into(),
             folder: folder.map(str::to_owned),
             tags: vec![],
