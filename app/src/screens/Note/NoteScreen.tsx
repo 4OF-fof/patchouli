@@ -1,5 +1,7 @@
-import { For, Show, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, Show, createEffect, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
+import { Chip } from '../../components/controls/Chip/Chip'
+import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
@@ -23,6 +25,11 @@ export interface NoteScreenProps {
   onTogglePin?: (id: string) => void
   onBody?: (id: string, body: string) => void
   onRename?: (id: string, name: string) => void
+  onProject?: (id: string, folder: string | null) => void
+  onAlias?: (id: string, alias: string, on: boolean) => void
+  onTag?: (id: string, tag: string, on: boolean) => void
+  recentTags?: string[]
+  suggestTags?: (id: string) => Promise<string[]>
   onCreateNote?: (name: string, folder: string | null) => Promise<Item | undefined>
   embedOf?: (it: Item) => Promise<Embed | undefined>
   onImport?: (files: File[], folder: string | null) => Promise<Item[]>
@@ -65,6 +72,31 @@ export function NoteScreen(props: NoteScreenProps) {
     onCleanup(() => mq.removeEventListener('change', close))
   })
   onCleanup(() => props.editorRef?.(undefined))
+
+  let addBtn: HTMLButtonElement | undefined
+  const [picking, setPicking] = createSignal(false)
+  const [recent, setRecent] = createSignal<string[]>([])
+  const togglePicker = () => {
+    if (!picking()) setRecent(props.recentTags ?? [])
+    setPicking(!picking())
+  }
+  const closePicker = () => {
+    setPicking(false)
+    addBtn?.focus()
+  }
+  createEffect(on([() => props.noteId, propsOpen], () => setPicking(false), { defer: true }))
+  const [suggested] = createResource(
+    () => (picking() ? props.noteId : undefined),
+    async (id) => (await props.suggestTags?.(id).catch(() => [])) ?? [],
+  )
+  const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
+
+  const addAlias = (el: HTMLInputElement) => {
+    const n = note()
+    const a = el.value.trim()
+    el.value = ''
+    if (n && a && a !== n.name && !n.aliases?.includes(a)) props.onAlias?.(n.id, a, true)
+  }
 
   const rename = (el: HTMLInputElement) => {
     const n = note()
@@ -109,16 +141,67 @@ export function NoteScreen(props: NoteScreenProps) {
               </button>
               <Show when={propsOpen()}>
                 <dl class={styles.panel}>
-                  <dt>タグ</dt>
+                  <dt>プロジェクト</dt>
                   <dd>
-                    <input type="text" value={n().tags.join(', ')} aria-label="タグ（カンマ区切り）" />
+                    <select
+                      aria-label="プロジェクト"
+                      value={n().folder ?? ''}
+                      onChange={(e) => props.onProject?.(n().id, e.currentTarget.value || null)}
+                    >
+                      <option value="">プロジェクトなし</option>
+                      <For each={lib().projects}>{(p) => <option value={p.name}>{p.name}</option>}</For>
+                    </select>
                   </dd>
                   <dt>別名</dt>
-                  <dd>
-                    <input type="text" value={(n().aliases ?? []).join(', ')} aria-label="別名（カンマ区切り）" />
+                  <dd class={styles.chips}>
+                    <For each={n().aliases ?? []}>
+                      {(a) => (
+                        <Chip aria-label={`別名「${a}」を削除`} onClick={() => props.onAlias?.(n().id, a, false)}>
+                          {a}
+                          <Icon name="close" size={12} />
+                        </Chip>
+                      )}
+                    </For>
+                    <input
+                      class={styles.alias}
+                      type="text"
+                      placeholder="別名を追加"
+                      aria-label="別名を追加"
+                      onKeyDown={(e) => {
+                        if (e.key !== 'Enter' || e.isComposing) return
+                        e.preventDefault()
+                        addAlias(e.currentTarget)
+                      }}
+                      onBlur={(e) => addAlias(e.currentTarget)}
+                    />
                   </dd>
-                  <dt>プロジェクト</dt>
-                  <dd>{n().folder ?? 'なし'}</dd>
+                  <dt>タグ</dt>
+                  <dd class={`${styles.chips} ${styles.tags}`}>
+                    <For each={n().tags}>
+                      {(t) => (
+                        <Chip aria-label={`# ${t} を削除`} onClick={() => props.onTag?.(n().id, t, false)}>
+                          # {t}
+                          <Icon name="close" size={12} />
+                        </Chip>
+                      )}
+                    </For>
+                    <Chip ref={addBtn} dashed aria-expanded={picking()} aria-haspopup="dialog" onClick={togglePicker}>
+                      <Icon name="plus" size={12} />
+                      追加
+                    </Chip>
+                    <Show when={picking()}>
+                      <TagPicker
+                        class={styles.picker}
+                        tags={n().tags}
+                        all={allTags()}
+                        recent={recent()}
+                        suggested={suggested.state === 'ready' ? suggested() : undefined}
+                        anchor={addBtn}
+                        onToggle={(t, add) => props.onTag?.(n().id, t, add)}
+                        onClose={closePicker}
+                      />
+                    </Show>
+                  </dd>
                   <dt>更新日</dt>
                   <dd>{relDay(lib(), n().moved)}</dd>
                 </dl>

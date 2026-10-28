@@ -58,19 +58,51 @@
 }
 .panel dt {
   font-family: var(--f-mono);
+  align-self: center;
   color: var(--muted);
 }
 .panel dd {
   margin: 0;
 }
-.panel input {
-  width: 100%;
+.panel select,
+.alias {
   height: 28px;
   padding: 0 8px;
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   background: var(--card);
+  color: var(--ink);
   font-size: var(--fs-list);
+}
+.panel select {
+  width: 100%;
+}
+.panel select:focus-visible,
+.alias:focus-visible {
+  border-color: var(--accent);
+  outline: 0;
+}
+.panel option {
+  background: var(--float);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.alias {
+  flex: 1;
+  min-width: 120px;
+}
+.tags {
+  position: relative;
+}
+.picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 7;
 }
 .bar {
   --top-bar-z: 6;

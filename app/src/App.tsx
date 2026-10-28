@@ -195,6 +195,14 @@ export function App(props: AppProps) {
       { tags: on ? { add: [tag] } : { remove: [tag] } },
     )
   }
+  const aliasItem = (id: string, alias: string, on: boolean) => {
+    const aliases = lib().byId.get(id)?.aliases ?? []
+    editItem(
+      id,
+      { aliases: on ? [...aliases, alias] : aliases.filter((a) => a !== alias) },
+      { aliases: on ? { add: [alias] } : { remove: [alias] } },
+    )
+  }
   // 先に画面を変えておき、ファイルを変えられなかったら元に戻す
   const changeFile = (id: string, change: Partial<Item>, undo: Partial<Item>, run: () => Promise<Item | undefined>) => {
     const put = (c: Partial<Item>) => {
@@ -531,6 +539,10 @@ export function App(props: AppProps) {
       onTogglePin={togglePin}
       onBody={(id, body) => editItem(id, { body }, { body })}
       onRename={renameItem}
+      onProject={moveItem}
+      onAlias={aliasItem}
+      onTag={tagItem}
+      recentTags={recentTags()}
       onCreateNote={addNote}
       embedOf={embedOf}
       onImport={backend.importData && importFiles}

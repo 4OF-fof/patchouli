@@ -9,8 +9,12 @@ export function findItems(lib: Library, terms: string[]): { it: Item; where: str
     let sc = 0
     const where: string[] = []
     const ok = terms.every((t) => {
+      const alias = it.aliases?.find((x) => x.toLowerCase().includes(t))
       if (it.name.toLowerCase().includes(t)) sc += 3
-      else if (it.tags.some((x) => x.toLowerCase().includes(t))) {
+      else if (alias) {
+        sc += 3
+        where.push(`別名 ${alias}`)
+      } else if (it.tags.some((x) => x.toLowerCase().includes(t))) {
         sc += 2
         where.push(`タグ # ${it.tags.find((x) => x.toLowerCase().includes(t))}`)
       } else if (it.folder?.toLowerCase().includes(t)) {
