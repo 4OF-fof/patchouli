@@ -32,6 +32,7 @@ const PART: Record<Part, string> = {
   hover: 'ホバー表示',
   details: 'ファイルの詳細',
   embed: '埋め込み表示',
+  menu: '右クリックメニュー',
 }
 
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [

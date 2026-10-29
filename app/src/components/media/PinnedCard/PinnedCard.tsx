@@ -23,7 +23,7 @@ export function PinnedCard(props: PinnedCardProps) {
       onClick={() => props.onClick?.()}
     >
       {props.thumb ? (
-        <Thumb {...props.thumb} class={`${styles.cover} ${styles.th}`} />
+        <Thumb {...props.thumb} menu={false} class={`${styles.cover} ${styles.th}`} />
       ) : (
         <Mosaic tiles={props.tiles ?? []} count={props.large ? 5 : 3} class={styles.cover} />
       )}

@@ -1,0 +1,28 @@
+.rename {
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--menu);
+  box-shadow: var(--shadow);
+}
+.rename span {
+  color: var(--faint);
+  font-size: var(--fs-meta);
+}
+.rename input {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  outline: 0;
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--fs-list);
+}
+.rename input:focus {
+  border-color: var(--accent);
+}

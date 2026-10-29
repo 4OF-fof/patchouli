@@ -22,6 +22,28 @@ impl Guest for Text {
         Ok(Vec::new())
     }
 
+    fn menu(_format: String, _f: File) -> Result<Vec<MenuItem>, String> {
+        Ok(vec![MenuItem {
+            id: "count".into(),
+            label: "行数と文字数を表示".into(),
+        }])
+    }
+
+    fn run_menu(_format: String, f: File, id: String) -> Result<Option<String>, String> {
+        match id.as_str() {
+            "count" => {
+                let bytes = host::read(&f, 0, 1 << 20)?;
+                let text = String::from_utf8_lossy(&bytes);
+                Ok(Some(format!(
+                    "{} 行・{} 文字",
+                    text.lines().count(),
+                    text.chars().count()
+                )))
+            }
+            id => Err(format!("{id} には対応していません")),
+        }
+    }
+
     fn settings() -> Vec<Setting> {
         vec![
             Setting {

@@ -9,7 +9,6 @@ export interface StoredItem {
   ext: string
   folder: string | null
   tags: string[]
-  rating: number
   memo: string
   aliases?: string[]
   body?: string
@@ -80,7 +79,6 @@ export function toItem(
     ratio: ratioOf(s, formats),
     fit: formats.get(s.ext)?.fit,
     ext: s.ext,
-    rating: s.rating,
     memo: s.memo,
     ...(s.body !== undefined && { body: s.body }),
     ...(s.aliases && { aliases: s.aliases }),

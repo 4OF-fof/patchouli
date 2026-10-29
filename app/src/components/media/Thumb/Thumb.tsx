@@ -7,6 +7,11 @@ const Making = createContext<(id: string) => boolean>(() => false)
 
 export const ThumbMakingProvider = Making.Provider
 
+const Menu = createContext<(id: string, at: { x: number; y: number }) => void>()
+
+/** サムネイルを右クリックしたときに、素材のメニューを出す。 */
+export const ItemMenuProvider = Menu.Provider
+
 export interface ThumbProps {
   note?: boolean
   hue?: number
@@ -19,11 +24,20 @@ export interface ThumbProps {
   height?: number
   selected?: boolean
   dirty?: boolean
+  /** false なら、右クリックしてもメニューを出さない。 */
+  menu?: boolean
   class?: string
 }
 
 export function Thumb(props: ThumbProps) {
   const making = useContext(Making)
+  const menu = useContext(Menu)
+  const onContextMenu = (e: MouseEvent) => {
+    if (!menu || !props.id || props.menu === false) return
+    e.preventDefault()
+    e.stopPropagation()
+    menu(props.id, { x: e.clientX, y: e.clientY })
+  }
   const waiting = () => !props.src && !props.note && !!props.id && making(props.id)
   return (
     <span
@@ -31,6 +45,7 @@ export function Thumb(props: ThumbProps) {
       data-note={!!props.note}
       data-fit={props.src ? (props.fit ?? 'center') : undefined}
       data-selected={props.selected}
+      onContextMenu={onContextMenu}
       style={{
         '--h': props.hue ?? 210,
         '--s': props.sat != null ? `${props.sat}%` : undefined,

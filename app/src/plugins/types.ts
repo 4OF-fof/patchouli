@@ -108,6 +108,12 @@ export interface ItemDetails {
   rows: { label: string; value: string }[]
 }
 
+/** プラグインが右クリックメニューに足す項目。 */
+export interface MenuEntry {
+  id: string
+  label: string
+}
+
 export type ItemView =
   | { kind: 'image'; url?: string }
   | { kind: 'video' }

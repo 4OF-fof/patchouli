@@ -39,6 +39,14 @@ impl Guest for Video {
         Ok(size.into_iter().chain(secs).collect())
     }
 
+    fn menu(_format: String, _f: File) -> Result<Vec<MenuItem>, String> {
+        Ok(Vec::new())
+    }
+
+    fn run_menu(_format: String, _f: File, id: String) -> Result<Option<String>, String> {
+        Err(format!("{id} には対応していません"))
+    }
+
     fn settings() -> Vec<Setting> {
         Vec::new()
     }

@@ -18,7 +18,9 @@ export function Mosaic(props: MosaicProps) {
       data-count={props.count ?? 5}
       style={{ '--mosaic-h': props.height ? `${props.height}px` : undefined }}
     >
-      <For each={props.tiles.slice(0, props.count ?? 5)}>{(t) => <Thumb {...t} class={styles.tile} />}</For>
+      <For each={props.tiles.slice(0, props.count ?? 5)}>
+        {(t) => <Thumb {...t} menu={false} class={styles.tile} />}
+      </For>
     </span>
   )
 }

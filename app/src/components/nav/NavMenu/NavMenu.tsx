@@ -14,6 +14,7 @@ export interface NavMenuItem {
   title?: string
   current?: boolean
   heading?: boolean
+  danger?: boolean
 }
 
 export type NavMenuEntry = NavMenuItem | 'separator'
@@ -63,6 +64,7 @@ export function NavMenu(props: NavMenuProps) {
                 role="menuitem"
                 aria-current={it.current ? 'page' : undefined}
                 data-heading={it.heading}
+                data-danger={it.danger}
                 data-tip={it.title}
                 onClick={() => props.onSelect?.(it.id)}
               >

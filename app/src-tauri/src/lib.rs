@@ -748,6 +748,12 @@ struct Detail {
 }
 
 #[derive(Serialize)]
+struct MenuEntry {
+    id: String,
+    label: String,
+}
+
+#[derive(Serialize)]
 struct Details {
     size: u64,
     rows: Vec<Detail>,
@@ -796,14 +802,38 @@ async fn item_decoded(cur: State<'_, Current>, id: String) -> Result<tauri::ipc:
 
 #[tauri::command]
 async fn reveal_item(cur: State<'_, Current>, id: String) -> Result<(), String> {
-    let path = with(&cur, |l| Ok(l.asset(&id)?.0.to_owned()))?;
+    let path = with(&cur, |l| Ok(l.path(&id)?.to_owned()))?;
     shell::reveal(&path)
 }
 
 #[tauri::command]
 async fn open_item_default(cur: State<'_, Current>, id: String) -> Result<(), String> {
-    let path = with(&cur, |l| Ok(l.asset(&id)?.0.to_owned()))?;
+    let path = with(&cur, |l| Ok(l.path(&id)?.to_owned()))?;
     shell::open(&path)
+}
+
+#[tauri::command]
+async fn item_path(cur: State<'_, Current>, id: String) -> Result<PathBuf, String> {
+    with(&cur, |l| Ok(l.path(&id)?.to_owned()))
+}
+
+#[tauri::command]
+async fn item_menu(cur: State<'_, Current>, id: String) -> Result<Vec<MenuEntry>, String> {
+    let t = Target::of(&cur, &id)?;
+    let items = t.run(|r, ext, path| r.menu(ext, path))?;
+    Ok(items
+        .into_iter()
+        .map(|(id, label)| MenuEntry { id, label })
+        .collect())
+}
+
+#[tauri::command]
+async fn run_item_menu(
+    cur: State<'_, Current>,
+    id: String,
+    entry: String,
+) -> Result<Option<String>, String> {
+    Target::of(&cur, &id)?.run(|r, ext, path| r.run_menu(ext, path, &entry))
 }
 
 #[tauri::command]
@@ -1159,6 +1189,11 @@ async fn rename_item(
 }
 
 #[tauri::command]
+async fn delete_item(cur: State<'_, Current>, id: String) -> Result<(), String> {
+    with(&cur, |l| l.delete_item(&id))
+}
+
+#[tauri::command]
 async fn save_state(cur: State<'_, Current>, state: LibraryState) -> Result<(), String> {
     with(&cur, |l| l.save_state(&state))
 }
@@ -1223,6 +1258,10 @@ pub fn run() {
             item_decoded,
             reveal_item,
             open_item_default,
+            item_path,
+            item_menu,
+            run_item_menu,
+            delete_item,
             plugin_read,
             plugin_call,
             plugin_settings,

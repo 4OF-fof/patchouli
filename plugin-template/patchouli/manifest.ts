@@ -3,9 +3,9 @@
 /**
  * 形式ごとに受け持つもの。waveform は音の波形、hover はカーソルを合わせたときにサムネイルの上に重ねる表示、
  * embed はノートに埋め込んだときの表示で、どれも組み込み UI だけが受け持てる。
- * details はファイルの詳細に足す行で、WASM だけが受け持てる。
+ * details はファイルの詳細に足す行、menu は右クリックメニューに足す項目で、どちらも WASM だけが受け持てる。
  */
-export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details' | 'embed'
+export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details' | 'embed' | 'menu'
 
 /** カーソルを合わせたときに、本体がサムネイルの上で見せるもの。video は元のファイルを音を消して再生する。 */
 export type Hover = 'video'

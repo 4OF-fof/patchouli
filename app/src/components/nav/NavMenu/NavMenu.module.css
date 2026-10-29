@@ -75,3 +75,7 @@
   color: var(--faint);
   font-size: var(--fs-meta);
 }
+.root button[data-danger='true'],
+.root button[data-danger='true'] i {
+  color: var(--danger);
+}

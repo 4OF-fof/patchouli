@@ -473,6 +473,31 @@ impl Runner {
         Ok(ds.into_iter().map(|d| (d.label, d.value)).collect())
     }
 
+    pub fn menu(&mut self, ext: &str, path: &Path) -> Result<Vec<(String, String)>, String> {
+        let r = self.call(
+            ext,
+            Part::Menu,
+            By::Wasm,
+            path,
+            VIEW_LIMIT,
+            |p, s, fmt, file| p.call_menu(s, fmt, &file),
+        );
+        let items = r.unwrap_or(Ok(Ok(Vec::new())))??;
+        Ok(items.into_iter().map(|m| (m.id, m.label)).collect())
+    }
+
+    pub fn run_menu(&mut self, ext: &str, path: &Path, id: &str) -> Result<Option<String>, String> {
+        self.call(
+            ext,
+            Part::Menu,
+            By::Wasm,
+            path,
+            VIEW_LIMIT,
+            |p, s, fmt, file| p.call_run_menu(s, fmt, &file, id),
+        )
+        .ok_or("メニューに対応するプラグインがありません")??
+    }
+
     pub fn decode(&mut self, ext: &str, path: &Path) -> Result<Vec<u8>, String> {
         self.call(
             ext,

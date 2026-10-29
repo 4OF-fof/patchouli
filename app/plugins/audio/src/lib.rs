@@ -36,6 +36,14 @@ impl Guest for Audio {
         Ok(vec![row("BPM", bpm), row("再生時間", clock::clock(a.secs))])
     }
 
+    fn menu(_format: String, _f: File) -> Result<Vec<MenuItem>, String> {
+        Ok(Vec::new())
+    }
+
+    fn run_menu(_format: String, _f: File, id: String) -> Result<Option<String>, String> {
+        Err(format!("{id} には対応していません"))
+    }
+
     fn settings() -> Vec<Setting> {
         Vec::new()
     }

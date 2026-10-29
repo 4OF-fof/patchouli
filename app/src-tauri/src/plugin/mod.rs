@@ -43,6 +43,7 @@ pub enum Part {
     Hover,
     Details,
     Embed,
+    Menu,
     #[serde(other)]
     Unknown,
 }

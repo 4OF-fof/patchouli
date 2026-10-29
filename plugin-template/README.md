@@ -22,9 +22,11 @@ npm run zip     # build したものを <id>-<版>.zip にする
 | ファイル | 役目 |
 | --- | --- |
 | `plugin.json` | id・名前・版と、対応する形式。`ui` には、ビルド後の `.js` のパスを書く（元は拡張子を `.ts` にしたもの） |
-| `src/lib.rs` | 処理部分（WASM）。サムネイル・詳細の記述・設定の項目・`call` で呼ばれる関数 |
+| `src/lib.rs` | 処理部分（WASM）。サムネイル・詳細の記述・右クリックメニューの項目・設定の項目・`call` で呼ばれる関数 |
 | `ui.ts` | 組み込み UI。アプリの画面の中で動き、詳細の表示・サムネイル・波形・カーソルを合わせたときの表示を描ける |
 | `patchouli/` | SDK。型（`index.ts`）、ビルドの道具（`cli.ts`）、WASM の取り決め（`wit/plugin.wit`）。書き換えない |
+
+素材の右クリックメニューに項目を足すときは、plugin.json の形式の `parts` に `menu` を書き、`src/lib.rs` の `menu` で項目を返す。選ばれると `run_menu` が呼ばれ、文字列を返すとアプリが通知として出す。
 
 WASM がいらなければ `Cargo.toml` と `src/` を、組み込み UI がいらなければ `ui.ts` と plugin.json の `ui` を消す。
 

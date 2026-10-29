@@ -582,9 +582,8 @@ export function sampleSpec(): Spec {
 
   const items: SpecItem[] = []
   const add = (
-    it: Omit<SpecItem, 'id' | 'media' | 'note' | 'ratio' | 'rating' | 'memo' | 'ext'> & {
+    it: Omit<SpecItem, 'id' | 'media' | 'note' | 'ratio' | 'memo' | 'ext'> & {
       ext: string
-      rating?: number
     },
   ) => {
     const media = MEDIA_OF[it.ext] ?? 'note'
@@ -596,7 +595,6 @@ export function sampleSpec(): Spec {
       media,
       note: media === 'note',
       ratio: ratioOf(media, size),
-      rating: it.rating ?? 0,
       memo: '',
       ...(size && { size }),
       ...(sec && { sec }),
@@ -611,9 +609,8 @@ export function sampleSpec(): Spec {
   for (const [pn, s] of Object.entries(CONTENTS)) {
     const h = hueOf.get(pn) ?? 0
     for (const [name, ext, tags, moved] of s.a) {
-      const rating = ri(0, 5)
       const hue = h + ri(-20, 20)
-      add({ name, ext, tags: [...tags], folder: pn, rating, moved, hue, sat: ri(14, 30) })
+      add({ name, ext, tags: [...tags], folder: pn, moved, hue, sat: ri(14, 30) })
     }
     for (const [name, moved, tags, raw] of s.n) {
       add({

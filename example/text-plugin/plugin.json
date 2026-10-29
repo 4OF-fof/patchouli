@@ -1,10 +1,10 @@
 {
   "id": "example.text",
   "name": "テキスト",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "テキストファイルの表示とサムネイル生成",
   "ui": "ui.js",
   "formats": {
-    "txt": { "label": "テキスト", "ratio": 0.8, "fit": "top", "ui": ["thumbnail", "view"] }
+    "txt": { "label": "テキスト", "ratio": 0.8, "fit": "top", "ui": ["thumbnail", "view"], "parts": ["menu"] }
   }
 }

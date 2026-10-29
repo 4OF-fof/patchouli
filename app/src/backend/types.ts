@@ -1,5 +1,5 @@
 import type { CoverPart, Item, Library, Project, TagCoverPart, Thumbnail } from '../model/library'
-import type { ItemDetails, ItemView, Part, PluginActions, PluginReport, UiRef } from '../plugins/types'
+import type { ItemDetails, ItemView, MenuEntry, Part, PluginActions, PluginReport, UiRef } from '../plugins/types'
 import type { UiApi, UiItem } from '../plugins/ui'
 
 export interface LibraryState {
@@ -17,7 +17,6 @@ export interface ListDiff {
 export interface ItemPatch {
   tags?: ListDiff
   aliases?: ListDiff
-  rating?: number
   memo?: string
   body?: string
 }
@@ -119,6 +118,8 @@ export interface Backend {
   saveItem(id: string, patch: ItemPatch): Promise<Item | undefined>
   moveItem(id: string, folder: string | null): Promise<Item | undefined>
   renameItem(id: string, name: string): Promise<Item | undefined>
+  /** ファイルとメタ情報をごみ箱に移動する。 */
+  deleteItem?: (id: string) => Promise<void>
   saveState(state: LibraryState): Promise<void>
   createNote(name: string, folder: string | null): Promise<Item>
   createProject(name: string): Promise<Project>
@@ -142,6 +143,11 @@ export interface Backend {
   itemDetails?: (id: string) => Promise<ItemDetails>
   revealItem?: (id: string) => Promise<void>
   openItemDefault?: (id: string) => Promise<void>
+  itemPath?: (id: string) => Promise<string>
+  /** プラグインが右クリックメニューに足す項目。 */
+  itemMenu?: (id: string) => Promise<MenuEntry[]>
+  /** プラグインの項目を選んだとき。返った文字列は通知に出す。 */
+  runItemMenu?: (id: string, entry: string) => Promise<string | undefined>
   waveform?: (id: string) => Promise<Uint8Array | null>
   uiApi?: (item: UiItem, part: Part, plugin: string) => UiApi
   uiUrl?: (ui: UiRef) => string

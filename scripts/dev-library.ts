@@ -183,7 +183,7 @@ for (const it of spec.items) {
   }
   const file = path.join(dir, `${it.name}.${it.ext}`)
   const meta = `${file}.meta`
-  fs.writeFileSync(meta, json({ [ID_KEY]: it.id, tags: it.tags, rating: it.rating, memo: it.memo }))
+  fs.writeFileSync(meta, json({ [ID_KEY]: it.id, tags: it.tags, memo: it.memo }))
   touched.push({ file, moved: it.moved }, { file: meta, moved: it.moved })
   if (it.media === 'text') fs.writeFileSync(file, `${it.text ?? ''}\n`)
   else if (it.media === 'other') fs.writeFileSync(file, '')

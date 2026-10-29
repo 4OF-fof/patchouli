@@ -259,6 +259,7 @@ export function tauriBackend(): Backend {
       const it = await invoke<TauriItem>('rename_item', { id, name })
       return toItem(it, new Date(), formats, urlsOf(it))
     },
+    deleteItem: (id) => invoke('delete_item', { id }),
     saveState: (state) => invoke('save_state', { state }),
     async createNote(name, folder) {
       const it = await invoke<TauriItem>('create_note', { name, folder })
@@ -361,6 +362,9 @@ export function tauriBackend(): Backend {
     itemDetails: (id) => invoke('item_details', { id }),
     revealItem: (id) => invoke('reveal_item', { id }),
     openItemDefault: (id) => invoke('open_item_default', { id }),
+    itemPath: (id) => invoke('item_path', { id }),
+    itemMenu: (id) => invoke('item_menu', { id }),
+    runItemMenu: async (id, entry) => (await invoke<string | null>('run_item_menu', { id, entry })) ?? undefined,
     async waveform(id) {
       const wave = new Uint8Array(await invoke<ArrayBuffer>('waveform', { id }))
       return wave.length > 0 ? wave : null

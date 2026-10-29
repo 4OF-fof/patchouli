@@ -1,4 +1,4 @@
-package patchouli:plugin@0.6.0;
+package patchouli:plugin@0.7.0;
 
 interface types {
   /// アプリが渡すファイル。中身はホストの関数を通して読む。
@@ -41,6 +41,13 @@ interface types {
   record detail {
     label: string,
     value: string,
+  }
+
+  /// 右クリックメニューに足す項目。
+  record menu-item {
+    /// 選ばれたときに run-menu に渡す。
+    id: string,
+    label: string,
   }
 
   record number-range {
@@ -130,7 +137,7 @@ interface host {
 
 world plugin {
   import host;
-  use types.{file, thumbnail, view, detail, setting};
+  use types.{file, thumbnail, view, detail, menu-item, setting};
 
   /// サムネイル。作らないときは none。format は受け持つ形式（拡張子）。
   export thumbnail: func(format: string, f: file, edge: u32) -> result<option<thumbnail>, string>;
@@ -143,6 +150,12 @@ world plugin {
 
   /// ファイルの詳細に足す行。plugin.json の parts に details を書いた形式で、詳細を開くたびに呼ぶ。
   export details: func(format: string, f: file) -> result<list<detail>, string>;
+
+  /// 素材の右クリックメニューに足す項目。plugin.json の parts に menu を書いた形式で、メニューを開くたびに呼ぶ。
+  export menu: func(format: string, f: file) -> result<list<menu-item>, string>;
+
+  /// menu で返した項目が選ばれたとき。文字列を返すと、アプリが通知として出す。
+  export run-menu: func(format: string, f: file, id: string) -> result<option<string>, string>;
 
   /// 設定の項目。ライブラリを開いたときに一度だけ呼ぶ。
   export settings: func() -> list<setting>;

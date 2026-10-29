@@ -46,7 +46,6 @@ pub struct StoredItem {
     pub ext: String,
     pub folder: Option<String>,
     pub tags: Vec<String>,
-    pub rating: u8,
     pub memo: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aliases: Option<Vec<String>>,
@@ -143,7 +142,6 @@ impl ListDiff {
 pub struct ItemPatch {
     pub tags: Option<ListDiff>,
     pub aliases: Option<ListDiff>,
-    pub rating: Option<u8>,
     pub memo: Option<String>,
     pub body: Option<String>,
 }
@@ -582,7 +580,6 @@ impl Library {
                 ext,
                 folder: folder.map(str::to_owned),
                 tags: r.tags,
-                rating: r.rating,
                 memo: r.memo,
                 aliases: r.aliases,
                 body: r.body,
@@ -609,8 +606,7 @@ impl Library {
         };
         let r = read.ok()?;
         let it = &mut row.item;
-        (it.tags, it.rating, it.memo, it.aliases, it.body) =
-            (r.tags, r.rating, r.memo, r.aliases, r.body);
+        (it.tags, it.memo, it.aliases, it.body) = (r.tags, r.memo, r.aliases, r.body);
         it.mtime = mtime_of(&path);
         row.saved = true;
         row.sig = Sig::of(&path, note);
@@ -627,6 +623,10 @@ impl Library {
         self.entries
             .get(id)
             .ok_or_else(|| format!("ID「{id}」の項目が見つかりません"))
+    }
+
+    pub fn path(&self, id: &str) -> Result<&Path, String> {
+        Ok(&self.entry(id)?.path)
     }
 
     pub fn asset(&self, id: &str) -> Result<(&Path, String), String> {
@@ -656,7 +656,6 @@ impl Library {
             stripped = ItemPatch {
                 tags: patch.tags.clone(),
                 aliases: patch.aliases.clone(),
-                rating: patch.rating,
                 memo: None,
                 body: None,
             };
@@ -734,6 +733,27 @@ impl Library {
         let to = from.with_file_name(&file);
         let taken = format!("同じ名前のファイル（{file}）があるため、名前を変えられません");
         self.relocate(id, row, &to, taken, |it| it.name = name.to_owned())
+    }
+
+    /// ファイルとメタ情報をごみ箱に入れ、ライブラリから外す。
+    pub fn delete_item(&mut self, id: &str) -> Result<(), String> {
+        let e = self.entry(id)?;
+        let (path, note) = (e.path.clone(), e.note);
+        let meta = meta_path(&path);
+        let mut files = vec![path.clone()];
+        if !note && meta.exists() {
+            files.push(meta);
+        }
+        trash::delete_all(&files).map_err(|e| format!("{}: {e}", path.display()))?;
+        for f in &files {
+            self.mark(f);
+        }
+        self.entries.remove(id);
+        if self.owners.get(id) == Some(&path) {
+            self.owners.remove(id);
+        }
+        self.cache.update(&[], &[path]);
+        Ok(())
     }
 
     fn row_of(&self, path: &Path) -> Result<Row, String> {
@@ -892,7 +912,6 @@ impl Library {
             ext: NOTE_EXT.into(),
             folder: folder.map(str::to_owned),
             tags: vec![],
-            rating: 0,
             memo: String::new(),
             aliases: Some(vec![]),
             body: Some(String::new()),
@@ -1012,7 +1031,6 @@ fn list_dir(dir: &Path, problems: &mut Vec<String>) -> Vec<(PathBuf, bool)> {
 struct Read {
     id: Option<String>,
     tags: Vec<String>,
-    rating: u8,
     memo: String,
     aliases: Option<Vec<String>>,
     body: Option<String>,
@@ -1025,7 +1043,6 @@ fn read_note(path: &Path) -> Result<Read, String> {
     Ok(Read {
         id: note::str_of(&v, ID_KEY),
         tags: note::list_of(&v, "tags"),
-        rating: 0,
         memo: String::new(),
         aliases: Some(note::list_of(&v, "aliases")),
         body: Some(parts.body.trim_start_matches(['\r', '\n']).to_owned()),
@@ -1037,10 +1054,6 @@ fn read_asset(path: &Path) -> Result<Read, String> {
     Ok(Read {
         id: m.get(ID_KEY).and_then(Value::as_str).map(str::to_owned),
         tags: strings(m.get("tags")),
-        rating: m
-            .get("rating")
-            .and_then(Value::as_u64)
-            .map_or(0, |r| r.min(5) as u8),
         memo: m
             .get("memo")
             .and_then(Value::as_str)
@@ -1079,9 +1092,6 @@ fn save_asset(path: &Path, id: &str, patch: &ItemPatch) -> Result<(), String> {
     if let Some(d) = &patch.tags {
         let tags = d.apply(strings(m.get("tags")));
         m.insert("tags".into(), json!(tags));
-    }
-    if let Some(r) = patch.rating {
-        m.insert("rating".into(), json!(r.min(5)));
     }
     if let Some(s) = &patch.memo {
         m.insert("memo".into(), json!(s));

@@ -25,7 +25,6 @@ export interface Item {
   sat: number
   ratio: number
   ext: string
-  rating: number
   memo: string
   body?: string
   aliases?: string[]
@@ -265,7 +264,6 @@ export const emptyNote = (id: string, name: string, folder: string | null = null
   hue: 210,
   sat: 14,
   ratio: 0.8,
-  rating: 0,
   memo: '',
   body: '',
   aliases: [],
@@ -353,7 +351,6 @@ export function whyOf(lib: Library, it: Item) {
   if (it.note && it.moved === 0) return '編集 · 今日'
   const n = lib.linkCount(it)
   if (n >= 2) return `リンク ${n} · ${relDay(lib, it.moved)}`
-  if (it.rating === 5) return `★5 · ${relDay(lib, it.moved)}`
   return `${it.note ? '編集' : '更新'} · ${relDay(lib, it.moved)}`
 }
 
@@ -361,10 +358,15 @@ export type CardSize = 'L' | 'M' | 'S' | 'X'
 
 export function thumbOf(it: Item, size: CardSize = 'M') {
   if (!it.note) return { hue: it.hue, sat: it.sat, src: it.thumb, id: it.id, fit: it.fit }
-  if (size === 'X') return { note: true, excerpt: it.name }
+  if (size === 'X') return { note: true, id: it.id, excerpt: it.name }
   const ex = plainText(it.body ?? '')
   const lim = size === 'L' ? 140 : size === 'S' ? 0 : 46
-  return { note: true, title: it.name, excerpt: lim ? ex.slice(0, lim) + (ex.length > lim ? '…' : '') : '' }
+  return {
+    note: true,
+    id: it.id,
+    title: it.name,
+    excerpt: lim ? ex.slice(0, lim) + (ex.length > lim ? '…' : '') : '',
+  }
 }
 
 /** 表紙に使う順。ピン留めを先に、それぞれの中では更新が新しい順 */
