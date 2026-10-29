@@ -24,6 +24,13 @@
 .due[data-late='true'] {
   color: var(--danger);
 }
+/* .root は DetailPart の箱に付け、DetailPart の入力欄の決まりより強くする */
+.root .todo input[type='text'] {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  padding: 2px 6px;
+}
 /* .root は DetailPart の箱に付け、DateField の決まりより強くする */
 .root .dueField {
   margin-left: auto;

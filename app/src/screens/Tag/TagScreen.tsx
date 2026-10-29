@@ -1,4 +1,4 @@
-import { For, type JSX, Show, createMemo, createSignal } from 'solid-js'
+import { For, Index, type JSX, Show, createMemo, createSignal } from 'solid-js'
 import { NoneText } from '../../components/base/NoneText/NoneText'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { Icon } from '../../components/base/Icon/Icon'
@@ -6,19 +6,24 @@ import { Button } from '../../components/controls/Button/Button'
 import { IconButton } from '../../components/controls/IconButton/IconButton'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
-import { type Library, type TagCoverPart, hasTag } from '../../model/library'
+import { type Library, type TagCoverPart, hasTag, newCardId } from '../../model/library'
 import { AddPart } from '../Detail/AddPart'
 import { DetailPart } from '../Detail/DetailPart'
 import { DetailScreen } from '../Detail/DetailScreen'
+import { type PartKind, addable, moved } from '../Detail/parts'
 import shared from '../screen.module.css'
 import styles from './TagScreen.module.css'
 
-export const TAG_PARTS: Record<TagCoverPart['type'], { label: string; note: string }> = {
-  desc: { label: '説明', note: 'テキスト' },
-  kids: { label: 'サブタグ', note: '階層下のタグで絞り込み' },
-  exts: { label: 'ファイル形式', note: '拡張子ごとの件数' },
-  together: { label: '関連タグ', note: 'よく併用されるタグ' },
+export const TAG_PARTS: Record<TagCoverPart['type'], PartKind> = {
+  desc: { label: '説明', note: 'テキスト', multiple: true },
+  kids: { label: 'サブタグ', note: '階層下のタグで絞り込み', multiple: false },
+  exts: { label: 'ファイル形式', note: '拡張子ごとの件数', multiple: false },
+  together: { label: '関連タグ', note: 'よく併用されるタグ', multiple: false },
 }
+const TAG_PART_TYPES = ['desc', 'kids', 'exts', 'together'] as const satisfies readonly TagCoverPart['type'][]
+
+const emptyTagPart = (type: TagCoverPart['type']): TagCoverPart =>
+  type === 'desc' ? { id: newCardId(), type, text: '' } : { id: type, type }
 
 const near = (tag: string, t: string) => t === tag || t.startsWith(tag + '/') || tag.startsWith(t + '/')
 
@@ -40,6 +45,7 @@ export interface TagScreenProps {
   onTogglePin?: (id: string) => void
   onToggleTagPin?: () => void
   onRename?: (to: string) => void
+  onSaveCover?: (cover: TagCoverPart[]) => void
 }
 
 export function TagScreen(props: TagScreenProps) {
@@ -48,20 +54,17 @@ export function TagScreen(props: TagScreenProps) {
   const [editing, setEditing] = createSignal(!!props.editing)
   const [addOpen, setAddOpen] = createSignal(!!props.addOpen)
   const [sub, setSub] = createSignal(props.sub ?? '')
-  const [name, setName] = createSignal(props.tag)
   const [draft, setDraft] = createSignal(props.tag)
   const toggleEdit = () => {
     if (editing()) {
       const to = draft().trim().replace(/^#\s*/, '')
-      if (to && to !== name()) {
-        setName(to)
-        props.onRename?.(to)
-      }
-      setDraft(name())
-    }
+      if (to && to !== props.tag) props.onRename?.(to)
+    } else setDraft(props.tag)
     setEditing(!editing())
+    setAddOpen(false)
   }
   const cover = () => lib().tagCovers.get(props.tag) ?? []
+  const save = (next: TagCoverPart[]) => props.onSaveCover?.(next)
   const all = createMemo(() => lib().items.filter((i) => hasTag(i, props.tag)))
   const shown = createMemo(() => (sub() ? all().filter((i) => hasTag(i, sub())) : all()))
   const kids = createMemo(() =>
@@ -77,10 +80,14 @@ export function TagScreen(props: TagScreenProps) {
   )
   const projectCount = () => new Set(all().flatMap((i) => i.folder ?? [])).size
 
-  const body = (c: TagCoverPart): JSX.Element => {
+  const body = (c: TagCoverPart, i: number): JSX.Element => {
     if (c.type === 'desc')
       return editing() ? (
-        <textarea aria-label="説明" value={c.text} />
+        <textarea
+          aria-label="説明"
+          value={c.text}
+          onChange={(e) => save(cover().map((y, k) => (k === i ? { ...c, text: e.currentTarget.value } : y)))}
+        />
       ) : (
         <span>{c.text || <NoneText>説明はまだありません</NoneText>}</span>
       )
@@ -134,7 +141,7 @@ export function TagScreen(props: TagScreenProps) {
     <DetailScreen
       label="タグ"
       title={
-        <Show when={editing()} fallback={<h1># {name()}</h1>}>
+        <Show when={editing()} fallback={<h1># {props.tag}</h1>}>
           <h1 class={styles.title}>
             <span>#</span>
             <input
@@ -143,7 +150,7 @@ export function TagScreen(props: TagScreenProps) {
               aria-label="タグ名"
               value={draft()}
               onInput={(e) => setDraft(e.currentTarget.value)}
-              onKeyDown={(e) => e.key === 'Enter' && toggleEdit()}
+              onKeyDown={(e) => e.key === 'Enter' && !e.isComposing && toggleEdit()}
             />
           </h1>
         </Show>
@@ -174,15 +181,29 @@ export function TagScreen(props: TagScreenProps) {
       sideLabel="概要"
       side={
         <>
-          <For each={cover()}>
-            {(c) => (
-              <DetailPart label={TAG_PARTS[c.type].label} editing={editing()}>
-                {body(c)}
+          <Index each={cover()}>
+            {(c, i) => (
+              <DetailPart
+                label={TAG_PARTS[c().type].label}
+                editing={editing()}
+                onUp={i > 0 ? () => save(moved(cover(), i, -1)) : undefined}
+                onDown={i < cover().length - 1 ? () => save(moved(cover(), i, 1)) : undefined}
+                onRemove={() => save(cover().filter((_, k) => k !== i))}
+              >
+                {body(c(), i)}
               </DetailPart>
             )}
-          </For>
+          </Index>
           <Show when={editing()}>
-            <AddPart parts={Object.values(TAG_PARTS)} open={addOpen()} onToggle={() => setAddOpen(!addOpen())} />
+            <AddPart
+              parts={addable(TAG_PARTS, TAG_PART_TYPES, cover())}
+              open={addOpen()}
+              onToggle={() => setAddOpen(!addOpen())}
+              onPick={(type) => {
+                save([...cover(), emptyTagPart(type)])
+                setAddOpen(false)
+              }}
+            />
           </Show>
         </>
       }

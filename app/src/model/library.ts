@@ -245,7 +245,28 @@ export const withThumbs = (lib: Library, thumbs: Map<string, Thumbnail>) =>
 export const retag = (from: string, to: string) => (t: string) =>
   t === from ? to : t.startsWith(from + '/') ? to + t.slice(from.length) : t
 
-export function withRenamedTag(lib: Library, from: string, to: string): Library {
+/** 付いているタグと、その上の階層、概要のあるタグ。 */
+function tagNames(lib: Library) {
+  const names = new Set(lib.tagCovers.keys())
+  for (const i of lib.items)
+    for (const t of i.tags) {
+      const parts = t.split('/')
+      for (let k = 1; k <= parts.length; k++) names.add(parts.slice(0, k).join('/'))
+    }
+  return names
+}
+
+/** 名前を変えると、すでにあるタグと重なるか。covers は、重なる組の両方に概要があるとき。 */
+export function tagClash(lib: Library, from: string, to: string) {
+  const re = retag(from, to)
+  const names = tagNames(lib)
+  const hits = [...names].filter((t) => re(t) !== t && names.has(re(t)) && re(re(t)) === re(t))
+  const has = (t: string) => !!lib.tagCovers.get(t)?.length
+  return { clash: hits.length > 0, covers: hits.some((t) => has(t) && has(re(t))) }
+}
+
+/** 変えた先がすでにあれば、keepFrom のときは元の概要を、そうでなければ変えた先の概要を残す。 */
+export function withRenamedTag(lib: Library, from: string, to: string, keepFrom = false): Library {
   const re = retag(from, to)
   const items = lib.items.map((i) => ({
     ...i,
@@ -253,9 +274,39 @@ export function withRenamedTag(lib: Library, from: string, to: string): Library 
     suggestion: i.suggestion && { ...i.suggestion, tags: i.suggestion.tags.map((c) => ({ ...c, tag: re(c.tag) })) },
   }))
   const covers = new Map([...lib.tagCovers].filter(([t]) => re(t) === t))
-  for (const [t, c] of lib.tagCovers) if (!covers.has(re(t))) covers.set(re(t), c)
+  for (const [t, c] of lib.tagCovers) if (re(t) !== t && (keepFrom || !covers.has(re(t)))) covers.set(re(t), c)
   return buildLibrary(items, lib.projects, lib.today, covers, lib.pins, lib.formats)
 }
+
+export const newCardId = () => crypto.randomUUID().replaceAll('-', '')
+
+export const withProjectCover = (lib: Library, name: string, cover: CoverPart[]) =>
+  buildLibrary(
+    lib.items,
+    lib.projects.map((p) => (p.name === name ? { ...p, cover } : p)),
+    lib.today,
+    lib.tagCovers,
+    lib.pins,
+    lib.formats,
+  )
+
+/** cover を渡さなければ、概要を消す。 */
+export function withTagCover(lib: Library, tag: string, cover?: TagCoverPart[]) {
+  const covers = new Map(lib.tagCovers)
+  if (cover) covers.set(tag, cover)
+  else covers.delete(tag)
+  return buildLibrary(lib.items, lib.projects, lib.today, covers, lib.pins, lib.formats)
+}
+
+export const withRenamedProject = (lib: Library, from: string, to: string) =>
+  buildLibrary(
+    lib.items.map((i) => (i.folder === from ? { ...i, folder: to } : i)),
+    lib.projects.map((p) => (p.name === from ? { ...p, name: to } : p)),
+    lib.today,
+    lib.tagCovers,
+    lib.pins,
+    lib.formats,
+  )
 
 export function newNoteName(lib: Library, name = '新しいノート') {
   let n = name

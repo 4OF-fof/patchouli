@@ -3,6 +3,7 @@ mod cover;
 pub mod import;
 pub mod library;
 pub mod note;
+mod orphan;
 pub mod plugin;
 mod settings;
 mod shell;
@@ -1234,8 +1235,71 @@ async fn save_tag_cover(
 }
 
 #[tauri::command]
-async fn rename_tag(cur: State<'_, Current>, from: String, to: String) -> Result<(), String> {
-    with(&cur, |l| l.rename_tag(&from, &to))
+async fn rename_tag(
+    cur: State<'_, Current>,
+    from: String,
+    to: String,
+    keep_from: bool,
+) -> Result<(), String> {
+    with(&cur, |l| l.rename_tag(&from, &to, keep_from))
+}
+
+#[tauri::command]
+async fn delete_tag_cover(cur: State<'_, Current>, tag: String) -> Result<(), String> {
+    with(&cur, |l| l.delete_tag_cover(&tag))
+}
+
+/// ファイルを動かしたあとで、ライブラリを突き合わせ直して画面に知らせる。
+fn recheck(app: &tauri::AppHandle) -> Result<(), String> {
+    let cur = app.state::<Current>();
+    let (id, root, plugins, cache, thumbs) = with_session(&cur, |s| {
+        Ok((
+            s.id,
+            s.lib.root().to_owned(),
+            Arc::clone(&s.plugins),
+            s.lib.cache(),
+            s.thumbs.clone(),
+        ))
+    })?;
+    let app = app.clone();
+    CHECKING.fetch_add(1, Ordering::Relaxed);
+    std::thread::spawn(move || {
+        check(&app, id, &root, &plugins, &cache, &thumbs);
+        CHECKING.fetch_sub(1, Ordering::Relaxed);
+    });
+    Ok(())
+}
+
+#[tauri::command]
+async fn rename_project(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    from: String,
+    to: String,
+) -> Result<(), String> {
+    with(&cur, |l| l.rename_project(&from, &to))?;
+    recheck(&app)
+}
+
+#[tauri::command]
+async fn relink_meta(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    meta: PathBuf,
+    to: String,
+) -> Result<(), String> {
+    with(&cur, |l| l.relink_meta(&meta, &to))?;
+    recheck(&app)
+}
+
+#[tauri::command]
+async fn discard_meta(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    meta: PathBuf,
+) -> Result<(), String> {
+    with(&cur, |l| l.discard_meta(&meta))?;
+    recheck(&app)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -1257,6 +1321,10 @@ pub fn run() {
             save_project,
             save_tag_cover,
             rename_tag,
+            delete_tag_cover,
+            rename_project,
+            relink_meta,
+            discard_meta,
             plugins,
             install_plugin,
             update_plugin,

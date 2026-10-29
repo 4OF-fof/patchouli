@@ -13,6 +13,7 @@ export type {
   LibraryState,
   ListDiff,
   Opened,
+  Orphan,
   PluginWork,
 } from './types'
 export { sampleBackend } from './sample'

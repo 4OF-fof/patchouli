@@ -81,15 +81,15 @@ pub fn write(dir: &Path, cover: &Value) -> Result<(), String> {
         let id = card
             .get("id")
             .and_then(Value::as_str)
-            .ok_or("カードに id がありません")?;
+            .ok_or("カードに ID がありません")?;
         check_name(id)?;
         if ids.iter().any(|x| x == id) {
-            return Err(format!("カードの id「{id}」が重複しています"));
+            return Err(format!("カードの ID「{id}」が重複しています"));
         }
         let ty = card
             .get("type")
             .and_then(Value::as_str)
-            .ok_or("カードに種類がありません")?;
+            .ok_or("カードに種類が書かれていません")?;
         let mut body = card.clone();
         body.remove("id");
         if ty == DESC {

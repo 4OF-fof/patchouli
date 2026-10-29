@@ -54,6 +54,10 @@
   background: var(--accent-soft);
   color: var(--accent-ink);
 }
+.ctl button:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
 .ctl .del:hover {
   background: var(--warm);
   color: var(--danger);

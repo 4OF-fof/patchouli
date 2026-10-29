@@ -11,14 +11,15 @@ use serde_json::{Map, Value, json};
 use crate::cache::{Cache, Row, Sig};
 use crate::cover;
 use crate::note;
+use crate::orphan::{self, Orphan};
 use crate::plugin::{FormatInfo, Registry};
 
 pub const ID_KEY: &str = "patchouli-id";
-const STATE_DIR: &str = ".patchouli";
+pub(crate) const STATE_DIR: &str = ".patchouli";
 const STATE_FILE: &str = "library.json";
-const PROJECTS_DIR: &str = "projects";
-const TAGS_DIR: &str = "tags";
-const TAG_INDEX: &str = "index.json";
+pub(crate) const PROJECTS_DIR: &str = "projects";
+pub(crate) const TAGS_DIR: &str = "tags";
+pub(crate) const TAG_INDEX: &str = "index.json";
 
 pub const NOTE_EXT: &str = "md";
 
@@ -63,6 +64,8 @@ pub struct StoredItem {
     pub file: PathBuf,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thumb: Option<PathBuf>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub print: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -89,6 +92,7 @@ pub struct Opened {
     pub projects: Vec<StoredProject>,
     pub state: LibraryState,
     pub tag_covers: Map<String, Value>,
+    pub orphans: Vec<Orphan>,
     pub formats: Vec<FormatInfo>,
     pub problems: Vec<String>,
 }
@@ -98,6 +102,7 @@ pub struct Scan {
     pub projects: Vec<StoredProject>,
     pub state: LibraryState,
     pub tag_covers: Map<String, Value>,
+    pub orphans: Vec<Orphan>,
     pub problems: Vec<String>,
 }
 
@@ -112,6 +117,8 @@ pub struct Changes {
     pub state: Option<LibraryState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tag_covers: Option<Map<String, Value>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub orphans: Option<Vec<Orphan>>,
     pub problems: Vec<String>,
 }
 
@@ -122,6 +129,7 @@ impl Changes {
             && self.projects.is_none()
             && self.state.is_none()
             && self.tag_covers.is_none()
+            && self.orphans.is_none()
             && self.problems.is_empty()
     }
 }
@@ -175,6 +183,7 @@ pub struct Library {
     touched: Option<HashSet<PathBuf>>,
     /// 写しで、その ID をファイルに書いてあったもの。コピーで ID が重なったとき、元のほうに ID を残すのに使う。
     owners: HashMap<String, PathBuf>,
+    orphans: Vec<Orphan>,
 }
 
 fn new_id() -> String {
@@ -276,6 +285,7 @@ impl Library {
             projects: snap.projects,
             state: snap.state,
             tag_covers: snap.tag_covers,
+            orphans: self.orphans.clone(),
             formats: self.plugins.formats(),
             problems: vec![],
         }
@@ -289,6 +299,7 @@ impl Library {
             cache,
             touched: None,
             owners: HashMap::new(),
+            orphans: Vec::new(),
         }
     }
 
@@ -321,7 +332,10 @@ impl Library {
                     let (cover, _) = cover::read(&self.tags_dir().join(id), problems);
                     covers.insert(tag, cover);
                 }
-                None => problems.push(format!("{}: 「{tag}」の id が読めません", path.display())),
+                None => problems.push(format!(
+                    "{}: タグ「{tag}」の ID の読み込みに失敗しました",
+                    path.display()
+                )),
             }
         }
         covers
@@ -359,6 +373,7 @@ impl Library {
                 projects: snap.projects,
                 state: snap.state,
                 tag_covers: snap.tag_covers,
+                orphans: vec![],
                 formats,
                 problems: vec![],
             },
@@ -377,6 +392,8 @@ impl Library {
         let mut projects = Vec::new();
         let mut problems = Vec::new();
 
+        // 外で名前を変えた素材に、新しい ID を書く前に .meta を引き継ぐ
+        orphan::relink(root, &known, &mut problems);
         for (path, is_dir) in list_dir(root, &mut problems) {
             let name = path
                 .file_name()
@@ -421,6 +438,10 @@ impl Library {
             }
         };
         let tag_covers = lib.read_tag_covers(&mut problems);
+        orphan::sweep(root, &mut problems);
+        let ids = items.iter().map(|r| r.item.id.clone()).collect();
+        let orphans = orphan::find(root, &ids);
+        lib.orphans = orphans.clone();
         (
             lib,
             Scan {
@@ -428,6 +449,7 @@ impl Library {
                 projects,
                 state,
                 tag_covers,
+                orphans,
                 problems,
             },
         )
@@ -442,6 +464,7 @@ impl Library {
             projects: scan.projects,
             state: scan.state,
             tag_covers: scan.tag_covers,
+            orphans: scan.orphans,
             formats: self.plugins.formats(),
             problems: scan.problems,
         }
@@ -454,6 +477,10 @@ impl Library {
             problems: scan.problems,
             ..Changes::default()
         };
+        if scan.orphans != self.orphans {
+            self.orphans = scan.orphans.clone();
+            changes.orphans = Some(scan.orphans);
+        }
 
         let mut seen = HashSet::new();
         let mut rows = Vec::new();
@@ -637,6 +664,7 @@ impl Library {
                 height: None,
                 file: path.to_owned(),
                 thumb: None,
+                print: if note { None } else { orphan::print(path) },
             },
             saved,
             sig,
@@ -969,6 +997,7 @@ impl Library {
             height: None,
             file: path.clone(),
             thumb: None,
+            print: None,
         };
         self.remember(&Row {
             item: item.clone(),
@@ -1049,8 +1078,9 @@ impl Library {
         Ok(())
     }
 
-    /// 下の階層のタグも合わせて付け替える。変えた先の名前がすでにあれば、そちらを残す。
-    pub fn rename_tag(&mut self, from: &str, to: &str) -> Result<(), String> {
+    /// 下の階層のタグも合わせて付け替える。変えた先の名前がすでにあれば、keep_from のときは元の概要を、
+    /// そうでなければ変えた先の概要を残し、残さないほうのカードはごみ箱に移す。
+    pub fn rename_tag(&mut self, from: &str, to: &str, keep_from: bool) -> Result<(), String> {
         let re = |t: &str| {
             if t == from {
                 Some(to.to_owned())
@@ -1063,24 +1093,97 @@ impl Library {
         let rekey = |m: Map<String, Value>| {
             let (moved, kept): (Vec<_>, Vec<_>) = m.into_iter().partition(|(t, _)| re(t).is_some());
             let mut next: Map<String, Value> = kept.into_iter().collect();
+            let mut lost = Vec::new();
             for (t, v) in moved {
-                next.entry(re(&t).unwrap_or(t)).or_insert(v);
+                let t = re(&t).unwrap_or(t);
+                if next.contains_key(&t) && !keep_from {
+                    lost.push(v);
+                } else {
+                    lost.extend(next.insert(t, v));
+                }
             }
-            next
+            (next, lost)
         };
         let dir = self.tags_dir();
         let index_path = dir.join(TAG_INDEX);
         let Some(index) = read_json(&index_path)? else {
             return Ok(());
         };
-        let next = rekey(index.clone());
+        let (next, lost) = rekey(index.clone());
         if next == index {
             return Ok(());
         }
         write_json(&index_path, &next)?;
+        let gone: Vec<PathBuf> = lost
+            .iter()
+            .filter_map(Value::as_str)
+            .filter(|id| check_name(id).is_ok())
+            .map(|id| dir.join(id))
+            .filter(|d| d.is_dir())
+            .collect();
+        if !gone.is_empty() {
+            trash::delete_all(&gone).map_err(|e| format!("{}: {e}", dir.display()))?;
+        }
         self.mark(&dir);
-        self.cache.put_tag_covers(&rekey(self.cache.tag_covers()));
+        self.cache.put_tag_covers(&rekey(self.cache.tag_covers()).0);
         Ok(())
+    }
+
+    pub fn delete_tag_cover(&mut self, tag: &str) -> Result<(), String> {
+        let dir = self.tags_dir();
+        let index_path = dir.join(TAG_INDEX);
+        let mut index = read_json(&index_path)?.unwrap_or_default();
+        let Some(id) = index.remove(tag) else {
+            return Ok(());
+        };
+        write_json(&index_path, &index)?;
+        if let Some(cards) = id
+            .as_str()
+            .filter(|id| check_name(id).is_ok())
+            .map(|id| dir.join(id))
+            .filter(|d| d.is_dir())
+        {
+            trash::delete(&cards).map_err(|e| format!("{}: {e}", cards.display()))?;
+        }
+        self.mark(&dir);
+        let mut covers = self.cache.tag_covers();
+        covers.remove(tag);
+        self.cache.put_tag_covers(&covers);
+        Ok(())
+    }
+
+    /// フォルダと .meta の名前を変える。中の項目は、次に突き合わせたときに読み直す。
+    pub fn rename_project(&mut self, from: &str, to: &str) -> Result<(), String> {
+        let (dir, target) = (self.project_dir(from)?, self.project_dir(to)?);
+        if !dir.is_dir() {
+            return Err(format!("プロジェクト「{from}」が見つかりません"));
+        }
+        if target.exists() || meta_path(&target).exists() {
+            return Err(format!("「{to}」はすでに存在します"));
+        }
+        fs::rename(&dir, &target).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let meta = meta_path(&dir);
+        if meta.exists() {
+            fs::rename(&meta, meta_path(&target))
+                .map_err(|e| format!("{}: {e}", meta.display()))?;
+        }
+        Ok(())
+    }
+
+    fn orphan(&self, meta: &Path) -> Result<Orphan, String> {
+        self.orphans
+            .iter()
+            .find(|o| o.meta == meta)
+            .cloned()
+            .ok_or_else(|| format!("{} が見つかりません", meta.display()))
+    }
+
+    pub fn relink_meta(&mut self, meta: &Path, to: &str) -> Result<(), String> {
+        orphan::relink_to(&self.root, &self.orphan(meta)?, to)
+    }
+
+    pub fn discard_meta(&mut self, meta: &Path) -> Result<(), String> {
+        orphan::discard(&self.root, &self.orphan(meta)?)
     }
 }
 

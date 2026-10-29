@@ -20,11 +20,22 @@ export interface ItemPatch {
   body?: string
 }
 
+/** 本体が見つからない .meta。 */
+export interface Orphan {
+  meta: string
+  name: string
+  folder: string | null
+  project: boolean
+  /** つなぎ直せる先の名前。素材なら同じフォルダのタグもメモもない素材、プロジェクトなら .meta のないフォルダ */
+  candidates: string[]
+}
+
 export interface Opened {
   lib: Library
   location?: string
   pinnedProjects: string[]
   pinnedTags: string[]
+  orphans?: Orphan[]
   problems: string[]
 }
 
@@ -34,6 +45,7 @@ export interface Changed {
   projects?: Project[]
   state?: Partial<LibraryState>
   tagCovers?: Map<string, TagCoverPart[]>
+  orphans?: Orphan[]
   problems: string[]
 }
 
@@ -124,9 +136,19 @@ export interface Backend {
   createNote(name: string, folder: string | null): Promise<Item>
   createProject(name: string): Promise<Project>
   saveProject(name: string, cover: CoverPart[]): Promise<void>
+  /** フォルダの名前を変える。中の項目は、あとで onChanged で届く。 */
+  renameProject?: (from: string, to: string) => Promise<void>
   saveTagCover(tag: string, cover: TagCoverPart[]): Promise<void>
-  /** 下の階層のタグも合わせて付け替える。素材に付いたタグは saveItem で直す。 */
-  renameTag(from: string, to: string): Promise<void>
+  /**
+   * 下の階層のタグも合わせて付け替える。素材に付いたタグは saveItem で直す。
+   * 変えた先がすでにあれば、keepFrom のときは元の概要を、そうでなければ変えた先の概要を残す。
+   */
+  renameTag(from: string, to: string, keepFrom: boolean): Promise<void>
+  /** タグの概要をごみ箱に移す。 */
+  deleteTagCover(tag: string): Promise<void>
+  relinkMeta?: (meta: string, to: string) => Promise<void>
+  /** .meta をごみ箱に移す。プロジェクトなら、概要のカードも合わせて移す。 */
+  discardMeta?: (meta: string) => Promise<void>
   chooseLibrary?(): Promise<boolean>
   libraries?: LibraryActions
   tidy?: TidyActions

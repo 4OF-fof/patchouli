@@ -5,6 +5,7 @@ import {
   type Imported,
   type ItemPatch,
   type LibraryState,
+  type Orphan,
   type PluginWork,
   sampleBackend,
 } from './backend'
@@ -12,10 +13,14 @@ import { DropZone } from './components/overlay/DropZone/DropZone'
 import { ReloadOverlay } from './components/overlay/ReloadOverlay/ReloadOverlay'
 import { ImportDialog } from './components/dialog/ImportDialog/ImportDialog'
 import { DeleteDialog } from './components/dialog/DeleteDialog/DeleteDialog'
+import { OrphanDialog } from './components/dialog/OrphanDialog/OrphanDialog'
+import { TagGoneDialog } from './components/dialog/TagGoneDialog/TagGoneDialog'
+import { TagMergeDialog } from './components/dialog/TagMergeDialog/TagMergeDialog'
 import { Toast } from './components/overlay/Toast/Toast'
 import { Peek } from './components/overlay/Peek/Peek'
 import { ItemMenu } from './components/overlay/ItemMenu/ItemMenu'
 import {
+  type CoverPart,
   hasTag,
   type Item,
   type Library,
@@ -24,12 +29,17 @@ import {
   refsOf,
   retag,
   retaggedItems,
+  tagClash,
+  type TagCoverPart,
   toggled,
   withAdded,
   withChanged,
   withItem,
   withProject,
+  withProjectCover,
+  withRenamedProject,
   withRenamedTag,
+  withTagCover,
   type Thumbnail,
   withThumbs,
   withToggledPin,
@@ -85,6 +95,7 @@ export interface AppProps {
   backend?: Backend
   pinnedProjects?: string[]
   pinnedTags?: string[]
+  orphans?: Orphan[]
   location?: string
   notice?: string
 }
@@ -375,14 +386,14 @@ export function App(props: AppProps) {
       ui: backend.uiApi,
       uiUrl: backend.uiUrl,
     })
-  const renameTag = (from: string, to: string) => {
+  const renameTag = (from: string, to: string, keepFrom = false) => {
     const re = retag(from, to)
     const before = lib()
-    const after = withRenamedTag(before, from, to)
+    const after = withRenamedTag(before, from, to, keepFrom)
     setLib(after)
     setPinnedTags([...new Set(pinnedTags().map(re))])
     setStack(stack().map((v) => (v.s === 'tag' ? { ...v, tag: re(v.tag) } : v)))
-    persist(() => backend.renameTag(from, to))
+    persist(() => backend.renameTag(from, to, keepFrom))
     for (const it of retaggedItems(before, after)) {
       const old = before.byId.get(it.id)?.tags ?? []
       saveItem(it.id, {
@@ -390,6 +401,63 @@ export function App(props: AppProps) {
       })
     }
     saveState()
+  }
+  const [merging, setMerging] = createSignal<{ from: string; to: string }>()
+  // すでにあるタグの名前に変えるときは、マージするか別の名前にするかを聞く
+  const requestRenameTag = (from: string, to: string) => {
+    if (tagClash(lib(), from, to).clash) {
+      setMerging({ from, to })
+    } else {
+      setMerging(undefined)
+      renameTag(from, to)
+    }
+  }
+  const saveTagCover = (tag: string, cover: TagCoverPart[]) => {
+    setLib(withTagCover(lib(), tag, cover))
+    persist(() => backend.saveTagCover(tag, cover))
+  }
+  const deleteTagCover = (tag: string) => {
+    setLib(withTagCover(lib(), tag))
+    persist(() => backend.deleteTagCover(tag))
+  }
+  // 概要のあるタグが、どの項目にも付かなくなったら、概要を削除するか聞く
+  const [goneTags, setGoneTags] = createSignal<string[]>([])
+  const nextGoneTag = () => setGoneTags(goneTags().slice(1))
+  let tagsBefore = lib()
+  createEffect(() => {
+    const now = lib()
+    const before = tagsBefore
+    tagsBefore = now
+    const gone = [...now.tagCovers.keys()].filter(
+      (t) => !now.items.some((i) => hasTag(i, t)) && before.items.some((i) => hasTag(i, t)),
+    )
+    if (gone.length) setGoneTags((g) => [...new Set([...g, ...gone])])
+  })
+  const saveProjectCover = (name: string, cover: CoverPart[]) => {
+    setLib(withProjectCover(lib(), name, cover))
+    persist(() => backend.saveProject(name, cover))
+  }
+  const renameProject = (from: string, to: string) => {
+    const rename = backend.renameProject
+    if (!rename) return
+    if (lib().projectBy.has(to)) {
+      setNotice(`プロジェクト「${to}」はすでに存在します`)
+      return
+    }
+    persist(async () => {
+      await rename(from, to)
+      setLib(withRenamedProject(lib(), from, to))
+      setPinnedProjects(pinnedProjects().map((n) => (n === from ? to : n)))
+      setStack(stack().map((v) => (v.s === 'project' && v.name === from ? { s: 'project', name: to } : v)))
+      saveState()
+    })
+  }
+  const [orphans, setOrphans] = createSignal(props.orphans ?? [])
+  const [orphansHeld, setOrphansHeld] = createSignal(false)
+  const settleOrphan = (meta: string, job?: () => Promise<void>) => {
+    if (!job) return
+    setOrphans(orphans().filter((o) => o.meta !== meta))
+    persist(job)
   }
   const chooseLibrary =
     backend.chooseLibrary &&
@@ -531,6 +599,10 @@ export function App(props: AppProps) {
       setLib(withChanged(lib(), c.items, c.removed, c.projects, c.tagCovers, s?.pins))
       if (s?.pinnedProjects) setPinnedProjects(s.pinnedProjects)
       if (s?.pinnedTags) setPinnedTags(s.pinnedTags)
+      if (c.orphans) {
+        setOrphans(c.orphans)
+        setOrphansHeld(false)
+      }
       if (c.problems.length) {
         console.warn('読めなかったもの', c.problems)
         setNotice(`${c.problems.length} 件を読み込めませんでした`)
@@ -771,6 +843,8 @@ export function App(props: AppProps) {
                             pinned={pinnedProjects().includes(v.name)}
                             onTogglePin={togglePin}
                             onToggleProjectPin={() => toggleProjectPin(v.name)}
+                            onSaveCover={(cover) => saveProjectCover(v.name, cover)}
+                            onRename={backend.renameProject && ((to) => renameProject(v.name, to))}
                             onOpenItem={openItem}
                           />
                         )
@@ -798,7 +872,8 @@ export function App(props: AppProps) {
                             onOpenTag={(tag) => go({ s: 'tag', tag })}
                             onTogglePin={togglePin}
                             onToggleTagPin={() => toggleTagPin(v.tag)}
-                            onRename={(to) => renameTag(v.tag, to)}
+                            onRename={(to) => requestRenameTag(v.tag, to)}
+                            onSaveCover={(cover) => saveTagCover(v.tag, cover)}
                           />
                         )
                       }
@@ -860,6 +935,44 @@ export function App(props: AppProps) {
                     }
                   />
                 )}
+              </Show>
+              <Show when={merging()}>
+                {(m) => (
+                  <TagMergeDialog
+                    from={m().from}
+                    to={m().to}
+                    count={lib().items.filter((i) => hasTag(i, m().from)).length}
+                    covers={tagClash(lib(), m().from, m().to).covers}
+                    onMerge={(keepFrom) => {
+                      renameTag(m().from, m().to, keepFrom)
+                      setMerging(undefined)
+                    }}
+                    onRename={(to) => requestRenameTag(m().from, to)}
+                    onClose={() => setMerging(undefined)}
+                  />
+                )}
+              </Show>
+              <Show when={goneTags()[0]}>
+                {(t) => (
+                  <TagGoneDialog
+                    tag={t()}
+                    onDelete={() => {
+                      deleteTagCover(t())
+                      nextGoneTag()
+                    }}
+                    onClose={nextGoneTag}
+                  />
+                )}
+              </Show>
+              <Show when={!orphansHeld() && orphans().length > 0}>
+                <OrphanDialog
+                  orphans={orphans()}
+                  onRelink={(meta, to) =>
+                    settleOrphan(meta, backend.relinkMeta && (() => backend.relinkMeta!(meta, to)))
+                  }
+                  onDiscard={(meta) => settleOrphan(meta, backend.discardMeta && (() => backend.discardMeta!(meta)))}
+                  onClose={() => setOrphansHeld(true)}
+                />
               </Show>
               <Show when={lib().byId.get(deleting() ?? '')}>
                 {(it) => (

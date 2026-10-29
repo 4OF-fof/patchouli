@@ -10,7 +10,7 @@ import {
   touchedLabel,
 } from '../model/library'
 import type { FormatInfo } from '../plugins/types'
-import type { Changed, LibraryState, Opened } from './types'
+import type { Changed, LibraryState, Opened, Orphan } from './types'
 
 export interface StoredItem {
   id: string
@@ -39,6 +39,7 @@ export interface StoredLibrary<I extends StoredItem = StoredItem> {
   projects: StoredProject[]
   state: Partial<LibraryState>
   tagCovers: Record<string, TagCoverPart[]>
+  orphans: Orphan[]
   formats: FormatInfo[]
   problems: string[]
 }
@@ -49,6 +50,7 @@ export interface StoredChanged<I extends StoredItem = StoredItem> {
   projects?: StoredProject[]
   state?: Partial<LibraryState>
   tagCovers?: Record<string, TagCoverPart[]>
+  orphans?: Orphan[]
   problems: string[]
 }
 
@@ -127,6 +129,7 @@ export function toOpened<I extends StoredItem>(s: StoredLibrary<I>, today: Date,
     ),
     pinnedProjects: s.state.pinnedProjects ?? [],
     pinnedTags: s.state.pinnedTags ?? [],
+    orphans: s.orphans,
     location: s.root,
     problems: s.problems,
   }
@@ -145,5 +148,6 @@ export const toChanged = <I extends StoredItem>(
   }),
   ...(s.state && { state: s.state }),
   ...(s.tagCovers && { tagCovers: toTagCovers(s.tagCovers) }),
+  ...(s.orphans && { orphans: s.orphans }),
   problems: s.problems,
 })
