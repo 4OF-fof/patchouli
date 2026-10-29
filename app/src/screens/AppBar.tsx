@@ -40,6 +40,8 @@ export interface AppBarProps {
   lib: Library
   here?: Place
   crumbs?: string[]
+  /** 選んでいる項目の数。0 より大きければ、いまの場所の横に出す。 */
+  selected?: number
   onCrumb?: (i: number) => void
   siblingsOf?: (i: number) => NavMenuEntry[] | undefined
   onSibling?: (i: number, id: string) => void
@@ -350,6 +352,7 @@ export function AppBar(props: AppBarProps) {
             }}
           </For>
         </nav>
+        <Show when={props.selected}>{(n) => <span class={styles.selected}>{n()} 件を選択中</span>}</Show>
       </TitleBar>
       <Show when={searching()}>
         <SearchPalette

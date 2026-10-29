@@ -5,6 +5,7 @@ import { Spinner } from '../../components/base/Spinner/Spinner'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
+import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
 import { type Library, newerFirst, thumbOf } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './AllScreen.module.css'
@@ -23,6 +24,7 @@ export function AllScreen(props: AllScreenProps) {
   let more: HTMLDivElement | undefined
   const lib = () => props.lib
   const preview = useHoverPreview()
+  const sel = useSelection()
   const all = createMemo(() => {
     const pins = new Map(lib().pins.map((id, i) => [id, i]))
     const rank = (id: string) => pins.get(id) ?? pins.size
@@ -51,10 +53,12 @@ export function AllScreen(props: AllScreenProps) {
   return (
     <section class={shared.screen} aria-label="すべて">
       <ScrollArea class={shared.scroll} ref={scroll}>
-        <div class={shared.page}>
+        <SelectArea class={shared.page} order={() => all().map((x) => x.id)}>
           <header class={shared.mast}>
             <h1>すべて</h1>
-            <span class={shared.meta}>{all().length} 件</span>
+            <span class={shared.meta}>
+              {all().length} 件{sel?.ids().length ? ` · ${sel.ids().length} 件を選択中` : ''}
+            </span>
           </header>
           <Show
             when={all().length}
@@ -93,7 +97,7 @@ export function AllScreen(props: AllScreenProps) {
               続きを読み込み中
             </Show>
           </div>
-        </div>
+        </SelectArea>
       </ScrollArea>
     </section>
   )

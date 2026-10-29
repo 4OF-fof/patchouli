@@ -1,0 +1,18 @@
+/* 中のカードは --select-mark で選ぶ印を出すかを決める */
+.root {
+  --select-mark: hidden;
+}
+.root[data-mod] {
+  --select-mark: visible;
+}
+.root[data-dragging] {
+  user-select: none;
+}
+.rect {
+  position: fixed;
+  z-index: 5;
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  background: var(--accent-soft);
+  pointer-events: none;
+}

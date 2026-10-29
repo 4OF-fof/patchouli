@@ -133,3 +133,13 @@
 .wait {
   margin: 4px 6px;
 }
+[aria-checked='mixed'] > .box {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.part {
+  flex: none;
+  margin-left: auto;
+  color: var(--faint);
+  font-size: var(--fs-meta);
+}

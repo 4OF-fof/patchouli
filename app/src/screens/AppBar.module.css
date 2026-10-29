@@ -83,6 +83,13 @@
 .sep {
   color: var(--disabled);
 }
+.selected {
+  flex: none;
+  padding: 2px 6px 0;
+  color: var(--accent);
+  font-size: var(--fs-list);
+  white-space: nowrap;
+}
 @media (max-width: 760px) {
   .crumbAt:not(:last-child),
   .sep {

@@ -368,8 +368,20 @@ impl Runner {
         limit: Duration,
         f: impl FnOnce(&Plugin, &mut Store<HostState>, &str, File) -> wasmtime::Result<R>,
     ) -> Result<R, String> {
+        self.run_files(i, &[(ext, path)], limit, |p, s, mut files| {
+            f(p, s, format, files.remove(0))
+        })
+    }
+
+    /// files の順に handle を 0 から振って渡す。
+    fn run_files<R>(
+        &mut self,
+        i: usize,
+        files: &[(&str, &Path)],
+        limit: Duration,
+        f: impl FnOnce(&Plugin, &mut Store<HostState>, Vec<File>) -> wasmtime::Result<R>,
+    ) -> Result<R, String> {
         let id = self.reg.plugins[i].manifest.id.clone();
-        let size = std::fs::metadata(path).map_or(0, |m| m.len());
         start(&mut self.store, limit);
         if !self.instances.contains_key(&i) {
             let Some(pre) = self.reg.plugins[i].wasm.as_ref() else {
@@ -388,15 +400,19 @@ impl Runner {
         }
         let plugin = &self.instances[&i];
         let st = self.store.data_mut();
-        st.files = vec![path.to_owned()];
+        st.files = files.iter().map(|(_, p)| p.to_path_buf()).collect();
         st.current = id.clone();
         st.index = i;
-        let file = File {
-            handle: 0,
-            ext: ext.to_owned(),
-            size,
-        };
-        let r = f(plugin, &mut self.store, format, file);
+        let handles = files
+            .iter()
+            .zip(0u32..)
+            .map(|((ext, path), handle)| File {
+                handle,
+                ext: (*ext).to_owned(),
+                size: std::fs::metadata(path).map_or(0, |m| m.len()),
+            })
+            .collect();
+        let r = f(plugin, &mut self.store, handles);
         self.store.data_mut().files.clear();
         r.map_err(|e| {
             self.reset();
@@ -473,29 +489,45 @@ impl Runner {
         Ok(ds.into_iter().map(|d| (d.label, d.value)).collect())
     }
 
-    pub fn menu(&mut self, ext: &str, path: &Path) -> Result<Vec<(String, String)>, String> {
-        let r = self.call(
-            ext,
-            Part::Menu,
-            By::Wasm,
-            path,
-            VIEW_LIMIT,
-            |p, s, fmt, file| p.call_menu(s, fmt, &file),
-        );
+    /// 素材を 1 つのプラグインにまとめて渡す。どれかを受け持たないか、受け持つプラグインが分かれるときは None。
+    fn call_menu_part<R>(
+        &mut self,
+        files: &[(&str, &Path)],
+        f: impl FnOnce(&Plugin, &mut Store<HostState>, Vec<types::Target>) -> wasmtime::Result<R>,
+    ) -> Option<Result<R, String>> {
+        let mut plugin = None;
+        let mut formats = Vec::new();
+        for (ext, _) in files {
+            let (i, format) = self.reg.part(ext, Part::Menu, By::Wasm)?;
+            if plugin.is_some_and(|p| p != i) {
+                return None;
+            }
+            plugin = Some(i);
+            formats.push(format.to_owned());
+        }
+        Some(self.run_files(plugin?, files, VIEW_LIMIT, |p, s, handles| {
+            let targets = formats
+                .into_iter()
+                .zip(handles)
+                .map(|(format, file)| types::Target { format, file })
+                .collect();
+            f(p, s, targets)
+        }))
+    }
+
+    pub fn menu(&mut self, files: &[(&str, &Path)]) -> Result<Vec<(String, String)>, String> {
+        let r = self.call_menu_part(files, |p, s, ts| p.call_menu(s, &ts));
         let items = r.unwrap_or(Ok(Ok(Vec::new())))??;
         Ok(items.into_iter().map(|m| (m.id, m.label)).collect())
     }
 
-    pub fn run_menu(&mut self, ext: &str, path: &Path, id: &str) -> Result<Option<String>, String> {
-        self.call(
-            ext,
-            Part::Menu,
-            By::Wasm,
-            path,
-            VIEW_LIMIT,
-            |p, s, fmt, file| p.call_run_menu(s, fmt, &file, id),
-        )
-        .ok_or("メニューに対応するプラグインがありません")??
+    pub fn run_menu(
+        &mut self,
+        files: &[(&str, &Path)],
+        id: &str,
+    ) -> Result<Option<String>, String> {
+        self.call_menu_part(files, |p, s, ts| p.call_run_menu(s, &ts, id))
+            .ok_or("メニューに対応するプラグインがありません")??
     }
 
     pub fn decode(&mut self, ext: &str, path: &Path) -> Result<Vec<u8>, String> {

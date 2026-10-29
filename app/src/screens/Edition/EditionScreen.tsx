@@ -7,6 +7,7 @@ import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { Icon } from '../../components/base/Icon/Icon'
 import { Kbd } from '../../components/base/Kbd/Kbd'
 import { PinnedCard } from '../../components/media/PinnedCard/PinnedCard'
+import { SelectArea } from '../../components/media/Selection/Selection'
 import { SectionLabel } from '../../components/base/SectionLabel/SectionLabel'
 import { ThumbStrip } from '../../components/media/ThumbStrip/ThumbStrip'
 import {
@@ -178,7 +179,7 @@ export function EditionScreen(props: EditionScreenProps) {
             </div>
           }
         >
-          <div class={styles.ed}>
+          <SelectArea class={styles.ed} order={() => feed().map((f) => f.it.id)}>
             <Show when={recent().length}>
               <section class={styles.recent} aria-label="最近追加した項目">
                 <div class={styles.recentHead}>
@@ -256,7 +257,7 @@ export function EditionScreen(props: EditionScreenProps) {
                 <span class={styles.mono}>{Math.min(shown(), feed().length)}</span> 件を表示）
               </Show>
             </div>
-          </div>
+          </SelectArea>
         </Show>
       </ScrollArea>
     </section>

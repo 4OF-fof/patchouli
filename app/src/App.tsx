@@ -51,6 +51,7 @@ import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import type { Activity } from './components/nav/ActivityButton/ActivityButton'
 import type { NavMenuItem } from './components/nav/NavMenu/NavMenu'
 import type { IconName } from './components/base/Icon/Icon'
+import { SelectionProvider, createSelection } from './components/media/Selection/Selection'
 import { ItemMenuProvider, ThumbMakingProvider } from './components/media/Thumb/Thumb'
 import { AllScreen } from './screens/All/AllScreen'
 import { AppBar, type BarRequest, type Place } from './screens/AppBar'
@@ -116,6 +117,13 @@ const REVEAL_LABEL = /Mac/.test(navigator.userAgent)
     : 'フォルダを開く'
 
 const messageOf = (e: unknown) => (e instanceof Error ? e.message : String(e))
+/** 通知に並べる名前の数。残りは件数だけ出す。 */
+const NAMED = 5
+const namesOf = (its: Item[]) =>
+  its
+    .slice(0, NAMED)
+    .map((it) => `「${it.name}」`)
+    .join('') + (its.length > NAMED ? `ほか ${its.length - NAMED} 件` : '')
 
 const workCount = (w?: PluginWork) => (w ? w.thumbnails.length + w.waveforms.length : 0)
 
@@ -138,6 +146,7 @@ export function App(props: AppProps) {
   const backend = props.backend ?? sampleBackend()
   const [lib, setLib] = createSignal(props.lib)
   const [stack, setStack] = createSignal<View[]>([{ s: 'edition' }])
+  const selection = createSelection((ids) => setDeleting(ids))
   const [pinnedProjects, setPinnedProjects] = createSignal(props.pinnedProjects ?? PINNED_PROJECTS)
   const [pinnedTags, setPinnedTags] = createSignal(props.pinnedTags ?? PINNED_TAGS)
   const [notice, setNotice] = createSignal(props.notice)
@@ -217,6 +226,7 @@ export function App(props: AppProps) {
   createEffect(() => {
     stack()
     setPeek(undefined)
+    selection.clear()
   })
   const onGo = (to: Place) => {
     if (to === 'tidy') go({ s: 'tidy' })
@@ -294,6 +304,45 @@ export function App(props: AppProps) {
     if (it && it.folder !== folder)
       changeFile(id, { folder }, { folder: it.folder }, () => backend.moveItem(id, folder))
   }
+  // 1 件ずつ動かし、動かせなかったものは元に戻して名前を知らせる
+  const moveItems = (ids: string[], folder: string | null) => {
+    const its = ids.flatMap((id) => lib().byId.get(id) ?? []).filter((it) => it.folder !== folder)
+    if (its.length <= 1) {
+      if (its[0]) moveItem(its[0].id, folder)
+      return
+    }
+    setLib(
+      withChanged(
+        lib(),
+        its.map((it) => ({ ...it, folder })),
+        [],
+      ),
+    )
+    selection.clear()
+    queue = queue.then(async () => {
+      const failed: Item[] = []
+      for (const it of its) {
+        try {
+          const done = await backend.moveItem(it.id, folder)
+          if (done) setLib(withChanged(lib(), [done], []))
+        } catch {
+          const now = lib().byId.get(it.id)
+          if (now) setLib(withChanged(lib(), [{ ...now, folder: it.folder }], []))
+          failed.push(it)
+        }
+      }
+      const place = `「${folder ?? 'プロジェクトなし'}」へ`
+      const moved = its.length - failed.length
+      setNotice(
+        failed.length
+          ? `${moved ? `${moved} 件を${place}移しました。` : ''}${namesOf(failed)}は、同じ名前のファイルがあるなどで移せませんでした`
+          : `${moved} 件を${place}移しました`,
+      )
+    })
+  }
+  const tagItems = (ids: string[], tag: string, on: boolean) => {
+    for (const id of ids) if (lib().byId.get(id)?.tags.includes(tag) !== on) tagItem(id, tag, on)
+  }
   const renameItem = (id: string, name: string) => {
     const it = lib().byId.get(id)
     if (it && it.name !== name) changeFile(id, { name }, { name: it.name }, () => backend.renameItem(id, name))
@@ -310,46 +359,63 @@ export function App(props: AppProps) {
       return [{ ...v, list, index: cur === id ? Math.min(at, list.length - 1) : list.indexOf(cur ?? '') }]
     })
   // 先に頼んだ保存が、ごみ箱に移動したあとでメタ情報を書き直さないよう、保存と同じ順番に並べる
-  const deleteItem = (id: string) => {
+  const deleteItems = (ids: string[]) => {
     const del = backend.deleteItem
-    const it = lib().byId.get(id)
-    if (!del || !it) return
+    const its = ids.flatMap((id) => lib().byId.get(id) ?? [])
+    if (!del || !its.length) return
     queue = queue.then(async () => {
-      try {
-        await del(id)
-      } catch (e) {
-        setNotice(`削除に失敗しました：${messageOf(e)}`)
-        return
+      const failed: { it: Item; e: unknown }[] = []
+      let pinned = false
+      for (const it of its) {
+        try {
+          await del(it.id)
+        } catch (e) {
+          failed.push({ it, e })
+          continue
+        }
+        pinned ||= lib().pins.includes(it.id)
+        setLib(withChanged(lib(), [], [it.id]))
+        const rest = withoutItem(stack(), it.id)
+        setStack(rest.length ? rest : [{ s: 'edition' }])
+        if (peek() === it.id) setPeek(undefined)
       }
-      const pinned = lib().pins.includes(id)
-      setLib(withChanged(lib(), [], [id]))
-      const rest = withoutItem(stack(), id)
-      setStack(rest.length ? rest : [{ s: 'edition' }])
-      if (peek() === id) setPeek(undefined)
       if (pinned) saveState()
-      setNotice(`「${it.name}」をごみ箱に移動しました`)
+      selection.set(selection.ids().filter((id) => lib().byId.has(id)))
+      const done = its.length - failed.length
+      const one = its.length === 1 ? its[0] : undefined
+      if (one && failed[0]) setNotice(`削除に失敗しました：${messageOf(failed[0].e)}`)
+      else if (one) setNotice(`「${one.name}」をごみ箱に移動しました`)
+      else
+        setNotice(
+          failed.length
+            ? `${done ? `${done} 件をごみ箱に移動しました。` : ''}${namesOf(failed.map((f) => f.it))}は削除できませんでした`
+            : `${done} 件をごみ箱に移動しました`,
+        )
     })
   }
-  const [deleting, setDeleting] = createSignal<string>()
+  const [deleting, setDeleting] = createSignal<string[]>()
   const copy = (text: string, done: string) =>
     navigator.clipboard.writeText(text).then(
       () => setNotice(done),
       (e: unknown) => setNotice(`コピーに失敗しました：${messageOf(e)}`),
     )
-  const [menu, setMenu] = createSignal<{ id: string; x: number; y: number }>()
+  const [menu, setMenu] = createSignal<{ ids: string[]; x: number; y: number }>()
   const [menuPlugins, setMenuPlugins] = createSignal<MenuEntry[]>()
+  // 選んでいないものを右クリックしたときは、選択を外してそれだけにかける
   const openMenu = (id: string, at: { x: number; y: number }) => {
-    const m = { id, ...at }
+    const ids = selection.has(id) ? selection.ids() : [id]
+    if (!selection.has(id)) selection.clear()
+    const m = { ids, ...at }
     setMenu(m)
     setMenuPlugins(undefined)
-    if (lib().byId.get(id)?.note || !backend.itemMenu) return
-    backend.itemMenu(id).then(
+    if (ids.some((x) => lib().byId.get(x)?.note) || !backend.itemMenu) return
+    backend.itemMenu(ids).then(
       (es) => menu() === m && setMenuPlugins(es),
       (e: unknown) => console.warn('プラグインのメニューを読めない', e),
     )
   }
-  const runPlugin = (id: string, entry: string) =>
-    backend.runItemMenu?.(id, entry).then(
+  const runPlugin = (ids: string[], entry: string) =>
+    backend.runItemMenu?.(ids, entry).then(
       (msg) => msg && setNotice(msg),
       (e: unknown) => setNotice(`プラグインの処理に失敗しました：${messageOf(e)}`),
     )
@@ -541,6 +607,12 @@ export function App(props: AppProps) {
   }
   const togglePin = (id: string) => {
     setLib(withToggledPin(lib(), id))
+    saveState()
+  }
+  const pinItems = (ids: string[], on: boolean) => {
+    let next = lib()
+    for (const id of ids) if (next.pins.includes(id) !== on) next = withToggledPin(next, id)
+    setLib(next)
     saveState()
   }
   const toggleProjectPin = (name: string) => {
@@ -778,273 +850,291 @@ export function App(props: AppProps) {
     <FormatsProvider value={() => lib().formats}>
       <ThumbMakingProvider value={(id) => making.ids().has(id) || waves.ids().has(id)}>
         <ItemMenuProvider value={openMenu}>
-          <HoverHostProvider value={hoverHost}>
-            <ScreenFrame
-              bar={
-                <AppBar
-                  lib={lib()}
-                  here={here()}
-                  crumbs={crumbs()}
-                  onCrumb={(i) => setStack(stack().slice(0, i + 1))}
-                  siblingsOf={siblingsOf}
-                  onSibling={toSibling}
-                  onGo={onGo}
-                  onOpenProject={(name) => go({ s: 'project', name })}
-                  onOpenItem={(id) => openItem(id)}
-                  onCreate={createNote}
-                  library={props.location}
-                  onChooseLibrary={chooseLibrary}
-                  libraries={backend.libraries}
-                  tidy={backend.tidy}
-                  developer={backend.developer}
-                  onReopen={() => window.location.reload()}
-                  loadPlugins={() => backend.plugins()}
-                  pluginActions={backend.pluginActions}
-                  onPluginsChanged={reloadPlugins}
-                  request={barRequest()}
-                  activities={activities()}
-                />
-              }
-              toast={
-                (notice() || broken().length > 0) && (
-                  <>
-                    {notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}
-                    {brokenNotice()}
-                  </>
-                )
-              }
-            >
-              {/* プラグインを読み直したら、組み込み UI を描き直すため、いまの画面を作り直す */}
-              <For each={[plugged()]}>
-                {() => (
-                  <Switch>
-                    <Match when={view().s === 'edition'}>
-                      <EditionScreen
-                        lib={lib()}
-                        location={props.location}
-                        pinnedProjects={pinnedProjects()}
-                        pinnedTags={pinnedTags()}
-                        onOpenItem={(id) => openItem(id)}
-                        onOpenProject={(name) => go({ s: 'project', name })}
-                        onOpenTag={(tag) => go({ s: 'tag', tag })}
-                        onTidy={(id) => go({ s: 'tidy', id })}
-                      />
-                    </Match>
-                    <Match when={view().s === 'all'}>
-                      <AllScreen lib={lib()} onOpenItem={openItem} onTogglePin={togglePin} />
-                    </Match>
-                    <Match when={view().s === 'project' && view()} keyed>
-                      {(v) =>
-                        v.s === 'project' && (
-                          <ProjectScreen
-                            lib={lib()}
-                            name={v.name}
-                            editing={v.editing}
-                            pinned={pinnedProjects().includes(v.name)}
-                            onTogglePin={togglePin}
-                            onToggleProjectPin={() => toggleProjectPin(v.name)}
-                            onSaveCover={(cover) => saveProjectCover(v.name, cover)}
-                            onRename={backend.renameProject && ((to) => renameProject(v.name, to))}
-                            onOpenItem={openItem}
-                          />
-                        )
-                      }
-                    </Match>
-                    <Match when={view().s === 'plist'}>
-                      <ProjectListScreen
-                        lib={lib()}
-                        pinned={pinnedProjects()}
-                        onOpenProject={(name) => go({ s: 'project', name })}
-                        onCreate={createProject}
-                      />
-                    </Match>
-                    <Match when={view().s === 'tlist'}>
-                      <TagListScreen lib={lib()} onOpenTag={(tag) => go({ s: 'tag', tag })} />
-                    </Match>
-                    <Match when={view().s === 'tag' && view()} keyed>
-                      {(v) =>
-                        v.s === 'tag' && (
-                          <TagScreen
-                            lib={lib()}
-                            tag={v.tag}
-                            pinned={pinnedTags().includes(v.tag)}
-                            onOpenItem={openItem}
-                            onOpenTag={(tag) => go({ s: 'tag', tag })}
-                            onTogglePin={togglePin}
-                            onToggleTagPin={() => toggleTagPin(v.tag)}
-                            onRename={(to) => requestRenameTag(v.tag, to)}
-                            onSaveCover={(cover) => saveTagCover(v.tag, cover)}
-                          />
-                        )
-                      }
-                    </Match>
-                    <Match when={view().s === 'note' && view()} keyed>
-                      {(v) => v.s === 'note' && noteScreen(v.id, true)}
-                    </Match>
-                    <Match when={view().s === 'asset' && view()} keyed>
-                      {(v) =>
-                        v.s === 'asset' &&
-                        assetScreen(v.list, assetIndex.get(v) ?? v.index, (i) => assetIndex.set(v, i))
-                      }
-                    </Match>
-                    <Match when={view().s === 'tidy' && view()} keyed>
-                      {(v) =>
-                        v.s === 'tidy' && <TidyScreen lib={lib()} currentId={v.id} onOpenItem={(id) => openItem(id)} />
-                      }
-                    </Match>
-                  </Switch>
-                )}
-              </For>
-              <Show when={peek()}>
-                {(id) => (
-                  <Peek
-                    label={lib().byId.get(id())?.name ?? ''}
-                    onExpand={() => {
-                      const to = id()
-                      setPeek(undefined)
-                      openItem(to)
-                    }}
-                    onClose={() => setPeek(undefined)}
-                  >
-                    <Show when={id()} keyed>
-                      {(to) => (lib().byId.get(to)?.note ? noteScreen(to, false) : assetScreen([to], 0))}
-                    </Show>
-                  </Peek>
-                )}
-              </Show>
-              <Show when={reloading()}>
-                {(r) => (
-                  <ReloadOverlay
-                    step={r().step}
-                    work={r().work}
-                    onWait={() => answer?.('wait')}
-                    onStop={() => (r().step === 'ask' ? answer?.('stop') : void backend.stopPluginWork?.())}
+          <SelectionProvider value={selection}>
+            <HoverHostProvider value={hoverHost}>
+              <ScreenFrame
+                bar={
+                  <AppBar
+                    lib={lib()}
+                    here={here()}
+                    crumbs={crumbs()}
+                    selected={selection.ids().length}
+                    onCrumb={(i) => setStack(stack().slice(0, i + 1))}
+                    siblingsOf={siblingsOf}
+                    onSibling={toSibling}
+                    onGo={onGo}
+                    onOpenProject={(name) => go({ s: 'project', name })}
+                    onOpenItem={(id) => openItem(id)}
+                    onCreate={createNote}
+                    library={props.location}
+                    onChooseLibrary={chooseLibrary}
+                    libraries={backend.libraries}
+                    tidy={backend.tidy}
+                    developer={backend.developer}
+                    onReopen={() => window.location.reload()}
+                    loadPlugins={() => backend.plugins()}
+                    pluginActions={backend.pluginActions}
+                    onPluginsChanged={reloadPlugins}
+                    request={barRequest()}
+                    activities={activities()}
                   />
-                )}
-              </Show>
-              <Show when={!intoNote() && drag()}>
-                {(d) => (
-                  <DropZone
-                    title={d().files ? `${d().files} 件のファイルを取り込む` : '取り込めるファイルがありません'}
-                    sub={
-                      !d().files
-                        ? 'ライブラリ内のファイルと空のフォルダは取り込めません'
-                        : d().folders.length
-                          ? 'ドロップ後にフォルダごとの取り込み方法を選択できます'
-                          : flatSub()
+                }
+                toast={
+                  (notice() || broken().length > 0) && (
+                    <>
+                      {notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}
+                      {brokenNotice()}
+                    </>
+                  )
+                }
+              >
+                {/* プラグインを読み直したら、組み込み UI を描き直すため、いまの画面を作り直す */}
+                <For each={[plugged()]}>
+                  {() => (
+                    <Switch>
+                      <Match when={view().s === 'edition'}>
+                        <EditionScreen
+                          lib={lib()}
+                          location={props.location}
+                          pinnedProjects={pinnedProjects()}
+                          pinnedTags={pinnedTags()}
+                          onOpenItem={(id) => openItem(id)}
+                          onOpenProject={(name) => go({ s: 'project', name })}
+                          onOpenTag={(tag) => go({ s: 'tag', tag })}
+                          onTidy={(id) => go({ s: 'tidy', id })}
+                        />
+                      </Match>
+                      <Match when={view().s === 'all'}>
+                        <AllScreen lib={lib()} onOpenItem={openItem} onTogglePin={togglePin} />
+                      </Match>
+                      <Match when={view().s === 'project' && view()} keyed>
+                        {(v) =>
+                          v.s === 'project' && (
+                            <ProjectScreen
+                              lib={lib()}
+                              name={v.name}
+                              editing={v.editing}
+                              pinned={pinnedProjects().includes(v.name)}
+                              onTogglePin={togglePin}
+                              onToggleProjectPin={() => toggleProjectPin(v.name)}
+                              onSaveCover={(cover) => saveProjectCover(v.name, cover)}
+                              onRename={backend.renameProject && ((to) => renameProject(v.name, to))}
+                              onOpenItem={openItem}
+                            />
+                          )
+                        }
+                      </Match>
+                      <Match when={view().s === 'plist'}>
+                        <ProjectListScreen
+                          lib={lib()}
+                          pinned={pinnedProjects()}
+                          onOpenProject={(name) => go({ s: 'project', name })}
+                          onCreate={createProject}
+                        />
+                      </Match>
+                      <Match when={view().s === 'tlist'}>
+                        <TagListScreen lib={lib()} onOpenTag={(tag) => go({ s: 'tag', tag })} />
+                      </Match>
+                      <Match when={view().s === 'tag' && view()} keyed>
+                        {(v) =>
+                          v.s === 'tag' && (
+                            <TagScreen
+                              lib={lib()}
+                              tag={v.tag}
+                              pinned={pinnedTags().includes(v.tag)}
+                              onOpenItem={openItem}
+                              onOpenTag={(tag) => go({ s: 'tag', tag })}
+                              onTogglePin={togglePin}
+                              onToggleTagPin={() => toggleTagPin(v.tag)}
+                              onRename={(to) => requestRenameTag(v.tag, to)}
+                              onSaveCover={(cover) => saveTagCover(v.tag, cover)}
+                            />
+                          )
+                        }
+                      </Match>
+                      <Match when={view().s === 'note' && view()} keyed>
+                        {(v) => v.s === 'note' && noteScreen(v.id, true)}
+                      </Match>
+                      <Match when={view().s === 'asset' && view()} keyed>
+                        {(v) =>
+                          v.s === 'asset' &&
+                          assetScreen(v.list, assetIndex.get(v) ?? v.index, (i) => assetIndex.set(v, i))
+                        }
+                      </Match>
+                      <Match when={view().s === 'tidy' && view()} keyed>
+                        {(v) =>
+                          v.s === 'tidy' && (
+                            <TidyScreen lib={lib()} currentId={v.id} onOpenItem={(id) => openItem(id)} />
+                          )
+                        }
+                      </Match>
+                    </Switch>
+                  )}
+                </For>
+                <Show when={peek()}>
+                  {(id) => (
+                    <Peek
+                      label={lib().byId.get(id())?.name ?? ''}
+                      onExpand={() => {
+                        const to = id()
+                        setPeek(undefined)
+                        openItem(to)
+                      }}
+                      onClose={() => setPeek(undefined)}
+                    >
+                      <Show when={id()} keyed>
+                        {(to) => (lib().byId.get(to)?.note ? noteScreen(to, false) : assetScreen([to], 0))}
+                      </Show>
+                    </Peek>
+                  )}
+                </Show>
+                <Show when={reloading()}>
+                  {(r) => (
+                    <ReloadOverlay
+                      step={r().step}
+                      work={r().work}
+                      onWait={() => answer?.('wait')}
+                      onStop={() => (r().step === 'ask' ? answer?.('stop') : void backend.stopPluginWork?.())}
+                    />
+                  )}
+                </Show>
+                <Show when={!intoNote() && drag()}>
+                  {(d) => (
+                    <DropZone
+                      title={d().files ? `${d().files} 件のファイルを取り込む` : '取り込めるファイルがありません'}
+                      sub={
+                        !d().files
+                          ? 'ライブラリ内のファイルと空のフォルダは取り込めません'
+                          : d().folders.length
+                            ? 'ドロップ後にフォルダごとの取り込み方法を選択できます'
+                            : flatSub()
+                      }
+                    />
+                  )}
+                </Show>
+                <Show when={merging()}>
+                  {(m) => (
+                    <TagMergeDialog
+                      from={m().from}
+                      to={m().to}
+                      count={lib().items.filter((i) => hasTag(i, m().from)).length}
+                      covers={tagClash(lib(), m().from, m().to).covers}
+                      onMerge={(keepFrom) => {
+                        renameTag(m().from, m().to, keepFrom)
+                        setMerging(undefined)
+                      }}
+                      onRename={(to) => requestRenameTag(m().from, to)}
+                      onClose={() => setMerging(undefined)}
+                    />
+                  )}
+                </Show>
+                <Show when={goneTags()[0]}>
+                  {(t) => (
+                    <TagGoneDialog
+                      tag={t()}
+                      onDelete={() => {
+                        deleteTagCover(t())
+                        nextGoneTag()
+                      }}
+                      onClose={nextGoneTag}
+                    />
+                  )}
+                </Show>
+                <Show when={!orphansHeld() && orphans().length > 0}>
+                  <OrphanDialog
+                    orphans={orphans()}
+                    onRelink={(meta, to) =>
+                      settleOrphan(meta, backend.relinkMeta && (() => backend.relinkMeta!(meta, to)))
                     }
+                    onDiscard={(meta) => settleOrphan(meta, backend.discardMeta && (() => backend.discardMeta!(meta)))}
+                    onClose={() => setOrphansHeld(true)}
                   />
-                )}
-              </Show>
-              <Show when={merging()}>
-                {(m) => (
-                  <TagMergeDialog
-                    from={m().from}
-                    to={m().to}
-                    count={lib().items.filter((i) => hasTag(i, m().from)).length}
-                    covers={tagClash(lib(), m().from, m().to).covers}
-                    onMerge={(keepFrom) => {
-                      renameTag(m().from, m().to, keepFrom)
-                      setMerging(undefined)
-                    }}
-                    onRename={(to) => requestRenameTag(m().from, to)}
-                    onClose={() => setMerging(undefined)}
-                  />
-                )}
-              </Show>
-              <Show when={goneTags()[0]}>
-                {(t) => (
-                  <TagGoneDialog
-                    tag={t()}
-                    onDelete={() => {
-                      deleteTagCover(t())
-                      nextGoneTag()
-                    }}
-                    onClose={nextGoneTag}
-                  />
-                )}
-              </Show>
-              <Show when={!orphansHeld() && orphans().length > 0}>
-                <OrphanDialog
-                  orphans={orphans()}
-                  onRelink={(meta, to) =>
-                    settleOrphan(meta, backend.relinkMeta && (() => backend.relinkMeta!(meta, to)))
-                  }
-                  onDiscard={(meta) => settleOrphan(meta, backend.discardMeta && (() => backend.discardMeta!(meta)))}
-                  onClose={() => setOrphansHeld(true)}
-                />
-              </Show>
-              <Show when={lib().byId.get(deleting() ?? '')}>
-                {(it) => (
-                  <DeleteDialog
-                    name={it().name}
-                    note={it().note}
-                    onDelete={() => {
-                      deleteItem(it().id)
-                      setDeleting(undefined)
-                    }}
-                    onClose={() => setDeleting(undefined)}
-                  />
-                )}
-              </Show>
-              <Show when={asking()}>
-                {(d) => (
-                  <ImportDialog
-                    files={d().files}
-                    folders={d().folders}
-                    loose={d().loose}
-                    into={dropFolder() ?? undefined}
-                    onImport={(projects) => {
-                      setAsking(undefined)
-                      void importDropped(projects)
-                    }}
-                    onClose={() => setAsking(undefined)}
-                  />
-                )}
-              </Show>
-              <Show when={menu()} keyed>
-                {(m) => (
-                  <Show when={lib().byId.get(m.id)}>
-                    {(it) => {
-                      const { revealItem: reveal, openItemDefault: openDefault, itemPath } = backend
-                      return (
+                </Show>
+                <Show when={deleting()?.flatMap((id) => lib().byId.get(id) ?? [])} keyed>
+                  {(its) => (
+                    <Show when={its.length}>
+                      <DeleteDialog
+                        items={its}
+                        onDelete={() => {
+                          deleteItems(its.map((it) => it.id))
+                          setDeleting(undefined)
+                        }}
+                        onClose={() => setDeleting(undefined)}
+                      />
+                    </Show>
+                  )}
+                </Show>
+                <Show when={asking()}>
+                  {(d) => (
+                    <ImportDialog
+                      files={d().files}
+                      folders={d().folders}
+                      loose={d().loose}
+                      into={dropFolder() ?? undefined}
+                      onImport={(projects) => {
+                        setAsking(undefined)
+                        void importDropped(projects)
+                      }}
+                      onClose={() => setAsking(undefined)}
+                    />
+                  )}
+                </Show>
+                <Show when={menu()} keyed>
+                  {(m) => {
+                    const its = () => m.ids.flatMap((id) => lib().byId.get(id) ?? [])
+                    const ids = () => its().map((it) => it.id)
+                    const one = () => (its().length === 1 ? its()[0]?.id : undefined)
+                    const { revealItem: reveal, openItemDefault: openDefault, itemPath } = backend
+                    return (
+                      <Show when={its().length}>
                         <ItemMenu
-                          item={it()}
+                          items={its()}
                           x={m.x}
                           y={m.y}
-                          pinned={lib().pins.includes(m.id)}
+                          pinned={ids().filter((id) => lib().pins.includes(id)).length}
                           projects={lib().projects.map((p) => p.name)}
                           tags={allTags()}
                           recentTags={recentTags()}
                           plugins={menuPlugins()}
                           revealLabel={REVEAL_LABEL}
-                          onOpen={() => openItem(m.id)}
-                          onOpenDefault={openDefault && (() => void openDefault(m.id).catch(fail))}
-                          onReveal={reveal && (() => void reveal(m.id).catch(fail))}
-                          onRename={(name) => renameItem(m.id, name)}
-                          onMove={(folder) => moveItem(m.id, folder)}
-                          onTag={(tag, on) => tagItem(m.id, tag, on)}
-                          onTogglePin={() => togglePin(m.id)}
+                          onOpen={() => one() && openItem(one()!)}
+                          onOpenDefault={openDefault && (() => one() && void openDefault(one()!).catch(fail))}
+                          onReveal={reveal && (() => one() && void reveal(one()!).catch(fail))}
+                          onRename={(name) => one() && renameItem(one()!, name)}
+                          onMove={(folder) => moveItems(ids(), folder)}
+                          onTag={(tag, on) => tagItems(ids(), tag, on)}
+                          onPin={(on) => pinItems(ids(), on)}
                           onCopyPath={
                             itemPath &&
                             (() =>
-                              void itemPath(m.id).then(
-                                (p) => copy(p, 'パスをコピーしました'),
+                              void Promise.all(ids().map(itemPath)).then(
+                                (ps) =>
+                                  copy(
+                                    ps.join('\n'),
+                                    ps.length > 1 ? `${ps.length} 件のパスをコピーしました` : 'パスをコピーしました',
+                                  ),
                                 (e: unknown) => setNotice(`コピーに失敗しました：${messageOf(e)}`),
                               ))
                           }
-                          onCopyName={() => void copy(it().name, '名前をコピーしました')}
-                          onPlugin={(entry) => void runPlugin(m.id, entry)}
-                          onDelete={backend.deleteItem && (() => setDeleting(m.id))}
+                          onCopyName={() =>
+                            void copy(
+                              its()
+                                .map((it) => it.name)
+                                .join('\n'),
+                              its().length > 1 ? `${its().length} 件の名前をコピーしました` : '名前をコピーしました',
+                            )
+                          }
+                          onPlugin={(entry) => void runPlugin(ids(), entry)}
+                          onDelete={backend.deleteItem && (() => setDeleting(ids()))}
                           onClose={() => menu() === m && setMenu(undefined)}
                         />
-                      )
-                    }}
-                  </Show>
-                )}
-              </Show>
-            </ScreenFrame>
-          </HoverHostProvider>
+                      </Show>
+                    )
+                  }}
+                </Show>
+              </ScreenFrame>
+            </HoverHostProvider>
+          </SelectionProvider>
         </ItemMenuProvider>
       </ThumbMakingProvider>
     </FormatsProvider>

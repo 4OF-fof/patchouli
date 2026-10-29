@@ -1,4 +1,4 @@
-package patchouli:plugin@0.7.0;
+package patchouli:plugin@0.8.0;
 
 interface types {
   /// アプリが渡すファイル。中身はホストの関数を通して読む。
@@ -41,6 +41,12 @@ interface types {
   record detail {
     label: string,
     value: string,
+  }
+
+  /// 右クリックメニューを開いた素材 1 つ。format は受け持つ形式（拡張子）。
+  record target {
+    format: string,
+    file: file,
   }
 
   /// 右クリックメニューに足す項目。
@@ -137,7 +143,7 @@ interface host {
 
 world plugin {
   import host;
-  use types.{file, thumbnail, view, detail, menu-item, setting};
+  use types.{file, thumbnail, view, detail, target, menu-item, setting};
 
   /// サムネイル。作らないときは none。format は受け持つ形式（拡張子）。
   export thumbnail: func(format: string, f: file, edge: u32) -> result<option<thumbnail>, string>;
@@ -152,10 +158,12 @@ world plugin {
   export details: func(format: string, f: file) -> result<list<detail>, string>;
 
   /// 素材の右クリックメニューに足す項目。plugin.json の parts に menu を書いた形式で、メニューを開くたびに呼ぶ。
-  export menu: func(format: string, f: file) -> result<list<menu-item>, string>;
+  /// targets は選んでいる素材すべてで、1 つ以上ある。選んだものがすべてこのプラグインの受け持つ形式のときだけ呼ぶ。
+  /// 数を見て、1 つのときだけ・複数のときだけの項目を返せる。返した項目は、選んだものすべてにかける。
+  export menu: func(targets: list<target>) -> result<list<menu-item>, string>;
 
-  /// menu で返した項目が選ばれたとき。文字列を返すと、アプリが通知として出す。
-  export run-menu: func(format: string, f: file, id: string) -> result<option<string>, string>;
+  /// menu で返した項目が選ばれたとき。targets は menu と同じもの。文字列を返すと、アプリが通知として出す。
+  export run-menu: func(targets: list<target>, id: string) -> result<option<string>, string>;
 
   /// 設定の項目。ライブラリを開いたときに一度だけ呼ぶ。
   export settings: func() -> list<setting>;

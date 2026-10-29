@@ -162,11 +162,11 @@ impl Guest for Ppm {
         Ok(Vec::new())
     }
 
-    fn menu(_format: String, _f: File) -> Result<Vec<MenuItem>, String> {
+    fn menu(_targets: Vec<Target>) -> Result<Vec<MenuItem>, String> {
         Ok(Vec::new())
     }
 
-    fn run_menu(_format: String, _f: File, id: String) -> Result<Option<String>, String> {
+    fn run_menu(_targets: Vec<Target>, id: String) -> Result<Option<String>, String> {
         Err(format!("{id} には対応していません"))
     }
 

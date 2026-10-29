@@ -50,3 +50,25 @@
   right: 8px;
   top: 8px;
 }
+/* 選べる範囲（SelectArea）の中では、--select-mark で出すかが決まる */
+.mark {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1.5px solid var(--overlay-ink);
+  border-radius: var(--radius-sm);
+  background: var(--overlay);
+  color: transparent;
+  visibility: var(--select-mark, hidden);
+  cursor: pointer;
+}
+.mark[aria-checked='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}

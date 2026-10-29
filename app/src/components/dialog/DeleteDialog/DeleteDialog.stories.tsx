@@ -6,7 +6,7 @@ const meta = {
   component: DeleteDialog,
   parameters: { layout: 'fullscreen' },
   args: {
-    name: 'moodboard-01',
+    items: [{ name: 'moodboard-01' }],
     onDelete: () => {},
     onClose: () => {},
   },
@@ -22,4 +22,18 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
-export const Note: Story = { name: 'ノート', args: { name: '配色メモ：秋の企画', note: true } }
+export const Note: Story = { name: 'ノート', args: { items: [{ name: '配色メモ：秋の企画', note: true }] } }
+export const Many: Story = {
+  name: '複数',
+  args: {
+    items: [
+      { name: 'moodboard-01' },
+      { name: 'IMG_2041' },
+      { name: '配色メモ：秋の企画', note: true },
+      { name: 'leaf-macro' },
+      { name: 'sage-swatch' },
+      { name: 'vermilion-dot' },
+      { name: 'poster-draft' },
+    ],
+  },
+}

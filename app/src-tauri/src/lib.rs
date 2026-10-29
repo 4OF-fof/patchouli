@@ -153,15 +153,33 @@ impl Target {
 
     /// プラグインを呼ぶ。ほかの呼び出しが使っているあいだは待たず、新しく作って使う。
     fn run<T>(&self, f: impl FnOnce(&mut Runner, &str, &Path) -> T) -> T {
+        self.runner(|r| f(r, &self.ext, &self.path))
+    }
+
+    fn runner<T>(&self, f: impl FnOnce(&mut Runner) -> T) -> T {
         match self.runner.try_lock() {
-            Ok(mut r) => f(&mut r, &self.ext, &self.path),
-            Err(_) => f(
-                &mut Runner::new(Arc::clone(&self.plugins)),
-                &self.ext,
-                &self.path,
-            ),
+            Ok(mut r) => f(&mut r),
+            Err(_) => f(&mut Runner::new(Arc::clone(&self.plugins))),
         }
     }
+}
+
+/// 選んだ素材をまとめてプラグインに渡す。
+fn run_targets<T>(
+    cur: &State<Current>,
+    ids: &[String],
+    f: impl FnOnce(&mut Runner, &[(&str, &Path)]) -> Result<T, String>,
+) -> Result<T, String> {
+    let ts = ids
+        .iter()
+        .map(|id| Target::of(cur, id))
+        .collect::<Result<Vec<_>, _>>()?;
+    let first = ts.first().ok_or("素材を選んでいません")?;
+    let files: Vec<_> = ts
+        .iter()
+        .map(|t| (t.ext.as_str(), t.path.as_path()))
+        .collect();
+    first.runner(|r| f(r, &files))
 }
 
 fn reads_now(plugins: &Registry, before: Option<&Reads>, ext: &str) -> Reads {
@@ -820,9 +838,8 @@ async fn item_path(cur: State<'_, Current>, id: String) -> Result<PathBuf, Strin
 }
 
 #[tauri::command]
-async fn item_menu(cur: State<'_, Current>, id: String) -> Result<Vec<MenuEntry>, String> {
-    let t = Target::of(&cur, &id)?;
-    let items = t.run(|r, ext, path| r.menu(ext, path))?;
+async fn item_menu(cur: State<'_, Current>, ids: Vec<String>) -> Result<Vec<MenuEntry>, String> {
+    let items = run_targets(&cur, &ids, |r, files| r.menu(files))?;
     Ok(items
         .into_iter()
         .map(|(id, label)| MenuEntry { id, label })
@@ -832,10 +849,10 @@ async fn item_menu(cur: State<'_, Current>, id: String) -> Result<Vec<MenuEntry>
 #[tauri::command]
 async fn run_item_menu(
     cur: State<'_, Current>,
-    id: String,
+    ids: Vec<String>,
     entry: String,
 ) -> Result<Option<String>, String> {
-    Target::of(&cur, &id)?.run(|r, ext, path| r.run_menu(ext, path, &entry))
+    run_targets(&cur, &ids, |r, files| r.run_menu(files, &entry))
 }
 
 #[tauri::command]

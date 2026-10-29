@@ -7,6 +7,8 @@ import styles from './TagPicker.module.css'
 
 export interface TagPickerProps {
   tags: string[]
+  /** 選んだもののうち一部にだけ付いているタグと、添える文字（「2/5」など）。押すとすべてに付ける。 */
+  mixed?: Record<string, string>
   all: string[]
   recent: string[]
   /** 取得中は undefined */
@@ -35,6 +37,7 @@ export function TagPicker(props: TagPickerProps) {
     return t && !known().has(t) && !props.tags.includes(t) ? t : undefined
   }
   const toggle = (t: string) => props.onToggle(t, !props.tags.includes(t))
+  const mixed = (t: string) => (props.tags.includes(t) ? undefined : props.mixed?.[t])
   // 先に受けて、外側を閉じる Esc にしない
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return
@@ -69,14 +72,15 @@ export function TagPicker(props: TagPickerProps) {
           <button
             type="button"
             role="checkbox"
-            aria-checked={props.tags.includes(t)}
+            aria-checked={props.tags.includes(t) ? 'true' : mixed(t) ? 'mixed' : 'false'}
             data-tip={t}
             onClick={() => toggle(t)}
           >
             <span class={styles.box}>
-              <Icon name="check" size={11} />
+              <Icon name={mixed(t) ? 'minus' : 'check'} size={11} />
             </span>
             <span class={styles.name}>{t}</span>
+            <Show when={mixed(t)}>{(m) => <span class={styles.part}>{m()}</span>}</Show>
             {!known().has(t) && <em>新規</em>}
           </button>
         )}

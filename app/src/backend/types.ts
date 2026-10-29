@@ -169,10 +169,10 @@ export interface Backend {
   revealItem?: (id: string) => Promise<void>
   openItemDefault?: (id: string) => Promise<void>
   itemPath?: (id: string) => Promise<string>
-  /** プラグインが右クリックメニューに足す項目。 */
-  itemMenu?: (id: string) => Promise<MenuEntry[]>
+  /** プラグインが右クリックメニューに足す項目。ids は選んでいる素材すべて。 */
+  itemMenu?: (ids: string[]) => Promise<MenuEntry[]>
   /** プラグインの項目を選んだとき。返った文字列は通知に出す。 */
-  runItemMenu?: (id: string, entry: string) => Promise<string | undefined>
+  runItemMenu?: (ids: string[], entry: string) => Promise<string | undefined>
   waveform?: (id: string) => Promise<Uint8Array | null>
   uiApi?: (item: UiItem, part: Part, plugin: string) => UiApi
   uiUrl?: (ui: UiRef) => string

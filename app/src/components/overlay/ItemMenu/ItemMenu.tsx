@@ -12,10 +12,12 @@ export interface ItemMenuEntry {
 }
 
 export interface ItemMenuProps {
-  item: Item
+  /** 選んでいる項目。2 つ以上なら、操作をすべてにかける。 */
+  items: Item[]
   x: number
   y: number
-  pinned: boolean
+  /** items のうち、ピン留めしている数。 */
+  pinned: number
   projects: string[]
   tags: string[]
   recentTags: string[]
@@ -27,7 +29,7 @@ export interface ItemMenuProps {
   onRename: (name: string) => void
   onMove: (folder: string | null) => void
   onTag: (tag: string, on: boolean) => void
-  onTogglePin: () => void
+  onPin: (on: boolean) => void
   onCopyPath?: () => void
   onCopyName: () => void
   onPlugin?: (id: string) => void
@@ -50,21 +52,29 @@ export function ItemMenu(props: ItemMenuProps) {
     mode()
     queueMicrotask(() => box.querySelector<HTMLElement>('[role="menu"], input')?.focus())
   })
+  const n = () => props.items.length
+  const one = () => (n() === 1 ? props.items[0] : undefined)
+  const allPinned = () => props.pinned === n()
   const main = (): NavMenuEntry[] => {
     const plugins = props.plugins ?? []
+    const it = one()
     return [
-      ...group([
-        { id: 'open', icon: props.item.note ? 'note' : 'file', label: '開く' },
-        props.onOpenDefault && { id: 'default', icon: 'external', label: '既定のアプリで開く' },
-        props.onReveal && { id: 'reveal', icon: 'folder', label: props.revealLabel ?? 'フォルダを開く' },
-      ]),
-      'separator',
-      { id: 'rename', icon: 'rename', label: '名前を変更' },
+      ...(it
+        ? [
+            ...group([
+              { id: 'open', icon: it.note ? 'note' : 'file', label: '開く' },
+              props.onOpenDefault && { id: 'default', icon: 'external', label: '既定のアプリで開く' },
+              props.onReveal && { id: 'reveal', icon: 'folder', label: props.revealLabel ?? 'フォルダを開く' },
+            ]),
+            'separator' as const,
+            { id: 'rename', icon: 'rename' as const, label: '名前を変更' },
+          ]
+        : []),
       { id: 'move', icon: 'move', label: 'プロジェクトへ移動' },
       { id: 'tag', icon: 'tag', label: 'タグを追加' },
       'separator',
       ...group([
-        { id: 'pin', icon: 'pin', label: props.pinned ? 'ピン留めを解除' : 'ピン留め' },
+        { id: 'pin', icon: 'pin', label: allPinned() ? 'ピン留めを解除' : 'ピン留め' },
         props.onCopyPath && { id: 'path', icon: 'copy', label: 'パスをコピー' },
         { id: 'name', icon: 'copy', label: '名前をコピー' },
       ]),
@@ -75,16 +85,37 @@ export function ItemMenu(props: ItemMenuProps) {
           ]
         : []),
       ...(props.onDelete
-        ? ['separator' as const, { id: 'delete', icon: 'trash' as const, label: '削除', danger: true }]
+        ? [
+            'separator' as const,
+            { id: 'delete', icon: 'trash' as const, label: it ? '削除' : `${n()} 件を削除`, danger: true },
+          ]
         : []),
     ]
   }
+  const folder = () => {
+    const fs = new Set(props.items.map((i) => i.folder))
+    return fs.size === 1 ? [...fs][0] : undefined
+  }
   const projects = (): NavMenuEntry[] => [
-    { id: BACK, icon: 'back', label: 'プロジェクトへ移動', heading: true },
+    {
+      id: BACK,
+      icon: 'back',
+      label: one() ? 'プロジェクトへ移動' : `${n()} 件をプロジェクトへ移動`,
+      heading: true,
+    },
     'separator',
-    { id: NO_PROJECT, label: 'プロジェクトなし', current: props.item.folder === null },
-    ...props.projects.map((p) => ({ id: p, icon: 'folder' as const, label: p, current: props.item.folder === p })),
+    { id: NO_PROJECT, label: 'プロジェクトなし', current: folder() === null },
+    ...props.projects.map((p) => ({ id: p, icon: 'folder' as const, label: p, current: folder() === p })),
   ]
+  const countOf = (t: string) => props.items.filter((i) => i.tags.includes(t)).length
+  const common = () => props.tags.filter((t) => countOf(t) === n())
+  const mixed = () =>
+    Object.fromEntries(
+      props.tags.flatMap((t) => {
+        const c = countOf(t)
+        return c > 0 && c < n() ? [[t, `${c}/${n()}`]] : []
+      }),
+    )
   const done = (f?: () => void) => {
     f?.()
     props.onClose()
@@ -98,7 +129,7 @@ export function ItemMenu(props: ItemMenuProps) {
     open: props.onOpen,
     default: props.onOpenDefault,
     reveal: props.onReveal,
-    pin: props.onTogglePin,
+    pin: () => props.onPin(!allPinned()),
     path: props.onCopyPath,
     name: props.onCopyName,
     delete: props.onDelete,
@@ -107,11 +138,11 @@ export function ItemMenu(props: ItemMenuProps) {
     if (id === BACK) setMode('main')
     else done(() => props.onMove(id === NO_PROJECT ? null : id))
   }
-  const [name, setName] = createSignal(props.item.name)
+  const [name, setName] = createSignal(one()?.name ?? '')
   const rename = (e: SubmitEvent) => {
     e.preventDefault()
-    const n = name().trim()
-    done(n && n !== props.item.name ? () => props.onRename(n) : undefined)
+    const to = name().trim()
+    done(to && to !== one()?.name ? () => props.onRename(to) : undefined)
   }
   return (
     <ContextMenu x={props.x} y={props.y} onClose={props.onClose}>
@@ -125,7 +156,8 @@ export function ItemMenu(props: ItemMenuProps) {
           </Match>
           <Match when={mode() === 'tag'}>
             <TagPicker
-              tags={props.item.tags}
+              tags={common()}
+              mixed={mixed()}
               all={props.tags}
               recent={props.recentTags}
               suggested={[]}

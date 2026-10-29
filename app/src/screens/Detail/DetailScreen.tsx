@@ -3,6 +3,7 @@ import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
+import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
 import { type CardSize, type Item, newerFirst, thumbOf, toggled } from '../../model/library'
 import { useFormats } from '../../plugins/formats'
@@ -28,6 +29,7 @@ export interface DetailScreenProps {
 export function DetailScreen(props: DetailScreenProps) {
   const [sort, setSort] = createSignal<Sort>('moved')
   const formats = useFormats()
+  const sel = useSelection()
   const preview = useHoverPreview()
   const labelOf = (it: Item) => formats().get(it.ext)?.label ?? it.ext
   const side = children(() => props.side)
@@ -72,7 +74,10 @@ export function DetailScreen(props: DetailScreenProps) {
         <div class={shared.page}>
           <header class={shared.mast}>
             {props.title}
-            <span class={shared.meta}>{props.meta}</span>
+            <span class={shared.meta}>
+              {props.meta}
+              {sel?.ids().length ? ` · ${sel.ids().length} 件を選択中` : ''}
+            </span>
             <Show when={props.actions}>
               <span class={`${shared.end} ${shared.actions}`}>{props.actions}</span>
             </Show>
@@ -83,7 +88,7 @@ export function DetailScreen(props: DetailScreenProps) {
                 {side()}
               </div>
             </Show>
-            <div>
+            <SelectArea order={() => all().map((x) => x.id)}>
               <Show when={pinned().length}>
                 <div class={shared.head} data-first>
                   <h2>ピン留め</h2>
@@ -112,7 +117,7 @@ export function DetailScreen(props: DetailScreenProps) {
                   <For each={all()}>{(it) => card(it, 'S', all, false)}</For>
                 </JustifiedRow>
               </Show>
-            </div>
+            </SelectArea>
           </div>
         </div>
       </ScrollArea>

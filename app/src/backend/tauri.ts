@@ -369,8 +369,8 @@ export function tauriBackend(): Backend {
     revealItem: (id) => invoke('reveal_item', { id }),
     openItemDefault: (id) => invoke('open_item_default', { id }),
     itemPath: (id) => invoke('item_path', { id }),
-    itemMenu: (id) => invoke('item_menu', { id }),
-    runItemMenu: async (id, entry) => (await invoke<string | null>('run_item_menu', { id, entry })) ?? undefined,
+    itemMenu: (ids) => invoke('item_menu', { ids }),
+    runItemMenu: async (ids, entry) => (await invoke<string | null>('run_item_menu', { ids, entry })) ?? undefined,
     async waveform(id) {
       const wave = new Uint8Array(await invoke<ArrayBuffer>('waveform', { id }))
       return wave.length > 0 ? wave : null
