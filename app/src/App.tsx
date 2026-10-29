@@ -11,6 +11,7 @@ import {
 import { DropZone } from './components/overlay/DropZone/DropZone'
 import { ReloadOverlay } from './components/overlay/ReloadOverlay/ReloadOverlay'
 import { ImportDialog } from './components/dialog/ImportDialog/ImportDialog'
+import { DeleteDialog } from './components/dialog/DeleteDialog/DeleteDialog'
 import { Toast } from './components/overlay/Toast/Toast'
 import { Peek } from './components/overlay/Peek/Peek'
 import { ItemMenu } from './components/overlay/ItemMenu/ItemMenu'
@@ -319,6 +320,7 @@ export function App(props: AppProps) {
       setNotice(`「${it.name}」をごみ箱に移動しました`)
     })
   }
+  const [deleting, setDeleting] = createSignal<string>()
   const copy = (text: string, done: string) =>
     navigator.clipboard.writeText(text).then(
       () => setNotice(done),
@@ -868,6 +870,19 @@ export function App(props: AppProps) {
                   />
                 )}
               </Show>
+              <Show when={lib().byId.get(deleting() ?? '')}>
+                {(it) => (
+                  <DeleteDialog
+                    name={it().name}
+                    note={it().note}
+                    onDelete={() => {
+                      deleteItem(it().id)
+                      setDeleting(undefined)
+                    }}
+                    onClose={() => setDeleting(undefined)}
+                  />
+                )}
+              </Show>
               <Show when={asking()}>
                 {(d) => (
                   <ImportDialog
@@ -916,7 +931,7 @@ export function App(props: AppProps) {
                           }
                           onCopyName={() => void copy(it().name, '名前をコピーしました')}
                           onPlugin={(entry) => void runPlugin(m.id, entry)}
-                          onDelete={backend.deleteItem && (() => deleteItem(m.id))}
+                          onDelete={backend.deleteItem && (() => setDeleting(m.id))}
                           onClose={() => menu() === m && setMenu(undefined)}
                         />
                       )
