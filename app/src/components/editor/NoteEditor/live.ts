@@ -13,6 +13,7 @@ import { Decoration, type DecorationSet, EditorView, WidgetType, keymap } from '
 import type { SyntaxNode } from '@lezer/common'
 import type { Mounted } from 'pele/lazy'
 import { targetOf } from '../../../model/library'
+import { MathView, blockEnd, mathSource } from './math'
 import { TableWidget, enterTable } from './table'
 
 export const idOfHref = (href: unknown) => (typeof href === 'string' ? targetOf(href)?.id : undefined)
@@ -374,17 +375,6 @@ function draw(dom: HTMLElement) {
     })
 }
 
-/** 図のブロックの元の文の終わり。 */
-function codeEnd(state: EditorState, pos: number) {
-  for (let n: SyntaxNode | null = syntaxTree(state).resolveInner(pos, 1); n; n = n.parent) {
-    if (n.name !== 'FencedCode') continue
-    const close = n.lastChild?.name === 'CodeMark' ? n.lastChild : null
-    const first = state.doc.lineAt(n.from)
-    return close && close.from > first.to ? close.from - 1 : n.to
-  }
-  return pos
-}
-
 class Diagram extends WidgetType {
   readonly src: string
   readonly cls: string
@@ -406,7 +396,7 @@ class Diagram extends WidgetType {
     draw(dom)
     dom.addEventListener('mousedown', (e) => {
       e.preventDefault()
-      const pos = codeEnd(view.state, view.posAtDOM(dom))
+      const pos = blockEnd(view.state, view.posAtDOM(dom))
       view.dispatch({ selection: { anchor: pos } })
       view.focus()
     })
@@ -525,6 +515,14 @@ function build(state: EditorState, h: LiveHooks, version: number): Built {
       editing: cls('cellEditing'),
     },
     render: (src: string) => inline(src, h),
+  }
+  const mathClasses = { inline: cls('math'), block: cls('mathBlock'), error: cls('mathError') }
+  const codeLines = (top: number, bottom: number) => {
+    for (let i = top; i <= bottom; i++) {
+      const l = state.doc.line(i)
+      const edge = [i === top ? cls('codeTop') : '', i === bottom ? cls('codeBottom') : '']
+      out.push(Decoration.line({ class: [cls('codeLine'), ...edge].join(' ') }).range(l.from))
+    }
   }
 
   tree.iterate({
@@ -661,9 +659,14 @@ function build(state: EditorState, h: LiveHooks, version: number): Built {
           const close = fenced && n.lastChild?.name === 'CodeMark' && n.lastChild.from > first.to
           const show = near(first.from, last.to)
           const body = { from: fenced ? first.to + 1 : first.from, to: close ? last.from - 1 : last.to }
-          if (lang === 'mermaid') {
-            const src = body.from <= body.to ? state.sliceDoc(body.from, body.to) : ''
-            const widget = new Diagram(src, cls('diagram'))
+          const src = body.from <= body.to ? state.sliceDoc(body.from, body.to) : ''
+          const widget =
+            lang === 'mermaid'
+              ? new Diagram(src, cls('diagram'))
+              : lang === 'math'
+                ? new MathView(src.trim(), true, mathClasses)
+                : undefined
+          if (widget) {
             if (!show) {
               out.push(Decoration.replace({ widget, block: true }).range(first.from, last.to))
               return false
@@ -681,13 +684,34 @@ function build(state: EditorState, h: LiveHooks, version: number): Built {
               bottom--
             }
           }
-          for (let i = top; i <= bottom; i++) {
-            const l = state.doc.line(i)
-            const edge = [i === top ? cls('codeTop') : '', i === bottom ? cls('codeBottom') : '']
-            out.push(Decoration.line({ class: [cls('codeLine'), ...edge].join(' ') }).range(l.from))
-          }
+          codeLines(top, bottom)
           return false
         }
+        case 'BlockMath': {
+          const first = lineOf(n.from)
+          const last = lastLine(n)
+          const widget = new MathView(mathSource(state, n), true, mathClasses)
+          if (!near(first.from, last.to)) {
+            out.push(Decoration.replace({ widget, block: true }).range(first.from, last.to))
+            return false
+          }
+          out.push(Decoration.widget({ widget, block: true, side: 1 }).range(last.to))
+          for (const m of n.getChildren('MathMark')) mark('mark', m.from, m.to)
+          codeLines(first.number, last.number)
+          return false
+        }
+        case 'InlineMath':
+          if (near(n.from, n.to)) {
+            for (const m of n.getChildren('MathMark')) mark('mark', m.from, m.to)
+            mark('code', n.from, n.to)
+          } else
+            out.push(
+              Decoration.replace({ widget: new MathView(mathSource(state, n), false, mathClasses) }).range(
+                n.from,
+                n.to,
+              ),
+            )
+          return false
         case 'Table': {
           const from = lineOf(n.from).from
           const to = lastLine(n).to

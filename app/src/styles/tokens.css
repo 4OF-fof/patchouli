@@ -63,6 +63,23 @@
   --title-bar: 36px;
   --f-sans: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', system-ui, sans-serif;
   --f-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+  /* コードの色（Base16 の並び）。00〜07 は面と文字から、08〜0f はコードの面の上でコントラスト 7 になる明るさ */
+  --base00: var(--side);
+  --base01: var(--paper);
+  --base02: var(--card);
+  --base03: var(--muted);
+  --base04: oklch(0.71 0 0);
+  --base05: var(--ink-2);
+  --base06: var(--ink);
+  --base07: oklch(0.93 0 0);
+  --base08: oklch(0.729 0.1 25);
+  --base09: oklch(0.725 0.1 55);
+  --base0a: oklch(0.718 0.1 90);
+  --base0b: oklch(0.706 0.1 155);
+  --base0c: oklch(0.706 0.1 195);
+  --base0d: oklch(0.713 0.1 235);
+  --base0e: oklch(0.726 0.1 300);
+  --base0f: oklch(0.721 0.045 55);
   color-scheme: dark;
 }
 :root[data-theme='light'] {
@@ -95,6 +112,16 @@
   --stage-btn: rgba(0, 0, 0, 0.06);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --base04: oklch(0.46 0 0);
+  --base07: oklch(0.2 0 0);
+  --base08: oklch(0.455 0.12 25);
+  --base09: oklch(0.451 0.11 55);
+  --base0a: oklch(0.442 0.09 90);
+  --base0b: oklch(0.427 0.104 155);
+  --base0c: oklch(0.427 0.072 195);
+  --base0d: oklch(0.436 0.092 235);
+  --base0e: oklch(0.453 0.12 300);
+  --base0f: oklch(0.444 0.054 55);
   color-scheme: light;
 }
 *,

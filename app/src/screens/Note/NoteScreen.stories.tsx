@@ -25,3 +25,4 @@ export const HeadsClosed: Story = { name: '見出しを閉じた', render: () =>
 export const Idle: Story = { name: '何も触っていない', render: () => note({ idle: true }) }
 export const Props: Story = { name: 'タグなどの欄を開く', render: () => note({ propsOpen: true }) }
 export const Diary: Story = { name: '日記', render: () => note({ headsOpen: false }, '2026-10-22') }
+export const Showcase: Story = { name: '記法の見本', render: () => note({ headsOpen: false }, '記法の見本') }

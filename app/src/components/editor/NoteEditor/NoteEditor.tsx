@@ -1,5 +1,6 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, commonmarkLanguage } from '@codemirror/lang-markdown'
+import { languages } from '@codemirror/language-data'
 import { EditorState, Prec, Transaction } from '@codemirror/state'
 import { EditorView, type ViewUpdate, keymap } from '@codemirror/view'
 import { GFM } from '@lezer/markdown'
@@ -11,7 +12,9 @@ import { LinkPicker } from '../../nav/LinkPicker/LinkPicker'
 import { QuickView } from '../../overlay/QuickView/QuickView'
 import { type SlashAction, slashMatches } from './commands'
 import { runSlash, toggleWrap, unlinkAt } from './edit'
+import { codeHighlight } from './highlight'
 import { type Embed, type LiveHooks, type Ref, escapeLabel, live, marksAt, refAt, refresh } from './live'
+import { MathSyntax } from './math'
 import styles from './NoteEditor.module.css'
 import { selectionLayer } from './selection'
 
@@ -325,7 +328,8 @@ export function NoteEditor(props: NoteEditorProps) {
         doc: props.value,
         extensions: [
           history(),
-          markdown({ base: commonmarkLanguage, extensions: [GFM] }),
+          markdown({ base: commonmarkLanguage, extensions: [GFM, MathSyntax], codeLanguages: languages }),
+          codeHighlight(styles),
           Prec.highest(
             keymap.of(['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].map((key) => ({ key, run: menuKey(key) }))),
           ),

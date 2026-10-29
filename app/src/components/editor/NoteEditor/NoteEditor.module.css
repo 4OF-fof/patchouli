@@ -169,7 +169,8 @@
 
 .codeLine {
   padding: 0 14px !important;
-  background: var(--side);
+  background: var(--base00);
+  color: var(--base05);
   font-family: var(--f-mono);
   font-size: var(--fs-list);
   line-height: 1.6;
@@ -183,6 +184,60 @@
   padding-bottom: 10px !important;
   border-bottom-left-radius: var(--radius-md);
   border-bottom-right-radius: var(--radius-md);
+}
+
+.codeLine .base03 {
+  color: var(--base03);
+}
+.codeLine .base04 {
+  color: var(--base04);
+}
+.codeLine .base08 {
+  color: var(--base08);
+}
+.codeLine .base09 {
+  color: var(--base09);
+}
+.codeLine .base0a {
+  color: var(--base0a);
+}
+.codeLine .base0b {
+  color: var(--base0b);
+}
+.codeLine .base0c {
+  color: var(--base0c);
+}
+.codeLine .base0d {
+  color: var(--base0d);
+}
+.codeLine .base0e {
+  color: var(--base0e);
+}
+.codeLine .base0f {
+  color: var(--base0f);
+}
+
+.math {
+  cursor: text;
+}
+.mathBlock {
+  padding: 4px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  line-height: normal;
+  cursor: text;
+}
+.mathBlock:empty {
+  display: none;
+}
+.mathError {
+  color: var(--danger);
+  font-family: var(--f-mono);
+  font-size: 0.88em;
+  text-decoration: underline wavy var(--danger-line);
+}
+.mathBlock.mathError {
+  white-space: pre-wrap;
 }
 
 .diagram {

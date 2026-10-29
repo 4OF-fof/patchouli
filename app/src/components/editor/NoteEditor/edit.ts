@@ -82,6 +82,9 @@ export function runSlash(view: EditorView, a: SlashAction) {
     case 'diagram':
       insertBlock(view, '```mermaid\n\n```', 11)
       return undefined
+    case 'math':
+      insertBlock(view, '$$\n\n$$', 3)
+      return undefined
     case 'rule':
       insertBlock(view, '---\n', 4)
       return undefined

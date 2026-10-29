@@ -48,6 +48,7 @@ import {
   Search,
   SeparatorHorizontal,
   Settings,
+  Sigma,
   SquareCode,
   Strikethrough,
   SunMoon,
@@ -119,6 +120,7 @@ const ICONS = {
   table: Table,
   rule: SeparatorHorizontal,
   diagram: Workflow,
+  math: Sigma,
 }
 
 export type IconName = keyof typeof ICONS

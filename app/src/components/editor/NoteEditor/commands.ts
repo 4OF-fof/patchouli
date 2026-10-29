@@ -2,7 +2,20 @@ import type { IconName } from '../../base/Icon/Icon'
 
 export type SlashAction =
   | { type: 'heading'; level: number }
-  | { type: 'bullets' | 'numbers' | 'tasks' | 'quote' | 'code' | 'table' | 'rule' | 'diagram' | 'link' | 'embed' }
+  | {
+      type:
+        | 'bullets'
+        | 'numbers'
+        | 'tasks'
+        | 'quote'
+        | 'code'
+        | 'table'
+        | 'rule'
+        | 'diagram'
+        | 'math'
+        | 'link'
+        | 'embed'
+    }
 
 export interface SlashItem {
   label: string
@@ -23,6 +36,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { label: '表', icon: 'table', keys: 'table hyou', action: { type: 'table' } },
   { label: '区切り線', icon: 'rule', keys: 'hr rule divider line', action: { type: 'rule' } },
   { label: '図（Mermaid）', icon: 'diagram', keys: 'mermaid diagram zu', action: { type: 'diagram' } },
+  { label: '数式', icon: 'math', keys: 'math tex katex suushiki', action: { type: 'math' } },
   { label: 'リンク', icon: 'link', keys: 'link rinku', action: { type: 'link' } },
   { label: '素材を埋め込む', icon: 'image', keys: 'embed image video audio umekomi', action: { type: 'embed' } },
 ]
