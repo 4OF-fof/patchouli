@@ -1,4 +1,14 @@
-import { type CoverPart, type Item, type Project, buildLibrary, daysBefore, touchedLabel } from '../model/library'
+import {
+  COVER_TYPES,
+  type CoverPart,
+  type Item,
+  type Project,
+  TAG_COVER_TYPES,
+  type TagCoverPart,
+  buildLibrary,
+  daysBefore,
+  touchedLabel,
+} from '../model/library'
 import type { FormatInfo } from '../plugins/types'
 import type { Changed, LibraryState, Opened } from './types'
 
@@ -28,6 +38,7 @@ export interface StoredLibrary<I extends StoredItem = StoredItem> {
   items: I[]
   projects: StoredProject[]
   state: Partial<LibraryState>
+  tagCovers: Record<string, TagCoverPart[]>
   formats: FormatInfo[]
   problems: string[]
 }
@@ -37,6 +48,7 @@ export interface StoredChanged<I extends StoredItem = StoredItem> {
   removed: string[]
   projects?: StoredProject[]
   state?: Partial<LibraryState>
+  tagCovers?: Record<string, TagCoverPart[]>
   problems: string[]
 }
 
@@ -91,14 +103,18 @@ export const toProject = (s: StoredProject, today: Date): Project => ({
   name: s.name,
   hue: hueOfName(s.name),
   touched: touchedLabel(today, new Date(s.mtime)),
-  cover: s.cover,
+  cover: s.cover.filter((c) => COVER_TYPES.has(c.type)),
 })
+
+// 並びにだけ書かれた知らない id は、中身のない種類として届くので外す
+const toTagCovers = (s: Record<string, TagCoverPart[]>) =>
+  new Map(Object.entries(s).map(([t, c]) => [t, c.filter((x) => TAG_COVER_TYPES.has(x.type))]))
 
 export function toOpened<I extends StoredItem>(s: StoredLibrary<I>, today: Date, urlsOf: (it: I) => ItemUrls): Opened {
   const formats = new Map(s.formats.map((f) => [f.ext, f]))
   const items = s.items.map((i) => toItem(i, today, formats, urlsOf(i)))
   const projects = s.projects.toSorted((a, b) => b.mtime - a.mtime).map((p) => toProject(p, today))
-  const covers = new Map(Object.entries(s.state.tagCovers ?? {}))
+  const covers = toTagCovers(s.tagCovers)
   const ids = new Set(items.map((i) => i.id))
   return {
     lib: buildLibrary(
@@ -128,5 +144,6 @@ export const toChanged = <I extends StoredItem>(
     projects: s.projects.toSorted((a, b) => b.mtime - a.mtime).map((p) => toProject(p, today)),
   }),
   ...(s.state && { state: s.state }),
+  ...(s.tagCovers && { tagCovers: toTagCovers(s.tagCovers) }),
   problems: s.problems,
 })

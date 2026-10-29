@@ -52,6 +52,8 @@ export function sampleBackend(): Backend {
       return emptyProject(name)
     },
     async saveProject() {},
+    async saveTagCover() {},
+    async renameTag() {},
     onThumbnail: () => () => {},
     plugins: async () => sampleReport(),
     async itemView(id) {

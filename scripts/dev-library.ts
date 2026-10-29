@@ -150,23 +150,39 @@ function markdown(it: SpecItem) {
 
 const json = (v: unknown) => `${JSON.stringify(v, null, 2)}\n`
 
+// アプリ（src-tauri/src/cover.rs）と同じ形。説明は .md、ほかは .json、中身のないカードは並びにだけ書く
+function writeCards(dir: string, cards: ({ id: string; type: string } & Record<string, unknown>)[]) {
+  fs.mkdirSync(dir, { recursive: true })
+  for (const { id, ...card } of cards) {
+    if (card.type === 'desc') fs.writeFileSync(path.join(dir, `${id}.md`), String(card.text))
+    else if (Object.keys(card).length > 1) fs.writeFileSync(path.join(dir, `${id}.json`), json(card))
+  }
+  fs.writeFileSync(path.join(dir, 'layout.json'), json(cards.map((c) => c.id)))
+}
+
 const spec = sampleSpec()
 fs.rmSync(root, { recursive: true, force: true })
 fs.mkdirSync(root, { recursive: true })
 
+const state = path.join(root, '.patchouli')
 spec.projects.forEach((p, i) => {
+  const id = `p${i + 1}`
   fs.mkdirSync(path.join(root, p.name))
-  fs.writeFileSync(path.join(root, `${p.name}.meta`), json({ [ID_KEY]: `p${i + 1}`, cover: p.cover }))
+  fs.writeFileSync(path.join(root, `${p.name}.meta`), json({ [ID_KEY]: id }))
+  if (p.cover.length) writeCards(path.join(state, 'projects', id), p.cover)
 })
 
-fs.mkdirSync(path.join(root, '.patchouli'))
+const tagIds = Object.fromEntries([...spec.tagCovers.keys()].map((t, i) => [t, `t${i + 1}`]))
+for (const [t, cover] of spec.tagCovers) writeCards(path.join(state, 'tags', tagIds[t] ?? t), cover)
+fs.mkdirSync(path.join(state, 'tags'), { recursive: true })
+fs.writeFileSync(path.join(state, 'tags', 'index.json'), json(tagIds))
+
 fs.writeFileSync(
-  path.join(root, '.patchouli', 'library.json'),
+  path.join(state, 'library.json'),
   json({
     pins: spec.pins,
     pinnedProjects: PINNED_PROJECTS,
     pinnedTags: PINNED_TAGS,
-    tagCovers: Object.fromEntries(spec.tagCovers),
     plugins: await installExamples(),
   }),
 )

@@ -269,6 +269,8 @@ export function tauriBackend(): Backend {
       return toProject(await invoke<StoredProject>('create_project', { name }), new Date())
     },
     saveProject: (name, cover) => invoke('save_project', { name, cover }),
+    saveTagCover: (tag, cover) => invoke('save_tag_cover', { tag, cover }),
+    renameTag: (from, to) => invoke('rename_tag', { from, to }),
     chooseLibrary: () => invoke<boolean>('choose_library'),
     libraries: {
       list: () => invoke<KnownLibrary[]>('libraries'),

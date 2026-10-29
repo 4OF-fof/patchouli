@@ -34,12 +34,22 @@ export interface Item {
   fit?: Fit
 }
 
-export type CoverPart =
+/** 概要のカード。中身を持たないカード（タグの kids など）は、種類をそのまま id にする。 */
+export type CoverPart = { id: string } & (
   | { type: 'desc'; text: string }
   | { type: 'todo'; items: { t: string; ref?: string; done: boolean; due?: string }[] }
   | { type: 'links'; items: { t: string; u: string }[] }
+)
 
-export type TagCoverPart = { type: 'desc'; text: string } | { type: 'kids' } | { type: 'exts' } | { type: 'together' }
+export type TagCoverPart = { id: string } & (
+  | { type: 'desc'; text: string }
+  | { type: 'kids' }
+  | { type: 'exts' }
+  | { type: 'together' }
+)
+
+export const COVER_TYPES: ReadonlySet<string> = new Set<CoverPart['type']>(['desc', 'todo', 'links'])
+export const TAG_COVER_TYPES: ReadonlySet<string> = new Set<TagCoverPart['type']>(['desc', 'kids', 'exts', 'together'])
 
 export interface Project {
   name: string
@@ -242,7 +252,8 @@ export function withRenamedTag(lib: Library, from: string, to: string): Library 
     tags: [...new Set(i.tags.map(re))],
     suggestion: i.suggestion && { ...i.suggestion, tags: i.suggestion.tags.map((c) => ({ ...c, tag: re(c.tag) })) },
   }))
-  const covers = new Map([...lib.tagCovers].map(([t, c]) => [re(t), c]))
+  const covers = new Map([...lib.tagCovers].filter(([t]) => re(t) === t))
+  for (const [t, c] of lib.tagCovers) if (!covers.has(re(t))) covers.set(re(t), c)
   return buildLibrary(items, lib.projects, lib.today, covers, lib.pins, lib.formats)
 }
 

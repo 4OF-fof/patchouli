@@ -66,14 +66,15 @@ export function CoverPartView(props: CoverPartViewProps) {
         <For each={c.items}>
           {(x) => {
             const due = x.due ? dueLabel(lib(), x.due) : null
+            const ref = x.ref ? lib().byId.get(x.ref)?.name : undefined
             return (
               <label class={styles.todo} data-done={x.done}>
                 <Checkbox class={styles.check} checked={x.done} />
                 <span>
                   {x.t}
-                  {x.ref && (
+                  {ref && (
                     <>
-                      （<span class={styles.wl}>{x.ref}</span>）
+                      （<span class={styles.wl}>{ref}</span>）
                     </>
                   )}
                 </span>

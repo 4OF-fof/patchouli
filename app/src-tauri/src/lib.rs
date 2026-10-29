@@ -1,4 +1,5 @@
 pub mod cache;
+mod cover;
 pub mod import;
 pub mod library;
 pub mod note;
@@ -1177,7 +1178,9 @@ async fn rename_item(
     id: String,
     name: String,
 ) -> Result<StoredItem, String> {
-    let (it, renamed) = with(&cur, |l| Ok((l.rename_item(&id, &name)?, l.sync_link_names())))?;
+    let (it, renamed) = with(&cur, |l| {
+        Ok((l.rename_item(&id, &name)?, l.sync_link_names()))
+    })?;
     if !renamed.is_empty() {
         let changes = library::Changes {
             items: renamed,
@@ -1221,6 +1224,20 @@ async fn save_project(
     with(&cur, |l| l.save_project(&name, cover))
 }
 
+#[tauri::command]
+async fn save_tag_cover(
+    cur: State<'_, Current>,
+    tag: String,
+    cover: serde_json::Value,
+) -> Result<(), String> {
+    with(&cur, |l| l.save_tag_cover(&tag, cover))
+}
+
+#[tauri::command]
+async fn rename_tag(cur: State<'_, Current>, from: String, to: String) -> Result<(), String> {
+    with(&cur, |l| l.rename_tag(&from, &to))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1238,6 +1255,8 @@ pub fn run() {
             create_note,
             create_project,
             save_project,
+            save_tag_cover,
+            rename_tag,
             plugins,
             install_plugin,
             update_plugin,

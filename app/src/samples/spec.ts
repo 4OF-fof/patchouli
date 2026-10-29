@@ -3,7 +3,7 @@
  * （scripts/dev-library.ts）の両方がここから作る。スクリプトは Node が TS をそのまま読むので、
  * ここでは型のほかは何も import しない。
  */
-import type { Item, Project, Suggestion, TagCoverPart } from '../model/library'
+import type { CoverPart, Item, Project, Suggestion, TagCoverPart } from '../model/library'
 
 export const TODAY = new Date(2026, 9, 22, 12)
 
@@ -46,7 +46,10 @@ const MEDIA_OF: Record<string, Media> = {
   psd: 'other',
 }
 
-const TAG_COVERS: Record<string, TagCoverPart[]> = {
+/** id は書き出すときに振る。 */
+type RawCard<C> = C extends unknown ? Omit<C, 'id'> : never
+
+const TAG_COVERS: Record<string, RawCard<TagCoverPart>[]> = {
   写真: [
     { type: 'desc', text: 'カメラで撮ったもの。旅行や街は下の階層に分ける。' },
     { type: 'kids' },
@@ -60,7 +63,7 @@ type RawBlock = ['p' | 'h2' | 'li', string]
 type RawAsset = [name: string, ext: string, tags: string[], moved: number]
 type RawNote = [name: string, moved: number, tags: string[], blocks: RawBlock[]]
 
-const PROJECTS: (Project & { pinNames: string[] })[] = [
+const PROJECTS: (Omit<Project, 'cover'> & { cover: RawCard<CoverPart>[]; pinNames: string[] })[] = [
   {
     name: '秋の企画',
     hue: 28,
@@ -681,12 +684,24 @@ export function sampleSpec(): Spec {
       if (!byName.has(name)) lostId.set(name, id)
       return `[${name}](patchouli:${id})`
     })
+  // 中身のあるカードには c1, c2… を、中身のないカードには種類をそのまま id に振る
+  let card = 0
+  const withId = <C extends { type: string }>(c: C) => ({
+    ...structuredClone(c),
+    id: 'text' in c || 'items' in c ? `c${++card}` : c.type,
+  })
+  // タスクの参照も名前で書き、素材の id に直す
   const projects: Project[] = PROJECTS.map(({ name, hue, touched, cover }) => ({
     name,
     hue,
     touched,
-    cover: structuredClone(cover),
+    cover: cover
+      .map(withId)
+      .map((c) =>
+        c.type === 'todo' ? { ...c, items: c.items.map((x) => (x.ref ? { ...x, ref: byName.get(x.ref)?.id } : x)) } : c,
+      ),
   }))
+  const tagCovers = new Map(Object.entries(TAG_COVERS).map(([t, c]) => [t, c.map(withId) as TagCoverPart[]]))
   const pins = [...PROJECTS.flatMap((p) => p.pinNames), ...PINNED_ITEMS].flatMap((n) => byName.get(n)?.id ?? [])
-  return { items, projects, tagCovers: new Map(Object.entries(structuredClone(TAG_COVERS))), pins }
+  return { items, projects, tagCovers, pins }
 }

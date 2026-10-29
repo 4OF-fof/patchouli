@@ -223,7 +223,6 @@ export function App(props: AppProps) {
     pins: lib().pins,
     pinnedProjects: pinnedProjects(),
     pinnedTags: pinnedTags(),
-    tagCovers: Object.fromEntries(lib().tagCovers),
   })
   const saveState = () => {
     const s = state()
@@ -383,6 +382,7 @@ export function App(props: AppProps) {
     setLib(after)
     setPinnedTags([...new Set(pinnedTags().map(re))])
     setStack(stack().map((v) => (v.s === 'tag' ? { ...v, tag: re(v.tag) } : v)))
+    persist(() => backend.renameTag(from, to))
     for (const it of retaggedItems(before, after)) {
       const old = before.byId.get(it.id)?.tags ?? []
       saveItem(it.id, {
@@ -528,16 +528,7 @@ export function App(props: AppProps) {
   const stopChanged =
     backend.onChanged?.((c) => {
       const s = c.state
-      setLib(
-        withChanged(
-          lib(),
-          c.items,
-          c.removed,
-          c.projects,
-          s?.tagCovers && new Map(Object.entries(s.tagCovers)),
-          s?.pins,
-        ),
-      )
+      setLib(withChanged(lib(), c.items, c.removed, c.projects, c.tagCovers, s?.pins))
       if (s?.pinnedProjects) setPinnedProjects(s.pinnedProjects)
       if (s?.pinnedTags) setPinnedTags(s.pinnedTags)
       if (c.problems.length) {

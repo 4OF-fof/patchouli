@@ -6,7 +6,6 @@ export interface LibraryState {
   pins: string[]
   pinnedProjects: string[]
   pinnedTags: string[]
-  tagCovers: Record<string, TagCoverPart[]>
 }
 
 export interface ListDiff {
@@ -34,6 +33,7 @@ export interface Changed {
   removed: string[]
   projects?: Project[]
   state?: Partial<LibraryState>
+  tagCovers?: Map<string, TagCoverPart[]>
   problems: string[]
 }
 
@@ -124,6 +124,9 @@ export interface Backend {
   createNote(name: string, folder: string | null): Promise<Item>
   createProject(name: string): Promise<Project>
   saveProject(name: string, cover: CoverPart[]): Promise<void>
+  saveTagCover(tag: string, cover: TagCoverPart[]): Promise<void>
+  /** 下の階層のタグも合わせて付け替える。素材に付いたタグは saveItem で直す。 */
+  renameTag(from: string, to: string): Promise<void>
   chooseLibrary?(): Promise<boolean>
   libraries?: LibraryActions
   tidy?: TidyActions

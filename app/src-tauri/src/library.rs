@@ -9,12 +9,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use crate::cache::{Cache, Row, Sig};
+use crate::cover;
 use crate::note;
 use crate::plugin::{FormatInfo, Registry};
 
 pub const ID_KEY: &str = "patchouli-id";
 const STATE_DIR: &str = ".patchouli";
 const STATE_FILE: &str = "library.json";
+const PROJECTS_DIR: &str = "projects";
+const TAGS_DIR: &str = "tags";
+const TAG_INDEX: &str = "index.json";
 
 pub const NOTE_EXT: &str = "md";
 
@@ -75,7 +79,6 @@ pub struct LibraryState {
     pub pins: Vec<String>,
     pub pinned_projects: Vec<String>,
     pub pinned_tags: Vec<String>,
-    pub tag_covers: Map<String, Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -85,6 +88,7 @@ pub struct Opened {
     pub items: Vec<StoredItem>,
     pub projects: Vec<StoredProject>,
     pub state: LibraryState,
+    pub tag_covers: Map<String, Value>,
     pub formats: Vec<FormatInfo>,
     pub problems: Vec<String>,
 }
@@ -93,6 +97,7 @@ pub struct Scan {
     pub items: Vec<Row>,
     pub projects: Vec<StoredProject>,
     pub state: LibraryState,
+    pub tag_covers: Map<String, Value>,
     pub problems: Vec<String>,
 }
 
@@ -105,6 +110,8 @@ pub struct Changes {
     pub projects: Option<Vec<StoredProject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub state: Option<LibraryState>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_covers: Option<Map<String, Value>>,
     pub problems: Vec<String>,
 }
 
@@ -114,6 +121,7 @@ impl Changes {
             && self.removed.is_empty()
             && self.projects.is_none()
             && self.state.is_none()
+            && self.tag_covers.is_none()
             && self.problems.is_empty()
     }
 }
@@ -194,7 +202,7 @@ pub(crate) fn read_json(path: &Path) -> Result<Option<Map<String, Value>>, Strin
 }
 
 /// 同じフォルダに一時ファイルを書いてから置き換える。同期ソフトに書きかけを拾わせない。
-fn write_file(path: &Path, text: &str) -> Result<(), String> {
+pub(crate) fn write_file(path: &Path, text: &str) -> Result<(), String> {
     let name = path
         .file_name()
         .and_then(|n| n.to_str())
@@ -260,12 +268,14 @@ impl Library {
             rows: Vec::new(),
             projects: Vec::new(),
             state: LibraryState::default(),
+            tag_covers: Map::new(),
         });
         Opened {
             root: self.root.clone(),
             items: snap.rows.into_iter().map(|r| r.item).collect(),
             projects: snap.projects,
             state: snap.state,
+            tag_covers: snap.tag_covers,
             formats: self.plugins.formats(),
             problems: vec![],
         }
@@ -288,6 +298,33 @@ impl Library {
 
     fn state_path(&self) -> PathBuf {
         self.root.join(STATE_DIR).join(STATE_FILE)
+    }
+
+    fn cards_dir(&self, id: &str) -> PathBuf {
+        self.root.join(STATE_DIR).join(PROJECTS_DIR).join(id)
+    }
+
+    fn tags_dir(&self) -> PathBuf {
+        self.root.join(STATE_DIR).join(TAGS_DIR)
+    }
+
+    fn read_tag_covers(&self, problems: &mut Vec<String>) -> Map<String, Value> {
+        let path = self.tags_dir().join(TAG_INDEX);
+        let index = read_json(&path).unwrap_or_else(|e| {
+            problems.push(format!("{}: {e}", path.display()));
+            None
+        });
+        let mut covers = Map::new();
+        for (tag, id) in index.unwrap_or_default() {
+            match id.as_str().filter(|id| check_name(id).is_ok()) {
+                Some(id) => {
+                    let (cover, _) = cover::read(&self.tags_dir().join(id), problems);
+                    covers.insert(tag, cover);
+                }
+                None => problems.push(format!("{}: 「{tag}」の id が読めません", path.display())),
+            }
+        }
+        covers
     }
 
     pub fn cached(
@@ -321,6 +358,7 @@ impl Library {
                 items,
                 projects: snap.projects,
                 state: snap.state,
+                tag_covers: snap.tag_covers,
                 formats,
                 problems: vec![],
             },
@@ -350,21 +388,23 @@ impl Library {
                 continue;
             }
             let meta = meta_path(&path);
-            let cover = match read_json(&meta) {
-                Ok(m) => m
-                    .and_then(|mut m| m.remove("cover"))
-                    .unwrap_or_else(|| json!([])),
+            let id = match read_json(&meta) {
+                Ok(m) => m.and_then(|m| m.get(ID_KEY)?.as_str().map(str::to_owned)),
                 Err(e) => {
                     problems.push(format!("{}: {e}", meta.display()));
-                    json!([])
+                    None
                 }
+            };
+            let (cover, cover_mtime) = match id.filter(|id| check_name(id).is_ok()) {
+                Some(id) => cover::read(&lib.cards_dir(&id), &mut problems),
+                None => (json!([]), 0.0),
             };
             let from = items.len();
             lib.read_dir(&path, &name, &known, &mut items, &mut problems);
-            let mtime = items[from..]
-                .iter()
-                .map(|r| r.item.mtime)
-                .fold(mtime_of(&path).max(mtime_of(&meta)), f64::max);
+            let mtime = items[from..].iter().map(|r| r.item.mtime).fold(
+                mtime_of(&path).max(mtime_of(&meta)).max(cover_mtime),
+                f64::max,
+            );
             projects.push(StoredProject { name, cover, mtime });
         }
 
@@ -380,24 +420,28 @@ impl Library {
                 LibraryState::default()
             }
         };
+        let tag_covers = lib.read_tag_covers(&mut problems);
         (
             lib,
             Scan {
                 items,
                 projects,
                 state,
+                tag_covers,
                 problems,
             },
         )
     }
 
     pub fn opened(&self, scan: Scan) -> Opened {
-        self.cache.replace(&scan.items, &scan.projects, &scan.state);
+        self.cache
+            .replace(&scan.items, &scan.projects, &scan.state, &scan.tag_covers);
         Opened {
             root: self.root.clone(),
             items: scan.items.into_iter().map(|r| r.item).collect(),
             projects: scan.projects,
             state: scan.state,
+            tag_covers: scan.tag_covers,
             formats: self.plugins.formats(),
             problems: scan.problems,
         }
@@ -470,6 +514,11 @@ impl Library {
         {
             self.cache.put_state(&scan.state);
             changes.state = Some(scan.state);
+        }
+
+        if !touched.contains(&self.tags_dir()) && scan.tag_covers != self.cache.tag_covers() {
+            self.cache.put_tag_covers(&scan.tag_covers);
+            changes.tag_covers = Some(scan.tag_covers);
         }
         changes
     }
@@ -938,7 +987,6 @@ impl Library {
         fs::create_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let mut m = Map::new();
         m.insert(ID_KEY.into(), json!(new_id()));
-        m.insert("cover".into(), json!([]));
         write_json(&meta, &m)?;
         let p = StoredProject {
             name: name.to_owned(),
@@ -957,17 +1005,81 @@ impl Library {
         }
         let meta = meta_path(&dir);
         let mut m = read_json(&meta)?.unwrap_or_default();
-        if !m.contains_key(ID_KEY) {
-            m.insert(ID_KEY.into(), json!(new_id()));
-        }
-        m.insert("cover".into(), cover.clone());
-        write_json(&meta, &m)?;
+        let id = match m.get(ID_KEY).and_then(Value::as_str) {
+            Some(id) => id.to_owned(),
+            None => {
+                let id = new_id();
+                m.insert(ID_KEY.into(), json!(id));
+                write_json(&meta, &m)?;
+                id
+            }
+        };
+        check_name(&id)?;
+        let cards = self.cards_dir(&id);
+        cover::write(&cards, &cover)?;
         self.mark(&dir);
         if let Some(mut p) = self.cache.projects().into_iter().find(|p| p.name == name) {
             p.cover = cover;
-            p.mtime = p.mtime.max(mtime_of(&meta));
+            p.mtime = p.mtime.max(mtime_of(&cards.join(cover::LAYOUT)));
             self.cache.put_project(&p);
         }
+        Ok(())
+    }
+
+    pub fn save_tag_cover(&mut self, tag: &str, cover: Value) -> Result<(), String> {
+        let dir = self.tags_dir();
+        let index_path = dir.join(TAG_INDEX);
+        let mut index = read_json(&index_path)?.unwrap_or_default();
+        let id = match index.get(tag).and_then(Value::as_str) {
+            Some(id) => id.to_owned(),
+            None => {
+                let id = new_id();
+                fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+                index.insert(tag.to_owned(), json!(id));
+                write_json(&index_path, &index)?;
+                id
+            }
+        };
+        check_name(&id)?;
+        cover::write(&dir.join(&id), &cover)?;
+        self.mark(&dir);
+        let mut covers = self.cache.tag_covers();
+        covers.insert(tag.to_owned(), cover);
+        self.cache.put_tag_covers(&covers);
+        Ok(())
+    }
+
+    /// 下の階層のタグも合わせて付け替える。変えた先の名前がすでにあれば、そちらを残す。
+    pub fn rename_tag(&mut self, from: &str, to: &str) -> Result<(), String> {
+        let re = |t: &str| {
+            if t == from {
+                Some(to.to_owned())
+            } else {
+                t.strip_prefix(from)
+                    .filter(|rest| rest.starts_with('/'))
+                    .map(|rest| format!("{to}{rest}"))
+            }
+        };
+        let rekey = |m: Map<String, Value>| {
+            let (moved, kept): (Vec<_>, Vec<_>) = m.into_iter().partition(|(t, _)| re(t).is_some());
+            let mut next: Map<String, Value> = kept.into_iter().collect();
+            for (t, v) in moved {
+                next.entry(re(&t).unwrap_or(t)).or_insert(v);
+            }
+            next
+        };
+        let dir = self.tags_dir();
+        let index_path = dir.join(TAG_INDEX);
+        let Some(index) = read_json(&index_path)? else {
+            return Ok(());
+        };
+        let next = rekey(index.clone());
+        if next == index {
+            return Ok(());
+        }
+        write_json(&index_path, &next)?;
+        self.mark(&dir);
+        self.cache.put_tag_covers(&rekey(self.cache.tag_covers()));
         Ok(())
     }
 }

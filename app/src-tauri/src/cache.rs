@@ -4,12 +4,13 @@ use std::sync::Mutex;
 use std::time::{Duration, SystemTime};
 
 use rusqlite::{Connection, OptionalExtension, params};
+use serde_json::{Map, Value};
 
 use crate::library::{LibraryState, StoredItem, StoredProject, meta_path, mtime_of};
 use crate::plugin::Reads;
 
 /// 中身の形を変えたら上げる。違う版の写しは捨てて作り直す。
-const VERSION: i32 = 2;
+const VERSION: i32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Sig {
@@ -47,6 +48,7 @@ pub struct Snapshot {
     pub rows: Vec<Row>,
     pub projects: Vec<StoredProject>,
     pub state: LibraryState,
+    pub tag_covers: Map<String, Value>,
 }
 
 pub struct Cache(Mutex<Connection>);
@@ -123,7 +125,7 @@ fn connect(path: &Path) -> rusqlite::Result<Connection> {
     if v != VERSION {
         c.execute_batch(
             "DROP TABLE IF EXISTS items; DROP TABLE IF EXISTS projects; DROP TABLE IF EXISTS state;
-            DROP TABLE IF EXISTS thumb_reads;",
+            DROP TABLE IF EXISTS tag_covers; DROP TABLE IF EXISTS thumb_reads;",
         )?;
         c.pragma_update(None, "user_version", VERSION)?;
     }
@@ -137,6 +139,7 @@ fn connect(path: &Path) -> rusqlite::Result<Connection> {
         );
         CREATE TABLE IF NOT EXISTS projects (name TEXT PRIMARY KEY, project TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK (id = 0), state TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS tag_covers (id INTEGER PRIMARY KEY CHECK (id = 0), covers TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS thumb_reads (path TEXT PRIMARY KEY, reads TEXT NOT NULL);",
     )?;
     Ok(c)
@@ -178,6 +181,16 @@ fn put_state(c: &Connection, state: &LibraryState) -> Result<(), String> {
     let json = serde_json::to_string(state).map_err(|e| e.to_string())?;
     c.execute(
         "INSERT OR REPLACE INTO state (id, state) VALUES (0, ?1)",
+        [json],
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn put_tag_covers(c: &Connection, covers: &Map<String, Value>) -> Result<(), String> {
+    let json = serde_json::to_string(covers).map_err(|e| e.to_string())?;
+    c.execute(
+        "INSERT OR REPLACE INTO tag_covers (id, covers) VALUES (0, ?1)",
         [json],
     )
     .map_err(|e| e.to_string())?;
@@ -238,6 +251,7 @@ impl Cache {
             rows,
             projects: self.projects(),
             state,
+            tag_covers: self.tag_covers(),
         })
     }
 
@@ -326,7 +340,26 @@ impl Cache {
         })
     }
 
-    pub fn replace(&self, rows: &[Row], projects: &[StoredProject], state: &LibraryState) {
+    pub fn tag_covers(&self) -> Map<String, Value> {
+        self.with("読めない", |c| {
+            let s: Option<String> = c
+                .query_row("SELECT covers FROM tag_covers WHERE id = 0", [], |r| {
+                    r.get(0)
+                })
+                .optional()
+                .map_err(|e| e.to_string())?;
+            Ok(s.and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default())
+        })
+    }
+
+    pub fn replace(
+        &self,
+        rows: &[Row],
+        projects: &[StoredProject],
+        state: &LibraryState,
+        tag_covers: &Map<String, Value>,
+    ) {
         self.with("書けない", |c| {
             let tx = c.transaction().map_err(|e| e.to_string())?;
             tx.execute_batch("DELETE FROM items; DELETE FROM projects;")
@@ -334,6 +367,7 @@ impl Cache {
             put_rows(&tx, rows)?;
             put_projects(&tx, projects)?;
             put_state(&tx, state)?;
+            put_tag_covers(&tx, tag_covers)?;
             tx.commit().map_err(|e| e.to_string())
         })
     }
@@ -376,6 +410,10 @@ impl Cache {
 
     pub fn put_state(&self, state: &LibraryState) {
         self.with("書けない", |c| put_state(c, state))
+    }
+
+    pub fn put_tag_covers(&self, covers: &Map<String, Value>) {
+        self.with("書けない", |c| put_tag_covers(c, covers))
     }
 
     pub fn set_thumb(&self, src: &Path, thumb: &Path, (width, height): (u32, u32), reads: &Reads) {
