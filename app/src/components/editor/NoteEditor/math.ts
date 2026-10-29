@@ -16,6 +16,22 @@ const depthOf = (line: Line) => ('depth' in line && typeof line.depth === 'numbe
 const opensBlock = (line: Line) =>
   line.next === DOLLAR && line.text.charCodeAt(line.pos + 1) === DOLLAR && line.indent - line.baseIndent < 4
 
+/** pos の $ で始まる $…$ の終わり（閉じの $ の次）。数式でなければ -1。 */
+export function inlineMathEnd(char: (i: number) => number, pos: number, end: number) {
+  // 開きの $ のすぐ後ろが空白なら、値段などの $ として扱う
+  if (char(pos) !== DOLLAR || char(pos + 1) === DOLLAR || isSpace(char(pos + 1))) return -1
+  for (let i = pos + 1; i < end; i++) {
+    const c = char(i)
+    if (c === BACKSLASH) {
+      i++
+      continue
+    }
+    if (c !== DOLLAR || isSpace(char(i - 1))) continue
+    return isDigit(char(i + 1)) ? -1 : i + 1
+  }
+  return -1
+}
+
 /** GitHub と同じく、文中の $…$ と、行を立てる $$…$$ を数式として読む。 */
 export const MathSyntax: MarkdownConfig = {
   defineNodes: [
@@ -28,21 +44,12 @@ export const MathSyntax: MarkdownConfig = {
       name: 'InlineMath',
       before: 'Emphasis',
       parse(cx, next, pos) {
-        // 開きの $ のすぐ後ろが空白なら、値段などの $ として扱う
-        if (next !== DOLLAR || cx.char(pos + 1) === DOLLAR || isSpace(cx.char(pos + 1))) return -1
-        for (let i = pos + 1; i < cx.end; i++) {
-          const c = cx.char(i)
-          if (c === BACKSLASH) {
-            i++
-            continue
-          }
-          if (c !== DOLLAR || isSpace(cx.char(i - 1))) continue
-          if (isDigit(cx.char(i + 1))) return -1
-          return cx.addElement(
-            cx.elt('InlineMath', pos, i + 1, [cx.elt('MathMark', pos, pos + 1), cx.elt('MathMark', i, i + 1)]),
-          )
-        }
-        return -1
+        if (next !== DOLLAR) return -1
+        const end = inlineMathEnd((i) => cx.char(i), pos, cx.end)
+        if (end < 0) return -1
+        return cx.addElement(
+          cx.elt('InlineMath', pos, end, [cx.elt('MathMark', pos, pos + 1), cx.elt('MathMark', end - 1, end)]),
+        )
       },
     },
   ],
@@ -143,6 +150,14 @@ export interface MathClasses {
   error: string
 }
 
+export function mathElement(src: string, display: boolean, classes: MathClasses) {
+  const dom = document.createElement(display ? 'div' : 'span')
+  dom.className = display ? classes.block : classes.inline
+  dom.dataset.src = src
+  render(dom, src, display, classes.error)
+  return dom
+}
+
 export class MathView extends WidgetType {
   readonly src: string
   readonly display: boolean
@@ -168,10 +183,7 @@ export class MathView extends WidgetType {
   }
 
   toDOM(view: EditorView) {
-    const dom = document.createElement(this.display ? 'div' : 'span')
-    dom.className = this.display ? this.classes.block : this.classes.inline
-    dom.dataset.src = this.src
-    render(dom, this.src, this.display, this.classes.error)
+    const dom = mathElement(this.src, this.display, this.classes)
     dom.addEventListener('mousedown', (e) => {
       e.preventDefault()
       const at = view.posAtDOM(dom)

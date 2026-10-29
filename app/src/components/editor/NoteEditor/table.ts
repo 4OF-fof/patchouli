@@ -154,14 +154,26 @@ class TableView {
   render() {
     const table = document.createElement('table')
     const { classes, render } = this.hooks
+    // 数式などを描き直さないよう、中身の変わらないセルは前の描画を移して使う
+    const old = new Map<string, ChildNode[][]>()
+    for (const cell of this.dom.querySelectorAll<HTMLElement>('th, td')) {
+      const src = cell.dataset.src
+      if (src === undefined || cell.querySelector('input')) continue
+      const list = old.get(src) ?? []
+      list.push([...cell.childNodes])
+      old.set(src, list)
+    }
     this.model.rows.forEach((row, r) => {
       const tr = document.createElement('tr')
       row.forEach((src, c) => {
         const cell = document.createElement(r === 0 ? 'th' : 'td')
         cell.className = classes.cell
+        cell.dataset.src = src
         const a = this.model.align[c]
         if (a) cell.style.textAlign = a
-        cell.append(render(src))
+        const prev = old.get(src)?.shift()
+        if (prev) cell.append(...prev)
+        else cell.append(render(src))
         cell.addEventListener('mousedown', (e) => {
           if (e.target instanceof HTMLInputElement) return
           e.preventDefault()
@@ -234,8 +246,10 @@ class TableView {
     this.editing = undefined
     const cell = at.input.parentElement
     if (cell) {
+      const src = this.model.rows[at.r]?.[at.c] ?? ''
       cell.classList.remove(this.hooks.classes.editing)
-      cell.replaceChildren(this.hooks.render(this.model.rows[at.r]?.[at.c] ?? ''))
+      cell.dataset.src = src
+      cell.replaceChildren(this.hooks.render(src))
     }
     this.tools.hidden = true
   }

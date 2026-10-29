@@ -13,7 +13,7 @@ import { Decoration, type DecorationSet, EditorView, WidgetType, keymap } from '
 import type { SyntaxNode } from '@lezer/common'
 import type { Mounted } from 'pele/lazy'
 import { targetOf } from '../../../model/library'
-import { MathView, blockEnd, mathSource } from './math'
+import { MathView, blockEnd, inlineMathEnd, mathElement, mathSource } from './math'
 import { TableWidget, enterTable } from './table'
 
 export const idOfHref = (href: unknown) => (typeof href === 'string' ? targetOf(href)?.id : undefined)
@@ -427,20 +427,39 @@ class Diagram extends WidgetType {
 function inline(src: string, h: LiveHooks): Node {
   const frag = document.createDocumentFragment()
   const re =
-    /`([^`]+)`|!?\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)\)|\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(.+?)\*|_(.+?)_|\\([!-/:-@[-`{-~])/g
+    /`([^`]+)`|!?\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)\)|\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(.+?)\*|_(.+?)_|\\([!-/:-@[-`{-~])|(\$)/g
   let at = 0
   const c = h.classes
+  const mathClasses = { inline: c.math ?? '', block: c.mathBlock ?? '', error: c.mathError ?? '' }
+  const char = (i: number) => (i < src.length ? src.charCodeAt(i) : -1)
   const wrap = (tag: string, cls: string | undefined, inner: string) => {
     const el = document.createElement(tag)
     if (cls) el.className = cls
     el.append(inline(inner, h))
     return el
   }
-  for (const m of src.matchAll(re)) {
+  for (let m = re.exec(src); m; m = re.exec(src)) {
+    const [all, code, label, href, s1, s2, del, e1, e2, esc, dollar] = m
+    let end = m.index + all.length
+    if (dollar !== undefined) {
+      end = inlineMathEnd(char, m.index, src.length)
+      if (end < 0) continue
+      re.lastIndex = end
+    }
     if (m.index > at) frag.append(src.slice(at, m.index))
-    at = m.index + m[0].length
-    const [all, code, label, href, s1, s2, del, e1, e2, esc] = m
-    if (code !== undefined) {
+    at = end
+    if (dollar !== undefined)
+      frag.append(
+        mathElement(
+          src
+            .slice(m.index + 1, end - 1)
+            .replace(/\\\|/g, '|')
+            .trim(),
+          false,
+          mathClasses,
+        ),
+      )
+    else if (code !== undefined) {
       const el = document.createElement('code')
       el.className = c.code ?? ''
       el.textContent = code
