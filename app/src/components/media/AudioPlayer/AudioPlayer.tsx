@@ -1,11 +1,14 @@
-import { createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { PlayerBar } from '../PlayerBar/PlayerBar'
+import { clock } from '../PlayerBar/clock'
 import styles from './AudioPlayer.module.css'
 
 export interface AudioPlayerProps {
   src: string
   wave?: Uint8Array | null
   name: string
+  /** stage は置き場所いっぱいに波形と目盛りを描き、下に操作の帯を出す。row は再生のボタン・波形・時間・音量を 1 行に並べる */
+  look?: 'stage' | 'row'
   /** キーを、この中にフォーカスがあるときだけ受ける */
   local?: boolean
   class?: string
@@ -41,6 +44,17 @@ function wavePath(wave: Uint8Array | null | undefined, w: number, h: number) {
     d += `M${f(x)} ${f(y + r)}a${r} ${r} 0 0 1 ${BAR} 0v${f(len - BAR)}a${r} ${r} 0 0 1 ${-BAR} 0z`
   }
   return d
+}
+
+/** 目盛りの間隔（秒）。ラベルが 6 つほどに収まる、いちばん細かいもの。 */
+const STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
+
+function ticks(length: number) {
+  if (!(length > 0)) return []
+  const step = STEPS.find((s) => length / s <= 6) ?? 3600
+  const out: { at: number; label: boolean }[] = []
+  for (let t = 0; t <= length; t += step / 2) out.push({ at: t / length, label: t % step === 0 })
+  return out
 }
 
 export function AudioPlayer(props: AudioPlayerProps) {
@@ -104,30 +118,94 @@ export function AudioPlayer(props: AudioPlayerProps) {
     onCleanup(() => ro.disconnect())
   })
   const played = () => (length() > 0 ? Math.min(100, (at() / length()) * 100) : 0)
-  return (
-    <div ref={setRoot} class={`${styles.root} ${props.class ?? ''}`}>
-      <div ref={area} class={styles.wave} role="img" aria-label={props.name} onPointerDown={onDown}>
-        <svg class={styles.base} viewBox={view()} aria-hidden="true">
-          <path d={path()} />
-        </svg>
-        <svg
-          class={styles.done}
-          viewBox={view()}
-          aria-hidden="true"
-          style={{ 'clip-path': `inset(0 ${100 - played()}% 0 0)` }}
-        >
-          <path d={path()} />
-        </svg>
-      </div>
-      {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- 素材に字幕はない */}
-      <audio
-        ref={setAudio}
-        src={props.src}
-        preload="metadata"
-        onLoadedMetadata={() => props.onReady?.()}
-        onError={() => props.onReady?.()}
-      />
-      <PlayerBar media={audio} scope={props.local ? root : undefined} class={styles.bar} />
+  const [hover, setHover] = createSignal<number>()
+  const hoverAt = (clientX: number) => {
+    const r = area.getBoundingClientRect()
+    setHover(r.width ? Math.min(1, Math.max(0, (clientX - r.left) / r.width)) : undefined)
+  }
+  const onKeyDown = (e: KeyboardEvent) => {
+    const m = audio()
+    if (!m || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') || e.shiftKey) return
+    e.preventDefault()
+    m.currentTime = Math.min(m.duration || 0, Math.max(0, m.currentTime + (e.key === 'ArrowLeft' ? -5 : 5)))
+  }
+  const wave = (
+    <div
+      ref={area}
+      class={styles.wave}
+      role="slider"
+      tabIndex={0}
+      aria-label={`${props.name} の再生位置`}
+      aria-valuemin={0}
+      aria-valuemax={Math.floor(length())}
+      aria-valuenow={Math.floor(at())}
+      aria-valuetext={clock(at())}
+      onPointerDown={onDown}
+      onPointerMove={(e) => hoverAt(e.clientX)}
+      onPointerLeave={() => setHover(undefined)}
+      onKeyDown={onKeyDown}
+    >
+      <svg class={styles.base} viewBox={view()} aria-hidden="true">
+        <path d={path()} />
+      </svg>
+      <svg
+        class={styles.done}
+        viewBox={view()}
+        aria-hidden="true"
+        style={{ 'clip-path': `inset(0 ${100 - played()}% 0 0)` }}
+      >
+        <path d={path()} />
+      </svg>
+      <Show when={props.look !== 'row'}>
+        <Show when={hover() !== undefined && length() > 0}>
+          <span class={styles.hover} style={{ left: `${(hover() ?? 0) * 100}%` }}>
+            <span class={styles.hoverTime}>{clock((hover() ?? 0) * length())}</span>
+          </span>
+        </Show>
+        <span class={styles.head} style={{ left: `${played()}%` }}>
+          <span class={styles.bubble}>{clock(at())}</span>
+        </span>
+      </Show>
     </div>
+  )
+  const media = (
+    // oxlint-disable-next-line jsx-a11y/media-has-caption -- 素材に字幕はない
+    <audio
+      ref={setAudio}
+      src={props.src}
+      preload="metadata"
+      onLoadedMetadata={() => props.onReady?.()}
+      onError={() => props.onReady?.()}
+    />
+  )
+  return (
+    <Show
+      when={props.look === 'row'}
+      fallback={
+        <div ref={setRoot} class={`${styles.root} ${props.class ?? ''}`} data-look="stage">
+          <div class={styles.box}>
+            {wave}
+            <div class={styles.ruler} aria-hidden="true">
+              <For each={ticks(length())}>
+                {(t) => (
+                  <span class={styles.tick} data-label={t.label || undefined} style={{ left: `${t.at * 100}%` }}>
+                    <Show when={t.label}>
+                      <span>{clock(t.at * length())}</span>
+                    </Show>
+                  </span>
+                )}
+              </For>
+            </div>
+          </div>
+          {media}
+          <PlayerBar media={audio} scope={props.local ? root : undefined} class={styles.bar} />
+        </div>
+      }
+    >
+      <div ref={setRoot} class={`${styles.root} ${props.class ?? ''}`} data-look="row">
+        {media}
+        <PlayerBar media={audio} scope={props.local ? root : undefined} layout="row" track={wave} />
+      </div>
+    </Show>
   )
 }

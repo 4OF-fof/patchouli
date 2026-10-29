@@ -273,6 +273,29 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* 名前は画像の幅に合わせて切り、埋め込みの幅を広げない */
+.caption {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 0;
+  min-width: 100%;
+  margin-top: 8px;
+  overflow: hidden;
+  font-size: var(--fs-meta);
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.caption b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  color: var(--ink);
+}
+.caption svg {
+  flex: none;
+}
 /* 大きさは、ふだんの大きさ（本文の幅か、高さ 520px までに収めた画像）に --embed-scale を掛ける */
 .embed[data-wide='true'] {
   width: calc(var(--embed-room) * var(--embed-scale, 1));
@@ -290,8 +313,6 @@
 }
 .mounted {
   --player-screen-max: 520px;
-  --player-wave-height: 96px;
-  --player-bar-width: 100%;
   display: block;
   line-height: normal;
   cursor: auto;
@@ -302,9 +323,9 @@
   align-items: center;
   gap: 8px;
   padding: 4px 10px 4px 4px;
-  border: 1px solid var(--line-2);
+  border: 1px solid var(--card);
   border-radius: var(--radius-md);
-  background: var(--card);
+  background: color-mix(in oklch, var(--ink) 4%, transparent);
   font-size: var(--fs-list);
   line-height: 1.6;
   color: var(--ink);
@@ -314,6 +335,10 @@
   height: 40px;
   object-fit: cover;
   border-radius: var(--radius-sm);
+}
+.cardLabel {
+  font-size: var(--fs-meta);
+  color: var(--muted);
 }
 .cardError {
   border-color: var(--danger-line);

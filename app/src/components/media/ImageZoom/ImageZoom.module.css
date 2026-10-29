@@ -1,8 +1,6 @@
 .root {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
   min-width: 0;
   min-height: 0;
 }
@@ -10,7 +8,6 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  align-self: stretch;
   overflow: hidden;
   touch-action: none;
 }
@@ -26,54 +23,54 @@
   top: 0;
   max-width: none;
   transform-origin: 0 0;
-  border-radius: var(--radius-sm);
   user-select: none;
   visibility: hidden;
 }
 .img[data-ready] {
   visibility: visible;
 }
+/* 画像の上に重ねる。置き場所の側で、--player-controls（0〜1）と --player-events で隠せる */
 .bar {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 40px;
-  padding: 0 10px;
+  gap: 2px;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 4px;
   border-radius: var(--radius-lg);
-  background: var(--stage-bar);
-  color: var(--stage-ink);
+  background: var(--overlay);
+  color: var(--overlay-ink);
+  backdrop-filter: blur(12px);
+  transform: translateX(-50%);
+  opacity: var(--player-controls, 1);
+  pointer-events: var(--player-events, auto);
+  transition: opacity 0.2s ease;
 }
-.btn,
-.mode {
+.btn {
+  width: 30px;
   height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   border: 0;
   border-radius: var(--radius-md);
-  background: var(--stage-btn);
+  background: none;
   color: inherit;
-  font-size: var(--fs-list);
   cursor: pointer;
 }
-.btn {
-  width: 28px;
-  font-size: var(--fs-large);
+.btn:hover {
+  background: var(--overlay-hover);
 }
-.mode {
-  padding: 0 12px;
-  background: none;
-  opacity: 0.72;
-}
-.mode[aria-pressed='true'] {
-  background: var(--stage-btn);
-  opacity: 1;
-}
-.btn:focus-visible,
-.mode:focus-visible {
+.btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
 .pct {
-  min-width: 48px;
+  min-width: 46px;
   font-family: var(--f-mono);
   font-size: var(--fs-meta);
   text-align: center;

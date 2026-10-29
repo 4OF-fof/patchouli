@@ -20,12 +20,16 @@ export const idOfHref = (href: unknown) => (typeof href === 'string' ? targetOf(
 
 export const escapeLabel = (s: string) => s.replace(/[\\[\]]/g, '\\$&')
 
+/** 渡された要素に描き、消すときに呼ぶ関数を返す */
+type Draw = (el: HTMLElement) => () => void
+
 export type Embed =
-  | { kind: 'image'; src: string }
-  /** error があれば、埋め込めないことを知らせるカードにする */
-  | { kind: 'card'; thumb?: string; error?: string }
-  /** 中身を mount で描く。key が同じあいだは描き直さない。mount が返した関数は、消すときに呼ぶ */
-  | { kind: 'mount'; key: string; mount: (el: HTMLElement) => () => void }
+  /** caption があれば、下に名前などを添える */
+  | { kind: 'image'; src: string; caption?: Draw }
+  /** error があれば、埋め込めないことを知らせるカードにする。label は名前の後ろに添える */
+  | { kind: 'card'; thumb?: string; label?: string; error?: string }
+  /** 中身を mount で描く。key が同じあいだは描き直さない */
+  | { kind: 'mount'; key: string; mount: Draw; caption?: Draw }
 
 export interface LiveHooks {
   nameOf: (id: string) => string | undefined
@@ -185,13 +189,15 @@ class Check extends WidgetType {
 
 const embeds = new Map<string, Promise<Embed | undefined>>()
 /** 埋め込みに描いた中身と、mount で描いたものを消す関数。 */
-const drawn = new WeakMap<HTMLElement, { sig: string; off?: () => void }>()
+const drawn = new WeakMap<HTMLElement, { sig: string; off: (() => void)[] }>()
 
 const unmount = (dom: HTMLElement) => {
-  try {
-    drawn.get(dom)?.off?.()
-  } catch (e) {
-    console.warn('埋め込みを閉じられない', e)
+  for (const off of drawn.get(dom)?.off ?? []) {
+    try {
+      off()
+    } catch (e) {
+      console.warn('埋め込みを閉じられない', e)
+    }
   }
   drawn.delete(dom)
 }
@@ -311,15 +317,23 @@ class EmbedView extends WidgetType {
       if (drawn.get(dom)?.sig === sig) return
       unmount(dom)
       delete dom.dataset.wide
+      const off: (() => void)[] = []
+      drawn.set(dom, { sig, off })
+      const caption = (put: Draw | undefined) => {
+        if (!put) return
+        const el = spanOf(classes.caption, '')
+        dom.append(el)
+        off.push(put(el))
+      }
       if (e.kind === 'mount') {
         const box = document.createElement('span')
         box.className = classes.mounted ?? ''
         dom.dataset.wide = 'true'
         dom.replaceChildren(box)
-        drawn.set(dom, { sig, off: e.mount(box) })
+        off.push(e.mount(box))
+        caption(e.caption)
         return
       }
-      drawn.set(dom, { sig })
       if (e.kind === 'card') {
         const card = spanOf(e.error ? `${classes.card} ${classes.cardError}` : classes.card, name)
         if (e.thumb) {
@@ -328,11 +342,13 @@ class EmbedView extends WidgetType {
           img.alt = ''
           card.prepend(img)
         }
+        if (e.label) card.append(spanOf(classes.cardLabel, e.label))
         if (e.error) card.append(spanOf(classes.cardNote, e.error))
         dom.replaceChildren(card)
         return
       }
       dom.replaceChildren(imageOf(e.src, name))
+      caption(e.caption)
     })
   }
 

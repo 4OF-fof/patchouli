@@ -1,19 +1,32 @@
-.root {
+.root[data-look='stage'] {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
   min-width: 0;
   min-height: 0;
+  container-type: size;
 }
-/* 置き場所に高さがないときは、--player-wave-height で波形の高さを決める */
+.box {
+  flex: 1;
+  min-height: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
 .wave {
   position: relative;
-  flex: 1;
-  min-height: var(--player-wave-height, 0);
-  align-self: stretch;
   cursor: pointer;
   touch-action: none;
+}
+.root[data-look='stage'] .wave {
+  height: clamp(110px, 40cqh, 320px);
+}
+.wave:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+  border-radius: var(--radius-sm);
 }
 .base,
 .done {
@@ -24,13 +37,87 @@
   fill: currentColor;
 }
 .base {
-  color: var(--muted);
-  opacity: 0.55;
+  color: var(--wave);
 }
 .done {
-  color: var(--accent);
+  color: var(--stage-ink);
 }
-/* 置き場所の側で、--player-bar-width で幅を変えられる */
+.head {
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.bubble {
+  position: absolute;
+  top: -26px;
+  left: 50%;
+  padding: 1px 7px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--stage);
+  font: var(--fs-meta) var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.hover {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--stage-ink);
+  opacity: 0.35;
+  pointer-events: none;
+}
+.hoverTime {
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  font: var(--fs-tiny) var(--f-mono);
+  color: var(--muted);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.ruler {
+  position: relative;
+  height: 20px;
+  margin-top: 10px;
+  border-top: 1px solid var(--card);
+  font: var(--fs-tiny) var(--f-mono);
+  color: var(--muted);
+}
+.tick {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 5px;
+  background: var(--line-2);
+}
+.tick > span {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.tick:first-child > span {
+  transform: none;
+}
 .bar {
-  width: var(--player-bar-width, min(100%, 880px));
+  flex: none;
+  width: min(600px, 100%);
+  margin-bottom: 18px;
+}
+
+.root[data-look='row'] .wave {
+  flex: 1;
+  min-width: 60px;
+  height: 44px;
+}
+.root[data-look='row'] .done {
+  color: var(--accent);
 }

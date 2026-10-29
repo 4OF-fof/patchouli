@@ -1,23 +1,25 @@
 .root {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12px;
+  display: grid;
+  place-items: center;
   min-width: 0;
   min-height: 0;
+  container-type: size;
 }
-.screen {
-  flex: 1;
-  min-height: 0;
-  align-self: stretch;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.frame {
+  position: relative;
+  aspect-ratio: var(--ratio);
+  width: min(100cqw, 100cqh * var(--ratio));
 }
 /* 置き場所の側で、--player-screen-max で高さの上限を決められる */
-.screen[data-fixed='true'] {
-  flex: none;
+.root[data-flow='true'] {
+  display: block;
+  container-type: normal;
+}
+.root[data-flow='true'] .frame {
+  width: 100%;
   max-height: var(--player-screen-max, none);
+  overflow: hidden;
+  border-radius: var(--radius-md);
 }
 .video {
   display: block;
@@ -26,15 +28,43 @@
   object-fit: contain;
   cursor: pointer;
 }
-/* 置き場所の側で、--player-bar-width で幅を変えられる */
 .bar {
-  width: var(--player-bar-width, min(100%, 880px));
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  width: min(600px, 100% - 24px);
+  transform: translateX(-50%);
+}
+.root[data-flow='true'] .bar {
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  width: auto;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  transform: none;
+}
+/* 再生中は、ポインタが離れたら操作を隠す */
+.root[data-playing]:not(:hover):not(:focus-within) .bar {
+  --player-controls: 0;
+  --player-events: none;
 }
 .root:fullscreen {
-  padding: 0 0 16px;
+  display: grid;
   background: var(--stage);
+  container-type: size;
 }
-/* 全画面では「情報」が出ないので、置き場所の幅の指定によらず広げる */
+.root:fullscreen .frame {
+  width: min(100cqw, 100cqh * var(--ratio));
+  max-height: none;
+  border-radius: 0;
+}
 .root:fullscreen .bar {
-  width: min(100%, 880px);
+  left: 50%;
+  right: auto;
+  bottom: 16px;
+  width: min(600px, 100% - 24px);
+  height: 40px;
+  transform: translateX(-50%);
 }

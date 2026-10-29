@@ -1,4 +1,4 @@
-import { Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
+import { type JSX, Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
 import { clock } from './clock'
 import styles from './PlayerBar.module.css'
@@ -9,6 +9,11 @@ export interface PlayerBarProps {
   fullscreen?: () => HTMLElement | undefined
   /** あれば、キーはこの中にフォーカスがあるときだけ受ける。なければ画面のどこにあっても受ける */
   scope?: () => HTMLElement | undefined
+  /** row は、再生のボタン・track・時間・音量を 1 行に並べる。再生位置は track の側で操る */
+  layout?: 'bar' | 'row'
+  track?: JSX.Element
+  /** 再生速度のボタンを出すか。既定は出す */
+  rate?: boolean
   class?: string
 }
 
@@ -109,61 +114,86 @@ export function PlayerBar(props: PlayerBarProps) {
     window.removeEventListener('keyup', onKey)
     document.removeEventListener('fullscreenchange', onFull)
   })
-  return (
-    <div class={`${styles.root} ${props.class ?? ''}`} role="group" aria-label="再生の操作">
+  const playButton = (
+    <button
+      type="button"
+      class={styles.btn}
+      aria-label={playing() ? '一時停止' : '再生'}
+      data-tip={playing() ? '一時停止（Space）' : '再生（Space）'}
+      onClick={toggle}
+    >
+      <Icon name={playing() ? 'pause' : 'play'} />
+    </button>
+  )
+  const volumeControl = (
+    <span class={styles.vol}>
       <button
         type="button"
         class={styles.btn}
-        aria-label={playing() ? '一時停止' : '再生'}
-        data-tip={playing() ? '一時停止（Space）' : '再生（Space）'}
-        onClick={toggle}
+        aria-label={muted() ? '消音を解除' : '消音'}
+        data-tip={muted() ? '消音を解除（M）' : '消音（M）'}
+        onClick={toggleMute}
       >
-        <Icon name={playing() ? 'pause' : 'play'} />
+        <Icon name={muted() || volume() === 0 ? 'muted' : 'volume'} />
       </button>
-      <span class={styles.time}>{clock(at())}</span>
       <input
         type="range"
-        class={styles.range}
-        aria-label="再生位置"
+        class={`${styles.range} ${styles.level}`}
+        aria-label="音量"
         min={0}
-        max={length() || 0}
-        step="any"
-        value={at()}
-        style={{ '--p': pct(at(), length()) }}
-        onInput={(e) => seekTo(e.currentTarget.valueAsNumber)}
+        max={1}
+        step={0.05}
+        value={muted() ? 0 : volume()}
+        style={{ '--p': pct(muted() ? 0 : volume(), 1) }}
+        onInput={(e) => {
+          const m = props.media()
+          if (!m) return
+          m.volume = e.currentTarget.valueAsNumber
+          m.muted = m.volume === 0
+        }}
       />
-      <span class={styles.time}>{clock(length())}</span>
-      <button type="button" class={styles.rate} aria-label="再生速度" data-tip="再生速度" onClick={nextRate}>
-        {rate()}×
-      </button>
-      <span class={styles.vol}>
-        <button
-          type="button"
-          class={styles.btn}
-          aria-label={muted() ? '消音を解除' : '消音'}
-          data-tip={muted() ? '消音を解除（M）' : '消音（M）'}
-          onClick={toggleMute}
-        >
-          <Icon name={muted() || volume() === 0 ? 'muted' : 'volume'} />
-        </button>
-        <input
-          type="range"
-          class={`${styles.range} ${styles.level}`}
-          aria-label="音量"
-          min={0}
-          max={1}
-          step={0.05}
-          value={muted() ? 0 : volume()}
-          style={{ '--p': pct(muted() ? 0 : volume(), 1) }}
-          onInput={(e) => {
-            const m = props.media()
-            if (!m) return
-            m.volume = e.currentTarget.valueAsNumber
-            m.muted = m.volume === 0
-          }}
-        />
-      </span>
-      <Show when={props.fullscreen}>
+    </span>
+  )
+  return (
+    <div
+      class={`${styles.root} ${props.class ?? ''}`}
+      data-layout={props.layout ?? 'bar'}
+      role="group"
+      aria-label="再生の操作"
+    >
+      {playButton}
+      <Show
+        when={props.layout === 'row'}
+        fallback={
+          <>
+            <span class={styles.time}>{clock(at())}</span>
+            <input
+              type="range"
+              class={styles.range}
+              aria-label="再生位置"
+              min={0}
+              max={length() || 0}
+              step="any"
+              value={at()}
+              style={{ '--p': pct(at(), length()) }}
+              onInput={(e) => seekTo(e.currentTarget.valueAsNumber)}
+            />
+            <span class={styles.time}>{clock(length())}</span>
+            <Show when={props.rate !== false}>
+              <button type="button" class={styles.rate} aria-label="再生速度" data-tip="再生速度" onClick={nextRate}>
+                {rate()}×
+              </button>
+            </Show>
+          </>
+        }
+      >
+        {props.track}
+        <span class={styles.time}>
+          {clock(at())} / {clock(length())}
+        </span>
+      </Show>
+      {volumeControl}
+      <Show when={props.fullscreen && props.layout !== 'row'}>
         <button
           type="button"
           class={styles.btn}

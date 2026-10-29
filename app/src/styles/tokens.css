@@ -39,6 +39,11 @@
   --stage-ink: oklch(0.87 0 0);
   --stage-bar: oklch(0.215 0 0 / 0.86);
   --stage-btn: rgba(255, 255, 255, 0.08);
+  --overlay: oklch(0.19 0 0 / 0.72);
+  --overlay-ink: oklch(0.93 0 0);
+  --overlay-track: rgba(255, 255, 255, 0.24);
+  --overlay-hover: rgba(255, 255, 255, 0.1);
+  --wave: oklch(0.675 0 0 / 0.42);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.35);
   --shadow-pill: 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -110,6 +115,11 @@
   --stage-ink: var(--ink);
   --stage-bar: oklch(0.99 0 0 / 0.86);
   --stage-btn: rgba(0, 0, 0, 0.06);
+  --overlay: oklch(0.99 0 0 / 0.8);
+  --overlay-ink: var(--ink);
+  --overlay-track: rgba(0, 0, 0, 0.16);
+  --overlay-hover: rgba(0, 0, 0, 0.06);
+  --wave: oklch(0.523 0 0 / 0.38);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12);
   --base04: oklch(0.46 0 0);

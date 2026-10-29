@@ -41,7 +41,8 @@ export function ImageZoom(props: ImageZoomProps) {
     const now = scale()
     const p = shown()
     setPos(clamp({ x: cx - ((cx - p.x) * next) / now, y: cy - ((cy - p.y) * next) / now }, next))
-    setZoom(next)
+    // 全体が収まる大きさまで戻したら、置き場所の大きさが変わっても収まり続けるようにする
+    setZoom(next <= fit() + 1e-6 ? null : next)
   }
   const zoomCenter = (s: number) => zoomAt(s, box().w / 2, box().h / 2)
   const reset = () => {
@@ -123,12 +124,6 @@ export function ImageZoom(props: ImageZoomProps) {
         <span class={styles.pct}>{Math.round(scale() * 100)}%</span>
         <button type="button" class={styles.btn} aria-label="拡大" onClick={() => zoomCenter(scale() * STEP)}>
           <Icon name="plus" size={14} />
-        </button>
-        <button type="button" class={styles.mode} aria-pressed={zoom() === null} onClick={reset}>
-          全体
-        </button>
-        <button type="button" class={styles.mode} aria-pressed={zoom() === 1} onClick={() => zoomCenter(1)}>
-          等倍
         </button>
       </div>
     </div>

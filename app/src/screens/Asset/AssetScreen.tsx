@@ -14,9 +14,6 @@ import {
 } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
-import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
-import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
-import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { Select } from '../../components/controls/Select/Select'
 import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
@@ -24,7 +21,6 @@ import { AudioPlayer } from '../../components/media/AudioPlayer/AudioPlayer'
 import { ImageZoom } from '../../components/media/ImageZoom/ImageZoom'
 import { PluginView } from '../../components/media/PluginView/PluginView'
 import { Thumb } from '../../components/media/Thumb/Thumb'
-import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { type Blocker, Unsupported } from '../../components/media/Unsupported/Unsupported'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
 import { type Item, type Library, relDay, thumbOf } from '../../model/library'
@@ -97,7 +93,7 @@ function MemoField(props: { value: string; onChange: (memo: string) => void }) {
 }
 
 /** Enter か離れたときに onChange を呼ぶ。空にしたときと Esc では元に戻す。 */
-function NameField(props: { value: string; onChange: (name: string) => void }) {
+function NameField(props: { value: string; class?: string; onChange: (name: string) => void }) {
   let el!: HTMLInputElement
   createEffect(() => {
     const v = props.value
@@ -111,6 +107,7 @@ function NameField(props: { value: string; onChange: (name: string) => void }) {
   return (
     <input
       ref={el}
+      class={props.class}
       type="text"
       aria-label="名前"
       spellcheck={false}
@@ -228,13 +225,20 @@ export function AssetScreen(props: AssetScreenProps) {
     if (l.kind === 'video')
       return <VideoPlayer src={l.src} poster={a().thumb} name={a().name} class={styles.player} onReady={onReady} />
     return (
-      <AudioPlayer
-        src={l.src}
-        wave={shownWave()?.wave ?? null}
-        name={a().name}
-        class={styles.player}
-        onReady={onReady}
-      />
+      <div class={styles.audio}>
+        <div class={styles.title}>
+          <b>{a().name}</b>
+          <span>{a().folder ?? 'プロジェクトなし'}</span>
+        </div>
+        <AudioPlayer
+          src={l.src}
+          wave={shownWave()?.wave ?? null}
+          name={a().name}
+          look="stage"
+          class={styles.wave}
+          onReady={onReady}
+        />
+      </div>
     )
   }
   const onKey = (e: KeyboardEvent) => {
@@ -245,6 +249,7 @@ export function AssetScreen(props: AssetScreenProps) {
     if (e.key === 'ArrowLeft') step(-1)
     else if (e.key === 'ArrowRight') step(1)
     else if (e.key.toLowerCase() === 'i') setInfo(!info())
+    else if (e.key === 'Escape' && info()) setInfo(false)
   }
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
@@ -288,18 +293,49 @@ export function AssetScreen(props: AssetScreenProps) {
     () => (picking() ? it()?.id : undefined),
     async (id) => (await props.suggestTags?.(id).catch(() => [])) ?? [],
   )
-  const [fileOpen, setFileOpen] = createSignal(false)
   const [details] = createResource(
     () => (props.host?.details ? it()?.id : undefined),
     async (id) => (await props.host?.details?.(id).catch(() => null)) ?? null,
   )
+  const spec = (a: Item) => {
+    const d = details.state === 'ready' ? details() : null
+    return [
+      lib().formatLabel(a),
+      ...(d?.rows.map((r) => `${r.label} ${r.value}`) ?? []),
+      ...(d ? [bytes(d.size)] : []),
+      `更新 ${relDay(lib(), a.moved)}`,
+    ].join(' · ')
+  }
   const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
   const closePicker = () => {
     setPicking(false)
     addBtn?.focus()
   }
+  /** 手が止まってしばらくしたら、上の帯や操作を隠す。操作の上にポインタがある間は隠さない */
+  const [still, setStill] = createSignal(false)
+  let stillTimer = 0
+  const wake = (after = 2500) => {
+    setStill(false)
+    clearTimeout(stillTimer)
+    stillTimer = window.setTimeout(() => {
+      if (root.querySelector('button:hover, input:hover, [role="group"]:hover')) wake()
+      else setStill(true)
+    }, after)
+  }
+  onMount(() => wake())
+  onCleanup(() => clearTimeout(stillTimer))
+  const idle = () => !!props.idle || still()
   return (
-    <section ref={root} class={`${shared.screen} ${styles.root}`} data-idle={!!props.idle} aria-label="素材">
+    <section
+      ref={root}
+      class={`${shared.screen} ${styles.root}`}
+      data-idle={idle()}
+      data-info={info()}
+      aria-label="素材"
+      onPointerMove={() => wake()}
+      onPointerDown={() => wake()}
+      onPointerLeave={() => wake(600)}
+    >
       <Show when={it()}>
         {(a) => (
           <>
@@ -341,120 +377,106 @@ export function AssetScreen(props: AssetScreenProps) {
                 </Match>
               </Switch>
             </div>
-            <TopBar
-              class={styles.bar}
-              actions={
-                <PinToggle
-                  look="float"
-                  pressed={lib().pins.includes(a().id)}
-                  onClick={() => props.onTogglePin?.(a().id)}
-                />
-              }
+            <div class={`${styles.strip} ${styles.fade}`}>
+              <Show when={props.list.length > 1}>
+                <button
+                  type="button"
+                  class={styles.btn}
+                  aria-label="前の素材"
+                  data-tip="前の素材（←）"
+                  onClick={() => step(-1)}
+                >
+                  <Icon name="back" size={14} />
+                </button>
+                <button
+                  type="button"
+                  class={styles.btn}
+                  aria-label="次の素材"
+                  data-tip="次の素材（→）"
+                  onClick={() => step(1)}
+                >
+                  <Icon name="chevron" size={14} />
+                </button>
+                <span class={styles.count}>
+                  {i() + 1} / {props.list.length}
+                </span>
+              </Show>
+            </div>
+            <button
+              type="button"
+              class={`${styles.btn} ${styles.pin} ${styles.fade}`}
+              aria-pressed={lib().pins.includes(a().id)}
+              aria-label={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
+              data-tip={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
+              onClick={() => props.onTogglePin?.(a().id)}
             >
-              <b>{a().name}</b>
-              <span class={styles.meta}>
-                {a().folder ?? 'プロジェクトなし'}
-                {props.list.length > 1 && ` · ${i() + 1} / ${props.list.length}`}
-              </span>
-            </TopBar>
-            <Show
-              when={info()}
-              fallback={
-                <FloatingPill class={styles.pill} kbd="I" aria-expanded={false} onClick={() => setInfo(true)}>
-                  <Icon name="info" size={14} withText />
-                  情報
-                </FloatingPill>
-              }
+              <Icon name="pin" size={15} class={styles.pinGlyph} />
+            </button>
+            <button
+              type="button"
+              class={`${styles.btn} ${styles.infoBtn} ${styles.fade}`}
+              aria-expanded={info()}
+              aria-label={info() ? '情報を閉じる' : '情報'}
+              data-tip={info() ? '情報を閉じる（I）' : '情報（I）'}
+              onClick={() => setInfo(!info())}
             >
+              <Icon name="info" size={15} />
+            </button>
+            <Show when={info()}>
               <aside class={styles.info} aria-label="情報">
-                <ScrollArea viewClass={styles.infoView}>
-                  <FloatingCard title="情報" onClose={() => setInfo(false)}>
-                    <div class={styles.fl}>
-                      <span class={styles.k}>名前</span>
-                      <NameField value={a().name} onChange={(name) => props.onRename?.(a().id, name)} />
+                <div class={styles.infoHead}>情報</div>
+                <ScrollArea class={styles.infoScroll} viewClass={styles.infoView}>
+                  <div class={styles.fl}>
+                    <NameField
+                      class={styles.name}
+                      value={a().name}
+                      onChange={(name) => props.onRename?.(a().id, name)}
+                    />
+                    <span class={styles.spec}>{spec(a())}</span>
+                  </div>
+                  <div class={styles.fl}>
+                    <span class={styles.k}>プロジェクト</span>
+                    <Select
+                      aria-label="プロジェクト"
+                      value={a().folder ?? ''}
+                      options={[
+                        { value: '', label: 'プロジェクトなし' },
+                        ...lib().projects.map((p) => ({ value: p.name, label: p.name })),
+                      ]}
+                      onChange={(v) => props.onProject?.(a().id, v || null)}
+                    />
+                  </div>
+                  <div class={styles.fl}>
+                    <span class={styles.k}>タグ</span>
+                    <div class={styles.tags}>
+                      <For each={a().tags}>
+                        {(t) => (
+                          <Chip aria-label={`# ${t} を削除`} onClick={() => props.onTag?.(a().id, t, false)}>
+                            # {t}
+                            <Icon name="close" size={12} withText />
+                          </Chip>
+                        )}
+                      </For>
+                      <Chip ref={addBtn} dashed aria-expanded={picking()} aria-haspopup="dialog" onClick={togglePicker}>
+                        <Icon name="plus" size={12} withText />
+                        追加
+                      </Chip>
                     </div>
-                    <div class={styles.fl}>
-                      <span class={styles.k}>プロジェクト</span>
-                      <Select
-                        aria-label="プロジェクト"
-                        value={a().folder ?? ''}
-                        options={[
-                          { value: '', label: 'プロジェクトなし' },
-                          ...lib().projects.map((p) => ({ value: p.name, label: p.name })),
-                        ]}
-                        onChange={(v) => props.onProject?.(a().id, v || null)}
-                      />
-                    </div>
-                    <div class={styles.fl}>
-                      <span class={styles.k}>タグ</span>
-                      <div class={styles.tags}>
-                        <For each={a().tags}>
-                          {(t) => (
-                            <Chip aria-label={`# ${t} を削除`} onClick={() => props.onTag?.(a().id, t, false)}>
-                              # {t}
-                              <Icon name="close" size={12} withText />
-                            </Chip>
-                          )}
-                        </For>
-                        <Chip
-                          ref={addBtn}
-                          dashed
-                          aria-expanded={picking()}
-                          aria-haspopup="dialog"
-                          onClick={togglePicker}
-                        >
-                          <Icon name="plus" size={12} withText />
-                          追加
-                        </Chip>
-                      </div>
-                    </div>
-                    <label class={styles.fl}>
-                      <span class={styles.k}>メモ</span>
-                      <Show when={a().id} keyed>
-                        {(id) => <MemoField value={a().memo} onChange={(memo) => props.onMemo?.(id, memo)} />}
-                      </Show>
-                    </label>
-                    <div class={styles.fl}>
-                      <span class={styles.k}>この素材へのリンク {lib().backOf(a()).length}</span>
-                      <Show when={lib().backOf(a()).length} fallback={<LinkNone>まだありません</LinkNone>}>
-                        <For each={lib().backOf(a())}>
-                          {(n) => <LinkRow mark="←" label={n.name} onClick={() => props.onOpenNote?.(n.id)} />}
-                        </For>
-                      </Show>
-                    </div>
-                    <details open={fileOpen()} onToggle={(e) => setFileOpen(e.currentTarget.open)}>
-                      <summary class={styles.sum}>
-                        <Icon name="chevron" size={12} class={styles.sumIcon} withText />
-                        ファイルの詳細
-                      </summary>
-                      <div class={styles.fi}>
-                        <span>種類</span>
-                        <span>{a().ext}</span>
-                        <Show when={details.loading}>
-                          <span />
-                          <Spinner size={12} />
-                        </Show>
-                        <For each={details.state === 'ready' ? details()?.rows : undefined}>
-                          {(r) => (
-                            <>
-                              <span>{r.label}</span>
-                              <span>{r.value}</span>
-                            </>
-                          )}
-                        </For>
-                        <Show when={details.state === 'ready' && details()}>
-                          {(d) => (
-                            <>
-                              <span>サイズ</span>
-                              <span>{bytes(d().size)}</span>
-                            </>
-                          )}
-                        </Show>
-                        <span>更新日</span>
-                        <span>{relDay(lib(), a().moved)}</span>
-                      </div>
-                    </details>
-                  </FloatingCard>
+                  </div>
+                  <label class={styles.fl}>
+                    <span class={styles.k}>メモ</span>
+                    <Show when={a().id} keyed>
+                      {(id) => <MemoField value={a().memo} onChange={(memo) => props.onMemo?.(id, memo)} />}
+                    </Show>
+                  </label>
+                  <div class={styles.fl}>
+                    <span class={styles.k}>この素材へのリンク {lib().backOf(a()).length}</span>
+                    <Show when={lib().backOf(a()).length} fallback={<LinkNone>まだありません</LinkNone>}>
+                      <For each={lib().backOf(a())}>
+                        {(n) => <LinkRow mark="←" label={n.name} onClick={() => props.onOpenNote?.(n.id)} />}
+                      </For>
+                    </Show>
+                  </div>
                 </ScrollArea>
               </aside>
               <Show when={picking()}>
