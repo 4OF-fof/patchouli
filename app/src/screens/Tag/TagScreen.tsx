@@ -15,7 +15,7 @@ import shared from '../screen.module.css'
 import styles from './TagScreen.module.css'
 
 export const TAG_PARTS: Record<TagCoverPart['type'], PartKind> = {
-  desc: { label: '説明', note: 'テキスト', multiple: true },
+  desc: { label: '説明', note: 'テキスト', multiple: false },
   kids: { label: 'サブタグ', note: '階層下のタグで絞り込み', multiple: false },
   exts: { label: 'ファイル形式', note: '拡張子ごとの件数', multiple: false },
   together: { label: '関連タグ', note: 'よく併用されるタグ', multiple: false },

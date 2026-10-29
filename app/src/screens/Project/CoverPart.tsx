@@ -11,9 +11,9 @@ import styles from './CoverPart.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
 
 export const PARTS: Record<CoverPart['type'], PartKind> = {
-  desc: { label: '説明', note: 'テキスト', multiple: true },
-  todo: { label: 'タスク', note: 'チェックリストと期日', multiple: true },
-  links: { label: 'リンク', note: '外部 URL', multiple: true },
+  desc: { label: '説明', note: 'テキスト', multiple: false },
+  todo: { label: 'タスク', note: 'チェックリストと期日', multiple: false },
+  links: { label: 'リンク', note: '外部 URL', multiple: false },
 }
 export const PART_TYPES = ['desc', 'todo', 'links'] as const satisfies readonly CoverPart['type'][]
 
