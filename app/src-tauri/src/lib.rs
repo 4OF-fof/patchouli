@@ -1220,6 +1220,16 @@ async fn save_state(cur: State<'_, Current>, state: LibraryState) -> Result<(), 
 }
 
 #[tauri::command]
+async fn tag_history(cur: State<'_, Current>) -> Result<Vec<String>, String> {
+    with(&cur, |l| l.tag_history())
+}
+
+#[tauri::command]
+async fn save_tag_history(cur: State<'_, Current>, tags: Vec<String>) -> Result<(), String> {
+    with(&cur, |l| l.save_tag_history(&tags))
+}
+
+#[tauri::command]
 async fn create_note(
     cur: State<'_, Current>,
     name: String,
@@ -1333,6 +1343,8 @@ pub fn run() {
             save_item,
             move_item,
             save_state,
+            tag_history,
+            save_tag_history,
             create_note,
             create_project,
             save_project,

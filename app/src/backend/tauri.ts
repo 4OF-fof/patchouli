@@ -261,6 +261,8 @@ export function tauriBackend(): Backend {
     },
     deleteItem: (id) => invoke('delete_item', { id }),
     saveState: (state) => invoke('save_state', { state }),
+    tagHistory: () => invoke<string[]>('tag_history'),
+    saveTagHistory: (tags) => invoke('save_tag_history', { tags }),
     async createNote(name, folder) {
       const it = await invoke<TauriItem>('create_note', { name, folder })
       return toItem(it, new Date(), formats, urlsOf(it))

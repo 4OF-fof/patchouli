@@ -265,9 +265,14 @@ export function App(props: AppProps) {
     saveItem(id, patch)
   }
   const [recentTags, setRecentTags] = createSignal<string[]>([])
+  onMount(() => void backend.tagHistory?.().then(setRecentTags, fail))
   const tagItem = (id: string, tag: string, on: boolean) => {
     const tags = lib().byId.get(id)?.tags ?? []
-    if (on) setRecentTags([tag, ...recentTags().filter((t) => t !== tag)].slice(0, 8))
+    if (on) {
+      const next = [tag, ...recentTags().filter((t) => t !== tag)].slice(0, 8)
+      setRecentTags(next)
+      persist(async () => backend.saveTagHistory?.(next))
+    }
     editItem(
       id,
       { tags: on ? [...tags, tag] : tags.filter((t) => t !== tag) },

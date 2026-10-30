@@ -17,6 +17,7 @@ use crate::plugin::{FormatInfo, Registry};
 pub const ID_KEY: &str = "patchouli-id";
 pub(crate) const STATE_DIR: &str = ".patchouli";
 const STATE_FILE: &str = "library.json";
+const TAG_HISTORY: &str = "tag-history.json";
 pub(crate) const PROJECTS_DIR: &str = "projects";
 pub(crate) const TAGS_DIR: &str = "tags";
 pub(crate) const TAG_INDEX: &str = "index.json";
@@ -940,6 +941,20 @@ impl Library {
         write_json(&path, &m)?;
         self.mark(&path);
         self.cache.put_state(state);
+        Ok(())
+    }
+
+    pub fn tag_history(&self) -> Result<Vec<String>, String> {
+        let m = read_json(&self.root.join(STATE_DIR).join(TAG_HISTORY))?;
+        Ok(strings(m.as_ref().and_then(|m| m.get("tags"))))
+    }
+
+    pub fn save_tag_history(&mut self, tags: &[String]) -> Result<(), String> {
+        let dir = self.root.join(STATE_DIR);
+        fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let path = dir.join(TAG_HISTORY);
+        write_json(&path, &Map::from_iter([("tags".to_owned(), json!(tags))]))?;
+        self.mark(&path);
         Ok(())
     }
 

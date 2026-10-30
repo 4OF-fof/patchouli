@@ -133,6 +133,9 @@ export interface Backend {
   /** ファイルとメタ情報をごみ箱に移動する。 */
   deleteItem?: (id: string) => Promise<void>
   saveState(state: LibraryState): Promise<void>
+  /** 最近付けたタグ。新しい順。 */
+  tagHistory?: () => Promise<string[]>
+  saveTagHistory?: (tags: string[]) => Promise<void>
   createNote(name: string, folder: string | null): Promise<Item>
   createProject(name: string): Promise<Project>
   saveProject(name: string, cover: CoverPart[]): Promise<void>
