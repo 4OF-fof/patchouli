@@ -31,6 +31,8 @@ export interface Item {
   suggestion?: Suggestion
   src?: string
   thumb?: string
+  /** thumb を波形から描いたもの */
+  waveThumb?: boolean
   fit?: Fit
 }
 
@@ -227,13 +229,14 @@ export const withToggledPin = (lib: Library, id: string) =>
 export interface Thumbnail {
   url: string
   ratio: number
+  wave?: boolean
 }
 
 export const withThumbs = (lib: Library, thumbs: Map<string, Thumbnail>) =>
   buildLibrary(
     lib.items.map((i) => {
       const t = thumbs.get(i.id)
-      return t ? { ...i, thumb: t.url, ratio: t.ratio } : i
+      return t ? { ...i, thumb: t.url, ratio: t.ratio, waveThumb: t.wave === true } : i
     }),
     lib.projects,
     lib.today,
@@ -415,6 +418,9 @@ export function whyOf(lib: Library, it: Item) {
   if (n >= 2) return `リンク ${n} · ${relDay(lib, it.moved)}`
   return `${it.note ? '編集' : '更新'} · ${relDay(lib, it.moved)}`
 }
+
+/** 音声のジャケット。音声のサムネイルは、波形から描いたものでなければジャケット */
+export const jacketOf = (it: Item) => (it.waveThumb ? undefined : it.thumb)
 
 export type CardSize = 'L' | 'M' | 'S' | 'X'
 

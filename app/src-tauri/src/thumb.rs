@@ -53,6 +53,19 @@ pub fn wave_path(thumbs: &Path, id: &str, src: &Path) -> Option<PathBuf> {
 
 const WAVES: &str = "waves";
 
+/// 波形から描いたサムネイルの場所。プラグインが作るサムネイル（音声ならジャケット）と分けて置く。
+pub fn wave_thumb_path(thumbs: &Path, id: &str, src: &Path) -> Option<PathBuf> {
+    path_for(&thumbs.join(WAVE_THUMBS), id, src, &Reads::new())
+}
+
+pub fn is_wave_thumb(file: &Path) -> bool {
+    file.parent()
+        .and_then(Path::file_name)
+        .is_some_and(|n| n == WAVE_THUMBS)
+}
+
+const WAVE_THUMBS: &str = "wave-thumbs";
+
 pub fn keep(out: &Path, bytes: &[u8]) {
     let (Some(dir), Some(name)) = (out.parent(), out.file_name().and_then(|n| n.to_str())) else {
         return;
@@ -129,7 +142,7 @@ pub fn prune(dir: &Path, current: &[PathBuf], all_found: bool) {
         if e.file_type().is_ok_and(|t| t.is_dir()) {
             if name == DECODED && all_found {
                 prune_decoded(&e.path(), &places);
-            } else if name == WAVES && all_found {
+            } else if (name == WAVES || name == WAVE_THUMBS) && all_found {
                 prune_gone(&e.path(), &places);
             }
             continue;
@@ -220,12 +233,12 @@ pub fn encode(mut img: DynamicImage, edge: u32) -> Result<Vec<u8>, String> {
     Ok(png)
 }
 
-/// サムネイルの波形の棒の数。「今週」の大きさで、詳細と同じ幅 3px・間 1px ほどになる。
-const WAVE_BARS: usize = 48;
+/// サムネイルの波形の棒の数。「今週」の大きさで、詳細と同じ幅 5px・間 2px ほどになる。
+const WAVE_BARS: usize = 27;
 
-/// 棒の幅と、棒と次の棒の間の比。src/components/media/AudioPlayer と合わせる。
-const WAVE_BAR: f32 = 3.0;
-const WAVE_GAP: f32 = 1.0;
+/// 棒の幅と、棒と次の棒の間の比。src/components/media/AudioPlayer の詳細の表示と合わせる。
+const WAVE_BAR: f32 = 5.0;
+const WAVE_GAP: f32 = 2.0;
 
 pub fn draw_wave(wave: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
     if wave.is_empty() {

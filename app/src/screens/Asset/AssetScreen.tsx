@@ -23,7 +23,7 @@ import { PluginView } from '../../components/media/PluginView/PluginView'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { type Blocker, Unsupported } from '../../components/media/Unsupported/Unsupported'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
-import { type Item, type Library, relDay, thumbOf } from '../../model/library'
+import { type Item, type Library, jacketOf, relDay, thumbOf } from '../../model/library'
 import type { ItemDetails, ItemView, Part } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
 import shared from '../screen.module.css'
@@ -245,21 +245,21 @@ export function AssetScreen(props: AssetScreenProps) {
         />
       )
     return (
-      <div class={styles.audio}>
+      <AudioPlayer
+        src={l.src}
+        wave={shownWave()?.wave ?? null}
+        name={a().name}
+        look="stage"
+        jacket={jacketOf(a())}
+        class={styles.audio}
+        onReady={onReady}
+        onUnsupported={onUnsupported}
+      >
         <div class={styles.title}>
           <b>{a().name}</b>
           <span>{a().folder ?? 'プロジェクトなし'}</span>
         </div>
-        <AudioPlayer
-          src={l.src}
-          wave={shownWave()?.wave ?? null}
-          name={a().name}
-          look="stage"
-          class={styles.wave}
-          onReady={onReady}
-          onUnsupported={onUnsupported}
-        />
-      </div>
+      </AudioPlayer>
     )
   }
   const onKey = (e: KeyboardEvent) => {

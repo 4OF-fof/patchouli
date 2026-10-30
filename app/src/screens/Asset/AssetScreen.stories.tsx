@@ -158,6 +158,27 @@ export const Audio: Story = {
       Uint8Array.from({ length: 4000 }, (_, i) => 255 * Math.abs(Math.sin((Math.PI * i) / 450))),
     ),
 }
+export const AudioJacket: Story = {
+  name: 'ジャケットのある音声を再生する',
+  render: () => {
+    const lib = sampleLibrary()
+    const it = lib.items.find((i) => i.name === 'voice-1019')
+    if (it) Object.assign(it, { src: '/dev-library/voice-1019.mp3', thumb: '/dev-library/IMG_3310.jpg' })
+    return (
+      <ScreenFrame>
+        <AssetScreen
+          lib={lib}
+          list={it ? [it.id] : []}
+          host={{
+            view: async () => ({ kind: 'audio' }),
+            waveform: async () =>
+              Uint8Array.from({ length: 4000 }, (_, i) => 255 * Math.abs(Math.sin((Math.PI * i) / 450))),
+          }}
+        />
+      </ScreenFrame>
+    )
+  },
+}
 export const Rename: Story = {
   name: '名前を変えて読み直す',
   render: () => {

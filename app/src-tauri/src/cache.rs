@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, SystemTime};
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -10,7 +11,10 @@ use crate::library::{LibraryState, StoredItem, StoredProject, meta_path, mtime_o
 use crate::plugin::Reads;
 
 /// 中身の形を変えたら上げる。違う版の写しは捨てて作り直す。
-const VERSION: i32 = 4;
+const VERSION: i32 = 5;
+
+/// この版から、波形から描いたサムネイルをジャケットと別の場所に置く。
+const WAVE_THUMBS_APART: i32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Sig {
@@ -51,7 +55,7 @@ pub struct Snapshot {
     pub tag_covers: Map<String, Value>,
 }
 
-pub struct Cache(Mutex<Connection>);
+pub struct Cache(Mutex<Connection>, AtomicBool);
 
 fn warn(what: &str, e: impl std::fmt::Display) {
     log::warn!("ライブラリの写しを{what}: {e}");
@@ -119,9 +123,11 @@ pub fn sweep(cache: &Path, root: &Path) {
     }
 }
 
-fn connect(path: &Path) -> rusqlite::Result<Connection> {
+/// 写しと、波形のサムネイルをジャケットと同じ場所に置いていた版から作り直したかを返す。
+fn connect(path: &Path) -> rusqlite::Result<(Connection, bool)> {
     let c = Connection::open(path)?;
     let v: i32 = c.pragma_query_value(None, "user_version", |r| r.get(0))?;
+    let mixed = v != 0 && v < WAVE_THUMBS_APART;
     if v != VERSION {
         c.execute_batch(
             "DROP TABLE IF EXISTS items; DROP TABLE IF EXISTS projects; DROP TABLE IF EXISTS state;
@@ -142,7 +148,7 @@ fn connect(path: &Path) -> rusqlite::Result<Connection> {
         CREATE TABLE IF NOT EXISTS tag_covers (id INTEGER PRIMARY KEY CHECK (id = 0), covers TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS thumb_reads (path TEXT PRIMARY KEY, reads TEXT NOT NULL);",
     )?;
-    Ok(c)
+    Ok((c, mixed))
 }
 
 fn put_rows(c: &Connection, rows: &[Row]) -> Result<(), String> {
@@ -213,9 +219,15 @@ impl Cache {
             })
             .unwrap_or_else(|e| {
                 warn("作れない", e);
-                Connection::open_in_memory().expect("メモリの中に SQLite を開けない")
+                let c = Connection::open_in_memory().expect("メモリの中に SQLite を開けない");
+                (c, false)
             });
-        Cache(Mutex::new(c))
+        Cache(Mutex::new(c.0), AtomicBool::new(c.1))
+    }
+
+    /// 波形のサムネイルをジャケットと同じ場所に置いていた版から作り直したか。最初に聞かれたときだけ true を返す。
+    pub fn take_mixed_thumbs(&self) -> bool {
+        self.1.swap(false, Ordering::Relaxed)
     }
 
     fn with<T: Default>(
@@ -421,6 +433,7 @@ impl Cache {
             return;
         };
         row.item.thumb = Some(thumb.to_owned());
+        row.item.wave_thumb = crate::thumb::is_wave_thumb(thumb);
         if row.item.width.is_none() {
             (row.item.width, row.item.height) = (Some(width), Some(height));
         }

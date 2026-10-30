@@ -68,10 +68,6 @@
   font-size: var(--fs-list);
   color: var(--muted);
 }
-.audio .wave {
-  flex: 1;
-  min-height: 0;
-}
 
 .fade {
   transition: opacity 0.2s ease;

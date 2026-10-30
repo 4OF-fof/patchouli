@@ -1,15 +1,20 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { type JSX, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import { PlayerBar } from '../PlayerBar/PlayerBar'
 import { clock } from '../PlayerBar/clock'
 import { undecodable } from '../PlayerBar/undecodable'
 import styles from './AudioPlayer.module.css'
+import { loadArt, paintStage, paintWave, toneOf } from './jacket'
 
 export interface AudioPlayerProps {
   src: string
   wave?: Uint8Array | null
   name: string
-  /** stage は置き場所いっぱいに波形と目盛りを描き、下に操作の帯を出す。row は再生のボタン・波形・時間・音量を 1 行に並べる */
+  /** stage は置き場所いっぱいに波形を描き、下に操作の帯を出す。row は再生のボタン・波形・時間・音量を 1 行に並べる */
   look?: 'stage' | 'row'
+  /** stage では、ぼかして背景に敷き、波形の棒をその絵で切り抜く。row では左端に出す */
+  jacket?: string
+  /** stage で、波形の上に出すもの */
+  children?: JSX.Element
   /** キーを、この中にフォーカスがあるときだけ受ける */
   local?: boolean
   class?: string
@@ -19,11 +24,10 @@ export interface AudioPlayerProps {
   onUnsupported?: () => void
 }
 
-/** 棒の幅と、棒と次の棒の間（CSS px）。src-tauri/src/thumb.rs の WAVE_BAR・WAVE_GAP と合わせる。 */
-const BAR = 3
-const GAP = 1
+/** 棒の幅と、棒と次の棒の間（CSS px）。stage は src-tauri/src/thumb.rs の WAVE_BAR・WAVE_GAP と合わせる。 */
+const BARS = { stage: [5, 2], row: [3, 1] } as const
 
-function wavePath(wave: Uint8Array | null | undefined, w: number, h: number) {
+function wavePath(wave: Uint8Array | null | undefined, w: number, h: number, [BAR, GAP]: readonly [number, number]) {
   const vals = wave ?? new Uint8Array(1)
   const n = vals.length
   const count = Math.max(1, Math.floor((w + GAP) / (BAR + GAP)))
@@ -49,17 +53,6 @@ function wavePath(wave: Uint8Array | null | undefined, w: number, h: number) {
   return d
 }
 
-/** 目盛りの間隔（秒）。ラベルが 6 つほどに収まる、いちばん細かいもの。 */
-const STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600]
-
-function ticks(length: number) {
-  if (!(length > 0)) return []
-  const step = STEPS.find((s) => length / s <= 6) ?? 3600
-  const out: { at: number; label: boolean }[] = []
-  for (let t = 0; t <= length; t += step / 2) out.push({ at: t / length, label: t % step === 0 })
-  return out
-}
-
 export function AudioPlayer(props: AudioPlayerProps) {
   const [root, setRoot] = createSignal<HTMLDivElement>()
   let area!: HTMLDivElement
@@ -67,9 +60,45 @@ export function AudioPlayer(props: AudioPlayerProps) {
   const [box, setBox] = createSignal({ w: 0, h: 0 })
   const [at, setAt] = createSignal(0)
   const [length, setLength] = createSignal(0)
+  const look = () => props.look ?? 'stage'
   const path = createMemo(() => {
     const { w, h } = box()
-    return w && h ? wavePath(props.wave, w, h) : ''
+    return w && h ? wavePath(props.wave, w, h, BARS[look()]) : ''
+  })
+  const [art] = createResource(
+    () => (look() === 'stage' ? props.jacket : undefined),
+    (src) => loadArt(src).catch(() => null),
+  )
+  const shownArt = () => (look() === 'stage' && props.jacket ? (art.latest ?? undefined) : undefined)
+  const [backdrop, setBackdrop] = createSignal<HTMLCanvasElement>()
+  const [baseCv, setBaseCv] = createSignal<HTMLCanvasElement>()
+  const [doneCv, setDoneCv] = createSignal<HTMLCanvasElement>()
+  const [stage, setStage] = createSignal({ w: 0, h: 0 })
+  const [theme, setTheme] = createSignal(0)
+  createEffect(() => {
+    const r = root()
+    if (!r || !shownArt()) return
+    const ro = new ResizeObserver(() => setStage({ w: r.clientWidth, h: r.clientHeight }))
+    ro.observe(r)
+    const mo = new MutationObserver(() => setTheme((n) => n + 1))
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    onCleanup(() => {
+      ro.disconnect()
+      mo.disconnect()
+    })
+  })
+  createEffect(() => {
+    const a = shownArt()
+    const [r, bg, base, done] = [root(), backdrop(), baseCv(), doneCv()]
+    const s = stage()
+    const { w, h } = box()
+    const d = path()
+    theme()
+    if (!a || !r || !bg || !base || !done || !s.w || !s.h || !w || !h) return
+    const tone = toneOf(a, getComputedStyle(r).getPropertyValue('--stage').trim())
+    const [R, A] = [r.getBoundingClientRect(), area.getBoundingClientRect()]
+    paintStage(bg, a, tone, s.w, s.h)
+    paintWave({ base, done }, a, tone, s, { x: A.left - R.left, y: A.top - R.top, w, h }, d)
   })
   const view = () => `0 0 ${box().w || 1} ${box().h || 1}`
   createEffect(() => {
@@ -121,6 +150,8 @@ export function AudioPlayer(props: AudioPlayerProps) {
     onCleanup(() => ro.disconnect())
   })
   const played = () => (length() > 0 ? Math.min(100, (at() / length()) * 100) : 0)
+  const clip = () => `inset(0 ${100 - played()}% 0 0)`
+  const [brokenJacket, setBrokenJacket] = createSignal<string>()
   const [hover, setHover] = createSignal<number>()
   const hoverAt = (clientX: number) => {
     const r = area.getBoundingClientRect()
@@ -148,18 +179,23 @@ export function AudioPlayer(props: AudioPlayerProps) {
       onPointerLeave={() => setHover(undefined)}
       onKeyDown={onKeyDown}
     >
-      <svg class={styles.base} viewBox={view()} aria-hidden="true">
-        <path d={path()} />
-      </svg>
-      <svg
-        class={styles.done}
-        viewBox={view()}
-        aria-hidden="true"
-        style={{ 'clip-path': `inset(0 ${100 - played()}% 0 0)` }}
+      <Show
+        when={shownArt()}
+        fallback={
+          <>
+            <svg class={styles.base} viewBox={view()} aria-hidden="true">
+              <path d={path()} />
+            </svg>
+            <svg class={styles.done} viewBox={view()} aria-hidden="true" style={{ 'clip-path': clip() }}>
+              <path d={path()} />
+            </svg>
+          </>
+        }
       >
-        <path d={path()} />
-      </svg>
-      <Show when={props.look !== 'row'}>
+        <canvas ref={setBaseCv} class={styles.base} aria-hidden="true" />
+        <canvas ref={setDoneCv} class={styles.done} aria-hidden="true" style={{ 'clip-path': clip() }} />
+      </Show>
+      <Show when={look() === 'stage'}>
         <Show when={hover() !== undefined && length() > 0}>
           <span class={styles.hover} style={{ left: `${(hover() ?? 0) * 100}%` }}>
             <span class={styles.hoverTime}>{clock((hover() ?? 0) * length())}</span>
@@ -186,31 +222,34 @@ export function AudioPlayer(props: AudioPlayerProps) {
   )
   return (
     <Show
-      when={props.look === 'row'}
+      when={look() === 'row'}
       fallback={
         <div ref={setRoot} class={`${styles.root} ${props.class ?? ''}`} data-look="stage">
-          <div class={styles.box}>
-            {wave}
-            <div class={styles.ruler} aria-hidden="true">
-              <For each={ticks(length())}>
-                {(t) => (
-                  <span class={styles.tick} data-label={t.label || undefined} style={{ left: `${t.at * 100}%` }}>
-                    <Show when={t.label}>
-                      <span>{clock(t.at * length())}</span>
-                    </Show>
-                  </span>
-                )}
-              </For>
-            </div>
+          <Show when={shownArt()}>
+            <canvas ref={setBackdrop} class={styles.backdrop} aria-hidden="true" />
+          </Show>
+          {props.children}
+          <div class={styles.body}>
+            <div class={styles.box}>{wave}</div>
+            {media}
+            <PlayerBar media={audio} scope={props.local ? root : undefined} class={styles.bar} />
           </div>
-          {media}
-          <PlayerBar media={audio} scope={props.local ? root : undefined} class={styles.bar} />
         </div>
       }
     >
       <div ref={setRoot} class={`${styles.root} ${props.class ?? ''}`} data-look="row">
         {media}
-        <PlayerBar media={audio} scope={props.local ? root : undefined} layout="row" track={wave} />
+        <PlayerBar
+          media={audio}
+          scope={props.local ? root : undefined}
+          layout="row"
+          lead={
+            <Show when={props.jacket !== brokenJacket() && props.jacket}>
+              {(src) => <img class={styles.jacket} src={src()} alt="" onError={() => setBrokenJacket(src())} />}
+            </Show>
+          }
+          track={wave}
+        />
       </div>
     </Show>
   )

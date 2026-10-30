@@ -65,6 +65,9 @@ pub struct StoredItem {
     pub file: PathBuf,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thumb: Option<PathBuf>,
+    /// thumb を波形から描いたもの。音声のサムネイルは、これでなければジャケット
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub wave_thumb: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub print: Option<String>,
 }
@@ -665,6 +668,7 @@ impl Library {
                 height: None,
                 file: path.to_owned(),
                 thumb: None,
+                wave_thumb: false,
                 print: if note { None } else { orphan::print(path) },
             },
             saved,
@@ -1012,6 +1016,7 @@ impl Library {
             height: None,
             file: path.clone(),
             thumb: None,
+            wave_thumb: false,
             print: None,
         };
         self.remember(&Row {

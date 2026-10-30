@@ -1,9 +1,24 @@
 .root[data-look='stage'] {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+.body {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  min-width: 0;
-  min-height: 0;
   container-type: size;
 }
 .box {
@@ -13,7 +28,6 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 10px;
 }
 .wave {
   position: relative;
@@ -82,31 +96,6 @@
   white-space: nowrap;
   transform: translateX(-50%);
 }
-.ruler {
-  position: relative;
-  height: 20px;
-  margin-top: 10px;
-  border-top: 1px solid var(--card);
-  font: var(--fs-tiny) var(--f-mono);
-  color: var(--muted);
-}
-.tick {
-  position: absolute;
-  top: 0;
-  width: 1px;
-  height: 5px;
-  background: var(--line-2);
-}
-.tick > span {
-  position: absolute;
-  top: 4px;
-  left: 0;
-  white-space: nowrap;
-  transform: translateX(-50%);
-}
-.tick:first-child > span {
-  transform: none;
-}
 .bar {
   flex: none;
   width: min(600px, 100%);
@@ -120,4 +109,12 @@
 }
 .root[data-look='row'] .done {
   color: var(--accent);
+}
+.jacket {
+  flex: none;
+  width: auto;
+  max-width: 78px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 6px;
 }

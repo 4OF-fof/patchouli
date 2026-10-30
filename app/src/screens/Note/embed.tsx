@@ -5,7 +5,7 @@ import { Icon, type IconName } from '../../components/base/Icon/Icon'
 import { AudioPlayer } from '../../components/media/AudioPlayer/AudioPlayer'
 import { PluginView } from '../../components/media/PluginView/PluginView'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
-import type { Item } from '../../model/library'
+import { type Item, jacketOf } from '../../model/library'
 import type { FormatInfo, ItemView, Part, UiRef } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
 
@@ -25,6 +25,7 @@ function AudioEmbed(props: { it: Item; waveform?: (id: string) => Promise<Uint8A
       wave={wave.state === 'ready' ? wave() : null}
       name={props.it.name}
       look="row"
+      jacket={jacketOf(props.it)}
       local
     />
   )

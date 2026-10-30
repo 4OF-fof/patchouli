@@ -20,3 +20,12 @@ type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
 export const NoWave: Story = { name: '波形がまだない', args: { wave: null } }
+export const Jacket: Story = {
+  name: 'ジャケットがある',
+  args: { jacket: '/dev-library/IMG_3310.jpg' },
+}
+export const Row: Story = { name: '1 行', args: { look: 'row', local: true } }
+export const RowJacket: Story = {
+  name: '1 行・ジャケットがある',
+  args: { look: 'row', local: true, jacket: '/dev-library/IMG_3310.jpg' },
+}

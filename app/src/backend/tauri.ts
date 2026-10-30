@@ -84,10 +84,13 @@ export function tauriBackend(): Backend {
   }
   let listening: Promise<unknown> | undefined
   const listenThumbs = () =>
-    (listening ??= listen<{ id: string; file: string; width: number; height: number }>('thumbnail', (e) => {
-      const p = e.payload
-      sendThumb(p.id, { url: convertFileSrc(p.file), ratio: p.width / p.height })
-    }))
+    (listening ??= listen<{ id: string; file: string; width: number; height: number; wave: boolean }>(
+      'thumbnail',
+      (e) => {
+        const p = e.payload
+        sendThumb(p.id, { url: convertFileSrc(p.file), ratio: p.width / p.height, wave: p.wave })
+      },
+    ))
   // 写しから開いたあとの突き合わせの結果も、画面が受け取れるようになるまで溜めておく
   const changes: Changed[] = []
   const changeSubs = new Set<(c: Changed) => void>()

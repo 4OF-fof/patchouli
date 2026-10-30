@@ -125,14 +125,14 @@
   --overlay-track: var(--line-2);
   --overlay-hover: var(--card);
 }
-.root[data-layout='row'] > .btn:first-child {
+.root[data-layout='row'] > .play {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-full);
   background: var(--ink);
   color: var(--paper);
 }
-.root[data-layout='row'] > .btn:first-child svg {
+.root[data-layout='row'] > .play svg {
   width: 14px;
   height: 14px;
 }

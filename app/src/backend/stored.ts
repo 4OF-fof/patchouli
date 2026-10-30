@@ -25,6 +25,7 @@ export interface StoredItem {
   mtime: number
   width?: number
   height?: number
+  waveThumb?: boolean
 }
 
 export interface StoredProject {
@@ -98,6 +99,7 @@ export function toItem(
     ...(s.aliases && { aliases: s.aliases }),
     ...(urls.src && { src: urls.src }),
     ...(urls.thumb && { thumb: urls.thumb }),
+    ...(urls.thumb && s.waveThumb && { waveThumb: true }),
   }
 }
 

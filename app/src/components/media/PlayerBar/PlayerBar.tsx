@@ -11,6 +11,8 @@ export interface PlayerBarProps {
   scope?: () => HTMLElement | undefined
   /** row は、再生のボタン・track・時間・音量を 1 行に並べる。再生位置は track の側で操る */
   layout?: 'bar' | 'row'
+  /** 再生のボタンの前に出すもの */
+  lead?: JSX.Element
   track?: JSX.Element
   /** 再生速度のボタンを出すか。既定は出す */
   rate?: boolean
@@ -117,7 +119,7 @@ export function PlayerBar(props: PlayerBarProps) {
   const playButton = (
     <button
       type="button"
-      class={styles.btn}
+      class={`${styles.btn} ${styles.play}`}
       aria-label={playing() ? '一時停止' : '再生'}
       data-tip={playing() ? '一時停止（Space）' : '再生（Space）'}
       onClick={toggle}
@@ -161,6 +163,7 @@ export function PlayerBar(props: PlayerBarProps) {
       role="group"
       aria-label="再生の操作"
     >
+      {props.lead}
       {playButton}
       <Show
         when={props.layout === 'row'}

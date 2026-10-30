@@ -197,15 +197,18 @@ fn plan_thumbs<'a>(
     items: impl IntoIterator<Item = &'a mut StoredItem>,
 ) -> (Vec<thumb::Job>, Vec<PathBuf>, bool) {
     let reads = cache.thumb_reads();
+    let mixed = cache.take_mixed_thumbs();
     let mut jobs = Vec::new();
     let mut current = Vec::new();
     let mut all = true;
     for it in items {
         // 写しにあった場所は、消されていることもあるので確かめ直す
         it.thumb = None;
+        it.wave_thumb = false;
         // 波形を作るものは、波形をサムネイルにすることがある
         let by = plugins.handles(&it.ext, Part::Thumbnail);
-        if by.is_none() && plugins.handles(&it.ext, Part::Waveform).is_none() {
+        let waves = plugins.handles(&it.ext, Part::Waveform).is_some();
+        if by.is_none() && !waves {
             continue;
         }
         // 値が変わっていれば、場所が変わって作り直しになる
@@ -215,13 +218,26 @@ fn plan_thumbs<'a>(
             continue;
         };
         current.push(out.clone());
-        if out.exists() {
+        // 前の版は、波形から描いたものもジャケットと同じ場所に置いていて、見分けられないので作り直す
+        if mixed && waves {
+            let _ = std::fs::remove_file(&out);
+        }
+        let drawn = waves
+            .then(|| thumb::wave_thumb_path(thumbs, &it.id, &it.file))
+            .flatten();
+        let found = if out.exists() {
+            Some(out)
+        } else {
+            drawn.filter(|p| p.exists())
+        };
+        if let Some(found) = found {
             if it.width.is_none()
-                && let Ok(s) = imagesize::size(&out)
+                && let Ok(s) = imagesize::size(&found)
             {
                 (it.width, it.height) = (Some(s.width as u32), Some(s.height as u32));
             }
-            it.thumb = Some(out);
+            it.wave_thumb = thumb::is_wave_thumb(&found);
+            it.thumb = Some(found);
         } else if by == Some(By::Wasm) {
             thumb::start_making(&it.file);
             jobs.push(thumb::Job {
@@ -273,13 +289,32 @@ fn wave_thumb(
         return Ok(());
     };
     let reads = reads_now(plugins, cache.thumb_reads().get(src), ext);
-    let out = thumb::path_for(thumbs, id, src, &reads).ok_or_else(err)?;
+    // プラグインが作ったもの（音声ならジャケット）があれば、そちらをサムネイルにする
+    if thumb::path_for(thumbs, id, src, &reads)
+        .ok_or_else(err)?
+        .exists()
+    {
+        return Ok(());
+    }
+    let out = thumb::wave_thumb_path(thumbs, id, src).ok_or_else(err)?;
     if out.exists() {
         return Ok(());
     }
     let png = thumb::draw_wave(&wave, plugins.ratio_of(ext))?;
-    let size = thumb::place(&png, None, &out).map_err(|e| format!("{}: {e}", src.display()))?;
-    tell_thumb(app, cache, id, src, &out, size, &reads);
+    let size = imagesize::blob_size(&png).map_err(|e| format!("{}: {e}", src.display()))?;
+    thumb::keep(&out, &png);
+    if !out.exists() {
+        return Err(err());
+    }
+    tell_thumb(
+        app,
+        cache,
+        id,
+        src,
+        &out,
+        (size.width as u32, size.height as u32),
+        &reads,
+    );
     Ok(())
 }
 
@@ -300,6 +335,7 @@ fn tell_thumb(
             file,
             width,
             height,
+            wave: thumb::is_wave_thumb(file),
         },
     );
 }
@@ -562,6 +598,7 @@ struct ThumbReady<'a> {
     file: &'a Path,
     width: u32,
     height: u32,
+    wave: bool,
 }
 
 #[tauri::command]
