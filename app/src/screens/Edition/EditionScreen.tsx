@@ -30,7 +30,7 @@ const TIERS: { name: string; until: number; size: CardSize; h: number; gap: numb
   { name: 'それ以前', until: Infinity, size: 'X', h: 56, gap: 4, clock: false },
 ]
 
-type Pin = { key: string; name: string; meta: string; moved: number; tiles: Item[]; thumb?: Item; open: () => void }
+type Pin = { key: string; name: string; meta: string; moved: number; tiles: Item[]; open: () => void }
 const FIRST = 36
 const MORE = 30
 
@@ -82,21 +82,6 @@ export function EditionScreen(props: EditionScreenProps) {
             moved: Math.min(...list.map((i) => i.moved)),
             tiles: list.slice(0, 5),
             open: () => props.onOpenTag?.(t),
-          },
-        ]
-      }),
-      ...lib().pins.flatMap((id) => {
-        const it = lib().byId.get(id)
-        if (!it || it.folder) return []
-        return [
-          {
-            key: `i:${it.id}`,
-            name: it.name,
-            meta: it.note ? 'ノート' : `素材 · ${lib().formatLabel(it)}`,
-            moved: it.moved,
-            tiles: [],
-            thumb: it,
-            open: () => props.onOpenItem?.(it.id),
           },
         ]
       }),
@@ -210,7 +195,6 @@ export function EditionScreen(props: EditionScreenProps) {
                         name={p().name}
                         meta={p().meta}
                         tiles={p().tiles.map(coverTile)}
-                        thumb={p().thumb && thumbOf(p().thumb!, 'L')}
                         onClick={() => p().open()}
                       />
                     )}

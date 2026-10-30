@@ -17,6 +17,33 @@
   flex: none;
   translate: 0 0.1em;
 }
+.split {
+  gap: 0;
+  padding: 0;
+}
+.main,
+.remove {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.main {
+  gap: 4px;
+  padding: 0 3px 0 9px;
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
+}
+.remove {
+  padding: 0 7px 0 3px;
+  border-radius: 0 var(--radius-full) var(--radius-full) 0;
+}
+.remove > svg {
+  translate: 0 0.1em;
+}
 .root[aria-pressed='false'] {
   background: var(--side);
   color: var(--ink-2);

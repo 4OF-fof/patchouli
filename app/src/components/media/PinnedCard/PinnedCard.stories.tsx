@@ -30,22 +30,6 @@ export const Tag: Story = {
   },
   decorators: [single],
 }
-export const Asset: Story = {
-  name: '素材を 1 つ留めた',
-  args: { name: 'IMG_2041', meta: '素材 · JPEG', tiles: [], thumb: { hue: 30 } },
-  decorators: [single],
-}
-export const Note: Story = {
-  name: 'ノートを 1 つ留めた',
-  args: {
-    name: '配色メモ',
-    meta: 'ノート',
-    tiles: [],
-    thumb: { note: true, title: '配色メモ', excerpt: '彩度を落とした色を基調にし、差し色に朱を使う。' },
-  },
-  decorators: [single],
-}
-
 export const Large: Story = {
   name: '大きく出す 1 枚',
   args: { large: true },

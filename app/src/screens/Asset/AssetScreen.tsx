@@ -45,6 +45,7 @@ export interface AssetScreenProps {
   infoOpen?: boolean
   idle?: boolean
   onOpenNote?: (id: string) => void
+  onOpenTag?: (tag: string) => void
   onTogglePin?: (id: string) => void
   onProject?: (id: string, folder: string | null) => void
   onRename?: (id: string, name: string) => void
@@ -451,9 +452,12 @@ export function AssetScreen(props: AssetScreenProps) {
                     <div class={styles.tags}>
                       <For each={a().tags}>
                         {(t) => (
-                          <Chip aria-label={`# ${t} を削除`} onClick={() => props.onTag?.(a().id, t, false)}>
+                          <Chip
+                            removeLabel={`# ${t} を削除`}
+                            onClick={() => props.onOpenTag?.(t)}
+                            onRemove={() => props.onTag?.(a().id, t, false)}
+                          >
                             # {t}
-                            <Icon name="close" size={12} withText />
                           </Chip>
                         )}
                       </For>

@@ -24,6 +24,7 @@ export interface NoteScreenProps {
   propsOpen?: boolean
   idle?: boolean
   onOpenRef?: (id: string) => void
+  onOpenTag?: (tag: string) => void
   onTogglePin?: (id: string) => void
   onBody?: (id: string, body: string) => void
   onRename?: (id: string, name: string) => void
@@ -163,9 +164,12 @@ export function NoteScreen(props: NoteScreenProps) {
                   <dd class={`${styles.chips} ${styles.tags}`}>
                     <For each={n().tags}>
                       {(t) => (
-                        <Chip aria-label={`# ${t} を削除`} onClick={() => props.onTag?.(n().id, t, false)}>
+                        <Chip
+                          removeLabel={`# ${t} を削除`}
+                          onClick={() => props.onOpenTag?.(t)}
+                          onRemove={() => props.onTag?.(n().id, t, false)}
+                        >
                           # {t}
-                          <Icon name="close" size={12} withText />
                         </Chip>
                       )}
                     </For>

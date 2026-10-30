@@ -782,6 +782,7 @@ export function App(props: AppProps) {
       noteId={noteId}
       headsOpen={main ? undefined : false}
       onOpenRef={openRef}
+      onOpenTag={(tag) => go({ s: 'tag', tag })}
       onTogglePin={togglePin}
       onBody={(id, body) => editItem(id, { body }, { body })}
       onRename={renameItem}
@@ -802,6 +803,7 @@ export function App(props: AppProps) {
       index={index}
       onIndex={onIndex}
       onOpenNote={(id) => openItem(id)}
+      onOpenTag={(tag) => go({ s: 'tag', tag })}
       onTogglePin={togglePin}
       onProject={moveItem}
       onRename={renameItem}
