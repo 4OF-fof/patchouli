@@ -165,6 +165,8 @@ export interface Backend {
   pluginActions?: PluginActions
   pluginWork?(): Promise<PluginWork>
   stopPluginWork?(part?: 'thumbnail' | 'waveform'): Promise<void>
+  /** 画面に見えている作成待ちの項目。サムネイルをこれから先に作る。 */
+  seenThumbs?(ids: string[]): void
   checking?(): Promise<boolean>
   reloadPlugins?(wait: boolean): Promise<Opened>
   itemView?: (id: string) => Promise<ItemView | null>

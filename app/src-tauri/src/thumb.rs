@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
@@ -386,6 +386,28 @@ fn set_pending<'a>(ids: impl IntoIterator<Item = &'a String>, on: bool) {
     }
 }
 
+/// 画面に見えている項目の ID。make_all は、これを先に作る。
+fn seen() -> &'static Mutex<HashSet<String>> {
+    static S: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    S.get_or_init(Default::default)
+}
+
+pub fn set_seen(ids: Vec<String>) {
+    if let Ok(mut s) = seen().lock() {
+        *s = ids.into_iter().collect();
+    }
+}
+
+fn next_job(jobs: &Mutex<VecDeque<Job>>) -> Option<Job> {
+    let mut q = jobs.lock().ok()?;
+    let at = seen()
+        .lock()
+        .ok()
+        .and_then(|s| q.iter().position(|j| s.contains(&j.id)))
+        .unwrap_or(0);
+    q.remove(at)
+}
+
 pub fn make_all(
     reg: &Arc<Registry>,
     mut jobs: Vec<Job>,
@@ -394,7 +416,7 @@ pub fn make_all(
     jobs.sort_by(|a, b| b.mtime.total_cmp(&a.mtime));
     set_pending(jobs.iter().map(|j| &j.id), true);
     let stops = STOPS.load(Ordering::Relaxed);
-    let next = AtomicUsize::new(0);
+    let jobs = Mutex::new(VecDeque::from(jobs));
     let width = std::thread::available_parallelism().map_or(2, |n| (n.get() / 2).max(1));
     std::thread::scope(|s| {
         for _ in 0..width {
@@ -402,23 +424,20 @@ pub fn make_all(
                 let mut runner = Runner::new(Arc::clone(reg));
                 while !reg.stopped()
                     && STOPS.load(Ordering::Relaxed) == stops
-                    && let Some(job) = jobs.get(next.fetch_add(1, Ordering::Relaxed))
+                    && let Some(job) = next_job(&jobs)
                 {
-                    let placed = make(&mut runner, job).unwrap_or_else(|e| {
+                    let placed = make(&mut runner, &job).unwrap_or_else(|e| {
                         log::warn!("サムネイルを作れない: {e}");
                         None
                     });
-                    done(job, placed);
+                    done(&job, placed);
                     set_pending([&job.id], false);
                 }
             });
         }
     });
-    let left = jobs
-        .len()
-        .saturating_sub(next.load(Ordering::Relaxed).min(jobs.len()));
-    let undone = &jobs[jobs.len() - left..];
-    for j in undone {
+    let undone = jobs.into_inner().unwrap_or_default();
+    for j in &undone {
         end_making(&j.src);
     }
     set_pending(undone.iter().map(|j| &j.id), false);

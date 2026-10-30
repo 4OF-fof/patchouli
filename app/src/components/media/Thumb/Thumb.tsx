@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'solid-js'
+import { createContext, createEffect, createSignal, onCleanup, useContext } from 'solid-js'
 import type { Fit } from '../../../plugins/types'
 import { Spinner } from '../../base/Spinner/Spinner'
 import styles from './Thumb.module.css'
@@ -6,6 +6,40 @@ import styles from './Thumb.module.css'
 const Making = createContext<(id: string) => boolean>(() => false)
 
 export const ThumbMakingProvider = Making.Provider
+
+type Watch = (id: string, el: Element) => () => void
+
+const Seen = createContext<Watch>()
+
+/** 作成待ちのサムネイルのうち、画面に見えているものを知らせる。 */
+export const ThumbSeenProvider = Seen.Provider
+
+/** 見えている作成待ちの ID が変わるたびに、onChange に渡す。ThumbSeenProvider の value にする。 */
+export function watchSeen(onChange: (ids: string[]) => void): Watch {
+  const ids = new Map<Element, string>()
+  const seen = new Set<Element>()
+  let timer = 0
+  const tell = () => {
+    clearTimeout(timer)
+    timer = window.setTimeout(() => onChange([...new Set([...seen].flatMap((el) => ids.get(el) ?? []))]), 100)
+  }
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (e.isIntersecting) seen.add(e.target)
+      else seen.delete(e.target)
+    }
+    tell()
+  })
+  return (id, el) => {
+    ids.set(el, id)
+    io.observe(el)
+    return () => {
+      io.unobserve(el)
+      ids.delete(el)
+      if (seen.delete(el)) tell()
+    }
+  }
+}
 
 const Menu = createContext<(id: string, at: { x: number; y: number }) => void>()
 
@@ -39,8 +73,16 @@ export function Thumb(props: ThumbProps) {
     menu(props.id, { x: e.clientX, y: e.clientY })
   }
   const waiting = () => !props.src && !props.note && !!props.id && making(props.id)
+  const watch = useContext(Seen)
+  const [el, setEl] = createSignal<HTMLElement>()
+  createEffect(() => {
+    const e = el()
+    const id = props.id
+    if (watch && e && id && waiting()) onCleanup(watch(id, e))
+  })
   return (
     <span
+      ref={setEl}
       class={`${styles.root} ${props.class ?? ''}`}
       data-note={!!props.note}
       data-fit={props.src ? (props.fit ?? 'center') : undefined}

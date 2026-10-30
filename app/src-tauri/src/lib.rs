@@ -417,6 +417,11 @@ fn stop_plugin_work() {
     thumb::stop();
 }
 
+#[tauri::command]
+fn seen_thumbs(ids: Vec<String>) {
+    thumb::set_seen(ids);
+}
+
 static CHECKING: AtomicUsize = AtomicUsize::new(0);
 
 #[tauri::command]
@@ -1366,6 +1371,7 @@ pub fn run() {
             reload_plugins,
             plugin_work,
             stop_plugin_work,
+            seen_thumbs,
             checking,
             set_plugin_setting,
             item_view,

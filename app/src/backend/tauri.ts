@@ -145,11 +145,16 @@ export function tauriBackend(): Backend {
   // 組み込み UI が作るサムネイルは、画面で 1 つずつ作って Rust に置かせる（できたら thumbnail が届く）
   const uiQueue: TauriItem[] = []
   let making: TauriItem | undefined
+  let seen = new Set<string>()
+  const nextUi = () => {
+    const i = uiQueue.findIndex((it) => seen.has(it.id))
+    return uiQueue.splice(Math.max(i, 0), 1)[0]
+  }
   const makeUiThumbs = async (items: TauriItem[]) => {
     uiQueue.push(...items.filter((it) => !it.note && !it.thumb && formats.get(it.ext)?.uiThumbnail))
     if (making) return
     try {
-      for (let it = uiQueue.shift(); it; it = uiQueue.shift()) {
+      for (let it = nextUi(); it; it = nextUi()) {
         making = it
         const ui = formats.get(it.ext)?.uiThumbnail
         if (!ui) continue
@@ -238,6 +243,10 @@ export function tauriBackend(): Backend {
       if (part === 'waveform') return
       uiQueue.length = 0
       await invoke('stop_plugin_work')
+    },
+    seenThumbs(ids) {
+      seen = new Set(ids)
+      void invoke('seen_thumbs', { ids })
     },
     checking: () => invoke<boolean>('checking'),
     async reloadPlugins(wait) {
