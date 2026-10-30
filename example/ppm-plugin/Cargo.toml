@@ -10,3 +10,6 @@ crate-type = ["cdylib"]
 [dependencies]
 wit-bindgen = "0.63"
 png = "0.18"
+
+[lints]
+workspace = true

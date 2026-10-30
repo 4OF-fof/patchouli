@@ -3,6 +3,10 @@
 members = ["text-plugin", "ppm-plugin"]
 resolver = "3"
 
+# wit_bindgen::generate! が作るコードに、引数の多い関数がある
+[workspace.lints.clippy]
+too_many_arguments = "allow"
+
 [profile.release]
 opt-level = 3
 lto = true
