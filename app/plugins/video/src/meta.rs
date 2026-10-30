@@ -126,7 +126,11 @@ fn vint(b: &[u8], keep: bool) -> Option<(u64, usize, bool)> {
     if len > 8 || b.len() < len {
         return None;
     }
-    let mask = if keep { 0xff } else { 0xff >> len };
+    let mask = if keep {
+        0xff
+    } else {
+        0xffu8.checked_shr(len as u32).unwrap_or(0)
+    };
     let v = b[1..len]
         .iter()
         .fold(u64::from(first & mask), |n, &x| (n << 8) | u64::from(x));

@@ -32,6 +32,8 @@ async function grab(url: string, edge: number) {
   const v = document.createElement('video')
   v.muted = true
   v.preload = 'auto'
+  // 素材の URL は画面と別のオリジンなので、CORS で読まないと canvas から書き出せない
+  v.crossOrigin = 'anonymous'
   v.src = url
   try {
     await until(v, 'loadeddata')
