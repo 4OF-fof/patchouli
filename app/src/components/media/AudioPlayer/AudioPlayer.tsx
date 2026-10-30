@@ -3,7 +3,7 @@ import { PlayerBar } from '../PlayerBar/PlayerBar'
 import { clock } from '../PlayerBar/clock'
 import { undecodable } from '../PlayerBar/undecodable'
 import styles from './AudioPlayer.module.css'
-import { loadArt, paintStage, paintWave, toneOf } from './jacket'
+import { inkOf, loadArt, paintStage, paintWave, toneOf } from './jacket'
 
 export interface AudioPlayerProps {
   src: string
@@ -13,7 +13,7 @@ export interface AudioPlayerProps {
   look?: 'stage' | 'row'
   /** stage では、ぼかして背景に敷き、波形の棒をその絵で切り抜く。row では左端に出す */
   jacket?: string
-  /** stage で、波形の上に出すもの */
+  /** stage で、波形の上に出すもの。ジャケットを敷いたときは、背景に合う文字の色を --jacket-ink と --jacket-muted で渡す */
   children?: JSX.Element
   /** キーを、この中にフォーカスがあるときだけ受ける */
   local?: boolean
@@ -75,6 +75,7 @@ export function AudioPlayer(props: AudioPlayerProps) {
   const [doneCv, setDoneCv] = createSignal<HTMLCanvasElement>()
   const [stage, setStage] = createSignal({ w: 0, h: 0 })
   const [theme, setTheme] = createSignal(0)
+  const [ink, setInk] = createSignal<{ ink: string; muted: string }>()
   createEffect(() => {
     const r = root()
     if (!r || !shownArt()) return
@@ -96,6 +97,7 @@ export function AudioPlayer(props: AudioPlayerProps) {
     theme()
     if (!a || !r || !bg || !base || !done || !s.w || !s.h || !w || !h) return
     const tone = toneOf(a, getComputedStyle(r).getPropertyValue('--stage').trim())
+    setInk(inkOf(tone))
     const [R, A] = [r.getBoundingClientRect(), area.getBoundingClientRect()]
     paintStage(bg, a, tone, s.w, s.h)
     paintWave({ base, done }, a, tone, s, { x: A.left - R.left, y: A.top - R.top, w, h }, d)
@@ -224,7 +226,12 @@ export function AudioPlayer(props: AudioPlayerProps) {
     <Show
       when={look() === 'row'}
       fallback={
-        <div ref={setRoot} class={`${styles.root} ${props.class ?? ''}`} data-look="stage">
+        <div
+          ref={setRoot}
+          class={`${styles.root} ${props.class ?? ''}`}
+          data-look="stage"
+          style={shownArt() && ink() ? { '--jacket-ink': ink()?.ink, '--jacket-muted': ink()?.muted } : undefined}
+        >
           <Show when={shownArt()}>
             <canvas ref={setBackdrop} class={styles.backdrop} aria-hidden="true" />
           </Show>

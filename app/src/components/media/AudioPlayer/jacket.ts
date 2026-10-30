@@ -112,6 +112,13 @@ export function toneOf(art: Art, stage: string): Tone {
   return { dark, veil: `rgb(${r} ${g} ${b} / ${a})`, bg: L * (1 - a) + base * a, lum: L }
 }
 
+/** 背景の上に置く文字の色。背景とのコントラストが大きいほうを、黒か白から選ぶ。 */
+export function inkOf(tone: Tone) {
+  const lin = ((tone.bg + 0.055) / 1.055) ** 2.4
+  const c = (lin + 0.05) / 0.05 > 1.05 / (lin + 0.05) ? '20 20 20' : '255 255 255'
+  return { ink: `rgb(${c})`, muted: `rgb(${c} / 0.78)` }
+}
+
 const blurs = new WeakMap<HTMLCanvasElement, { key: string; out: HTMLCanvasElement }>()
 
 /** 舞台（w × h）に敷く、ぼかした絵。1/SCALE の大きさで返す。 */
