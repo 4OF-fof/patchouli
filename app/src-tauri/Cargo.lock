@@ -2757,7 +2757,6 @@ dependencies = [
  "uuid",
  "wasmtime",
  "wasmtime-wasi",
- "windows",
  "zip",
 ]
 

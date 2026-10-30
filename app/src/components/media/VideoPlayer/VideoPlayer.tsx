@@ -1,5 +1,6 @@
 import { createSignal } from 'solid-js'
 import { PlayerBar } from '../PlayerBar/PlayerBar'
+import { undecodable } from '../PlayerBar/undecodable'
 import styles from './VideoPlayer.module.css'
 
 export interface VideoPlayerProps {
@@ -15,6 +16,8 @@ export interface VideoPlayerProps {
   class?: string
   /** 読み込めたとき。読めなかったときも呼ぶ */
   onReady?: () => void
+  /** WebView のデコーダーが、入れ物か映像の形式に対応していなかったとき */
+  onUnsupported?: () => void
 }
 
 export function VideoPlayer(props: VideoPlayerProps) {
@@ -51,8 +54,15 @@ export function VideoPlayer(props: VideoPlayerProps) {
             const v = e.currentTarget
             if (v.videoWidth && v.videoHeight) setNatural(v.videoWidth / v.videoHeight)
           }}
-          onLoadedData={() => props.onReady?.()}
-          onError={() => props.onReady?.()}
+          onLoadedData={(e) => {
+            // 映像を読めず音だけ流れるときは、エラーにならず大きさが 0 になる
+            if (!e.currentTarget.videoWidth) props.onUnsupported?.()
+            props.onReady?.()
+          }}
+          onError={(e) => {
+            if (undecodable(e.currentTarget.error)) props.onUnsupported?.()
+            props.onReady?.()
+          }}
         />
         <PlayerBar
           media={video}

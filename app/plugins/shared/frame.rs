@@ -3,12 +3,8 @@ use crate::patchouli::plugin::host::{self, CommandArg};
 
 pub fn frame(f: &File, at: f64, edge: u32) -> Result<Vec<u8>, String> {
     if !host::command_available("ffmpeg") {
-        return host::os_thumbnail(f, edge);
+        return Err("この形式を読むには FFmpeg が必要です".into());
     }
-    ffmpeg(f, at, edge).or_else(|e| host::os_thumbnail(f, edge).map_err(|e2| format!("{e} / {e2}")))
-}
-
-fn ffmpeg(f: &File, at: f64, edge: u32) -> Result<Vec<u8>, String> {
     let t = |s: &str| CommandArg::Text(s.to_owned());
     let scale =
         format!("scale='min({edge},iw)':'min({edge},ih)':force_original_aspect_ratio=decrease");

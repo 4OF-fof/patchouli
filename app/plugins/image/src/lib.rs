@@ -11,7 +11,10 @@ impl Guest for Image {
     fn thumbnail(_format: String, f: File, edge: u32) -> Result<Option<Thumbnail>, String> {
         let png = match host::image_thumbnail(&f, edge) {
             Ok(png) => png,
-            Err(e) => frame::frame(&f, 0.0, edge).map_err(|e2| format!("{e} / {e2}"))?,
+            Err(e) if host::command_available("ffmpeg") => {
+                frame::frame(&f, 0.0, edge).map_err(|e2| format!("{e} / {e2}"))?
+            }
+            Err(e) => return Err(e),
         };
         Ok(Some(Thumbnail {
             png,

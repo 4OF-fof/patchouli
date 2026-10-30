@@ -1,7 +1,7 @@
 {
   "id": "patchouli.audio",
   "name": "音声",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "音声のジャケットと波形、再生、長さと BPM",
   "ui": "ui/waveform.js",
   "optional": {

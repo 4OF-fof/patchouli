@@ -1,7 +1,7 @@
 use std::io::{self, Read, Seek, SeekFrom};
 
 use symphonia::core::errors::Error;
-use symphonia::core::formats::TrackType;
+use symphonia::core::formats::{FormatReader, TrackType};
 use symphonia::core::formats::probe::Hint;
 use symphonia::core::io::{MediaSource, MediaSourceStream};
 use symphonia::core::units::Duration;
@@ -60,7 +60,7 @@ impl MediaSource for Source {
     }
 }
 
-pub fn analyze(ext: &str, f: &File) -> Result<Analysis, String> {
+pub fn reader(ext: &str, f: &File) -> Result<Box<dyn FormatReader>, String> {
     let src = Source {
         f: f.clone(),
         pos: 0,
@@ -68,9 +68,13 @@ pub fn analyze(ext: &str, f: &File) -> Result<Analysis, String> {
     let mss = MediaSourceStream::new(Box::new(src), Default::default());
     let mut hint = Hint::new();
     hint.with_extension(ext);
-    let mut format = symphonia::default::get_probe()
+    symphonia::default::get_probe()
         .probe(&hint, mss, Default::default(), Default::default())
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| e.to_string())
+}
+
+pub fn analyze(ext: &str, f: &File) -> Result<Analysis, String> {
+    let mut format = reader(ext, f)?;
     let track = format
         .default_track(TrackType::Audio)
         .ok_or("音声がありません")?;

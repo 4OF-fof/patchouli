@@ -126,9 +126,6 @@ interface host {
   /// 画像を、長いほうの辺が edge 以下になるよう縮めた PNG。アプリが読める形式だけ。
   image-thumbnail: func(f: file, edge: u32) -> result<list<u8>, string>;
 
-  /// OS の機能で作ったサムネイル（動画はコマ、音声はジャケット）を、長いほうの辺が edge 以下の PNG にする。
-  os-thumbnail: func(f: file, edge: u32) -> result<list<u8>, string>;
-
   /// 自分の設定の値。変えていなければ settings で返した既定の値。知らない key は none。
   setting: func(key: string) -> option<setting-value>;
 

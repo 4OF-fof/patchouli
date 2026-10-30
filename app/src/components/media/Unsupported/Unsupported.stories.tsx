@@ -35,6 +35,10 @@ export const Blocked: Story = {
   name: 'プラグインを使用できない',
   args: { blocker: { id: 'photoshop', name: 'Photoshop', dev: false, state: 'blocked' } },
 }
+export const Decoder: Story = {
+  name: 'デコーダーが対応していない',
+  args: { name: '撮影素材', ext: 'mov', label: '動画', decoder: true },
+}
 export const Failed: Story = {
   name: '開けなかった',
   args: {

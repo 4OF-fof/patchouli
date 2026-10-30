@@ -1,6 +1,7 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { PlayerBar } from '../PlayerBar/PlayerBar'
 import { clock } from '../PlayerBar/clock'
+import { undecodable } from '../PlayerBar/undecodable'
 import styles from './AudioPlayer.module.css'
 
 export interface AudioPlayerProps {
@@ -14,6 +15,8 @@ export interface AudioPlayerProps {
   class?: string
   /** 読み込めたとき。読めなかったときも呼ぶ */
   onReady?: () => void
+  /** WebView のデコーダーが形式に対応していなかったとき */
+  onUnsupported?: () => void
 }
 
 /** 棒の幅と、棒と次の棒の間（CSS px）。src-tauri/src/thumb.rs の WAVE_BAR・WAVE_GAP と合わせる。 */
@@ -175,7 +178,10 @@ export function AudioPlayer(props: AudioPlayerProps) {
       src={props.src}
       preload="metadata"
       onLoadedMetadata={() => props.onReady?.()}
-      onError={() => props.onReady?.()}
+      onError={(e) => {
+        if (undecodable(e.currentTarget.error)) props.onUnsupported?.()
+        props.onReady?.()
+      }}
     />
   )
   return (

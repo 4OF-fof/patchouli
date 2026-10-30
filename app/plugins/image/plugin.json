@@ -1,7 +1,7 @@
 {
   "id": "patchouli.image",
   "name": "画像",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "写真やイラストのサムネイルと表示",
   "optional": {
     "commands": {

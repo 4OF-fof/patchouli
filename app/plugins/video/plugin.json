@@ -1,15 +1,16 @@
 {
   "id": "patchouli.video",
   "name": "動画",
-  "version": "0.2.0",
-  "description": "動画のサムネイルと再生",
+  "version": "0.3.0",
+  "description": "動画のサムネイルと再生、解像度と再生時間",
+  "ui": "ui/frame.js",
   "optional": {
     "commands": {
       "ffmpeg": { "version": { "args": ["-version"], "pattern": "ffmpeg version n?([0-9][^ ]*)" } }
     }
   },
   "formats": {
-    "mp4": { "label": "動画", "ratio": 1.7778, "hover": "video", "parts": ["thumbnail", "view", "details"] },
+    "mp4": { "label": "動画", "ratio": 1.7778, "hover": "video", "parts": ["view", "details"], "ui": ["thumbnail"] },
     "webm": { "extends": "mp4" },
     "mov": { "extends": "mp4" },
     "m4v": { "extends": "mp4" }

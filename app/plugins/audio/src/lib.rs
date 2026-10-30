@@ -8,14 +8,17 @@ mod clock;
 
 mod analyze;
 mod bpm;
+mod cover;
 
 struct Audio;
 
 impl Guest for Audio {
     fn thumbnail(_format: String, f: File, edge: u32) -> Result<Option<Thumbnail>, String> {
-        Ok(frame::frame(&f, 0.0, edge)
-            .ok()
-            .map(|png| Thumbnail { png, size: None }))
+        let png = match cover::cover(&f, edge) {
+            Ok(Some(png)) => Some(png),
+            _ => frame::frame(&f, 0.0, edge).ok(),
+        };
+        Ok(png.map(|png| Thumbnail { png, size: None }))
     }
 
     fn view(_format: String, _f: File) -> Option<View> {

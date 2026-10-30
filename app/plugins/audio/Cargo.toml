@@ -6,6 +6,7 @@ license = "MIT"
 publish = false
 
 [dependencies]
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 symphonia = { version = "0.6.1", default-features = false, features = ["mp3", "wav", "flac", "pcm", "adpcm"] }
 wit-bindgen = "0.63"
 

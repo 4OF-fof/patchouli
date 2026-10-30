@@ -8,6 +8,8 @@ export interface ImageZoomProps {
   class?: string
   /** 読み込めたとき。読めなかったときも呼ぶ */
   onReady?: () => void
+  /** WebView のデコーダーで読めなかったとき */
+  onUnsupported?: () => void
 }
 
 const MAX = 16
@@ -114,7 +116,10 @@ export function ImageZoom(props: ImageZoomProps) {
             setNatural({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })
             props.onReady?.()
           }}
-          onError={() => props.onReady?.()}
+          onError={() => {
+            props.onUnsupported?.()
+            props.onReady?.()
+          }}
         />
       </div>
       <div class={styles.bar} role="group" aria-label="表示倍率">

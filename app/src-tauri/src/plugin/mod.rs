@@ -2,7 +2,6 @@ mod builtin;
 pub mod commands;
 pub mod files;
 pub mod install;
-mod os;
 pub mod record;
 mod runtime;
 

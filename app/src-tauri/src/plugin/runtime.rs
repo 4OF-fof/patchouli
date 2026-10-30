@@ -11,7 +11,7 @@ use wasmtime::component::{Component, Linker, ResourceTable};
 use wasmtime::{Config, Engine, Store, UpdateDeadline};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
-use super::{By, Choice, Part, Reads, Registry, SettingDecl, SettingKind, UiRef, commands, os};
+use super::{By, Choice, Part, Reads, Registry, SettingDecl, SettingKind, UiRef, commands};
 use crate::{library, thumb};
 
 wasmtime::component::bindgen!({ world: "plugin", path: "../plugins/sdk/wit" });
@@ -199,10 +199,6 @@ impl patchouli::plugin::host::Host for HostState {
 
     fn image_thumbnail(&mut self, f: File, edge: u32) -> Result<Vec<u8>, String> {
         thumb::shrink(self.path(&f)?, edge)
-    }
-
-    fn os_thumbnail(&mut self, f: File, edge: u32) -> Result<Vec<u8>, String> {
-        os::thumbnail(self.path(&f)?, edge)
     }
 
     fn setting(&mut self, key: String) -> Option<types::SettingValue> {

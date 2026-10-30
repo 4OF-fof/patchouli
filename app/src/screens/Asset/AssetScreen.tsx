@@ -219,12 +219,31 @@ export function AssetScreen(props: AssetScreenProps) {
   const ready = (l: Look) => {
     if (looks()[1] === l) setLooks([l])
   }
+  /** WebView のデコーダーで読めなかったものの src。 */
+  const [broken, setBroken] = createSignal<string>()
+  const undecoded = () => {
+    const l = looks()[0]
+    return !!l && l.kind !== 'ui' && broken() === l.src
+  }
   const lookView = (l: Look, a: () => Item) => {
     const onReady = () => ready(l)
+    const onUnsupported = () => setBroken(l.src)
     if (l.kind === 'ui') return <PluginView url={l.src} api={l.api()} class={styles.page} onReady={onReady} />
-    if (l.kind === 'image') return <ImageZoom src={l.src} name={a().name} class={styles.player} onReady={onReady} />
+    if (l.kind === 'image')
+      return (
+        <ImageZoom src={l.src} name={a().name} class={styles.player} onReady={onReady} onUnsupported={onUnsupported} />
+      )
     if (l.kind === 'video')
-      return <VideoPlayer src={l.src} poster={a().thumb} name={a().name} class={styles.player} onReady={onReady} />
+      return (
+        <VideoPlayer
+          src={l.src}
+          poster={a().thumb}
+          name={a().name}
+          class={styles.player}
+          onReady={onReady}
+          onUnsupported={onUnsupported}
+        />
+      )
     return (
       <div class={styles.audio}>
         <div class={styles.title}>
@@ -238,6 +257,7 @@ export function AssetScreen(props: AssetScreenProps) {
           look="stage"
           class={styles.wave}
           onReady={onReady}
+          onUnsupported={onUnsupported}
         />
       </div>
     )
@@ -361,6 +381,16 @@ export function AssetScreen(props: AssetScreenProps) {
                       onOpenDefault={props.onOpenDefault && (() => props.onOpenDefault!(a().id))}
                     />
                   </Show>
+                </Match>
+                <Match when={undecoded()}>
+                  <Unsupported
+                    name={a().name}
+                    ext={a().ext}
+                    label={lib().formatLabel(a())}
+                    decoder
+                    onReveal={props.onReveal && (() => props.onReveal!(a().id))}
+                    onOpenDefault={props.onOpenDefault && (() => props.onOpenDefault!(a().id))}
+                  />
                 </Match>
                 <Match when={looks().length}>
                   <For each={looks()}>

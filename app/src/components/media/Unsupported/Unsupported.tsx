@@ -11,6 +11,8 @@ export interface UnsupportedProps {
   ext: string
   label: string
   blocker?: Blocker
+  /** プラグインはあるが、この環境のデコーダーで中身を読めなかった */
+  decoder?: boolean
   onEnable?: (p: Blocker) => Promise<void>
   onOpenPlugins?: (p?: Blocker) => void
   onReveal?: () => Promise<void>
@@ -35,6 +37,7 @@ export function Unsupported(props: UnsupportedProps) {
     }
   }
   const text = () => {
+    if (props.decoder) return 'このファイルの形式（コーデック）にこの環境が対応していないため、表示できません'
     const b = props.blocker
     if (!b) return `${props.label ? `${props.label} ` : 'このファイル'}に対応したプラグインがありません`
     return b.state === 'disabled'
@@ -62,7 +65,7 @@ export function Unsupported(props: UnsupportedProps) {
             </Button>
           )}
         </Show>
-        <Show when={props.onOpenPlugins}>
+        <Show when={!props.decoder && props.onOpenPlugins}>
           {(open) => (
             <Button
               variant={props.blocker && !enable() ? 'primary' : 'default'}
