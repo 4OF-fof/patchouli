@@ -176,16 +176,38 @@ fn prune_gone(dir: &Path, places: &HashSet<&str>) {
 
 pub fn shrink(src: &Path, edge: u32) -> Result<Vec<u8>, String> {
     let err = |e: &dyn std::fmt::Display| format!("{}: {e}", src.display());
-    let mut dec = ImageReader::open(src)
-        .map_err(|e| err(&e))?
+    let bytes = fs::read(src).map_err(|e| err(&e))?;
+    let reader = ImageReader::new(Cursor::new(&bytes))
         .with_guessed_format()
-        .map_err(|e| err(&e))?
-        .into_decoder()
         .map_err(|e| err(&e))?;
+    let jpeg = reader.format() == Some(ImageFormat::Jpeg);
+    let mut dec = reader.into_decoder().map_err(|e| err(&e))?;
     let orientation = dec.orientation().map_err(|e| err(&e))?;
-    let mut img = DynamicImage::from_decoder(dec).map_err(|e| err(&e))?;
+    let mut img = match jpeg.then(|| scaled_jpeg(&bytes, edge)).flatten() {
+        Some(img) => img,
+        None => DynamicImage::from_decoder(dec).map_err(|e| err(&e))?,
+    };
     img.apply_orientation(orientation);
     encode(img, edge).map_err(|e| err(&e))
+}
+
+/// JPEG を 1/2・1/4・1/8 に縮めながらデコードする。長いほうの辺は edge 以上に残る。
+/// 対応しない色の形式（CMYK など）や読めないものは none にして、image でデコードし直す。
+fn scaled_jpeg(bytes: &[u8], edge: u32) -> Option<DynamicImage> {
+    let mut d = jpeg_decoder::Decoder::new(bytes);
+    let e = u16::try_from(edge).ok()?;
+    let (w, h) = d.scale(e, e).ok()?;
+    let px = d.decode().ok()?;
+    let (w, h) = (u32::from(w), u32::from(h));
+    match d.info()?.pixel_format {
+        jpeg_decoder::PixelFormat::RGB24 => {
+            image::RgbImage::from_raw(w, h, px).map(DynamicImage::ImageRgb8)
+        }
+        jpeg_decoder::PixelFormat::L8 => {
+            image::GrayImage::from_raw(w, h, px).map(DynamicImage::ImageLuma8)
+        }
+        _ => None,
+    }
 }
 
 pub fn encode(mut img: DynamicImage, edge: u32) -> Result<Vec<u8>, String> {
