@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use record::{Record, Source, Stored};
-pub use runtime::{Runner, ViewOut, read};
+pub use runtime::{Runner, ViewOut, read, set_compiled_dir};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Deps {

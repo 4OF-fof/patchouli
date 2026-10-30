@@ -1407,6 +1407,9 @@ pub fn run() {
             if let Some(d) = dev_unpack_dir(app.handle()) {
                 let _ = std::fs::remove_dir_all(d);
             }
+            if let Ok(d) = cache_dir(app.handle()) {
+                plugin::set_compiled_dir(d.join("wasm"));
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()

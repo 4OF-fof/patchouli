@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fs::File as FsFile;
+use std::fs::{self, File as FsFile};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
@@ -284,12 +284,49 @@ fn decl(s: types::Setting) -> SettingDecl {
     }
 }
 
+static COMPILED: OnceLock<PathBuf> = OnceLock::new();
+
+/// コンパイルしたものを残す場所。決めなければ、毎回コンパイルする。
+pub fn set_compiled_dir(dir: PathBuf) {
+    let _ = COMPILED.set(dir);
+}
+
+/// 同じ WASM と実行環境なら、前にコンパイルしたものを読む。古いものや壊れたものは作り直す。
+fn component(engine: &Engine, wasm: &[u8]) -> Result<Component, String> {
+    let Some(dir) = COMPILED.get() else {
+        return Component::new(engine, wasm).map_err(|e| e.to_string());
+    };
+    let mut env = std::hash::DefaultHasher::new();
+    std::hash::Hash::hash(&engine.precompile_compatibility_hash(), &mut env);
+    let env = std::hash::Hasher::finish(&env);
+    let key = thumb::fnv(&[wasm, &env.to_le_bytes()]);
+    let path = dir.join(format!("{key:016x}.cwasm"));
+    if path.is_file() {
+        // 自分で書いたファイルだけを読む。合わない環境で作ったものは、ここで失敗する
+        match unsafe { Component::deserialize_file(engine, &path) } {
+            Ok(c) => return Ok(c),
+            Err(e) => log::warn!("コンパイル済みの WASM を読めない: {}: {e}", path.display()),
+        }
+    }
+    let bytes = engine
+        .precompile_component(wasm)
+        .map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("tmp");
+    let saved = fs::create_dir_all(dir)
+        .and_then(|_| fs::write(&tmp, &bytes))
+        .and_then(|_| fs::rename(&tmp, &path));
+    if let Err(e) = saved {
+        log::warn!("コンパイルした WASM を残せない: {}: {e}", path.display());
+    }
+    unsafe { Component::deserialize(engine, &bytes) }.map_err(|e| e.to_string())
+}
+
 pub struct Prepared(PluginPre<HostState>);
 
 impl Prepared {
     pub fn new(wasm: &[u8]) -> Result<Prepared, String> {
         let engine = engine();
-        let component = Component::new(engine, wasm).map_err(|e| e.to_string())?;
+        let component = component(engine, wasm)?;
         let mut linker = Linker::new(engine);
         wasmtime_wasi::p2::add_to_linker_sync(&mut linker).map_err(|e| e.to_string())?;
         Plugin::add_to_linker::<_, wasmtime::component::HasSelf<_>>(&mut linker, |s| s)
