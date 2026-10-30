@@ -662,7 +662,9 @@ async fn set_plugin_enabled(
     enabled: bool,
 ) -> Result<(), String> {
     let root = root_of(&cur)?;
+    let builtin = !dev && plugin::builtin_ids().contains(&id);
     if !dev
+        && !builtin
         && !record::Record::read(&record::path(&root))?
             .plugins
             .contains_key(&id)
@@ -672,7 +674,13 @@ async fn set_plugin_enabled(
         ));
     }
     record::update(&root, |r| {
-        if !dev {
+        if builtin {
+            if enabled {
+                r.plugins.remove(&id);
+            } else {
+                r.plugins.entry(id).or_default().disabled = true;
+            }
+        } else if !dev {
             if let Some(e) = r.plugins.get_mut(&id) {
                 e.disabled = !enabled;
             }

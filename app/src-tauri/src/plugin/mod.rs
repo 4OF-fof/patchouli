@@ -429,15 +429,23 @@ pub struct Via {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct Conflict {
+    pub ext: String,
+    pub plugins: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginReport {
     pub plugins: Vec<PluginStatus>,
     pub commands: Vec<CommandStatus>,
+    pub conflicts: Vec<Conflict>,
 }
 
 pub struct Registry {
     plugins: Vec<Loaded>,
     formats: HashMap<String, Resolved>,
+    conflicts: Vec<Conflict>,
     others: Vec<PluginStatus>,
     record: Record,
     stored: RwLock<HashMap<String, Stored>>,
@@ -456,6 +464,7 @@ impl Registry {
         let mut r = Registry {
             plugins: builtin::load(),
             formats: HashMap::new(),
+            conflicts: Vec::new(),
             others: Vec::new(),
             record: Record::default(),
             stored: RwLock::new(HashMap::new()),
@@ -475,6 +484,18 @@ impl Registry {
         let mut plugins = builtin::load();
         let mut others = Vec::new();
         let builtin_ids: HashSet<String> = plugins.iter().map(|p| p.manifest.id.clone()).collect();
+        plugins.retain(|p| {
+            let off = record
+                .plugins
+                .get(&p.manifest.id)
+                .is_some_and(|e| e.disabled);
+            if off {
+                let mut s = idle(&p.manifest, false, false, None, Vec::new());
+                s.builtin = true;
+                others.push(s);
+            }
+            !off
+        });
         let mut found = HashSet::new();
         let mut active = HashSet::new();
         let dev_found = dev.map(|d| d.plugins(&mut problems)).unwrap_or_default();
@@ -563,6 +584,7 @@ impl Registry {
         let mut r = Registry {
             plugins,
             formats: HashMap::new(),
+            conflicts: Vec::new(),
             others,
             record,
             stored: RwLock::new(stored),
@@ -582,27 +604,39 @@ impl Registry {
     }
 
     fn resolve(&mut self) {
-        let mut claim: HashMap<String, usize> = HashMap::new();
-        let mut conflicts = Vec::new();
+        let mut claims: BTreeMap<String, Vec<usize>> = BTreeMap::new();
         for (i, p) in self.plugins.iter().enumerate().filter(|(_, p)| !p.blocked) {
             for ext in p.manifest.formats.keys() {
-                match claim.get(ext) {
-                    Some(&first) => conflicts.push((first, i, ext.clone())),
-                    None => {
-                        claim.insert(ext.clone(), i);
-                    }
-                }
+                claims.entry(ext.clone()).or_default().push(i);
             }
         }
-        for (first, second, ext) in conflicts {
-            let (a, b) = (self.name(first).to_owned(), self.name(second).to_owned());
-            self.plugins[first].problems.push(error(format!(
-                "「.{ext}」は「{b}」とも重複しています。このプラグインが優先されます"
-            )));
-            self.plugins[second].problems.push(error(format!(
-                "「.{ext}」はすでに「{a}」が対応しているため、無効になっています"
-            )));
+        let mut claim: HashMap<String, usize> = HashMap::new();
+        let mut conflicts = Vec::new();
+        for (ext, by) in claims {
+            if let [only] = by[..] {
+                claim.insert(ext, only);
+                continue;
+            }
+            for &i in &by {
+                let others: Vec<String> = by
+                    .iter()
+                    .filter(|&&j| j != i)
+                    .map(|&j| format!("「{}」", self.name(j)))
+                    .collect();
+                self.plugins[i].problems.push(error(format!(
+                    "「.{ext}」は{}も対応しているため、使用していません",
+                    others.join("")
+                )));
+            }
+            conflicts.push(Conflict {
+                ext,
+                plugins: by
+                    .iter()
+                    .map(|&i| self.plugins[i].manifest.id.clone())
+                    .collect(),
+            });
         }
+        self.conflicts = conflicts;
 
         let mut formats = HashMap::new();
         let mut problems: Vec<(usize, Problem)> = Vec::new();
@@ -1036,7 +1070,11 @@ impl Registry {
             })
             .collect();
         plugins.extend(self.others.iter().cloned());
-        PluginReport { plugins, commands }
+        PluginReport {
+            plugins,
+            commands,
+            conflicts: self.conflicts.clone(),
+        }
     }
 }
 

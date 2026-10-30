@@ -22,4 +22,5 @@ export const sampleReport = (): PluginReport => ({
       source: { local: `example/dev-zips/${dir}.zip` },
     })),
   ],
+  conflicts: resolved.conflicts,
 })

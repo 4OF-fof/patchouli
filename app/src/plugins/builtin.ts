@@ -4,10 +4,10 @@
  */
 import audio from '../../plugins/audio/plugin.json'
 import image from '../../plugins/image/plugin.json'
-import note from '../../plugins/note/plugin.json'
 import video from '../../plugins/video/plugin.json'
 import type {
   Cap,
+  Conflict,
   Deps,
   Embed,
   Fit,
@@ -61,13 +61,14 @@ export const readManifest = (raw: RawManifest): Manifest => ({
   ),
 })
 
-export const BUILTIN_MANIFESTS = [image, video, audio, note].map(readManifest)
+export const BUILTIN_MANIFESTS = [image, video, audio].map(readManifest)
 
 const DEFAULT_RATIO = 1.6
 
 export interface Resolved {
   formats: Map<string, FormatInfo>
   problems: Map<string, Problem[]>
+  conflicts: Conflict[]
 }
 
 /**
@@ -77,17 +78,22 @@ export interface Resolved {
 export function resolveFormats(manifests: Manifest[]): Resolved {
   const problems = new Map<string, Problem[]>(manifests.map((m) => [m.id, []]))
   const add = (id: string, text: string) => problems.get(id)?.push({ level: 'error', text })
+  const claims = new Map<string, Manifest[]>()
+  for (const m of manifests) for (const ext of Object.keys(m.formats)) claims.set(ext, [...(claims.get(ext) ?? []), m])
   const claim = new Map<string, Manifest>()
-  for (const m of manifests)
-    for (const ext of Object.keys(m.formats)) {
-      const first = claim.get(ext)
-      if (!first) {
-        claim.set(ext, m)
-        continue
-      }
-      add(first.id, `「.${ext}」は「${m.name}」とも重複しています。このプラグインが優先されます`)
-      add(m.id, `「.${ext}」はすでに「${first.name}」が対応しているため、無効になっています`)
+  const conflicts: Conflict[] = []
+  for (const [ext, by] of [...claims].toSorted(([a], [b]) => (a < b ? -1 : 1))) {
+    const [only, ...more] = by
+    if (only && !more.length) {
+      claim.set(ext, only)
+      continue
     }
+    for (const m of by) {
+      const others = by.filter((o) => o !== m).map((o) => `「${o.name}」`)
+      add(m.id, `「.${ext}」は${others.join('')}も対応しているため、使用していません`)
+    }
+    conflicts.push({ ext, plugins: by.map((m) => m.id) })
+  }
   const formats = new Map<string, FormatInfo>()
   for (const [ext, owner] of claim) {
     let label: string | undefined
@@ -139,7 +145,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
       ...(embedUi && embedUi !== 'wasm' && embedUi.ui && { uiEmbed: { plugin: embedUi.id, module: embedUi.ui } }),
     })
   }
-  return { formats, problems }
+  return { formats, problems, conflicts }
 }
 
 const resolvedBuiltin = resolveFormats(BUILTIN_MANIFESTS)
@@ -179,4 +185,5 @@ export const BUILTIN_FORMATS: ReadonlyMap<string, FormatInfo> = resolvedBuiltin.
 
 export const builtinReport = (): PluginReport => ({
   plugins: BUILTIN_MANIFESTS.map((m) => statusOf(m, resolvedBuiltin, true)),
+  conflicts: resolvedBuiltin.conflicts,
 })

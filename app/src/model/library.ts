@@ -127,6 +127,8 @@ export function headingsOf(body: string): Heading[] {
 }
 
 export const NOTE_EXT = 'md'
+export const NOTE_LABEL = 'ノート'
+export const NOTE_RATIO = 0.8
 
 export const toggled = <T>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
 
@@ -197,7 +199,7 @@ export function buildLibrary(
         .filter((i) => i.suggestion && !i.folder && !i.tags.length)
         .toSorted((a, b) => (a.suggestion?.order ?? 0) - (b.suggestion?.order ?? 0)),
     formats,
-    formatLabel: (it) => formats.get(it.ext)?.label ?? it.ext.toUpperCase(),
+    formatLabel: (it) => (it.note ? NOTE_LABEL : (formats.get(it.ext)?.label ?? it.ext.toUpperCase())),
   }
 }
 
@@ -328,7 +330,7 @@ export const emptyNote = (id: string, name: string, folder: string | null = null
   mtime: Date.now(),
   hue: 210,
   sat: 14,
-  ratio: 0.8,
+  ratio: NOTE_RATIO,
   memo: '',
   body: '',
   aliases: [],

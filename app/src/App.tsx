@@ -1,4 +1,15 @@
-import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import {
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  onCleanup,
+  onMount,
+} from 'solid-js'
 import {
   type Backend,
   type Dropped,
@@ -580,7 +591,12 @@ export function App(props: AppProps) {
   const assetIndex = new WeakMap<View, number>()
   const [barRequest, setBarRequest] = createSignal<BarRequest>()
   const blockerOf = async (ext: string): Promise<Blocker | undefined> => {
-    const of = (await backend.plugins()).plugins.filter((p) => p.formats.includes(ext))
+    const report = await backend.plugins()
+    const clash = report.conflicts?.find((c) => c.ext === ext)
+    const clashing = clash && report.plugins.filter((p) => clash.plugins.includes(p.id))
+    const [first] = clashing ?? []
+    if (clashing && first) return { ...first, conflict: clashing.map((p) => p.name) }
+    const of = report.plugins.filter((p) => p.formats.includes(ext))
     return (
       of.find((p) => p.state === 'disabled' && !p.dev) ??
       of.find((p) => p.state === 'disabled') ??
@@ -854,6 +870,37 @@ export function App(props: AppProps) {
     )
   }
 
+  const [report] = createResource(plugged, () => backend.plugins().catch(() => undefined))
+  const [ignoredClash, setIgnoredClash] = createSignal<ReadonlySet<string>>(new Set())
+  const clashes = createMemo(() => {
+    const r = report()
+    return (r?.conflicts ?? []).flatMap((c) => {
+      if (ignoredClash().has(c.ext)) return []
+      const by = r?.plugins.filter((p) => c.plugins.includes(p.id)) ?? []
+      return by.length ? [{ ext: c.ext, by }] : []
+    })
+  })
+  const clashNotice = () => {
+    const [c, ...rest] = clashes()
+    if (!c) return undefined
+    const skip = () => setIgnoredClash(new Set([...ignoredClash(), c.ext]))
+    const names = c.by.map((p) => `「${p.name}」`).join('')
+    const more = rest.length ? `（ほか ${rest.length} 件の形式にもあります）` : ''
+    const [first] = c.by
+    return (
+      <Toast
+        message={`「.${c.ext}」に複数のプラグイン（${names}）が対応しているため、使用していません${more}`}
+        actionLabel="修正"
+        onAction={() => {
+          skip()
+          setBarRequest({ state: 'plugins', plugin: first && { id: first.id, dev: first.dev } })
+        }}
+        onClose={skip}
+        closeLabel="無視"
+      />
+    )
+  }
+
   return (
     <FormatsProvider value={() => lib().formats}>
       <ThumbMakingProvider value={(id) => making.ids().has(id) || waves.ids().has(id)}>
@@ -889,10 +936,11 @@ export function App(props: AppProps) {
                     />
                   }
                   toast={
-                    (notice() || broken().length > 0) && (
+                    (notice() || broken().length > 0 || clashes().length > 0) && (
                       <>
                         {notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}
                         {brokenNotice()}
+                        {clashNotice()}
                       </>
                     )
                   }

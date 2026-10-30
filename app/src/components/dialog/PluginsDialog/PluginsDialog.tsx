@@ -211,7 +211,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
             </Show>
           </div>
           <div class={styles.actions}>
-            <Show when={!p().builtin && p().state !== 'missing' && a().setEnabled}>
+            <Show when={p().state !== 'missing' && a().setEnabled}>
               <Button
                 size="sm"
                 variant={p().enabled ? undefined : 'primary'}

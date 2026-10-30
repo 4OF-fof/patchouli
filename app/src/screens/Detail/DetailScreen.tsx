@@ -5,7 +5,7 @@ import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
-import { type CardSize, type Item, newerFirst, thumbOf, toggled } from '../../model/library'
+import { type CardSize, type Item, NOTE_LABEL, newerFirst, thumbOf, toggled } from '../../model/library'
 import { useFormats } from '../../plugins/formats'
 import shared from '../screen.module.css'
 import styles from './DetailScreen.module.css'
@@ -31,7 +31,7 @@ export function DetailScreen(props: DetailScreenProps) {
   const formats = useFormats()
   const sel = useSelection()
   const preview = useHoverPreview()
-  const labelOf = (it: Item) => formats().get(it.ext)?.label ?? it.ext
+  const labelOf = (it: Item) => (it.note ? NOTE_LABEL : (formats().get(it.ext)?.label ?? it.ext))
   const side = children(() => props.side)
   const hasSide = () => side.toArray().some((x) => x != null)
   const [pins, setPins] = createSignal(props.pins ?? [])

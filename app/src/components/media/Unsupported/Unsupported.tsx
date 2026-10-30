@@ -4,7 +4,8 @@ import { Icon } from '../../base/Icon/Icon'
 import { Button } from '../../controls/Button/Button'
 import styles from './Unsupported.module.css'
 
-export type Blocker = Pick<PluginStatus, 'id' | 'name' | 'dev' | 'state'>
+/** conflict は、同じ形式に対応していて、どれも使っていないプラグインの名前。 */
+export type Blocker = Pick<PluginStatus, 'id' | 'name' | 'dev' | 'state'> & { conflict?: string[] }
 
 export interface UnsupportedProps {
   name: string
@@ -40,6 +41,8 @@ export function Unsupported(props: UnsupportedProps) {
     if (props.decoder) return 'このファイルの形式（コーデック）にこの環境が対応していないため、表示できません'
     const b = props.blocker
     if (!b) return `${props.label ? `${props.label} ` : 'このファイル'}に対応したプラグインがありません`
+    if (b.conflict)
+      return `複数のプラグイン（${b.conflict.map((n) => `「${n}」`).join('')}）がこの形式に対応しているため、表示できません`
     return b.state === 'disabled'
       ? `プラグイン「${b.name}」が無効のため、表示できません`
       : `プラグイン「${b.name}」を使用できないため、表示できません`

@@ -2,6 +2,7 @@ import {
   COVER_TYPES,
   type CoverPart,
   type Item,
+  NOTE_RATIO,
   type Project,
   TAG_COVER_TYPES,
   type TagCoverPart,
@@ -64,6 +65,7 @@ const hash = (s: string) => {
 const hueOfName = (name: string) => hash(name) % 360
 
 function ratioOf(s: StoredItem, formats: ReadonlyMap<string, FormatInfo>) {
+  if (s.note) return NOTE_RATIO
   if (s.width && s.height) return s.width / s.height
   return formats.get(s.ext)?.ratio ?? 1.6
 }

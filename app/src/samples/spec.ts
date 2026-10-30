@@ -10,16 +10,15 @@ export const TODAY = new Date(2026, 9, 22, 12)
 export const PINNED_PROJECTS = ['秋の企画', '日記']
 export const PINNED_TAGS = ['写真', 'UI', '参考']
 
-export type Media = 'image' | 'video' | 'audio' | 'text' | 'note' | 'other'
+export type Media = 'image' | 'video' | 'audio' | 'note' | 'other'
 
-export const EXAMPLE_PLUGINS = ['text-plugin', 'ppm-plugin']
+export const EXAMPLE_PLUGINS: string[] = []
 
 export type SpecItem = Item & {
   media: Media
   size?: [number, number]
   sec?: number
   jacket?: boolean
-  text?: string
 }
 
 export interface Spec {
@@ -33,10 +32,6 @@ const MEDIA_OF: Record<string, Media> = {
   jpg: 'image',
   png: 'image',
   webp: 'image',
-  // アプリは読めず、例のプラグイン（example/ppm-plugin）が読む
-  ppm: 'image',
-  // 例のプラグイン（example/text-plugin）が読む
-  txt: 'text',
   mp4: 'video',
   webm: 'video',
   mp3: 'audio',
@@ -137,37 +132,7 @@ const PROJECTS: (Omit<Project, 'cover'> & { cover: RawCard<CoverPart>[]; pinName
     cover: [{ type: 'desc', text: '去年の春の告知。' }],
     pinNames: [],
   },
-  {
-    name: 'プラグインの確認',
-    hue: 196,
-    touched: '今日 11:00',
-    cover: [
-      {
-        type: 'desc',
-        text: '例のプラグイン（example/）で読む素材。.txt は組み込み UI、.ppm は宣言型（WASM）で読む。',
-      },
-    ],
-    pinNames: [],
-  },
 ]
-
-const TEXTS: Record<string, string> = {
-  読み方: [
-    '読み方のメモ',
-    '',
-    '1 行目',
-    '2 行目はとても長い行で、折り返しの設定を確かめるために、ここに長い文章を書いておく。折り返さないときは横に伸びる。',
-    '3 行目',
-  ].join('\n'),
-  changelog: [
-    '0.2.0',
-    '- 詳細の表示を組み込み UI で描く',
-    '- サムネイルを canvas で描く',
-    '',
-    '0.1.0',
-    '- はじめての版',
-  ].join('\n'),
-}
 
 /** ノートで使える書き方をひととおり並べたノート。ほかの見本の id をずらさないよう、最後に足す。 */
 const SHOWCASE = [
@@ -287,14 +252,6 @@ const SHOWCASE = [
   '```',
   '',
 ].join('\n')
-
-/** 例のプラグインで読む素材。ほかの見本の id や乱数をずらさないよう、最後に足す。 */
-const PLUGIN_ASSETS: RawAsset[] = [
-  ['読み方', 'txt', [], 0],
-  ['scan-01', 'ppm', ['写真'], 1],
-  ['changelog', 'txt', [], 2],
-  ['scan-02', 'ppm', [], 3],
-]
 
 const CONTENTS: Record<string, { a: RawAsset[]; n: RawNote[] }> = {
   秋の企画: {
@@ -566,7 +523,7 @@ const secOf = (media: Media, name: string) =>
   media === 'video' || media === 'audio' ? 3 + (charSum(name) % 6) : undefined
 
 const ratioOf = (media: Media, size?: [number, number]) =>
-  size ? size[0] / size[1] : media === 'note' || media === 'text' ? 0.8 : media === 'video' ? 16 / 9 : 1.6
+  size ? size[0] / size[1] : media === 'note' ? 0.8 : media === 'video' ? 16 / 9 : 1.6
 
 function markdown(raw: RawBlock[]) {
   let body = ''
@@ -603,7 +560,6 @@ export function sampleSpec(): Spec {
       ...(size && { size }),
       ...(sec && { sec }),
       ...(media === 'audio' && JACKETS.includes(it.name) && { jacket: true }),
-      ...(media === 'text' && { text: TEXTS[it.name] ?? '' }),
     }
     items.push(full)
     return full
@@ -659,8 +615,6 @@ export function sampleSpec(): Spec {
   }
   add({ name: 'ref-a', ext: 'jpg', tags: ['参考'], folder: null, moved: 26, hue: 40, sat: 18 })
   add({ name: 'ref-b', ext: 'jpg', tags: ['参考'], folder: null, moved: 26, hue: 44, sat: 18 })
-  for (const [name, ext, tags, moved] of PLUGIN_ASSETS)
-    add({ name, ext, tags: [...tags], folder: 'プラグインの確認', moved, hue: 196, sat: 20 })
   add({ name: 'ポスター案', ext: 'psd', tags: [], folder: '秋の企画', moved: 3, hue: 28, sat: 20 })
   add({
     name: '記法の見本',

@@ -88,6 +88,13 @@ export interface PluginStatus {
 export interface PluginReport {
   plugins: PluginStatus[]
   commands?: CommandStatus[]
+  /** 複数のプラグインが受け持っているため、どれも使っていない形式。plugins はプラグインの id。 */
+  conflicts?: Conflict[]
+}
+
+export interface Conflict {
+  ext: string
+  plugins: string[]
 }
 
 export interface CommandStatus {
