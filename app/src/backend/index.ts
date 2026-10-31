@@ -15,6 +15,7 @@ export type {
   Opened,
   Orphan,
   PluginWork,
+  SavedTabs,
 } from './types'
 export { sampleBackend } from './sample'
 

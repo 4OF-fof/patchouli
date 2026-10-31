@@ -3,6 +3,7 @@ import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Icon } from '../../components/base/Icon/Icon'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
 import { ThumbStrip } from '../../components/media/ThumbStrip/ThumbStrip'
+import { middleClick } from '../../components/nav/TabPane/newTab'
 import { type Item, type Library, coverOrder, toggled } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './TagListScreen.module.css'
@@ -61,7 +62,13 @@ export function TagListScreen(props: TagListScreenProps) {
               <Icon name="chevron" class={styles.twi} />
             </button>
           </Show>
-          <button type="button" class={styles.link} data-tip="タグを開く" onClick={() => props.onOpenTag?.(r.tag)}>
+          <button
+            type="button"
+            class={styles.link}
+            data-tip="タグを開く"
+            onClick={() => props.onOpenTag?.(r.tag)}
+            {...middleClick(() => props.onOpenTag?.(r.tag))}
+          >
             <span class={styles.tn}>
               <b>
                 {sub ? (

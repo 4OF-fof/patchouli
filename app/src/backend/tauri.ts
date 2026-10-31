@@ -18,7 +18,17 @@ import type { Thumbnail } from '../model/library'
 import type { FormatInfo, Part, PluginReport, PluginSource, SettingValue, UiRef } from '../plugins/types'
 import type { Caller } from '../../plugins/sdk'
 import { ThumbnailTimeout, type UiApi, type UiItem, uiThumbnail, uiWaveform } from '../plugins/ui'
-import type { Backend, CacheUsage, Changed, Developer, Dropped, FileDrag, KnownLibrary, UnusedPlugin } from './types'
+import type {
+  Backend,
+  CacheUsage,
+  Changed,
+  Developer,
+  Dropped,
+  FileDrag,
+  KnownLibrary,
+  SavedTabs,
+  UnusedPlugin,
+} from './types'
 
 type TauriItem = StoredItem & { file: string; thumb?: string }
 
@@ -275,6 +285,8 @@ export function tauriBackend(): Backend {
     saveState: (state) => invoke('save_state', { state }),
     tagHistory: () => invoke<string[]>('tag_history'),
     saveTagHistory: (tags) => invoke('save_tag_history', { tags }),
+    tabs: async () => (await invoke<SavedTabs | null>('tabs')) ?? undefined,
+    saveTabs: (tabs) => invoke('save_tabs', { tabs }),
     async createNote(name, place) {
       const it = await invoke<TauriItem>('create_note', { name, place })
       return toItem(it, new Date(), formats, urlsOf(it))

@@ -1,4 +1,5 @@
 import {
+  AppWindow,
   ArrowLeftRight,
   AudioWaveform,
   Bold,
@@ -91,6 +92,7 @@ const ICONS = {
   minus: Minus,
   more: Ellipsis,
   external: ExternalLink,
+  newTab: AppWindow,
   list: List,
   links: ArrowLeftRight,
   theme: SunMoon,

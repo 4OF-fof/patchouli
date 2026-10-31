@@ -25,6 +25,7 @@ export interface ItemMenuProps {
   plugins?: ItemMenuEntry[]
   revealLabel?: string
   onOpen: () => void
+  onOpenInTab?: () => void
   onOpenDefault?: () => void
   onReveal?: () => void
   onRename: (name: string) => void
@@ -62,6 +63,7 @@ export function ItemMenu(props: ItemMenuProps) {
         ? [
             ...group([
               { id: 'open', icon: it.note ? 'note' : 'file', label: '開く' },
+              props.onOpenInTab && { id: 'tab', icon: 'newTab', label: '新しいタブで開く' },
               props.onOpenDefault && { id: 'default', icon: 'external', label: '既定のアプリで開く' },
               props.onReveal && { id: 'reveal', icon: 'folder', label: props.revealLabel ?? 'フォルダを開く' },
             ]),
@@ -115,6 +117,7 @@ export function ItemMenu(props: ItemMenuProps) {
   }
   const run = (): Record<string, (() => void) | undefined> => ({
     open: props.onOpen,
+    tab: props.onOpenInTab,
     default: props.onOpenDefault,
     reveal: props.onReveal,
     pin: () => props.onPin(!allPinned()),

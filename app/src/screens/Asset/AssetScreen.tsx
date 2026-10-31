@@ -17,6 +17,8 @@ import { Chip } from '../../components/controls/Chip/Chip'
 import { PlaceSelect } from '../../components/controls/PlaceSelect/PlaceSelect'
 import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
+import { middleClick } from '../../components/nav/TabPane/newTab'
+import { useTabActive } from '../../components/nav/TabPane/TabPane'
 import { AudioPlayer } from '../../components/media/AudioPlayer/AudioPlayer'
 import { ImageZoom } from '../../components/media/ImageZoom/ImageZoom'
 import { PluginView } from '../../components/media/PluginView/PluginView'
@@ -262,9 +264,10 @@ export function AssetScreen(props: AssetScreenProps) {
       </AudioPlayer>
     )
   }
+  const active = useTabActive()
   const onKey = (e: KeyboardEvent) => {
     // Shift ＋ ← → は、再生の操作の帯が受け持つ
-    if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
+    if (!active() || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return
     if (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, [role="dialog"], [role="menu"]'))
       return
     if (e.key === 'ArrowLeft') step(-1)
@@ -482,6 +485,7 @@ export function AssetScreen(props: AssetScreenProps) {
                           <Chip
                             removeLabel={`# ${t} を削除`}
                             onClick={() => props.onOpenTag?.(t)}
+                            {...middleClick(() => props.onOpenTag?.(t))}
                             onRemove={() => props.onTag?.(a().id, t, false)}
                           >
                             # {t}

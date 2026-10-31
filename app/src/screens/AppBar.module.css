@@ -29,6 +29,18 @@
   background: var(--card);
   color: var(--ink);
 }
+.placeBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  flex: none;
+  padding: 0 var(--space-6);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+  font-size: var(--fs-list);
+  user-select: none;
+}
 .crumbs {
   display: flex;
   align-items: center;

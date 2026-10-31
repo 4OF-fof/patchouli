@@ -2,6 +2,7 @@ import { type JSX, createEffect } from 'solid-js'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { Kbd } from '../../base/Kbd/Kbd'
 import { Thumb, type ThumbProps } from '../../media/Thumb/Thumb'
+import { middleClick } from '../TabPane/newTab'
 import styles from './ResultRow.module.css'
 
 export type ResultKind = 'command' | 'project' | 'note' | 'asset' | 'create'
@@ -39,6 +40,9 @@ export function ResultRow(props: ResultRowProps) {
       data-kind={props.kind}
       aria-selected={!!props.selected}
       onClick={() => props.onClick?.()}
+      {...middleClick(() => {
+        if (props.kind !== 'command' && props.kind !== 'create') props.onClick?.()
+      })}
     >
       <span class={styles.ic}>
         {props.kind === 'asset' ? <Thumb {...props.thumb} class={styles.thumb} /> : <Icon name={ICON[props.kind]} />}

@@ -12,6 +12,7 @@ import { SettingsDialog } from '../components/dialog/SettingsDialog/SettingsDial
 import { type Activity, ActivityButton } from '../components/nav/ActivityButton/ActivityButton'
 import { NavMenu, type NavMenuEntry } from '../components/nav/NavMenu/NavMenu'
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
+import { TabStrip, type TabStripProps } from '../components/nav/TabStrip/TabStrip'
 import { type Library, newerFirst } from '../model/library'
 import { builtinReport } from '../plugins/builtin'
 import type { PluginActions, PluginReport } from '../plugins/types'
@@ -64,6 +65,8 @@ export interface AppBarProps {
   pluginActions?: PluginActions
   onPluginsChanged?: () => void | Promise<void>
   request?: BarRequest
+  /** あれば、タイトルバーにタブを並べ、いまの場所はその下の段に出す。 */
+  tabs?: TabStripProps
 }
 
 const toggleTheme = () => {
@@ -240,6 +243,72 @@ export function AppBar(props: AppBarProps) {
     if (id === 'home' || id === 'all' || id === 'tags' || id === 'projects') props.onGo?.(id)
   }
 
+  const place = () => (
+    <>
+      <nav class={styles.crumbs} aria-label="いまの場所">
+        <For each={props.crumbs ?? []}>
+          {(c, i) => {
+            const last = () => i() === (props.crumbs?.length ?? 0) - 1
+            const places = () => i() === 0 && last()
+            const items = () => (drop() === i() ? (i() === 0 ? placeItems() : props.siblingsOf?.(i())) : undefined)
+            return (
+              <>
+                <Show when={i() > 0}>
+                  <span class={styles.sep} aria-hidden="true">
+                    /
+                  </span>
+                </Show>
+                <span class={styles.crumbAt} onPointerEnter={() => hover(i())} onPointerLeave={leave}>
+                  <button
+                    type="button"
+                    class={styles.crumb}
+                    aria-current={last() ? 'page' : undefined}
+                    aria-haspopup={places() ? 'menu' : undefined}
+                    aria-expanded={places() ? drop() === 0 : undefined}
+                    data-open={!!items()?.length}
+                    onClick={() => {
+                      if (places()) {
+                        const open = drop() === 0
+                        leave()
+                        if (!open) {
+                          setClicked(true)
+                          setDrop(0)
+                        }
+                        return
+                      }
+                      if (last()) return
+                      leave()
+                      props.onCrumb?.(i())
+                    }}
+                  >
+                    {c}
+                  </button>
+                  <Show when={items()?.length ? items() : undefined}>
+                    {(list) => (
+                      <div class={styles.drop}>
+                        <NavMenu
+                          focusFirst={clicked()}
+                          items={list()}
+                          onSelect={(id) => {
+                            leave()
+                            if (i() === 0) void onMenu(id)
+                            else props.onSibling?.(i(), id)
+                          }}
+                          onClose={leave}
+                        />
+                      </div>
+                    )}
+                  </Show>
+                </span>
+              </>
+            )
+          }}
+        </For>
+      </nav>
+      <Show when={props.selected}>{(n) => <span class={styles.selected}>{n()} 件を選択中</span>}</Show>
+    </>
+  )
+
   return (
     <>
       <TitleBar
@@ -292,68 +361,11 @@ export function AppBar(props: AppBarProps) {
             </div>
           </Show>
         </div>
-        <nav class={styles.crumbs} aria-label="いまの場所">
-          <For each={props.crumbs ?? []}>
-            {(c, i) => {
-              const last = () => i() === (props.crumbs?.length ?? 0) - 1
-              const places = () => i() === 0 && last()
-              const items = () => (drop() === i() ? (i() === 0 ? placeItems() : props.siblingsOf?.(i())) : undefined)
-              return (
-                <>
-                  <Show when={i() > 0}>
-                    <span class={styles.sep} aria-hidden="true">
-                      /
-                    </span>
-                  </Show>
-                  <span class={styles.crumbAt} onPointerEnter={() => hover(i())} onPointerLeave={leave}>
-                    <button
-                      type="button"
-                      class={styles.crumb}
-                      aria-current={last() ? 'page' : undefined}
-                      aria-haspopup={places() ? 'menu' : undefined}
-                      aria-expanded={places() ? drop() === 0 : undefined}
-                      data-open={!!items()?.length}
-                      onClick={() => {
-                        if (places()) {
-                          const open = drop() === 0
-                          leave()
-                          if (!open) {
-                            setClicked(true)
-                            setDrop(0)
-                          }
-                          return
-                        }
-                        if (last()) return
-                        leave()
-                        props.onCrumb?.(i())
-                      }}
-                    >
-                      {c}
-                    </button>
-                    <Show when={items()?.length ? items() : undefined}>
-                      {(list) => (
-                        <div class={styles.drop}>
-                          <NavMenu
-                            focusFirst={clicked()}
-                            items={list()}
-                            onSelect={(id) => {
-                              leave()
-                              if (i() === 0) void onMenu(id)
-                              else props.onSibling?.(i(), id)
-                            }}
-                            onClose={leave}
-                          />
-                        </div>
-                      )}
-                    </Show>
-                  </span>
-                </>
-              )
-            }}
-          </For>
-        </nav>
-        <Show when={props.selected}>{(n) => <span class={styles.selected}>{n()} 件を選択中</span>}</Show>
+        {props.tabs ? <TabStrip {...props.tabs} /> : place()}
       </TitleBar>
+      <Show when={props.tabs}>
+        <div class={styles.placeBar}>{place()}</div>
+      </Show>
       <Show when={searching()}>
         <SearchPalette
           mode={state() === 'prompt' ? 'prompt' : 'search'}

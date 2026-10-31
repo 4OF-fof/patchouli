@@ -3,6 +3,7 @@ import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { createStore } from 'solid-js/store'
 import { FloatingLabel, FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { Thumb } from '../../components/media/Thumb/Thumb'
+import { useTabActive } from '../../components/nav/TabPane/TabPane'
 import { type Item, type Library, type TagCandidate, thumbOf } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './TidyScreen.module.css'
@@ -62,8 +63,10 @@ export function TidyScreen(props: TidyScreenProps) {
     setCur(last)
   }
 
+  const active = useTabActive()
   const onKey = (e: KeyboardEvent) => {
     const it = current()
+    if (!active()) return
     if (!it || (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, [role="dialog"]'))) return
     if (e.key === 'Enter') {
       e.preventDefault()

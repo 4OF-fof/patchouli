@@ -1,0 +1,122 @@
+/* 表のタブは、タイトルバーの下の線にかぶせて、下の本文とつなげる */
+.root {
+  align-self: stretch;
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  margin-bottom: -1px;
+}
+.list {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab {
+  position: relative;
+  flex: 0 1 auto;
+  width: 180px;
+  min-width: 72px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  color: var(--muted);
+}
+/* 裏のタブどうしの境目に線を引く。表のタブとホバーしているタブの両側には引かない */
+.tab + .tab::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: var(--space-8);
+  bottom: var(--space-8);
+  width: 1px;
+  background: var(--line-2);
+}
+.tab[data-current='true']::before,
+.tab[data-current='true'] + .tab::before,
+.tab:hover::before,
+.tab:hover + .tab::before {
+  visibility: hidden;
+}
+/* 表のタブより目立たないよう、タイトルバーと表のタブの中間の色にする */
+.tab:hover {
+  background: color-mix(in oklch, var(--paper) 50%, var(--side));
+  color: var(--ink);
+}
+.tab[data-current='true'] {
+  background: var(--paper);
+  color: var(--ink);
+}
+.main {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-4) 0 var(--space-10);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.main:focus-visible {
+  outline-offset: -2px;
+}
+.main svg {
+  flex: none;
+}
+/* かなは字面の中心が高く見えるので、アイコンの中心より 1px 下げる */
+.label {
+  min-width: 0;
+  padding-top: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-right: var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  visibility: hidden;
+}
+.tab:hover .close,
+.tab[data-current='true'] .close,
+.close:focus-visible {
+  visibility: visible;
+}
+.close:hover {
+  background: var(--card);
+  color: var(--ink);
+}
+.add {
+  align-self: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  margin-left: var(--space-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.add:hover {
+  background: var(--card);
+  color: var(--ink);
+}

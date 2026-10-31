@@ -1,4 +1,5 @@
 import type { JSX } from 'solid-js'
+import { middleClick } from '../TabPane/newTab'
 import styles from './LinkRow.module.css'
 
 export interface LinkRowProps {
@@ -18,6 +19,7 @@ export function LinkRow(props: LinkRowProps) {
       data-current={props.current}
       data-missing={props.missing}
       onClick={() => props.onClick?.()}
+      {...middleClick(() => props.onClick?.())}
     >
       {props.mark && <em>{props.mark}</em>}
       <span>{props.label}</span>

@@ -21,6 +21,7 @@ pub const PROJECT_TYPE: &str = "project";
 pub(crate) const STATE_DIR: &str = ".patchouli";
 const STATE_FILE: &str = "library.json";
 const TAG_HISTORY: &str = "tag-history.json";
+const TABS: &str = "tabs.json";
 pub(crate) const PROJECTS_DIR: &str = "projects";
 pub(crate) const TAGS_DIR: &str = "tags";
 pub(crate) const TAG_INDEX: &str = "index.json";
@@ -1146,6 +1147,20 @@ impl Library {
         fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let path = dir.join(TAG_HISTORY);
         write_json(&path, &Map::from_iter([("tags".to_owned(), json!(tags))]))?;
+        self.mark(&path);
+        Ok(())
+    }
+
+    /// 開いていたタブ。中身は画面側が決めるので、そのまま渡す
+    pub fn tabs(&self) -> Result<Option<Map<String, Value>>, String> {
+        read_json(&self.root.join(STATE_DIR).join(TABS))
+    }
+
+    pub fn save_tabs(&mut self, tabs: &Map<String, Value>) -> Result<(), String> {
+        let dir = self.root.join(STATE_DIR);
+        fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let path = dir.join(TABS);
+        write_json(&path, tabs)?;
         self.mark(&path);
         Ok(())
     }

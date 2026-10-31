@@ -1,0 +1,8 @@
+/* display: none にするとスクロールの位置が消えるので、場所は取ったまま見えなくする */
+.root {
+  position: absolute;
+  inset: 0;
+}
+.root[data-active='false'] {
+  visibility: hidden;
+}

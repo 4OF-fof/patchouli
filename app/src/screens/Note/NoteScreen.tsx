@@ -9,6 +9,7 @@ import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPil
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { HeadingTree } from '../../components/nav/HeadingTree/HeadingTree'
 import { LinkCaption, LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
+import { middleClick } from '../../components/nav/TabPane/newTab'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { type Embed, NoteEditor, type NoteEditorApi } from '../../components/editor/NoteEditor/NoteEditor'
 import { type Item, type Library, type Place, headingsOf, placeOf, refsOf, relDay } from '../../model/library'
@@ -162,6 +163,7 @@ export function NoteScreen(props: NoteScreenProps) {
                         <Chip
                           removeLabel={`# ${t} を削除`}
                           onClick={() => props.onOpenTag?.(t)}
+                          {...middleClick(() => props.onOpenTag?.(t))}
                           onRemove={() => props.onTag?.(n().id, t, false)}
                         >
                           # {t}

@@ -11,6 +11,7 @@ import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { LinkPicker } from '../../nav/LinkPicker/LinkPicker'
 import { QuickView } from '../../overlay/QuickView/QuickView'
 import { type SlashAction, slashMatches } from './commands'
+import { asNewTab } from '../../nav/TabPane/newTab'
 import { runSlash, toggleWrap, unlinkAt } from './edit'
 import { codeHighlight } from './highlight'
 import { type Embed, type LiveHooks, type Ref, escapeLabel, live, marksAt, refAt, refresh } from './live'
@@ -349,13 +350,15 @@ export function NoteEditor(props: NoteEditorProps) {
           EditorView.updateListener.of(onUpdate),
           EditorView.domEventHandlers({
             mousedown: (e) => {
-              if (!(e.ctrlKey || e.metaKey) || e.button !== 0) return false
+              const middle = e.button === 1
+              if (!middle && (!(e.ctrlKey || e.metaKey) || e.button !== 0)) return false
               const el = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-ref]') : null
               const id = el?.dataset.ref
               if (!id) return false
               e.preventDefault()
               setHover(undefined)
-              props.onOpenRef?.(id)
+              if (middle) asNewTab(() => props.onOpenRef?.(id))
+              else props.onOpenRef?.(id)
               return true
             },
             mouseover: (e) => {

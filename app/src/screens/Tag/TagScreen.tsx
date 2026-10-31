@@ -1,6 +1,7 @@
 import { For, Index, type JSX, Show, createMemo, createSignal } from 'solid-js'
 import { NoneText } from '../../components/base/NoneText/NoneText'
 import { Chip } from '../../components/controls/Chip/Chip'
+import { middleClick } from '../../components/nav/TabPane/newTab'
 import { Icon } from '../../components/base/Icon/Icon'
 import { Button } from '../../components/controls/Button/Button'
 import { IconButton } from '../../components/controls/IconButton/IconButton'
@@ -127,7 +128,7 @@ export function TagScreen(props: TagScreenProps) {
         <div class={styles.chips}>
           <For each={together()}>
             {([t, n]) => (
-              <Chip onClick={() => props.onOpenTag?.(t)}>
+              <Chip onClick={() => props.onOpenTag?.(t)} {...middleClick(() => props.onOpenTag?.(t))}>
                 # {t} {n}
               </Chip>
             )}

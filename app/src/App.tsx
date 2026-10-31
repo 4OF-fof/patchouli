@@ -1,6 +1,8 @@
 import {
+  type Accessor,
   For,
   Match,
+  type Signal,
   Show,
   Switch,
   createEffect,
@@ -9,6 +11,7 @@ import {
   createSignal,
   onCleanup,
   onMount,
+  untrack,
 } from 'solid-js'
 import {
   type Backend,
@@ -18,6 +21,7 @@ import {
   type LibraryState,
   type Orphan,
   type PluginWork,
+  type SavedTabs,
   sampleBackend,
 } from './backend'
 import { DropZone } from './components/overlay/DropZone/DropZone'
@@ -64,6 +68,9 @@ import { type HoverHost, HoverHostProvider } from './components/media/HoverPrevi
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import type { Activity } from './components/nav/ActivityButton/ActivityButton'
 import type { NavMenuItem } from './components/nav/NavMenu/NavMenu'
+import { asNewTab, inNewTab } from './components/nav/TabPane/newTab'
+import { TabPane } from './components/nav/TabPane/TabPane'
+import type { TabEntry } from './components/nav/TabStrip/TabStrip'
 import type { IconName } from './components/base/Icon/Icon'
 import { SelectionProvider, createSelection } from './components/media/Selection/Selection'
 import { ItemMenuProvider, ThumbMakingProvider, ThumbSeenProvider, watchSeen } from './components/media/Thumb/Thumb'
@@ -106,6 +113,67 @@ const LABEL: Record<View['s'], string> = {
   note: 'ノート',
   asset: '素材',
   tidy: '整理',
+}
+
+const TAB_ICON: Record<View['s'], IconName> = {
+  edition: 'home',
+  all: 'grid',
+  project: 'folder',
+  group: 'group',
+  plist: 'folder',
+  tlist: 'hash',
+  tag: 'hash',
+  note: 'note',
+  asset: 'file',
+  tidy: 'tag',
+}
+
+interface Tab {
+  id: number
+  stack: Accessor<View[]>
+  setStack: (s: View[]) => void
+  /** 裏に開いたタブの、開いたもとのタブ。 */
+  from?: Tab
+}
+
+const str = (x: unknown) => (typeof x === 'string' ? x : undefined)
+
+/** ファイルから読んだ画面を、いまのライブラリで開けるものだけにする。 */
+function viewOf(lib: Library, v: unknown): View | undefined {
+  if (typeof v !== 'object' || v === null) return undefined
+  const x: Record<string, unknown> = Object.fromEntries(Object.entries(v))
+  switch (x.s) {
+    case 'edition':
+    case 'all':
+    case 'plist':
+    case 'tlist':
+    case 'tidy':
+      return { s: x.s }
+    case 'project': {
+      const name = str(x.name)
+      return name && lib.projectBy.has(name) ? { s: 'project', name } : undefined
+    }
+    case 'group': {
+      const id = str(x.id)
+      return id && lib.groupBy.has(id) ? { s: 'group', id } : undefined
+    }
+    case 'tag': {
+      const tag = str(x.tag)
+      return tag ? { s: 'tag', tag } : undefined
+    }
+    case 'note': {
+      const id = str(x.id)
+      return id && lib.byId.get(id)?.note ? { s: 'note', id } : undefined
+    }
+    case 'asset': {
+      const list = (Array.isArray(x.list) ? x.list : []).filter(
+        (id): id is string => typeof id === 'string' && lib.byId.get(id)?.note === false,
+      )
+      const index = typeof x.index === 'number' ? x.index : 0
+      return list.length ? { s: 'asset', list, index: Math.min(Math.max(0, index), list.length - 1) } : undefined
+    }
+  }
+  return undefined
 }
 
 export interface AppProps {
@@ -162,12 +230,58 @@ type Progress = ReturnType<typeof progress>
 export function App(props: AppProps) {
   const backend = props.backend ?? sampleBackend()
   const [lib, setLib] = createSignal(props.lib)
-  const [stack, setStack] = createSignal<View[]>([{ s: 'edition' }])
+  let tabSeq = 0
+  const makeTab = (views: View[] = [{ s: 'edition' }], from?: Tab): Tab => {
+    const [stack, setStack] = createSignal(views)
+    return { id: tabSeq++, stack, setStack: (s) => setStack(s), from }
+  }
+  const [tabs, setTabs] = createSignal<Tab[]>([makeTab()])
+  const [currentTab, setCurrentTab] = createSignal(tabs()[0])
+  const stack = () => currentTab().stack()
+  const setStack = (s: View[]) => currentTab().setStack(s)
+  const eachStack = (f: (s: View[]) => View[]) => {
+    for (const t of tabs()) t.setStack(f(t.stack()))
+  }
+  // 新しいタブは裏に開く。同じタブから続けて開いたものは、開いた順に並べる
+  const openTab = (views: View[]) => {
+    const list = tabs()
+    let at = list.indexOf(currentTab()) + 1
+    while (list[at]?.from === currentTab()) at++
+    setTabs([...list.slice(0, at), makeTab(views, currentTab()), ...list.slice(at)])
+  }
+  const addTab = () => {
+    const t = makeTab()
+    setTabs([...tabs(), t])
+    setCurrentTab(t)
+  }
+  const closeTab = (id: number) => {
+    const list = tabs()
+    const i = list.findIndex((t) => t.id === id)
+    const t = list[i]
+    if (!t) return
+    editors.delete(id)
+    const rest = list.filter((x) => x !== t)
+    if (!rest.length) rest.push(makeTab())
+    setTabs(rest)
+    if (currentTab() === t) setCurrentTab(rest[Math.min(i, rest.length - 1)])
+  }
+  const tabEntry = (t: Tab): TabEntry => {
+    const v = t.stack().at(-1) ?? { s: 'edition' }
+    return { id: t.id, label: labelOf(v), icon: TAB_ICON[v.s] }
+  }
   const selection = createSelection((ids) => setDeleting(ids))
   const [pinnedProjects, setPinnedProjects] = createSignal(props.pinnedProjects ?? PINNED_PROJECTS)
   const [pinnedTags, setPinnedTags] = createSignal(props.pinnedTags ?? PINNED_TAGS)
   const [notice, setNotice] = createSignal(props.notice)
   const view = () => stack().at(-1) ?? { s: 'edition' }
+  // 素材の画面で動いた位置。並びの View に書くと画面が作り直されるので、別に持つ
+  const assetIndexes = new WeakMap<View, Signal<number>>()
+  const assetIndexOf = (v: View & { s: 'asset' }) => {
+    const s = assetIndexes.get(v) ?? createSignal(v.index)
+    assetIndexes.set(v, s)
+    return s
+  }
+  const assetIndex = (v: View & { s: 'asset' }) => assetIndexOf(v)[0]()
   const labelOf = (v: View) =>
     v.s === 'project'
       ? v.name
@@ -178,10 +292,10 @@ export function App(props: AppProps) {
           : v.s === 'note'
             ? (lib().byId.get(v.id)?.name ?? LABEL.note)
             : v.s === 'asset'
-              ? (lib().byId.get(v.list[v.index] ?? '')?.name ?? LABEL.asset)
+              ? (lib().byId.get(v.list[assetIndex(v)] ?? '')?.name ?? LABEL.asset)
               : LABEL[v.s]
   const crumbs = () => stack().map(labelOf)
-  const go = (v: View) => setStack([...stack(), v])
+  const go = (v: View) => (inNewTab() ? openTab([...stack(), v]) : setStack([...stack(), v]))
   const itemView = (id: string, list?: string[]): View | undefined => {
     const it = lib().byId.get(id)
     if (!it) return undefined
@@ -205,7 +319,7 @@ export function App(props: AppProps) {
     const p = stack()[i - 1]
     const v = stack()[i]
     if (!p || !v) return undefined
-    const here = v.s === 'note' ? v.id : v.s === 'asset' ? v.list[assetIndex.get(v) ?? v.index] : undefined
+    const here = v.s === 'note' ? v.id : v.s === 'asset' ? v.list[assetIndex(v)] : undefined
     const list: NavMenuItem[] | undefined =
       p.s === 'plist'
         ? lib().projects.map((pr) => ({
@@ -242,7 +356,8 @@ export function App(props: AppProps) {
   }
   const [peek, setPeek] = createSignal<string>()
   const openRef = (id: string) => {
-    if (lib().byId.has(id)) setPeek(id)
+    if (inNewTab()) openItem(id)
+    else if (lib().byId.has(id)) setPeek(id)
   }
   createEffect(() => {
     stack()
@@ -377,7 +492,7 @@ export function App(props: AppProps) {
     vs.flatMap((v): View[] => {
       if (v.s === 'note') return v.id === id ? [] : [v]
       if (v.s !== 'asset' || !v.list.includes(id)) return [v]
-      const at = assetIndex.get(v) ?? v.index
+      const at = assetIndex(v)
       const list = v.list.filter((x) => x !== id)
       if (!list.length) return []
       const cur = v.list[at]
@@ -400,8 +515,10 @@ export function App(props: AppProps) {
         }
         pinned ||= lib().pins.includes(it.id)
         setLib(withChanged(lib(), [], [it.id]))
-        const rest = withoutItem(stack(), it.id)
-        setStack(rest.length ? rest : [{ s: 'edition' }])
+        eachStack((s) => {
+          const rest = withoutItem(s, it.id)
+          return rest.length ? rest : [{ s: 'edition' }]
+        })
         if (peek() === it.id) setPeek(undefined)
       }
       if (pinned) saveState()
@@ -483,7 +600,7 @@ export function App(props: AppProps) {
     const after = withRenamedTag(before, from, to, keepFrom)
     setLib(after)
     setPinnedTags([...new Set(pinnedTags().map(re))])
-    setStack(stack().map((v) => (v.s === 'tag' ? { ...v, tag: re(v.tag) } : v)))
+    eachStack((s) => s.map((v) => (v.s === 'tag' ? { ...v, tag: re(v.tag) } : v)))
     persist(() => backend.renameTag(from, to, keepFrom))
     for (const it of retaggedItems(before, after)) {
       const old = before.byId.get(it.id)?.tags ?? []
@@ -539,7 +656,7 @@ export function App(props: AppProps) {
       await rename(from, to)
       setLib(withRenamedProject(lib(), from, to))
       setPinnedProjects(pinnedProjects().map((n) => (n === from ? to : n)))
-      setStack(stack().map((v) => (v.s === 'project' && v.name === from ? { s: 'project', name: to } : v)))
+      eachStack((s) => s.map((v) => (v.s === 'project' && v.name === from ? { s: 'project', name: to } : v)))
       saveState()
     })
   }
@@ -597,7 +714,42 @@ export function App(props: AppProps) {
       setReloading(undefined)
     }
   }
-  const assetIndex = new WeakMap<View, number>()
+  // 前に開いていたタブを戻してから、変わるたびに書き出す
+  const [tabsRead, setTabsRead] = createSignal(!backend.tabs)
+  const restoreTabs = (s: SavedTabs | undefined) => {
+    const list = (Array.isArray(s?.tabs) ? s.tabs : [])
+      .map((vs) => (Array.isArray(vs) ? vs.flatMap((v) => viewOf(lib(), v) ?? []) : []))
+      .filter((vs) => vs.length)
+      .map((vs) => makeTab(vs))
+    const at = typeof s?.current === 'number' ? s.current : 0
+    const shown = list[Math.min(Math.max(0, at), list.length - 1)]
+    if (!shown) return
+    setTabs(list)
+    setCurrentTab(shown)
+  }
+  onMount(
+    () =>
+      void backend
+        .tabs?.()
+        .then(restoreTabs, fail)
+        .finally(() => setTabsRead(true)),
+  )
+  const savedView = (v: View): View =>
+    v.s === 'asset'
+      ? { ...v, index: assetIndex(v) }
+      : v.s === 'project'
+        ? { s: 'project', name: v.name }
+        : v.s === 'tidy'
+          ? { s: 'tidy' }
+          : v
+  createEffect(() => {
+    const s: SavedTabs = {
+      tabs: tabs().map((t) => t.stack().map(savedView)),
+      current: tabs().indexOf(currentTab()),
+    }
+    const save = backend.saveTabs
+    if (tabsRead() && save) persist(() => save(s))
+  })
   const [barRequest, setBarRequest] = createSignal<BarRequest>()
   const blockerOf = async (ext: string): Promise<Blocker | undefined> => {
     const report = await backend.plugins()
@@ -752,12 +904,11 @@ export function App(props: AppProps) {
       setImporting(importing() - 1)
     }
   }
-  let noteEditor: NoteEditorApi | undefined
+  const editors = new Map<number, NoteEditorApi>()
   const intoNote = () => {
     const v = view()
-    return v.s === 'note' && noteEditor && !peek()
-      ? { editor: noteEditor, place: placeOf(lib().byId.get(v.id) ?? ROOT) }
-      : undefined
+    const editor = editors.get(currentTab().id)
+    return v.s === 'note' && editor && !peek() ? { editor, place: placeOf(lib().byId.get(v.id) ?? ROOT) } : undefined
   }
   const stopDrag =
     backend.onFileDrag?.((e) => {
@@ -807,11 +958,11 @@ export function App(props: AppProps) {
     return f ? `ドロップして「${f}」に追加します` : 'ドロップして所属なしで取り込みます'
   }
 
-  const noteScreen = (noteId: string, main: boolean) => (
+  const noteScreen = (noteId: string, tab?: Tab) => (
     <NoteScreen
       lib={lib()}
       noteId={noteId}
-      headsOpen={main ? undefined : false}
+      headsOpen={tab ? undefined : false}
       onOpenRef={openRef}
       onOpenTag={(tag) => go({ s: 'tag', tag })}
       onTogglePin={togglePin}
@@ -824,7 +975,7 @@ export function App(props: AppProps) {
       onCreateNote={addNote}
       embedOf={embedOf}
       onImport={backend.importData && importFiles}
-      editorRef={main ? (api) => (noteEditor = api) : undefined}
+      editorRef={tab ? (api) => (api ? editors.set(tab.id, api) : editors.delete(tab.id)) : undefined}
     />
   )
   const assetScreen = (list: string[], index: number, onIndex?: (i: number) => void) => (
@@ -853,8 +1004,13 @@ export function App(props: AppProps) {
   const [ignored, setIgnored] = createSignal<ReadonlySet<string>>(new Set())
   const ignore = (id: string) => setIgnored(new Set([...ignored(), id]))
   const broken = createMemo(() => {
-    const v = view()
-    const open = new Set([v.s === 'note' ? v.id : '', peek() ?? ''])
+    const open = new Set([
+      ...tabs().flatMap((t) => {
+        const v = t.stack().at(-1)
+        return v?.s === 'note' ? [v.id] : []
+      }),
+      peek() ?? '',
+    ])
     return lib().items.flatMap((it) => {
       if (!it.note || open.has(it.id) || ignored().has(it.id)) return []
       const lost = new Set(refsOf(it.body ?? '').filter((id) => !lib().byId.has(id)))
@@ -910,6 +1066,104 @@ export function App(props: AppProps) {
     )
   }
 
+  const screenOf = (tab: Tab) => {
+    const shown = (): View => tab.stack().at(-1) ?? { s: 'edition' }
+    return (
+      <Switch>
+        <Match when={shown().s === 'edition'}>
+          <EditionScreen
+            lib={lib()}
+            location={props.location}
+            pinnedProjects={pinnedProjects()}
+            pinnedTags={pinnedTags()}
+            onOpenItem={(id) => openItem(id)}
+            onOpenProject={(name) => go({ s: 'project', name })}
+            onOpenTag={(tag) => go({ s: 'tag', tag })}
+            onTidy={(id) => go({ s: 'tidy', id })}
+          />
+        </Match>
+        <Match when={shown().s === 'all'}>
+          <AllScreen lib={lib()} onOpenItem={openItem} onOpenGroup={openGroup} onTogglePin={togglePin} />
+        </Match>
+        <Match when={shown().s === 'project' && shown()} keyed>
+          {(v) =>
+            v.s === 'project' && (
+              <ProjectScreen
+                lib={lib()}
+                name={v.name}
+                editing={v.editing}
+                pinned={pinnedProjects().includes(v.name)}
+                onTogglePin={togglePin}
+                onToggleProjectPin={() => toggleProjectPin(v.name)}
+                onSaveCover={(cover) => saveProjectCover(v.name, cover)}
+                onRename={backend.renameProject && ((to) => renameProject(v.name, to))}
+                onOpenItem={openItem}
+                onOpenGroup={openGroup}
+              />
+            )
+          }
+        </Match>
+        <Match when={shown().s === 'group' && shown()} keyed>
+          {(v) =>
+            v.s === 'group' && (
+              <GroupScreen
+                lib={lib()}
+                id={v.id}
+                onTogglePin={togglePin}
+                onOpenItem={openItem}
+                onOpenGroup={openGroup}
+              />
+            )
+          }
+        </Match>
+        <Match when={shown().s === 'plist'}>
+          <ProjectListScreen
+            lib={lib()}
+            pinned={pinnedProjects()}
+            onOpenProject={(name) => go({ s: 'project', name })}
+            onCreate={createProject}
+          />
+        </Match>
+        <Match when={shown().s === 'tlist'}>
+          <TagListScreen lib={lib()} onOpenTag={(tag) => go({ s: 'tag', tag })} />
+        </Match>
+        <Match when={shown().s === 'tag' && shown()} keyed>
+          {(v) =>
+            v.s === 'tag' && (
+              <TagScreen
+                lib={lib()}
+                tag={v.tag}
+                pinned={pinnedTags().includes(v.tag)}
+                onOpenItem={openItem}
+                onOpenTag={(tag) => go({ s: 'tag', tag })}
+                onTogglePin={togglePin}
+                onToggleTagPin={() => toggleTagPin(v.tag)}
+                onRename={(to) => requestRenameTag(v.tag, to)}
+                onSaveCover={(cover) => saveTagCover(v.tag, cover)}
+              />
+            )
+          }
+        </Match>
+        <Match when={shown().s === 'note' && shown()} keyed>
+          {(v) => v.s === 'note' && noteScreen(v.id, tab)}
+        </Match>
+        <Match when={shown().s === 'asset' && shown()} keyed>
+          {(v) =>
+            v.s === 'asset' &&
+            assetScreen(
+              v.list,
+              untrack(() => assetIndex(v)),
+              (i) => assetIndexOf(v)[1](i),
+            )
+          }
+        </Match>
+        <Match when={shown().s === 'tidy' && shown()} keyed>
+          {(v) => v.s === 'tidy' && <TidyScreen lib={lib()} currentId={v.id} onOpenItem={(id) => openItem(id)} />}
+        </Match>
+      </Switch>
+    )
+  }
+
   return (
     <FormatsProvider value={() => lib().formats}>
       <ThumbMakingProvider value={(id) => making.ids().has(id) || waves.ids().has(id)}>
@@ -942,6 +1196,16 @@ export function App(props: AppProps) {
                       onPluginsChanged={reloadPlugins}
                       request={barRequest()}
                       activities={activities()}
+                      tabs={{
+                        tabs: tabs().map(tabEntry),
+                        current: currentTab().id,
+                        onSelect: (id) => {
+                          const t = tabs().find((x) => x.id === id)
+                          if (t) setCurrentTab(t)
+                        },
+                        onClose: closeTab,
+                        onNew: addTab,
+                      }}
                     />
                   }
                   toast={
@@ -957,103 +1221,7 @@ export function App(props: AppProps) {
                   {/* プラグインを読み直したら、組み込み UI を描き直すため、いまの画面を作り直す */}
                   <For each={[plugged()]}>
                     {() => (
-                      <Switch>
-                        <Match when={view().s === 'edition'}>
-                          <EditionScreen
-                            lib={lib()}
-                            location={props.location}
-                            pinnedProjects={pinnedProjects()}
-                            pinnedTags={pinnedTags()}
-                            onOpenItem={(id) => openItem(id)}
-                            onOpenProject={(name) => go({ s: 'project', name })}
-                            onOpenTag={(tag) => go({ s: 'tag', tag })}
-                            onTidy={(id) => go({ s: 'tidy', id })}
-                          />
-                        </Match>
-                        <Match when={view().s === 'all'}>
-                          <AllScreen
-                            lib={lib()}
-                            onOpenItem={openItem}
-                            onOpenGroup={openGroup}
-                            onTogglePin={togglePin}
-                          />
-                        </Match>
-                        <Match when={view().s === 'project' && view()} keyed>
-                          {(v) =>
-                            v.s === 'project' && (
-                              <ProjectScreen
-                                lib={lib()}
-                                name={v.name}
-                                editing={v.editing}
-                                pinned={pinnedProjects().includes(v.name)}
-                                onTogglePin={togglePin}
-                                onToggleProjectPin={() => toggleProjectPin(v.name)}
-                                onSaveCover={(cover) => saveProjectCover(v.name, cover)}
-                                onRename={backend.renameProject && ((to) => renameProject(v.name, to))}
-                                onOpenItem={openItem}
-                                onOpenGroup={openGroup}
-                              />
-                            )
-                          }
-                        </Match>
-                        <Match when={view().s === 'group' && view()} keyed>
-                          {(v) =>
-                            v.s === 'group' && (
-                              <GroupScreen
-                                lib={lib()}
-                                id={v.id}
-                                onTogglePin={togglePin}
-                                onOpenItem={openItem}
-                                onOpenGroup={openGroup}
-                              />
-                            )
-                          }
-                        </Match>
-                        <Match when={view().s === 'plist'}>
-                          <ProjectListScreen
-                            lib={lib()}
-                            pinned={pinnedProjects()}
-                            onOpenProject={(name) => go({ s: 'project', name })}
-                            onCreate={createProject}
-                          />
-                        </Match>
-                        <Match when={view().s === 'tlist'}>
-                          <TagListScreen lib={lib()} onOpenTag={(tag) => go({ s: 'tag', tag })} />
-                        </Match>
-                        <Match when={view().s === 'tag' && view()} keyed>
-                          {(v) =>
-                            v.s === 'tag' && (
-                              <TagScreen
-                                lib={lib()}
-                                tag={v.tag}
-                                pinned={pinnedTags().includes(v.tag)}
-                                onOpenItem={openItem}
-                                onOpenTag={(tag) => go({ s: 'tag', tag })}
-                                onTogglePin={togglePin}
-                                onToggleTagPin={() => toggleTagPin(v.tag)}
-                                onRename={(to) => requestRenameTag(v.tag, to)}
-                                onSaveCover={(cover) => saveTagCover(v.tag, cover)}
-                              />
-                            )
-                          }
-                        </Match>
-                        <Match when={view().s === 'note' && view()} keyed>
-                          {(v) => v.s === 'note' && noteScreen(v.id, true)}
-                        </Match>
-                        <Match when={view().s === 'asset' && view()} keyed>
-                          {(v) =>
-                            v.s === 'asset' &&
-                            assetScreen(v.list, assetIndex.get(v) ?? v.index, (i) => assetIndex.set(v, i))
-                          }
-                        </Match>
-                        <Match when={view().s === 'tidy' && view()} keyed>
-                          {(v) =>
-                            v.s === 'tidy' && (
-                              <TidyScreen lib={lib()} currentId={v.id} onOpenItem={(id) => openItem(id)} />
-                            )
-                          }
-                        </Match>
-                      </Switch>
+                      <For each={tabs()}>{(t) => <TabPane active={t === currentTab()}>{screenOf(t)}</TabPane>}</For>
                     )}
                   </For>
                   <Show when={peek()}>
@@ -1068,7 +1236,7 @@ export function App(props: AppProps) {
                         onClose={() => setPeek(undefined)}
                       >
                         <Show when={id()} keyed>
-                          {(to) => (lib().byId.get(to)?.note ? noteScreen(to, false) : assetScreen([to], 0))}
+                          {(to) => (lib().byId.get(to)?.note ? noteScreen(to) : assetScreen([to], 0))}
                         </Show>
                       </Peek>
                     )}
@@ -1170,6 +1338,7 @@ export function App(props: AppProps) {
                             plugins={menuPlugins()}
                             revealLabel={REVEAL_LABEL}
                             onOpen={() => one() && openItem(one()!)}
+                            onOpenInTab={() => one() && asNewTab(() => openItem(one()!))}
                             onOpenDefault={openDefault && (() => one() && void openDefault(one()!).catch(fail))}
                             onReveal={reveal && (() => one() && void reveal(one()!).catch(fail))}
                             onRename={(name) => one() && renameItem(one()!, name)}

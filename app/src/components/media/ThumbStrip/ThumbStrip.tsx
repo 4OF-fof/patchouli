@@ -1,5 +1,6 @@
 import { For } from 'solid-js'
 import { type Item, thumbOf } from '../../../model/library'
+import { middleClick } from '../../nav/TabPane/newTab'
 import { Thumb } from '../Thumb/Thumb'
 import styles from './ThumbStrip.module.css'
 
@@ -16,7 +17,13 @@ export function ThumbStrip(props: ThumbStripProps) {
       <For each={props.items}>
         {(it) =>
           props.onOpen ? (
-            <button type="button" class={styles.cell} aria-label={it.name} onClick={() => props.onOpen?.(it)}>
+            <button
+              type="button"
+              class={styles.cell}
+              aria-label={it.name}
+              onClick={() => props.onOpen?.(it)}
+              {...middleClick(() => props.onOpen?.(it))}
+            >
               <Thumb {...thumbOf(it, 'X')} />
             </button>
           ) : (

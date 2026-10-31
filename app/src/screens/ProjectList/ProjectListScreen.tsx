@@ -3,6 +3,7 @@ import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Icon } from '../../components/base/Icon/Icon'
 import { Button } from '../../components/controls/Button/Button'
 import { Mosaic } from '../../components/media/Mosaic/Mosaic'
+import { middleClick } from '../../components/nav/TabPane/newTab'
 import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
 import { type Library, type Project, coverOf, coverTile, dueLabel, nextDue } from '../../model/library'
 import shared from '../screen.module.css'
@@ -33,7 +34,13 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
     const dl = due ? dueLabel(lib(), due) : null
     const done = todo?.type === 'todo' ? todo.items.filter((x) => x.done).length : 0
     return (
-      <button type="button" class={styles.card} data-big={big} onClick={() => props.onOpenProject?.(p.name)}>
+      <button
+        type="button"
+        class={styles.card}
+        data-big={big}
+        onClick={() => props.onOpenProject?.(p.name)}
+        {...middleClick(() => props.onOpenProject?.(p.name))}
+      >
         <Mosaic tiles={coverOf(lib(), p, 5).map(coverTile)} />
         <span class={styles.nm}>{p.name}</span>
         {big && <span class={styles.ds}>{desc?.type === 'desc' ? desc.text : ' '}</span>}

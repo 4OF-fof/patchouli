@@ -1,4 +1,5 @@
 import { Mosaic, type MosaicTile } from '../Mosaic/Mosaic'
+import { middleClick } from '../../nav/TabPane/newTab'
 import styles from './PinnedCard.module.css'
 
 export interface PinnedCardProps {
@@ -19,6 +20,7 @@ export function PinnedCard(props: PinnedCardProps) {
       data-large={props.large || undefined}
       style={{ '--mosaic-h': props.height ? `${props.height}px` : undefined }}
       onClick={() => props.onClick?.()}
+      {...middleClick(() => props.onClick?.())}
     >
       <Mosaic tiles={props.tiles ?? []} count={props.large ? 5 : 3} class={styles.cover} />
       <span class={styles.t}>

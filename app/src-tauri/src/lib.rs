@@ -1279,6 +1279,19 @@ async fn save_tag_history(cur: State<'_, Current>, tags: Vec<String>) -> Result<
 }
 
 #[tauri::command]
+async fn tabs(cur: State<'_, Current>) -> Result<Option<serde_json::Map<String, Value>>, String> {
+    with(&cur, |l| l.tabs())
+}
+
+#[tauri::command]
+async fn save_tabs(
+    cur: State<'_, Current>,
+    tabs: serde_json::Map<String, Value>,
+) -> Result<(), String> {
+    with(&cur, |l| l.save_tabs(&tabs))
+}
+
+#[tauri::command]
 async fn create_note(
     cur: State<'_, Current>,
     name: String,
@@ -1394,6 +1407,8 @@ pub fn run() {
             save_state,
             tag_history,
             save_tag_history,
+            tabs,
+            save_tabs,
             create_note,
             create_project,
             save_project,

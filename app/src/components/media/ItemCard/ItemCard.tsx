@@ -1,6 +1,7 @@
 import { type JSX, Show, createSignal, onCleanup, splitProps } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
 import { PinToggle } from '../../controls/PinToggle/PinToggle'
+import { middleClick } from '../../nav/TabPane/newTab'
 import { useSelectArea } from '../Selection/Selection'
 import { Thumb, type ThumbProps } from '../Thumb/Thumb'
 import styles from './ItemCard.module.css'
@@ -54,6 +55,7 @@ export function ItemCard(props: ItemCardProps) {
       aria-label={showName() ? undefined : local.name}
       style={{ '--ar': local.ratio }}
       onClick={onClick}
+      {...middleClick(open)}
       onPointerEnter={enter}
       onPointerLeave={leave}
     >

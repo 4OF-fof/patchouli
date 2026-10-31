@@ -1,5 +1,6 @@
 import { type JSX, Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
+import { useTabActive } from '../../nav/TabPane/TabPane'
 import { clock } from './clock'
 import styles from './PlayerBar.module.css'
 
@@ -92,7 +93,9 @@ export function PlayerBar(props: PlayerBarProps) {
     else void el.requestFullscreen().catch(() => undefined)
   }
   const onFull = () => setFull(!!document.fullscreenElement)
+  const active = useTabActive()
   const onKey = (e: KeyboardEvent) => {
+    if (!active()) return
     const scope = props.scope?.()
     if (scope && !(e.target instanceof Node && scope.contains(e.target))) return
     if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target, scope)) return

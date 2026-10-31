@@ -1,4 +1,5 @@
 import { type JSX, Show, createContext, createSignal, onCleanup, onMount, useContext } from 'solid-js'
+import { useTabActive } from '../../nav/TabPane/TabPane'
 import styles from './Selection.module.css'
 
 /** 選んでいる項目。画面をまたいで 1 つだけ持ち、画面を移ると外す。 */
@@ -94,7 +95,9 @@ export function SelectArea(props: SelectAreaProps) {
     else open()
   }
 
+  const active = useTabActive()
   const onKey = (e: KeyboardEvent) => {
+    if (!active()) return
     setMod(e.ctrlKey || e.metaKey || e.shiftKey)
     if (e.type !== 'keydown' || e.defaultPrevented || typing(e.target)) return
     if (e.key === 'Escape' && sel.ids().length) {

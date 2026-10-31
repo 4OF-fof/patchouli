@@ -8,6 +8,12 @@ export interface LibraryState {
   pinnedTags: string[]
 }
 
+/** タブごとの、いまの場所までの画面の並び。中身はファイルから読むので、確かめてから使う。 */
+export interface SavedTabs {
+  tabs: unknown[][]
+  current: number
+}
+
 export interface ListDiff {
   add?: string[]
   remove?: string[]
@@ -138,6 +144,9 @@ export interface Backend {
   /** 最近付けたタグ。新しい順。 */
   tagHistory?: () => Promise<string[]>
   saveTagHistory?: (tags: string[]) => Promise<void>
+  /** 前に開いていたタブ。 */
+  tabs?: () => Promise<SavedTabs | undefined>
+  saveTabs?: (tabs: SavedTabs) => Promise<void>
   createNote(name: string, place: Place): Promise<Item>
   createProject(name: string): Promise<Project>
   saveProject(name: string, cover: CoverPart[]): Promise<void>
