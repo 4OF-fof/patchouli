@@ -1,11 +1,23 @@
 import { For, type JSX, Show, children, createMemo, createSignal } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
+import { Button } from '../../components/controls/Button/Button'
+import { GroupCard } from '../../components/media/GroupCard/GroupCard'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
-import { type CardSize, type Item, NOTE_LABEL, newerFirst, thumbOf, toggled } from '../../model/library'
+import {
+  type CardSize,
+  type Group,
+  type Item,
+  type Library,
+  NOTE_LABEL,
+  facesOf,
+  newerFirst,
+  thumbOf,
+  toggled,
+} from '../../model/library'
 import { useFormats } from '../../plugins/formats'
 import shared from '../screen.module.css'
 import styles from './DetailScreen.module.css'
@@ -20,8 +32,17 @@ export interface DetailScreenProps {
   side?: JSX.Element
   sideLabel?: string
   items: Item[]
+  /** 項目の前に並べるグループ。faces と件数を引くのに lib が要る */
+  groups?: Group[]
+  lib?: Library
+  /** 渡すと、グループの中も平らに並べるかを切り替えられる */
+  flat?: boolean
+  onFlat?: (on: boolean) => void
+  onOpenGroup?: (id: string) => void
   empty?: JSX.Element
   pins?: string[]
+  /** ピン留めを拾う範囲。省くと items から拾う */
+  pinFrom?: Item[]
   onTogglePin?: (id: string) => void
   onOpenItem?: (id: string, list: string[]) => void
 }
@@ -36,7 +57,7 @@ export function DetailScreen(props: DetailScreenProps) {
   const hasSide = () => side.toArray().some((x) => x != null)
   const [pins, setPins] = createSignal(props.pins ?? [])
   const pinned = createMemo(() => {
-    const here = new Map(props.items.map((i) => [i.id, i]))
+    const here = new Map((props.pinFrom ?? props.items).map((i) => [i.id, i]))
     return pins().flatMap((id) => here.get(id) ?? [])
   })
   const togglePin = (id: string) => {
@@ -66,6 +87,15 @@ export function DetailScreen(props: DetailScreenProps) {
           list().map((x) => x.id),
         )
       }
+    />
+  )
+  const groups = () => (props.groups ?? []).toSorted((a, b) => a.name.localeCompare(b.name, 'ja'))
+  const groupCard = (g: Group) => (
+    <GroupCard
+      name={g.name}
+      count={props.lib?.inGroup(g.id).length ?? 0}
+      faces={props.lib ? facesOf(props.lib, g.id).map((it) => thumbOf(it, 'S')) : []}
+      onClick={() => props.onOpenGroup?.(g.id)}
     />
   )
   return (
@@ -101,6 +131,11 @@ export function DetailScreen(props: DetailScreenProps) {
               <div class={shared.head} data-first={!pinned().length || undefined}>
                 <h2>すべて</h2>
                 <span>{props.items.length} 件</span>
+                <Show when={props.onFlat}>
+                  <Button size="sm" variant="ghost" pressed={!!props.flat} onClick={() => props.onFlat?.(!props.flat)}>
+                    フォルダを展開
+                  </Button>
+                </Show>
                 <Tabs
                   label="並び順"
                   value={sort()}
@@ -112,8 +147,9 @@ export function DetailScreen(props: DetailScreenProps) {
                   ]}
                 />
               </div>
-              <Show when={all().length} fallback={<div class={shared.empty}>{props.empty}</div>}>
+              <Show when={all().length || groups().length} fallback={<div class={shared.empty}>{props.empty}</div>}>
                 <JustifiedRow height={104}>
+                  <For each={groups()}>{(g) => groupCard(g)}</For>
                   <For each={all()}>{(it) => card(it, 'S', all, false)}</For>
                 </JustifiedRow>
               </Show>

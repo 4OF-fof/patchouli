@@ -17,6 +17,7 @@ export interface ProjectScreenProps {
   onTogglePin?: (id: string) => void
   onToggleProjectPin?: () => void
   onOpenItem?: (id: string, list: string[]) => void
+  onOpenGroup?: (id: string) => void
   onSaveCover?: (cover: CoverPart[]) => void
   onRename?: (to: string) => void
 }
@@ -28,7 +29,9 @@ export function ProjectScreen(props: ProjectScreenProps) {
   const [editing, setEditing] = createSignal(!!props.editing)
   const [addOpen, setAddOpen] = createSignal(!!props.addOpen)
   const [draft, setDraft] = createSignal(props.name)
-  const list = () => lib().inProject(props.name)
+  const [flat, setFlat] = createSignal(false)
+  const here = () => ({ project: props.name, group: null })
+  const list = () => (flat() ? lib().inProject(props.name) : lib().inPlace(here()))
   const cover = () => p()?.cover ?? []
   const save = (next: CoverPart[]) => props.onSaveCover?.(next)
   const toggleEdit = () => {
@@ -59,7 +62,7 @@ export function ProjectScreen(props: ProjectScreenProps) {
               </h1>
             </Show>
           }
-          meta={`プロジェクト · ${list().length} 件 · 最終更新 ${pr().touched}`}
+          meta={`プロジェクト · ${lib().inProject(props.name).length} 件 · 最終更新 ${pr().touched}`}
           actions={
             <>
               <PinToggle
@@ -105,8 +108,14 @@ export function ProjectScreen(props: ProjectScreenProps) {
             </>
           }
           items={list()}
+          lib={lib()}
+          groups={flat() ? [] : lib().groupsIn(here())}
+          flat={flat()}
+          onFlat={setFlat}
+          onOpenGroup={props.onOpenGroup}
           empty="項目がありません。ファイルをここにドロップすると、このプロジェクトに追加されます。"
           pins={lib().pins}
+          pinFrom={lib().inProject(props.name)}
           onTogglePin={props.onTogglePin}
           onOpenItem={props.onOpenItem}
         />

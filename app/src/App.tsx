@@ -72,6 +72,7 @@ import { AppBar, type BarRequest, type Place } from './screens/AppBar'
 import type { Blocker } from './components/media/Unsupported/Unsupported'
 import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
+import { GroupScreen } from './screens/Group/GroupScreen'
 import { NoteScreen } from './screens/Note/NoteScreen'
 import type { NoteEditorApi } from './components/editor/NoteEditor/NoteEditor'
 import { embedOf as embedFor } from './screens/Note/embed'
@@ -86,6 +87,7 @@ type View =
   | { s: 'edition' }
   | { s: 'all' }
   | { s: 'project'; name: string; editing?: boolean }
+  | { s: 'group'; id: string }
   | { s: 'plist' }
   | { s: 'tlist' }
   | { s: 'tag'; tag: string }
@@ -97,6 +99,7 @@ const LABEL: Record<View['s'], string> = {
   edition: 'ホーム',
   all: 'すべて',
   project: 'プロジェクト',
+  group: 'グループ',
   plist: 'プロジェクト一覧',
   tlist: 'タグ一覧',
   tag: 'タグ',
@@ -168,13 +171,15 @@ export function App(props: AppProps) {
   const labelOf = (v: View) =>
     v.s === 'project'
       ? v.name
-      : v.s === 'tag'
-        ? `# ${v.tag}`
-        : v.s === 'note'
-          ? (lib().byId.get(v.id)?.name ?? LABEL.note)
-          : v.s === 'asset'
-            ? (lib().byId.get(v.list[v.index] ?? '')?.name ?? LABEL.asset)
-            : LABEL[v.s]
+      : v.s === 'group'
+        ? (lib().groupBy.get(v.id)?.name ?? LABEL.group)
+        : v.s === 'tag'
+          ? `# ${v.tag}`
+          : v.s === 'note'
+            ? (lib().byId.get(v.id)?.name ?? LABEL.note)
+            : v.s === 'asset'
+              ? (lib().byId.get(v.list[v.index] ?? '')?.name ?? LABEL.asset)
+              : LABEL[v.s]
   const crumbs = () => stack().map(labelOf)
   const go = (v: View) => setStack([...stack(), v])
   const itemView = (id: string, list?: string[]): View | undefined => {
@@ -184,12 +189,14 @@ export function App(props: AppProps) {
     const l = (list ?? [id]).filter((x) => lib().byId.get(x)?.note === false)
     return { s: 'asset', list: l, index: Math.max(0, l.indexOf(id)) }
   }
+  const openGroup = (id: string) => go({ s: 'group', id })
   const openItem = (id: string, list?: string[]) => {
     const v = itemView(id, list)
     if (v) go(v)
   }
   const siblingItems = (v: View): Item[] | undefined => {
     if (v.s === 'project') return lib().inProject(v.name)
+    if (v.s === 'group') return lib().inGroup(v.id)
     if (v.s === 'tag') return lib().items.filter((i) => hasTag(i, v.tag))
     const n = v.s === 'note' ? lib().byId.get(v.id) : undefined
     return n && lib().linksOf(n)
@@ -708,7 +715,9 @@ export function App(props: AppProps) {
   const [drag, setDrag] = createSignal<Dropped>()
   const dropPlace = (): ItemPlace => {
     const v = view()
-    return v.s === 'project' ? { project: v.name, group: null } : ROOT
+    if (v.s === 'project') return { project: v.name, group: null }
+    const g = v.s === 'group' ? lib().groupBy.get(v.id) : undefined
+    return g ? { project: g.project, group: g.id } : ROOT
   }
   const [importing, setImporting] = createSignal(0)
   const importDropped = async (place = dropPlace()) => {
@@ -962,7 +971,12 @@ export function App(props: AppProps) {
                           />
                         </Match>
                         <Match when={view().s === 'all'}>
-                          <AllScreen lib={lib()} onOpenItem={openItem} onTogglePin={togglePin} />
+                          <AllScreen
+                            lib={lib()}
+                            onOpenItem={openItem}
+                            onOpenGroup={openGroup}
+                            onTogglePin={togglePin}
+                          />
                         </Match>
                         <Match when={view().s === 'project' && view()} keyed>
                           {(v) =>
@@ -977,6 +991,20 @@ export function App(props: AppProps) {
                                 onSaveCover={(cover) => saveProjectCover(v.name, cover)}
                                 onRename={backend.renameProject && ((to) => renameProject(v.name, to))}
                                 onOpenItem={openItem}
+                                onOpenGroup={openGroup}
+                              />
+                            )
+                          }
+                        </Match>
+                        <Match when={view().s === 'group' && view()} keyed>
+                          {(v) =>
+                            v.s === 'group' && (
+                              <GroupScreen
+                                lib={lib()}
+                                id={v.id}
+                                onTogglePin={togglePin}
+                                onOpenItem={openItem}
+                                onOpenGroup={openGroup}
                               />
                             )
                           }

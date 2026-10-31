@@ -2,11 +2,13 @@ import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-j
 import { NoneText } from '../../components/base/NoneText/NoneText'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Spinner } from '../../components/base/Spinner/Spinner'
+import { Button } from '../../components/controls/Button/Button'
+import { GroupCard } from '../../components/media/GroupCard/GroupCard'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
-import { type Library, newerFirst, thumbOf } from '../../model/library'
+import { type Library, ROOT, facesOf, newerFirst, thumbOf } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './AllScreen.module.css'
 
@@ -16,6 +18,7 @@ const MORE = 40
 export interface AllScreenProps {
   lib: Library
   onOpenItem?: (id: string, list: string[]) => void
+  onOpenGroup?: (id: string) => void
   onTogglePin?: (id: string) => void
 }
 
@@ -25,11 +28,19 @@ export function AllScreen(props: AllScreenProps) {
   const lib = () => props.lib
   const preview = useHoverPreview()
   const sel = useSelection()
+  const [flat, setFlat] = createSignal(false)
   const all = createMemo(() => {
     const pins = new Map(lib().pins.map((id, i) => [id, i]))
     const rank = (id: string) => pins.get(id) ?? pins.size
-    return lib().items.toSorted((a, b) => rank(a.id) - rank(b.id) || newerFirst(a, b))
+    const items = flat() ? lib().items : lib().inPlace(ROOT)
+    return items.toSorted((a, b) => rank(a.id) - rank(b.id) || newerFirst(a, b))
   })
+  const groups = () =>
+    flat()
+      ? []
+      : lib()
+          .groupsIn(ROOT)
+          .toSorted((a, b) => a.name.localeCompare(b.name, 'ja'))
   const [shown, setShown] = createSignal(FIRST)
   const visible = () => all().slice(0, shown())
 
@@ -57,11 +68,16 @@ export function AllScreen(props: AllScreenProps) {
           <header class={shared.mast}>
             <h1>すべて</h1>
             <span class={shared.meta}>
-              {all().length} 件{sel?.ids().length ? ` · ${sel.ids().length} 件を選択中` : ''}
+              {lib().items.length} 件{sel?.ids().length ? ` · ${sel.ids().length} 件を選択中` : ''}
+            </span>
+            <span class={shared.end}>
+              <Button size="sm" variant="ghost" pressed={flat()} onClick={() => setFlat(!flat())}>
+                フォルダを展開
+              </Button>
             </span>
           </header>
           <Show
-            when={all().length}
+            when={all().length || groups().length}
             fallback={
               <div class={styles.body}>
                 <NoneText>まだ項目がありません</NoneText>
@@ -70,6 +86,16 @@ export function AllScreen(props: AllScreenProps) {
           >
             <div class={styles.body}>
               <JustifiedRow height={140}>
+                <For each={groups()}>
+                  {(g) => (
+                    <GroupCard
+                      name={g.name}
+                      count={lib().inGroup(g.id).length}
+                      faces={facesOf(lib(), g.id).map((it) => thumbOf(it, 'M'))}
+                      onClick={() => props.onOpenGroup?.(g.id)}
+                    />
+                  )}
+                </For>
                 <For each={visible()}>
                   {(it) => (
                     <ItemCard

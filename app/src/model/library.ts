@@ -474,6 +474,13 @@ const startOfDay = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDat
 /** 更新が新しい順。日数が同じなら時刻で比べる */
 export const newerFirst = (a: Item, b: Item) => a.moved - b.moved || (b.mtime ?? 0) - (a.mtime ?? 0)
 
+/** グループの束に重ねて見せる項目。素材を先に、新しい順で 3 件まで */
+export const facesOf = (lib: Library, groupId: string) =>
+  lib
+    .inGroup(groupId)
+    .toSorted((a, b) => Number(a.note) - Number(b.note) || newerFirst(a, b))
+    .slice(0, 3)
+
 export const daysBefore = (today: Date, t: Date) => Math.max(0, Math.round((startOfDay(today) - startOfDay(t)) / DAY))
 
 export function touchedLabel(today: Date, t: Date) {
