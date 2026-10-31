@@ -8,7 +8,7 @@ import { HelpDialog } from '../components/dialog/HelpDialog/HelpDialog'
 import { LibrariesDialog } from '../components/dialog/LibrariesDialog/LibrariesDialog'
 import { type Notices, NoticesDialog } from '../components/dialog/NoticesDialog/NoticesDialog'
 import { PluginsDialog } from '../components/dialog/PluginsDialog/PluginsDialog'
-import { SettingsDialog } from '../components/dialog/SettingsDialog/SettingsDialog'
+import { SettingsDialog, type TabsAt } from '../components/dialog/SettingsDialog/SettingsDialog'
 import { type Activity, ActivityButton } from '../components/nav/ActivityButton/ActivityButton'
 import { NavMenu, type NavMenuEntry } from '../components/nav/NavMenu/NavMenu'
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
@@ -67,7 +67,8 @@ export interface AppBarProps {
   request?: BarRequest
   /** あれば、タイトルバーにタブを並べ、いまの場所はその下の段に出す。 */
   tabs?: TabStripProps
-  onToggleTabs?: () => void
+  tabsAt?: TabsAt
+  onTabsAtChange?: (at: TabsAt) => void
 }
 
 const toggleTheme = () => {
@@ -212,7 +213,6 @@ export function AppBar(props: AppBarProps) {
     { id: 'plugins', icon: 'plugin', label: 'プラグイン' },
     'separator',
     { id: 'theme', icon: 'theme', label: 'テーマを切り替え' },
-    ...(props.onToggleTabs ? [{ id: 'tabs', icon: 'newTab' as const, label: 'タブの位置を切り替え' }] : []),
     { id: 'keys', icon: 'keyboard', label: 'ショートカット一覧', kbd: '?' },
     { id: 'notices', icon: 'notices', label: '権利表示' },
     { id: 'settings', icon: 'settings', label: '設定' },
@@ -233,10 +233,6 @@ export function AppBar(props: AppBarProps) {
   const onMenu = (id: string) => {
     if (id === 'settings') return setState('settings')
     if (id === 'theme') return toggleTheme()
-    if (id === 'tabs') {
-      close()
-      return props.onToggleTabs?.()
-    }
     if (id === 'keys') return setState('help')
     if (id === 'plugins') return setState('plugins')
     if (id === 'notices') return setState('notices')
@@ -453,6 +449,8 @@ export function AppBar(props: AppBarProps) {
       <Show when={state() === 'settings'}>
         <SettingsDialog
           version={version}
+          tabsAt={props.tabsAt}
+          onTabsAtChange={props.onTabsAtChange}
           usage={usage.latest}
           unused={unused.latest}
           onClear={

@@ -49,7 +49,7 @@ export function TabStrip(props: TabStripProps) {
                   aria-label={`「${t().label}」を閉じる`}
                   onClick={() => props.onClose(t().id)}
                 >
-                  <Icon name="close" size={12} />
+                  <Icon name="close" size={14} />
                 </button>
               </div>
             )

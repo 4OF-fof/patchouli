@@ -72,6 +72,7 @@ import { asNewTab, inNewTab } from './components/nav/TabPane/newTab'
 import { TabPane } from './components/nav/TabPane/TabPane'
 import { TabList } from './components/nav/TabList/TabList'
 import type { TabEntry, TabStripProps } from './components/nav/TabStrip/TabStrip'
+import type { TabsAt } from './components/dialog/SettingsDialog/SettingsDialog'
 import type { IconName } from './components/base/Icon/Icon'
 import { SelectionProvider, createSelection } from './components/media/Selection/Selection'
 import { ItemMenuProvider, ThumbMakingProvider, ThumbSeenProvider, watchSeen } from './components/media/Thumb/Thumb'
@@ -138,7 +139,7 @@ interface Tab {
 }
 
 const TABS_AT = 'patchouli.tabsAt'
-const readTabsAt = (): 'top' | 'left' => {
+const readTabsAt = (): TabsAt => {
   try {
     return localStorage.getItem(TABS_AT) === 'left' ? 'left' : 'top'
   } catch {
@@ -285,10 +286,8 @@ export function App(props: AppProps) {
     onClose: closeTab,
     onNew: addTab,
   })
-  // 試しに切り替えて見比べるためのもの。どこで切り替えるかは決まっていないので、この窓にだけ覚えておく
-  const [tabsAt, setTabsAt] = createSignal<'top' | 'left'>(readTabsAt())
-  const toggleTabsAt = () => {
-    const next = tabsAt() === 'top' ? 'left' : 'top'
+  const [tabsAt, setTabsAt] = createSignal<TabsAt>(readTabsAt())
+  const changeTabsAt = (next: TabsAt) => {
     setTabsAt(next)
     try {
       localStorage.setItem(TABS_AT, next)
@@ -1226,7 +1225,8 @@ export function App(props: AppProps) {
                       request={barRequest()}
                       activities={activities()}
                       tabs={tabsAt() === 'top' ? tabStrip() : undefined}
-                      onToggleTabs={toggleTabsAt}
+                      tabsAt={tabsAt()}
+                      onTabsAtChange={changeTabsAt}
                     />
                   }
                   side={tabsAt() === 'left' ? <TabList {...tabStrip()} /> : undefined}

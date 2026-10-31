@@ -13,6 +13,7 @@
   overflow-x: auto;
   scrollbar-width: none;
 }
+/* タブを上と左右の線で囲む。隣どうしは線を重ねて 1 本にする */
 .tab {
   position: relative;
   flex: 0 1 auto;
@@ -21,27 +22,17 @@
   height: 30px;
   display: flex;
   align-items: center;
+  margin-right: -1px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   color: var(--muted);
-}
-/* タブどうしの境目に線を引く。表のタブは地の色で分かるので、その両側には引かない */
-.tab + .tab::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: var(--space-6);
-  bottom: var(--space-6);
-  width: 1px;
-  background: var(--disabled);
-}
-.tab[data-current='true']::before,
-.tab[data-current='true'] + .tab::before {
-  visibility: hidden;
 }
 .tab:hover {
   color: var(--ink);
 }
 .tab[data-current='true'] {
+  z-index: 1;
   background: var(--paper);
   color: var(--ink);
 }
@@ -75,8 +66,8 @@
 }
 .close {
   flex: none;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   margin-right: var(--space-6);
   display: flex;
   align-items: center;
@@ -89,7 +80,6 @@
   visibility: hidden;
 }
 .tab:hover .close,
-.tab[data-current='true'] .close,
 .close:focus-visible {
   visibility: visible;
 }
@@ -102,7 +92,7 @@
   width: 28px;
   height: 28px;
   flex: none;
-  margin-left: var(--space-2);
+  margin-left: var(--space-4);
   display: flex;
   align-items: center;
   justify-content: center;

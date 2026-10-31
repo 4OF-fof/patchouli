@@ -7,8 +7,12 @@ import styles from './SettingsDialog.module.css'
 import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 
+export type TabsAt = 'top' | 'left'
+
 export interface SettingsDialogProps {
   version: string
+  tabsAt?: TabsAt
+  onTabsAtChange?: (at: TabsAt) => void
   usage?: CacheUsage
   unused?: UnusedPlugin[]
   onClear?: (kind: CacheKind) => Promise<void>
@@ -112,6 +116,28 @@ export function SettingsDialog(props: SettingsDialogProps) {
               <span class={styles.mono}>{props.version}</span>
             </div>
           </section>
+          <Show when={props.onTabsAtChange}>
+            {(change) => (
+              <section>
+                <h4>表示</h4>
+                <SettingField
+                  setting={{
+                    key: 'tabsAt',
+                    label: 'タブの位置',
+                    kind: 'choice',
+                    choices: [
+                      { value: 'top', label: '上' },
+                      { value: 'left', label: '左' },
+                    ],
+                    default: 'top',
+                    value: props.tabsAt ?? 'top',
+                    help: '左にすると、カーソルを窓の左端に寄せたときに出ます',
+                  }}
+                  onChange={(v) => change()(v === 'left' ? 'left' : 'top')}
+                />
+              </section>
+            )}
+          </Show>
           <Show when={props.onClear || props.onRemoveUnused}>
             <section>
               <h4>キャッシュ</h4>
