@@ -46,8 +46,8 @@
   font-weight: 600;
 }
 .md[data-ai='true'] {
-  background: var(--ai);
-  color: var(--ai-ink);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 .in input {
   flex: 1;
@@ -72,7 +72,7 @@
   padding: var(--space-8) var(--space-12);
   border-top: 1px solid var(--line);
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--muted);
 }
 .ht .kbd {
   margin-right: var(--space-6);

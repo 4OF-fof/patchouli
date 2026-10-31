@@ -42,7 +42,7 @@
   right: 0;
   bottom: 0;
   height: 2px;
-  background: var(--stage-btn);
+  background: var(--overlay-hover);
 }
 .done {
   display: block;

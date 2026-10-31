@@ -11,7 +11,7 @@
   gap: var(--space-6);
 }
 .root:hover {
-  border-color: var(--faint);
+  border-color: var(--muted);
 }
 .root[data-size='sm'] {
   height: 28px;
@@ -26,7 +26,7 @@
 }
 .root[data-variant='primary']:disabled {
   background: var(--line);
-  color: var(--faint);
+  color: var(--muted);
   cursor: default;
 }
 .root[data-variant='ghost'] {
@@ -49,12 +49,12 @@
 .root[data-variant='danger']:disabled {
   border-color: var(--line-2);
   background: transparent;
-  color: var(--faint);
+  color: var(--muted);
   cursor: default;
 }
 .root[aria-pressed='true'] {
   background: var(--accent-soft);
   border-color: var(--accent);
-  color: var(--accent-ink);
+  color: var(--accent);
   font-weight: 600;
 }

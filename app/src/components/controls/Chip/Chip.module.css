@@ -7,7 +7,7 @@
   border: 0;
   border-radius: var(--radius-full);
   background: var(--accent-soft);
-  color: var(--accent-ink);
+  color: var(--accent);
   font-size: var(--fs-meta);
   white-space: nowrap;
   cursor: pointer;

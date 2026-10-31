@@ -32,10 +32,10 @@
   cursor: pointer;
 }
 :where(.mount) :where(button:hover) {
-  border-color: var(--faint);
+  border-color: var(--muted);
 }
 :where(.mount) :where(button:disabled) {
-  color: var(--faint);
+  color: var(--muted);
   cursor: default;
 }
 :where(.mount) :where(input:not([type='checkbox'], [type='radio'], [type='range']), select, textarea) {

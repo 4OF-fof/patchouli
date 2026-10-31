@@ -4,47 +4,33 @@
  */
 :root {
   --stage: oklch(0.19 0 0);
-  --desk: oklch(0.215 0 0);
+  --side: oklch(0.215 0 0);
   --paper: oklch(0.24 0 0);
-  --side: var(--desk);
   --card: oklch(0.31 0 0);
   --ink: oklch(0.853 0 0);
   --ink-2: oklch(0.752 0 0);
   --muted: oklch(0.675 0 0);
-  --faint: var(--muted);
   --disabled: oklch(0.44 0 0);
   --line: var(--card);
   --line-2: oklch(0.36 0 0);
-  --frame: oklch(0.53 0 0);
   --accent: oklch(0.674 0.035 235);
-  --accent-ink: var(--accent);
   --accent-soft: oklch(0.674 0.035 235 / 0.18);
   --on-accent: var(--paper);
   --warm: oklch(0.681 0.075 55 / 0.12);
-  --warm-line: oklch(0.681 0.075 55 / 0.4);
   --warm-ink: oklch(0.681 0.075 55);
-  --ai: var(--accent-soft);
-  --ai-ink: var(--accent);
-  --unsaved: var(--warm-ink);
   --danger: oklch(0.69 0.13 25);
   --danger-line: oklch(0.69 0.13 25 / 0.45);
   --danger-soft: oklch(0.69 0.13 25 / 0.12);
   --ok: oklch(0.665 0.09 155);
   --mark: oklch(0.674 0.035 235 / 0.35);
   --scrim: rgba(0, 0, 0, 0.5);
-  --float: var(--desk);
+  --float: var(--side);
   --glyph: rgba(255, 255, 255, 0.8);
-  --wl: var(--accent);
   --tl: 64%;
-  --menu: var(--desk);
-  --stage-ink: oklch(0.87 0 0);
-  --stage-bar: oklch(0.215 0 0 / 0.86);
-  --stage-btn: rgba(255, 255, 255, 0.08);
   --overlay: oklch(0.19 0 0 / 0.72);
   --overlay-ink: oklch(0.93 0 0);
   --overlay-track: rgba(255, 255, 255, 0.24);
   --overlay-hover: rgba(255, 255, 255, 0.1);
-  --wave: oklch(0.675 0 0 / 0.42);
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.35);
   --shadow-pill: 0 2px 8px rgba(0, 0, 0, 0.25);
@@ -92,7 +78,41 @@
   --title-bar: 36px;
   --f-sans: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', system-ui, sans-serif;
   --f-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
-  /* コードの色（Base16 の並び）。00〜07 は面と文字から、08〜0f はコードの面の上でコントラスト 7 になる明るさ */
+  color-scheme: dark;
+}
+:root[data-theme='light'] {
+  --side: oklch(0.965 0 0);
+  --paper: oklch(0.99 0 0);
+  --card: oklch(0.935 0 0);
+  --ink: oklch(0.307 0 0);
+  --ink-2: oklch(0.4 0 0);
+  --muted: oklch(0.523 0 0);
+  --disabled: oklch(0.8 0 0);
+  --line-2: oklch(0.89 0 0);
+  --accent: oklch(0.52 0.045 235);
+  --accent-soft: oklch(0.52 0.045 235 / 0.12);
+  --warm: oklch(0.529 0.09 55 / 0.08);
+  --warm-ink: oklch(0.529 0.09 55);
+  --danger: oklch(0.54 0.15 25);
+  --danger-line: oklch(0.54 0.15 25 / 0.35);
+  --danger-soft: oklch(0.54 0.15 25 / 0.12);
+  --ok: oklch(0.508 0.11 155);
+  --mark: oklch(0.52 0.045 235 / 0.22);
+  --scrim: rgba(0, 0, 0, 0.3);
+  --float: var(--paper);
+  --glyph: rgba(255, 255, 255, 0.88);
+  --tl: 74%;
+  --stage: oklch(0.945 0 0);
+  --overlay: oklch(0.99 0 0 / 0.8);
+  --overlay-ink: var(--ink);
+  --overlay-track: rgba(0, 0, 0, 0.16);
+  --overlay-hover: rgba(0, 0, 0, 0.06);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12);
+  color-scheme: light;
+}
+/* コードの色（Base16 の並び）。00〜07 は面と文字から、08〜0f はコードの面の上でコントラスト 7 になる明るさ */
+:root {
   --base00: var(--side);
   --base01: var(--paper);
   --base02: var(--card);
@@ -109,44 +129,8 @@
   --base0d: oklch(0.713 0.1 235);
   --base0e: oklch(0.726 0.1 300);
   --base0f: oklch(0.721 0.045 55);
-  color-scheme: dark;
 }
 :root[data-theme='light'] {
-  --desk: oklch(0.965 0 0);
-  --paper: oklch(0.99 0 0);
-  --card: oklch(0.935 0 0);
-  --ink: oklch(0.307 0 0);
-  --ink-2: oklch(0.4 0 0);
-  --muted: oklch(0.523 0 0);
-  --disabled: oklch(0.8 0 0);
-  --line-2: oklch(0.89 0 0);
-  --frame: oklch(0.66 0 0);
-  --accent: oklch(0.52 0.045 235);
-  --accent-soft: oklch(0.52 0.045 235 / 0.12);
-  --warm: oklch(0.529 0.09 55 / 0.08);
-  --warm-line: oklch(0.529 0.09 55 / 0.3);
-  --warm-ink: oklch(0.529 0.09 55);
-  --danger: oklch(0.54 0.15 25);
-  --danger-line: oklch(0.54 0.15 25 / 0.35);
-  --danger-soft: oklch(0.54 0.15 25 / 0.12);
-  --ok: oklch(0.508 0.11 155);
-  --mark: oklch(0.52 0.045 235 / 0.22);
-  --scrim: rgba(0, 0, 0, 0.3);
-  --float: var(--paper);
-  --glyph: rgba(255, 255, 255, 0.88);
-  --tl: 74%;
-  --menu: var(--paper);
-  --stage: oklch(0.945 0 0);
-  --stage-ink: var(--ink);
-  --stage-bar: oklch(0.99 0 0 / 0.86);
-  --stage-btn: rgba(0, 0, 0, 0.06);
-  --overlay: oklch(0.99 0 0 / 0.8);
-  --overlay-ink: var(--ink);
-  --overlay-track: rgba(0, 0, 0, 0.16);
-  --overlay-hover: rgba(0, 0, 0, 0.06);
-  --wave: oklch(0.523 0 0 / 0.38);
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-  --shadow-float: 0 8px 24px rgba(0, 0, 0, 0.12);
   --base04: oklch(0.46 0 0);
   --base07: oklch(0.2 0 0);
   --base08: oklch(0.455 0.12 25);
@@ -157,7 +141,6 @@
   --base0d: oklch(0.436 0.092 235);
   --base0e: oklch(0.453 0.12 300);
   --base0f: oklch(0.444 0.054 55);
-  color-scheme: light;
 }
 *,
 *::before,
@@ -167,7 +150,7 @@
 /* ScrollArea を使えない所（エディタの表や図など）も、つまみの色をそろえる */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--faint) transparent;
+  scrollbar-color: var(--muted) transparent;
 }
 body {
   margin: 0;

@@ -52,7 +52,7 @@
   padding: var(--space-8) var(--space-12);
   border-radius: var(--radius-md);
   background: var(--accent-soft);
-  color: var(--accent-ink);
+  color: var(--accent);
   font-size: var(--fs-list);
 }
 .status[data-error='true'] {
@@ -73,13 +73,13 @@
 }
 .mono {
   font: 400 var(--fs-meta) var(--f-mono);
-  color: var(--faint);
+  color: var(--muted);
 }
 .loading,
 .empty {
   margin: 0;
   font-size: var(--fs-list);
-  color: var(--faint);
+  color: var(--muted);
 }
 .places {
   padding: var(--space-8) 0;

@@ -32,14 +32,14 @@
   width: 14px;
   flex: none;
   font-style: normal;
-  color: var(--faint);
+  color: var(--muted);
   text-align: center;
 }
 .root small {
   margin-left: auto;
   flex: none;
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--muted);
 }
 .root[data-missing='true'] > span {
   border-bottom: 1px dashed var(--line-2);
@@ -55,5 +55,5 @@
 .none {
   padding: var(--space-4) var(--space-6);
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--muted);
 }

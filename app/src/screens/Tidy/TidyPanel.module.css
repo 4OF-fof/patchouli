@@ -19,7 +19,7 @@
 }
 .nmh small {
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--muted);
 }
 .fl {
   display: flex;
@@ -30,7 +30,7 @@
   margin: 0 0 var(--space-4);
   font-size: var(--fs-meta);
   font-weight: 400;
-  color: var(--faint);
+  color: var(--muted);
 }
 .cands {
   display: flex;
@@ -60,7 +60,7 @@
 }
 .cand[data-on='true'] {
   background: var(--accent-soft);
-  color: var(--accent-ink);
+  color: var(--accent);
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 /* # と ✓ を同じ幅の枠で入れ替え、選んでも幅が変わらないようにする */
@@ -72,7 +72,7 @@
 .cand small {
   font-size: var(--fs-meta);
   font-weight: 400;
-  color: var(--faint);
+  color: var(--muted);
 }
 .tagin {
   width: 160px;
@@ -86,7 +86,7 @@
 }
 .hint {
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--muted);
 }
 .near {
   --thumb-h: 56px;
@@ -100,7 +100,7 @@
   gap: var(--space-4);
   font-size: var(--fs-meta);
   line-height: 1.8;
-  color: var(--faint);
+  color: var(--muted);
 }
 .dec {
   margin-top: auto;

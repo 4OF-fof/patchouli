@@ -11,7 +11,7 @@
   text-decoration: line-through;
 }
 .wl {
-  color: var(--wl);
+  color: var(--accent);
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
@@ -81,7 +81,7 @@
   gap: var(--space-8);
 }
 .link a {
-  color: var(--wl);
+  color: var(--accent);
 }
 .link .x {
   margin-left: auto;
@@ -96,7 +96,7 @@
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--faint);
+  color: var(--muted);
   cursor: pointer;
 }
 .x:hover {

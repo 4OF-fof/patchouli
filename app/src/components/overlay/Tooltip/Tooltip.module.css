@@ -7,7 +7,7 @@
   padding: var(--space-4) var(--space-8);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
-  background: var(--menu);
+  background: var(--float);
   box-shadow: var(--shadow-pill);
   color: var(--ink-2);
   font: 400 var(--fs-meta) / 1.5 var(--f-sans);

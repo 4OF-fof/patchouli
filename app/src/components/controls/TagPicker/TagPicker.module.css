@@ -68,7 +68,7 @@
 }
 .root h3 em {
   font: normal 400 var(--fs-tiny) var(--f-mono);
-  color: var(--faint);
+  color: var(--muted);
 }
 .all {
   flex: 1;
@@ -101,7 +101,7 @@
 }
 .grid button[aria-checked='true'] {
   background: var(--accent-soft);
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 .box {
   flex: none;
@@ -109,7 +109,7 @@
   place-items: center;
   width: 14px;
   height: 14px;
-  border: 1px solid var(--frame);
+  border: 1px solid var(--muted);
   border-radius: var(--radius-sm);
   color: transparent;
 }
@@ -140,6 +140,6 @@
 .part {
   flex: none;
   margin-left: auto;
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-meta);
 }

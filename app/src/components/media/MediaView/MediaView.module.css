@@ -12,7 +12,7 @@
   width: min(320px, 56vmin);
   aspect-ratio: 1;
   border-radius: var(--radius-md);
-  background: var(--stage-btn) center / cover no-repeat;
+  background: var(--overlay-hover) center / cover no-repeat;
 }
 .cover[data-empty='true'] {
   background-image: repeating-linear-gradient(90deg, var(--glyph) 0 3px, transparent 3px 7px);

@@ -62,7 +62,7 @@ button.tw:hover {
   height: 14px;
   flex: none;
   margin: 0 var(--space-6);
-  color: var(--faint);
+  color: var(--muted);
 }
 .link:hover .go {
   color: var(--ink-2);
@@ -87,7 +87,7 @@ button.tw:hover {
 }
 .tn i {
   font-style: normal;
-  color: var(--faint);
+  color: var(--muted);
 }
 .tn span {
   font-size: var(--fs-meta);

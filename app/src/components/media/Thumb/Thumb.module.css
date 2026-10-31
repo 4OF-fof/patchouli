@@ -55,7 +55,7 @@
   width: 8px;
   height: 8px;
   border-radius: var(--radius-sm);
-  background: var(--unsaved);
+  background: var(--warm-ink);
 }
 .making {
   position: absolute;

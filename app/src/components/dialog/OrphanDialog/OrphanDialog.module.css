@@ -32,7 +32,7 @@
   white-space: nowrap;
 }
 .name small {
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-meta);
 }
 .ctl {
@@ -45,6 +45,6 @@
   width: 180px;
 }
 .none {
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-meta);
 }

@@ -16,7 +16,7 @@
   padding: var(--space-16);
   border: 2px dashed var(--accent);
   border-radius: var(--radius-md);
-  color: var(--accent-ink);
+  color: var(--accent);
   text-align: center;
 }
 .box b {

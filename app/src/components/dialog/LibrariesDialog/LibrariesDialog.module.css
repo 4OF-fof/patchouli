@@ -34,7 +34,7 @@
   padding: var(--space-8) var(--space-12);
   border-radius: var(--radius-md);
   background: var(--accent-soft);
-  color: var(--accent-ink);
+  color: var(--accent);
   font-size: var(--fs-list);
 }
 .status[data-error='true'] {
@@ -88,14 +88,14 @@
   font-weight: 600;
 }
 .listView li[data-current='true'] .open b {
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 .path {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font: var(--fs-tiny) var(--f-mono);
-  color: var(--faint);
+  color: var(--muted);
 }
 .when {
   flex-shrink: 0;
@@ -109,7 +109,7 @@
   border: 0;
   border-radius: var(--radius-md);
   background: none;
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-meta);
   cursor: pointer;
 }
@@ -121,7 +121,7 @@
   margin: 0;
   padding: var(--space-8) var(--space-12);
   font-size: var(--fs-list);
-  color: var(--faint);
+  color: var(--muted);
 }
 .foot {
   display: flex;

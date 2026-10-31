@@ -39,8 +39,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--muted);
 }
 .root:focus-visible .t b {
-  color: var(--accent-ink);
+  color: var(--accent);
 }

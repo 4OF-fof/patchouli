@@ -53,7 +53,7 @@
   border: 1px solid transparent;
   border-radius: var(--radius-lg);
   background: var(--card);
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-list);
 }
 .search:focus-within {
@@ -82,7 +82,7 @@
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-meta);
   font-weight: 600;
   text-align: left;
@@ -174,7 +174,7 @@
   padding: var(--space-8) var(--space-12);
   border-radius: var(--radius-md);
   background: var(--accent-soft);
-  color: var(--accent-ink);
+  color: var(--accent);
   font-size: var(--fs-list);
 }
 .status[data-error='true'] {
@@ -206,13 +206,13 @@
 }
 .mono {
   font: 400 var(--fs-meta) var(--f-mono);
-  color: var(--faint);
+  color: var(--muted);
 }
 .badge {
   padding: 1px var(--space-8);
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  color: var(--accent-ink);
+  color: var(--accent);
   font-size: var(--fs-tiny);
 }
 .badge[data-tone='danger'] {
@@ -222,7 +222,7 @@
 .id {
   margin: var(--space-4) 0 0;
   font: var(--fs-meta) var(--f-mono);
-  color: var(--faint);
+  color: var(--muted);
 }
 .desc {
   margin: var(--space-10) 0 0;
@@ -238,7 +238,7 @@
 }
 .problems li {
   padding: var(--space-8) var(--space-12);
-  border-left: 3px solid var(--warm-line);
+  border-left: 3px solid var(--warm-ink);
   border-radius: 0;
   background: var(--warm);
   color: var(--warm-ink);
@@ -362,7 +362,7 @@
   cursor: pointer;
 }
 .link:hover {
-  color: var(--accent-ink);
+  color: var(--accent);
   text-decoration: underline;
 }
 .need {
@@ -372,7 +372,7 @@
   color: var(--muted);
 }
 .state[data-ok='true'] {
-  color: var(--accent-ink);
+  color: var(--accent);
 }
 .state[data-ok='false'] {
   color: var(--danger);
@@ -383,7 +383,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font: var(--fs-tiny) var(--f-mono);
-  color: var(--faint);
+  color: var(--muted);
 }
 .settings {
   display: grid;
@@ -403,7 +403,7 @@
 .none {
   margin: 0;
   font-size: var(--fs-list);
-  color: var(--faint);
+  color: var(--muted);
 }
 .x {
   position: absolute;

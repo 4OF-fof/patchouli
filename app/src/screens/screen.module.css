@@ -45,7 +45,7 @@
 .meta {
   padding-bottom: var(--space-2);
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--muted);
 }
 .end {
   margin-left: auto;
@@ -72,7 +72,7 @@
 }
 .head > span {
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--muted);
 }
 .head > :last-child:not(h2, span) {
   margin-left: auto;

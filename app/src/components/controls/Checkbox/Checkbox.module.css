@@ -12,7 +12,7 @@
   width: 16px;
   height: 16px;
   margin: 0;
-  border: 1.5px solid var(--faint);
+  border: 1.5px solid var(--muted);
   border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;

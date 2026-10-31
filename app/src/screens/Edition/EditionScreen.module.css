@@ -20,7 +20,7 @@
   align-items: baseline;
   gap: var(--space-10);
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--muted);
 }
 .recentHead b {
   font-size: var(--fs-meta);
@@ -72,7 +72,7 @@
   color: var(--muted);
 }
 .pinsMore:hover {
-  border-color: var(--frame);
+  border-color: var(--muted);
   color: var(--ink);
 }
 .more {
@@ -108,7 +108,7 @@
   width: 40px;
   height: 40px;
   margin-bottom: var(--space-6);
-  color: var(--faint);
+  color: var(--muted);
 }
 .emptyTitle {
   font-size: var(--fs-large);
@@ -132,7 +132,7 @@
   max-width: calc(50% - 314px);
   overflow: hidden;
   font: 400 var(--fs-meta) var(--f-mono);
-  color: var(--faint);
+  color: var(--muted);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

@@ -12,5 +12,5 @@
 .more {
   list-style: none;
   margin-left: calc(-1 * var(--space-16));
-  color: var(--faint);
+  color: var(--muted);
 }

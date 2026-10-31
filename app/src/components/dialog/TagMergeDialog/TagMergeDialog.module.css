@@ -20,7 +20,7 @@
   cursor: pointer;
 }
 .keep small {
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-meta);
 }
 .rename {

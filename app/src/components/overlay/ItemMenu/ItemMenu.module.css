@@ -6,11 +6,11 @@
   padding: var(--space-12);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-lg);
-  background: var(--menu);
+  background: var(--float);
   box-shadow: var(--shadow);
 }
 .rename span {
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-meta);
 }
 .rename input {

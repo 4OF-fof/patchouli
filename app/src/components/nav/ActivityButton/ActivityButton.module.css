@@ -30,7 +30,7 @@
   padding: var(--space-6);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-lg);
-  background: var(--menu);
+  background: var(--float);
   box-shadow: var(--shadow);
 }
 .head {
@@ -48,7 +48,7 @@
   color: var(--ink-2);
 }
 .icon {
-  color: var(--faint);
+  color: var(--muted);
 }
 .label {
   overflow: hidden;

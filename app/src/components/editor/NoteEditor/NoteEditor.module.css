@@ -112,7 +112,7 @@
 }
 .link,
 .extLink {
-  color: var(--wl);
+  color: var(--accent);
   text-decoration: underline dotted;
   text-underline-offset: 3px;
 }
@@ -403,7 +403,7 @@
   padding: var(--space-2);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
-  background: var(--menu);
+  background: var(--float);
   box-shadow: var(--shadow-float);
 }
 .tableTools[hidden] {
@@ -433,7 +433,7 @@
   min-width: 200px;
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
-  background: var(--menu);
+  background: var(--float);
   box-shadow: var(--shadow-float);
 }
 .menuScroll {
@@ -465,7 +465,7 @@
   padding: var(--space-2);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
-  background: var(--menu);
+  background: var(--float);
   box-shadow: var(--shadow-float);
 }
 .linkMenu button {
@@ -511,7 +511,7 @@
   transform: translateY(-100%);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
-  background: var(--menu);
+  background: var(--float);
   box-shadow: var(--shadow-float);
 }
 .bar button {

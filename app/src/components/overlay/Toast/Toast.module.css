@@ -37,7 +37,7 @@
 }
 .root .act {
   padding: 0 var(--space-4);
-  color: var(--ai-ink);
+  color: var(--accent);
   font-weight: 600;
 }
 .root .quiet {

@@ -17,7 +17,7 @@
   cursor: pointer;
 }
 .root:hover {
-  border-color: var(--faint);
+  border-color: var(--muted);
 }
 .root:focus-visible,
 .root[aria-expanded='true'] {

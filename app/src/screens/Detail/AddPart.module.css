@@ -41,5 +41,5 @@
 .menu small {
   margin-left: auto;
   font-size: var(--fs-meta);
-  color: var(--faint);
+  color: var(--muted);
 }

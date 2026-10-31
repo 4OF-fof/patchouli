@@ -13,7 +13,7 @@
   cursor: pointer;
 }
 .root:hover {
-  border-color: var(--faint);
+  border-color: var(--muted);
 }
 .root:focus-visible,
 .root[aria-expanded='true'] {
@@ -21,7 +21,7 @@
   outline: 0;
 }
 .root:disabled {
-  color: var(--faint);
+  color: var(--muted);
   cursor: default;
 }
 .value {
@@ -29,7 +29,7 @@
   white-space: nowrap;
 }
 .value[data-empty='true'] {
-  color: var(--faint);
+  color: var(--muted);
   font-family: inherit;
 }
 .icon {
@@ -44,7 +44,7 @@
   padding: var(--space-10);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
-  background: var(--menu);
+  background: var(--float);
   box-shadow: var(--shadow-float);
   font-size: var(--fs-list);
 }
@@ -88,7 +88,7 @@
   height: 24px;
   display: grid;
   place-items: center;
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-tiny);
 }
 .day {
@@ -133,7 +133,7 @@
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;
-  color: var(--accent-ink);
+  color: var(--accent);
   font: inherit;
   cursor: pointer;
 }

@@ -1,7 +1,7 @@
 .root {
   width: 240px;
   border-radius: var(--radius-lg);
-  background: var(--menu);
+  background: var(--float);
   border: 1px solid var(--line-2);
   box-shadow: var(--shadow);
 }
@@ -41,7 +41,7 @@
   height: 16px;
   display: flex;
   font-style: normal;
-  color: var(--faint);
+  color: var(--muted);
 }
 .label {
   min-width: 0;
@@ -54,7 +54,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font: 400 var(--fs-tiny) var(--f-mono);
-  color: var(--faint);
+  color: var(--muted);
 }
 .root button .kbd {
   margin-left: auto;
@@ -72,7 +72,7 @@
   color: var(--accent);
 }
 .root button[data-heading='true'] {
-  color: var(--faint);
+  color: var(--muted);
   font-size: var(--fs-meta);
 }
 .root button[data-danger='true'],

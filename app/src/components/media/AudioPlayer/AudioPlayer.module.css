@@ -51,10 +51,10 @@
   fill: currentColor;
 }
 .base {
-  color: var(--wave);
+  color: var(--disabled);
 }
 .done {
-  color: var(--stage-ink);
+  color: var(--overlay-ink);
 }
 .head {
   position: absolute;
@@ -83,7 +83,7 @@
   top: 0;
   bottom: 0;
   width: 1px;
-  background: var(--stage-ink);
+  background: var(--overlay-ink);
   opacity: 0.35;
   pointer-events: none;
 }

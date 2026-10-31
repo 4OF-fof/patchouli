@@ -1,6 +1,6 @@
 .root {
   background: var(--stage);
-  color: var(--stage-ink);
+  color: var(--overlay-ink);
 }
 .stage {
   position: relative;

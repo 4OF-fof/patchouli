@@ -29,7 +29,7 @@
 .k {
   font-size: var(--fs-tiny);
   font-weight: 400;
-  color: var(--faint);
+  color: var(--muted);
 }
 .head {
   display: flex;

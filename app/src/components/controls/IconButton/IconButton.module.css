@@ -9,7 +9,7 @@
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
-  color: var(--faint);
+  color: var(--muted);
   cursor: pointer;
 }
 .root svg {

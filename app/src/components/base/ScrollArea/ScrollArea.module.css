@@ -47,7 +47,7 @@
   right: 2px;
   width: 4px;
   border-radius: var(--radius-sm);
-  background: var(--faint);
+  background: var(--muted);
   transition:
     width 0.15s,
     background 0.15s;
