@@ -25,6 +25,8 @@ export const Note: Story = {
   },
 }
 export const Selected: Story = { args: { selected: true } }
+export const Unsupported: Story = { name: '未対応', args: { ext: 'psd' } }
+export const Failed: Story = { name: '作れなかった', args: { ext: 'png', failed: true } }
 
 export const Making: Story = {
   name: '作成中',

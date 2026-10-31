@@ -44,6 +44,17 @@
   font-size: var(--fs-list);
   font-weight: 600;
 }
+.root[data-mark] {
+  background: var(--card);
+}
+.mark {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: min(32px, 40%);
+  height: min(32px, 40%);
+  color: var(--muted);
+}
 .root[data-selected='true'] {
   outline: 3px solid var(--accent);
   outline-offset: -3px;

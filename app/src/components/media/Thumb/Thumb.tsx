@@ -1,5 +1,7 @@
 import { createContext, createEffect, createSignal, onCleanup, useContext } from 'solid-js'
+import { useFormats } from '../../../plugins/formats'
 import type { Fit } from '../../../plugins/types'
+import { Icon } from '../../base/Icon/Icon'
 import { Spinner } from '../../base/Spinner/Spinner'
 import styles from './Thumb.module.css'
 
@@ -53,6 +55,9 @@ export interface ThumbProps {
   src?: string
   id?: string
   fit?: Fit
+  /** 対応するプラグインがなければ、未対応の印を出す */
+  ext?: string
+  failed?: boolean
   title?: string
   excerpt?: string
   height?: number
@@ -72,7 +77,13 @@ export function Thumb(props: ThumbProps) {
     e.stopPropagation()
     menu(props.id, { x: e.clientX, y: e.clientY })
   }
-  const waiting = () => !props.src && !props.note && !!props.id && making(props.id)
+  const formats = useFormats()
+  const mark = () => {
+    if (props.src || props.note) return undefined
+    if (props.ext !== undefined && !formats().has(props.ext)) return 'unknownFile'
+    return props.failed ? 'imageOff' : undefined
+  }
+  const waiting = () => !props.src && !props.note && !mark() && !!props.id && making(props.id)
   const watch = useContext(Seen)
   const [el, setEl] = createSignal<HTMLElement>()
   createEffect(() => {
@@ -87,6 +98,7 @@ export function Thumb(props: ThumbProps) {
       data-note={!!props.note}
       data-fit={props.src ? (props.fit ?? 'center') : undefined}
       data-selected={props.selected}
+      data-mark={mark()}
       onContextMenu={onContextMenu}
       style={{
         '--h': props.hue ?? 210,
@@ -101,6 +113,7 @@ export function Thumb(props: ThumbProps) {
           {props.excerpt}
         </>
       )}
+      {mark() && <Icon name={mark()!} size={32} class={styles.mark} />}
       {waiting() && <Spinner class={styles.making} />}
       {props.dirty && <span class={styles.dirty} role="img" aria-label="未保存" data-tip="未保存" />}
     </span>

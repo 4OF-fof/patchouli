@@ -18,7 +18,6 @@ import type { Thumbnail } from '../model/library'
 import type { FormatInfo, Part, PluginReport, PluginSource, SettingValue, UiRef } from '../plugins/types'
 import type { Caller } from '../../plugins/sdk'
 import { ThumbnailTimeout, type UiApi, type UiItem, uiThumbnail, uiWaveform } from '../plugins/ui'
-import errorThumb from './thumb-error.svg'
 import type { Backend, CacheUsage, Changed, Developer, Dropped, FileDrag, KnownLibrary, UnusedPlugin } from './types'
 
 type TauriItem = StoredItem & { file: string; thumb?: string }
@@ -138,7 +137,7 @@ export function tauriBackend(): Backend {
     }).catch((e: unknown) => {
       if (!(e instanceof ThumbnailTimeout)) throw e
       console.warn(`サムネイルが ${e.ms / 1000} 秒で作り終わらない: ${it.name}.${it.ext}`)
-      sendThumb(it.id, { url: errorThumb, ratio: formats.get(it.ext)?.ratio ?? 1 })
+      sendThumb(it.id, { failed: true })
       return null
     })
     if (!t) return
@@ -206,8 +205,7 @@ export function tauriBackend(): Backend {
           if (ui) await makeWave(it, ui)
         } catch (e) {
           console.warn(`波形を作れない: ${it.name}.${it.ext}`, e)
-          if (!it.thumb && !thumbed.has(it.id))
-            sendThumb(it.id, { url: errorThumb, ratio: formats.get(it.ext)?.ratio ?? 1 })
+          if (!it.thumb && !thumbed.has(it.id)) sendThumb(it.id, { failed: true })
         } finally {
           waveIds.delete(it.id)
         }

@@ -35,6 +35,8 @@ export interface Item {
   thumb?: string
   /** thumb を波形から描いたもの */
   waveThumb?: boolean
+  /** サムネイルを作れなかった */
+  thumbFailed?: boolean
   fit?: Fit
 }
 
@@ -303,17 +305,15 @@ export function withEmptyProject(lib: Library, now = new Date()): { lib: Library
 export const withToggledPin = (lib: Library, id: string) =>
   buildLibrary(lib.items, lib.projects, lib.today, lib.tagCovers, toggled(lib.pins, id), lib.formats, lib.groups)
 
-export interface Thumbnail {
-  url: string
-  ratio: number
-  wave?: boolean
-}
+export type Thumbnail = { url: string; ratio: number; wave?: boolean } | { failed: true }
 
 export const withThumbs = (lib: Library, thumbs: Map<string, Thumbnail>) =>
   buildLibrary(
     lib.items.map((i) => {
       const t = thumbs.get(i.id)
-      return t ? { ...i, thumb: t.url, ratio: t.ratio, waveThumb: t.wave === true } : i
+      if (!t) return i
+      if ('failed' in t) return { ...i, thumbFailed: true }
+      return { ...i, thumb: t.url, ratio: t.ratio, waveThumb: t.wave === true, thumbFailed: false }
     }),
     lib.projects,
     lib.today,
@@ -515,7 +515,8 @@ export const jacketOf = (it: Item) => (it.waveThumb ? undefined : it.thumb)
 export type CardSize = 'L' | 'M' | 'S' | 'X'
 
 export function thumbOf(it: Item, size: CardSize = 'M') {
-  if (!it.note) return { hue: it.hue, sat: it.sat, src: it.thumb, id: it.id, fit: it.fit }
+  if (!it.note)
+    return { hue: it.hue, sat: it.sat, src: it.thumb, id: it.id, fit: it.fit, ext: it.ext, failed: it.thumbFailed }
   if (size === 'X') return { note: true, id: it.id, excerpt: it.name }
   const ex = plainText(it.body ?? '')
   const lim = size === 'L' ? 140 : size === 'S' ? 0 : 46
