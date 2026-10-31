@@ -1,6 +1,6 @@
 import { For, Index, Match, Show, Switch, createSignal } from 'solid-js'
 import { NoneText } from '../../components/base/NoneText/NoneText'
-import { Button } from '../../components/controls/Button/Button'
+import { IconButton } from '../../components/controls/IconButton/IconButton'
 import { Checkbox } from '../../components/controls/Checkbox/Checkbox'
 import { DateField } from '../../components/controls/DateField/DateField'
 import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
@@ -30,8 +30,7 @@ export interface CoverPartViewProps {
   part: CoverPart
   editing?: boolean
   onChange?: (part: CoverPart) => void
-  onUp?: () => void
-  onDown?: () => void
+  onMove?: (by: number) => void
   onRemove?: () => void
 }
 
@@ -87,7 +86,7 @@ function TodoBody(props: { lib: Library; part: Todo; editing?: boolean; onChange
                 </label>
               }
             >
-              <div class={styles.todo} data-done={x().done}>
+              <div class={`${styles.todo} ${styles.row}`} data-done={x().done}>
                 {check}
                 <input
                   type="text"
@@ -121,12 +120,15 @@ function TodoBody(props: { lib: Library; part: Todo; editing?: boolean; onChange
         }}
       </Index>
       <Show when={props.editing}>
-        <input
-          type="text"
-          placeholder="タスクを追加（Enter）"
-          aria-label="タスクを追加"
-          onKeyDown={(e) => e.key === 'Enter' && !e.isComposing && add(e.currentTarget)}
-        />
+        <label class={styles.adder}>
+          <Icon name="plus" size={14} />
+          <input
+            type="text"
+            placeholder="タスクを追加（Enter）"
+            aria-label="タスクを追加"
+            onKeyDown={(e) => e.key === 'Enter' && !e.isComposing && add(e.currentTarget)}
+          />
+        </label>
       </Show>
     </>
   )
@@ -167,24 +169,28 @@ function LinksBody(props: { part: Links; editing?: boolean; onChange: (p: Links)
         </For>
       </Show>
       <Show when={props.editing}>
-        <input
-          type="text"
-          placeholder="タイトル"
-          aria-label="リンクのタイトル"
-          value={title()}
-          onInput={(e) => setTitle(e.currentTarget.value)}
-        />
-        <input
-          type="url"
-          placeholder="https://"
-          aria-label="リンクの URL"
-          value={url()}
-          onInput={(e) => setUrl(e.currentTarget.value)}
-          onKeyDown={(e) => e.key === 'Enter' && !e.isComposing && add()}
-        />
-        <Button size="sm" disabled={!url().trim()} onClick={add}>
-          リンクを追加
-        </Button>
+        <div class={styles.row}>
+          <input
+            type="text"
+            class={styles.title}
+            placeholder="タイトル"
+            aria-label="リンクのタイトル"
+            value={title()}
+            onInput={(e) => setTitle(e.currentTarget.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !e.isComposing && add()}
+          />
+          <input
+            type="url"
+            placeholder="https://"
+            aria-label="リンクの URL"
+            value={url()}
+            onInput={(e) => setUrl(e.currentTarget.value)}
+            onKeyDown={(e) => e.key === 'Enter' && !e.isComposing && add()}
+          />
+          <IconButton class={styles.addLink} label="リンクを追加" disabled={!url().trim()} onClick={add}>
+            <Icon name="plus" size={14} />
+          </IconButton>
+        </div>
       </Show>
     </>
   )
@@ -206,8 +212,7 @@ export function CoverPartView(props: CoverPartViewProps) {
       class={styles.root}
       label={label()}
       editing={props.editing}
-      onUp={props.onUp}
-      onDown={props.onDown}
+      onMove={props.onMove}
       onRemove={props.onRemove}
     >
       <Switch>

@@ -186,8 +186,7 @@ export function TagScreen(props: TagScreenProps) {
               <DetailPart
                 label={TAG_PARTS[c().type].label}
                 editing={editing()}
-                onUp={i > 0 ? () => save(moved(cover(), i, -1)) : undefined}
-                onDown={i < cover().length - 1 ? () => save(moved(cover(), i, 1)) : undefined}
+                onMove={(by) => save(moved(cover(), i, by))}
                 onRemove={() => save(cover().filter((_, k) => k !== i))}
               >
                 {body(c(), i)}

@@ -151,9 +151,15 @@ body {
   font: var(--fs-body)/1.6 var(--f-sans);
 }
 button,
-input {
+input,
+textarea {
   font: inherit;
   color: inherit;
+}
+textarea {
+  height: calc(6 * 1.5em + 12px);
+  line-height: 1.5;
+  resize: none;
 }
 mark {
   background: var(--mark);

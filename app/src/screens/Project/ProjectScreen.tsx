@@ -88,8 +88,7 @@ export function ProjectScreen(props: ProjectScreenProps) {
                     part={c()}
                     editing={editing()}
                     onChange={(x) => save(cover().map((y, k) => (k === i ? x : y)))}
-                    onUp={i > 0 ? () => save(moved(cover(), i, -1)) : undefined}
-                    onDown={i < cover().length - 1 ? () => save(moved(cover(), i, 1)) : undefined}
+                    onMove={(by) => save(moved(cover(), i, by))}
                     onRemove={() => save(cover().filter((_, k) => k !== i))}
                   />
                 )}

@@ -11,7 +11,7 @@ export const addable = <T extends string>(parts: Record<T, PartKind>, types: rea
     .filter((type) => parts[type].multiple || !cover.some((c) => c.type === type))
     .map((type) => ({ type, label: parts[type].label, note: parts[type].note }))
 
-export function moved<T>(list: T[], i: number, by: -1 | 1): T[] {
+export function moved<T>(list: T[], i: number, by: number): T[] {
   const next = [...list]
   const [x] = next.splice(i, 1)
   if (x !== undefined) next.splice(i + by, 0, x)

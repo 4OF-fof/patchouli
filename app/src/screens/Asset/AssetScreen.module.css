@@ -236,11 +236,6 @@
   font-size: var(--fs-meta);
   color: var(--muted);
 }
-.fl textarea {
-  height: calc(6 * 1.5em + 12px);
-  line-height: 1.5;
-  resize: none;
-}
 .tags {
   display: flex;
   flex-wrap: wrap;

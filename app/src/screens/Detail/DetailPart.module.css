@@ -11,54 +11,77 @@
   line-height: 1.6;
 }
 .root[data-editing='true'] {
-  border: 1px dashed var(--line-2);
-  background: none;
+  padding: 4px 10px 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in oklch, var(--card) 50%, transparent);
+}
+.root[data-editing='true']:hover {
+  border-color: var(--line-2);
+}
+.root[data-sorting='true']:not([data-dragging='true']) {
+  transition: translate 0.15s;
+}
+.root[data-dragging='true'] {
+  z-index: 1;
+  border-color: var(--accent);
+  background: var(--card);
 }
 .k {
   font-size: var(--fs-tiny);
   font-weight: 400;
   color: var(--faint);
 }
+.head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  margin: 0 -6px;
+  cursor: grab;
+  user-select: none;
+}
+.root[data-dragging='true'] .head {
+  cursor: grabbing;
+}
+.head .k {
+  flex: 1;
+}
+.grip,
+.del {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+}
+.grip {
+  cursor: inherit;
+}
+.del {
+  cursor: pointer;
+}
+.del:hover {
+  background: var(--warm);
+  color: var(--danger);
+}
 .root textarea,
 .root input[type='text'],
 .root input[type='url'] {
   width: 100%;
   padding: 5px 8px;
-  border: 1px solid var(--line-2);
+  border: 1px solid color-mix(in oklch, var(--ink) 6%, transparent);
   border-radius: var(--radius-sm);
-  background: var(--paper);
+  background: color-mix(in oklch, var(--ink) 4%, transparent);
+  color: var(--ink);
   font-size: var(--fs-list);
 }
-.root textarea {
-  min-height: 64px;
-  resize: vertical;
-}
-.ctl {
-  position: absolute;
-  right: 8px;
-  top: 8px;
-  display: flex;
-  gap: 2px;
-}
-.ctl button {
-  width: 24px;
-  height: 24px;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--side);
-  color: var(--muted);
-  font-size: var(--fs-meta);
-  cursor: pointer;
-}
-.ctl button:hover {
-  background: var(--accent-soft);
-  color: var(--accent-ink);
-}
-.ctl button:disabled {
-  opacity: 0.35;
-  pointer-events: none;
-}
-.ctl .del:hover {
-  background: var(--warm);
-  color: var(--danger);
+.root textarea:focus-visible,
+.root input[type='text']:focus-visible,
+.root input[type='url']:focus-visible {
+  border-color: var(--accent);
+  outline: 0;
 }

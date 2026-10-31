@@ -11,7 +11,7 @@ export interface AddPartProps<T extends string> {
 
 export function AddPart<T extends string>(props: AddPartProps<T>) {
   return (
-    <>
+    <Show when={props.parts.length}>
       <button type="button" class={styles.add} aria-expanded={!!props.open} onClick={() => props.onToggle?.()}>
         <Icon name="plus" size={14} withText />
         セクションを追加
@@ -28,6 +28,6 @@ export function AddPart<T extends string>(props: AddPartProps<T>) {
           </For>
         </div>
       </Show>
-    </>
+    </Show>
   )
 }
