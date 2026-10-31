@@ -95,7 +95,7 @@ export function TagListScreen(props: TagListScreenProps) {
           <header class={shared.mast}>
             <h1>タグ</h1>
             <span class={shared.meta}>
-              {flat().size} 件 · {sort() === 'name' ? '名前順' : '件数順'}
+              {flat().size} 件 / {sort() === 'name' ? '名前順' : '件数順'}
             </span>
             <span class={shared.end}>
               <Tabs

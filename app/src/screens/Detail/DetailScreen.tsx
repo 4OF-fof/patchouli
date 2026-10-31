@@ -106,7 +106,7 @@ export function DetailScreen(props: DetailScreenProps) {
             {props.title}
             <span class={shared.meta}>
               {props.meta}
-              {sel?.ids().length ? ` · ${sel.ids().length} 件を選択中` : ''}
+              {sel?.ids().length ? ` / ${sel.ids().length} 件を選択中` : ''}
             </span>
             <Show when={props.actions}>
               <span class={`${shared.end} ${shared.actions}`}>{props.actions}</span>

@@ -68,7 +68,7 @@ export function AllScreen(props: AllScreenProps) {
           <header class={shared.mast}>
             <h1>すべて</h1>
             <span class={shared.meta}>
-              {lib().items.length} 件{sel?.ids().length ? ` · ${sel.ids().length} 件を選択中` : ''}
+              {lib().items.length} 件{sel?.ids().length ? ` / ${sel.ids().length} 件を選択中` : ''}
             </span>
             <span class={shared.end}>
               <Button size="sm" variant="ghost" pressed={flat()} onClick={() => setFlat(!flat())}>

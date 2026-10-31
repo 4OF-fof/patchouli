@@ -63,7 +63,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
         <div class={shared.page}>
           <header class={shared.mast}>
             <h1>プロジェクト</h1>
-            <span class={shared.meta}>{lib().projects.length} 件 · 最終更新順</span>
+            <span class={shared.meta}>{lib().projects.length} 件 / 最終更新順</span>
             <span class={shared.end}>
               <Button onClick={() => props.onCreate?.()}>
                 <Icon name="plus" size={14} withText />
@@ -82,7 +82,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
           </Show>
           <div class={shared.head}>
             <h2>すべてのプロジェクト</h2>
-            <span>{lib().projects.length} 件 · 最終更新順</span>
+            <span>{lib().projects.length} 件 / 最終更新順</span>
           </div>
           <div class={styles.grid}>
             <For each={sorted().filter((p) => recency(p) <= 30)}>{(p) => card(p, true)}</For>

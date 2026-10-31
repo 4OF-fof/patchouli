@@ -62,7 +62,7 @@ export function ProjectScreen(props: ProjectScreenProps) {
               </h1>
             </Show>
           }
-          meta={`プロジェクト · ${lib().inProject(props.name).length} 件 · 最終更新 ${pr().touched}`}
+          meta={`${lib().inProject(props.name).length} 件 / 最終更新 ${pr().touched}`}
           actions={
             <>
               <PinToggle

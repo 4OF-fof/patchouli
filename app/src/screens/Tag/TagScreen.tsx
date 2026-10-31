@@ -158,7 +158,7 @@ export function TagScreen(props: TagScreenProps) {
       meta={
         editing()
           ? `タグ名を変更すると、付与されている ${all().length} 件とサブタグも更新されます`
-          : `タグ · ${all().length} 件 · ${projectCount()} プロジェクト`
+          : `${all().length} 件 / ${projectCount()} プロジェクト`
       }
       actions={
         <>
