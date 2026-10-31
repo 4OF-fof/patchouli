@@ -5,7 +5,7 @@ import { EditorState, Prec, Transaction } from '@codemirror/state'
 import { EditorView, type ViewUpdate, keymap } from '@codemirror/view'
 import { GFM } from '@lezer/markdown'
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js'
-import { EMBED_SCALES, type Item, type Library, hrefOf, plainText, thumbOf } from '../../../model/library'
+import { EMBED_SCALES, type Item, type Library, type Place, hrefOf, plainText, thumbOf } from '../../../model/library'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { LinkPicker } from '../../nav/LinkPicker/LinkPicker'
@@ -38,7 +38,7 @@ export interface NoteEditorApi {
 export interface NoteEditorProps {
   lib: Library
   noteId: string
-  folder: string | null
+  place: Place
   value: string
   onChange?: (markdown: string) => void
   onOpenRef?: (id: string) => void
@@ -717,7 +717,7 @@ export function NoteEditor(props: NoteEditorProps) {
           <LinkPicker
             lib={props.lib}
             embed={p().embed}
-            folder={props.folder}
+            place={props.place}
             exclude={props.noteId}
             onPick={insertRef}
             onCreate={

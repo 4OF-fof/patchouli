@@ -1,17 +1,18 @@
 use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::cache::Row;
 use crate::library::{
-    ID_KEY, NOTE_EXT, PROJECTS_DIR, STATE_DIR, TAG_INDEX, TAGS_DIR, check_name, listed, meta_path,
-    read_json,
+    ID_KEY, NOTE_EXT, PRINT_KEY, PROJECT_TYPE, PROJECTS_DIR, STATE_DIR, TAG_INDEX, TAGS_DIR,
+    TYPE_KEY, check_name, listed, meta_path, name_of, read_json, write_json,
 };
+use crate::note;
 
 const EDGE: u64 = 8 * 1024;
 
@@ -34,15 +35,66 @@ pub fn print(path: &Path) -> Option<String> {
     Some(format!("{len}:{hex}"))
 }
 
+/// 直下の項目とグループの ID を並べ替えてまとめたハッシュ。外で名前を変えたグループを見分けるのに使う。
+pub fn group_print(mut ids: Vec<String>) -> String {
+    ids.sort();
+    let mut h = Sha256::new();
+    for id in &ids {
+        h.update(id.as_bytes());
+        h.update(b"\n");
+    }
+    h.finalize().iter().map(|b| format!("{b:02x}")).collect()
+}
+
+fn child_ids(dir: &Path) -> Vec<String> {
+    let l = listing(dir);
+    l.files
+        .iter()
+        .filter_map(|f| {
+            if is_note(f) {
+                let text = fs::read_to_string(f).ok()?;
+                let v = note::front_values(note::split(&text).front).ok()?;
+                note::str_of(&v, ID_KEY)
+            } else {
+                id_of(&meta_path(f))
+            }
+        })
+        .chain(l.dirs.iter().filter_map(|d| id_of(&meta_path(d))))
+        .collect()
+}
+
+/// フォルダの中身を読み直して、.meta の照合用の値を書き直す。.meta のないフォルダは、次に読むときに書く。
+pub fn reprint(dir: &Path) -> Result<(), String> {
+    let meta = meta_path(dir);
+    let Some(mut m) = read_json(&meta)? else {
+        return Ok(());
+    };
+    let print = json!(group_print(child_ids(dir)));
+    if m.get(PRINT_KEY) == Some(&print) {
+        return Ok(());
+    }
+    m.insert(PRINT_KEY.into(), print);
+    write_json(&meta, &m)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OrphanKind {
+    Asset,
+    Project,
+    Group,
+}
+
 /// 本体が見つからない .meta。
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Orphan {
     pub meta: PathBuf,
     pub name: String,
-    pub folder: Option<String>,
-    pub project: bool,
-    /// つなぎ直せる先。素材なら同じフォルダのタグもメモもない素材、プロジェクトなら .meta のないフォルダ
+    /// ある場所。ライブラリからのフォルダの並びを / でつないだもの
+    pub place: Option<String>,
+    pub kind: OrphanKind,
+    /// つなぎ直せる先。素材なら同じフォルダのタグもメモもない素材、グループなら種類のないグループ
     pub candidates: Vec<String>,
 }
 
@@ -93,13 +145,6 @@ fn owner_of(meta: &Path) -> PathBuf {
     PathBuf::from(s.strip_suffix(".meta").unwrap_or(&s))
 }
 
-fn name_of(path: &Path) -> String {
-    path.file_name()
-        .unwrap_or_default()
-        .to_string_lossy()
-        .into_owned()
-}
-
 fn is_note(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
@@ -114,27 +159,67 @@ fn id_of(meta: &Path) -> Option<String> {
         .map(str::to_owned)
 }
 
-/// id のほかに何も書いていない .meta（取り込んだときに書いたまま）。
-fn bare(meta: &Path) -> bool {
+/// keys のほかに何も書いていない .meta（取り込んだときや、見つけたときに書いたまま）。
+fn bare(meta: &Path, keys: &[&str]) -> bool {
     match read_json(meta) {
-        Ok(Some(m)) => m.keys().all(|k| k == ID_KEY),
+        Ok(Some(m)) => m.keys().all(|k| keys.contains(&k.as_str())),
         Ok(None) => true,
         Err(_) => false,
     }
 }
 
-fn folder_of(root: &Path, dir: &Path) -> Option<String> {
-    match dir.strip_prefix(root).ok()?.components().next()? {
-        Component::Normal(n) => Some(n.to_string_lossy().into_owned()),
-        _ => None,
+fn place_of(root: &Path, dir: &Path) -> Option<String> {
+    let parts: Vec<String> = dir
+        .strip_prefix(root)
+        .ok()?
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy().into_owned())
+        .collect();
+    (!parts.is_empty()).then(|| parts.join("/"))
+}
+
+/// 照合用の値が同じものが、どちらにも 1 つだけあれば、.meta をその名前に変える。
+fn rename_unique(
+    lost: &[(&PathBuf, String)],
+    fresh: &[(&PathBuf, String)],
+    problems: &mut Vec<String>,
+) {
+    for (m, p) in lost {
+        let hits: Vec<_> = fresh.iter().filter(|(_, q)| q == p).collect();
+        let rivals = lost.iter().filter(|(_, q)| q == p).count();
+        if let ([(to, _)], 1) = (hits.as_slice(), rivals)
+            && let Err(e) = fs::rename(m, meta_path(to))
+        {
+            problems.push(format!("{}: {e}", m.display()));
+        }
     }
 }
 
-/// 写しで同じ中身だったと分かる素材が、同じフォルダに 1 つだけあれば、.meta をその名前に変える。
+/// 写しで同じ中身だったと分かる素材と、直下の ID が同じだと分かるグループが、
+/// 同じフォルダに 1 つだけあれば、.meta をその名前に変える。
 pub fn relink(root: &Path, known: &HashMap<PathBuf, Row>, problems: &mut Vec<String>) {
     let by_id: HashMap<&str, &Row> = known.values().map(|r| (r.item.id.as_str(), r)).collect();
+    let empty = group_print(vec![]);
     walk(root, &mut |_, l| {
-        let lost: Vec<(&PathBuf, &str)> = l
+        let lost_dirs: Vec<(&PathBuf, String)> = l
+            .metas
+            .iter()
+            .filter(|m| !owner_of(m).exists())
+            .filter_map(|m| {
+                let p = read_json(m).ok()??.get(PRINT_KEY)?.as_str()?.to_owned();
+                (p != empty).then_some((m, p))
+            })
+            .collect();
+        if !lost_dirs.is_empty() {
+            let fresh: Vec<(&PathBuf, String)> = l
+                .dirs
+                .iter()
+                .filter(|d| !meta_path(d).exists())
+                .map(|d| (d, group_print(child_ids(d))))
+                .collect();
+            rename_unique(&lost_dirs, &fresh, problems);
+        }
+        let lost: Vec<(&PathBuf, String)> = l
             .metas
             .iter()
             .filter(|m| !owner_of(m).exists())
@@ -143,7 +228,7 @@ pub fn relink(root: &Path, known: &HashMap<PathBuf, Row>, problems: &mut Vec<Str
                     let id = id_of(m)?;
                     by_id.get(id.as_str()).copied()
                 })?;
-                Some((m, row.item.print.as_deref()?))
+                Some((m, row.item.print.clone()?))
             })
             .collect();
         if lost.is_empty() {
@@ -155,44 +240,41 @@ pub fn relink(root: &Path, known: &HashMap<PathBuf, Row>, problems: &mut Vec<Str
             .filter(|f| !is_note(f) && !meta_path(f).exists())
             .filter_map(|f| Some((f, print(f)?)))
             .collect();
-        for &(m, p) in &lost {
-            let hits: Vec<_> = fresh.iter().filter(|(_, q)| q == p).collect();
-            let rivals = lost.iter().filter(|(_, q)| *q == p).count();
-            if let ([(to, _)], 1) = (hits.as_slice(), rivals)
-                && let Err(e) = fs::rename(m, meta_path(to))
-            {
-                problems.push(format!("{}: {e}", m.display()));
-            }
-        }
+        rename_unique(&lost, &fresh, problems);
     });
 }
 
-pub fn find(root: &Path, items: &HashSet<String>) -> Vec<Orphan> {
+pub fn find(root: &Path) -> Vec<Orphan> {
     let mut out = vec![];
     walk(root, &mut |dir, l| {
         for m in l.metas.iter().filter(|m| !owner_of(m).exists()) {
-            let id = id_of(m);
-            let project = dir == root
-                && id.as_ref().is_none_or(|id| !items.contains(id))
-                && (id.as_ref().is_some_and(|id| cards_dir(root, id).is_dir()) || bare(m));
-            let candidates = if project {
-                l.dirs
-                    .iter()
-                    .filter(|d| !meta_path(d).exists())
-                    .map(|d| name_of(d))
-                    .collect()
+            let map = read_json(m).ok().flatten().unwrap_or_default();
+            let kind = if !map.contains_key(PRINT_KEY) && !map.contains_key(TYPE_KEY) {
+                OrphanKind::Asset
+            } else if dir == root && map.get(TYPE_KEY).and_then(Value::as_str) == Some(PROJECT_TYPE)
+            {
+                OrphanKind::Project
             } else {
+                OrphanKind::Group
+            };
+            let candidates = if kind == OrphanKind::Asset {
                 l.files
                     .iter()
-                    .filter(|f| !is_note(f) && bare(&meta_path(f)))
+                    .filter(|f| !is_note(f) && bare(&meta_path(f), &[ID_KEY]))
                     .map(|f| name_of(f))
+                    .collect()
+            } else {
+                l.dirs
+                    .iter()
+                    .filter(|d| bare(&meta_path(d), &[ID_KEY, PRINT_KEY]))
+                    .map(|d| name_of(d))
                     .collect()
             };
             out.push(Orphan {
                 meta: m.clone(),
                 name: name_of(&owner_of(m)),
-                folder: folder_of(root, dir),
-                project,
+                place: place_of(root, dir),
+                kind,
                 candidates,
             });
         }
@@ -211,7 +293,7 @@ pub fn relink_to(root: &Path, o: &Orphan, to: &str) -> Result<(), String> {
     }
     let target = o.meta.parent().unwrap_or(root).join(to);
     let meta = meta_path(&target);
-    if !o.project && meta.exists() {
+    if meta.exists() {
         trash::delete(&meta).map_err(|e| format!("{}: {e}", meta.display()))?;
     }
     fs::rename(&o.meta, &meta).map_err(|e| format!("{}: {e}", o.meta.display()))
@@ -219,7 +301,7 @@ pub fn relink_to(root: &Path, o: &Orphan, to: &str) -> Result<(), String> {
 
 pub fn discard(root: &Path, o: &Orphan) -> Result<(), String> {
     let mut files = vec![o.meta.clone()];
-    if o.project
+    if o.kind == OrphanKind::Project
         && let Some(id) = id_of(&o.meta).filter(|id| check_name(id).is_ok())
         && cards_dir(root, &id).is_dir()
     {

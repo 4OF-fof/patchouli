@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
-import { Select } from '../../components/controls/Select/Select'
+import { PlaceSelect } from '../../components/controls/PlaceSelect/PlaceSelect'
 import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { TextList } from '../../components/controls/TextList/TextList'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
@@ -11,7 +11,7 @@ import { HeadingTree } from '../../components/nav/HeadingTree/HeadingTree'
 import { LinkCaption, LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { type Embed, NoteEditor, type NoteEditorApi } from '../../components/editor/NoteEditor/NoteEditor'
-import { type Item, type Library, headingsOf, refsOf, relDay } from '../../model/library'
+import { type Item, type Library, type Place, headingsOf, placeOf, refsOf, relDay } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './NoteScreen.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
@@ -28,14 +28,14 @@ export interface NoteScreenProps {
   onTogglePin?: (id: string) => void
   onBody?: (id: string, body: string) => void
   onRename?: (id: string, name: string) => void
-  onProject?: (id: string, folder: string | null) => void
+  onMove?: (id: string, place: Place) => void
   onAliases?: (id: string, aliases: string[]) => void
   onTag?: (id: string, tag: string, on: boolean) => void
   recentTags?: string[]
   suggestTags?: (id: string) => Promise<string[]>
-  onCreateNote?: (name: string, folder: string | null) => Promise<Item | undefined>
+  onCreateNote?: (name: string, place: Place) => Promise<Item | undefined>
   embedOf?: (it: Item) => Promise<Embed | undefined>
-  onImport?: (files: File[], folder: string | null) => Promise<Item[]>
+  onImport?: (files: File[], place: Place) => Promise<Item[]>
   editorRef?: (api: NoteEditorApi | undefined) => void
 }
 
@@ -94,11 +94,6 @@ export function NoteScreen(props: NoteScreenProps) {
   )
   const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
 
-  const projectOptions = () => [
-    { value: '', label: 'プロジェクトなし' },
-    ...lib().projects.map((p) => ({ value: p.name, label: p.name })),
-  ]
-
   const rename = (el: HTMLInputElement) => {
     const n = note()
     if (!n) return
@@ -133,7 +128,7 @@ export function NoteScreen(props: NoteScreenProps) {
                 onBlur={(e) => rename(e.currentTarget)}
               />
               <button type="button" class={styles.props} onClick={() => setPropsOpen(!propsOpen())}>
-                <span>{n().folder ?? 'プロジェクトなし'}</span>
+                <span>{lib().placeName(n()) ?? '所属なし'}</span>
                 <span>/</span>
                 <Show when={n().tags.length} fallback={<span>タグなし</span>}>
                   <For each={n().tags}>{(t) => <span class={styles.tag}># {t}</span>}</For>
@@ -142,13 +137,13 @@ export function NoteScreen(props: NoteScreenProps) {
               </button>
               <Show when={propsOpen()}>
                 <dl class={styles.panel}>
-                  <dt>プロジェクト</dt>
+                  <dt>所属</dt>
                   <dd>
-                    <Select
-                      aria-label="プロジェクト"
-                      value={n().folder ?? ''}
-                      options={projectOptions()}
-                      onChange={(v) => props.onProject?.(n().id, v || null)}
+                    <PlaceSelect
+                      lib={lib()}
+                      aria-label="所属"
+                      value={n()}
+                      onChange={(to) => props.onMove?.(n().id, to)}
                     />
                   </dd>
                   <dt class={styles.top}>別名</dt>
@@ -197,13 +192,13 @@ export function NoteScreen(props: NoteScreenProps) {
               <NoteEditor
                 lib={lib()}
                 noteId={n().id}
-                folder={n().folder}
+                place={placeOf(n())}
                 value={body()}
                 onChange={(md) => props.onBody?.(n().id, md)}
                 onOpenRef={props.onOpenRef}
-                onCreateNote={async (name) => props.onCreateNote?.(name, n().folder)}
+                onCreateNote={async (name) => props.onCreateNote?.(name, placeOf(n()))}
                 embedOf={props.embedOf}
-                onImport={props.onImport && ((files) => props.onImport?.(files, n().folder) ?? Promise.resolve([]))}
+                onImport={props.onImport && ((files) => props.onImport?.(files, placeOf(n())) ?? Promise.resolve([]))}
                 onSection={setSection}
                 ref={(api) => {
                   editor = api

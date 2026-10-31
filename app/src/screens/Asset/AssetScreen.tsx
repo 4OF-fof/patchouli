@@ -14,7 +14,7 @@ import {
 } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
-import { Select } from '../../components/controls/Select/Select'
+import { PlaceSelect } from '../../components/controls/PlaceSelect/PlaceSelect'
 import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
 import { AudioPlayer } from '../../components/media/AudioPlayer/AudioPlayer'
@@ -23,7 +23,7 @@ import { PluginView } from '../../components/media/PluginView/PluginView'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { type Blocker, Unsupported } from '../../components/media/Unsupported/Unsupported'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
-import { type Item, type Library, jacketOf, relDay, thumbOf } from '../../model/library'
+import { type Item, type Library, type Place, jacketOf, relDay, thumbOf } from '../../model/library'
 import type { ItemDetails, ItemView, Part } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
 import shared from '../screen.module.css'
@@ -47,7 +47,7 @@ export interface AssetScreenProps {
   onOpenNote?: (id: string) => void
   onOpenTag?: (tag: string) => void
   onTogglePin?: (id: string) => void
-  onProject?: (id: string, folder: string | null) => void
+  onMove?: (id: string, place: Place) => void
   onRename?: (id: string, name: string) => void
   onTag?: (id: string, tag: string, on: boolean) => void
   onMemo?: (id: string, memo: string) => void
@@ -257,7 +257,7 @@ export function AssetScreen(props: AssetScreenProps) {
       >
         <div class={styles.title}>
           <b>{a().name}</b>
-          <span>{a().folder ?? 'プロジェクトなし'}</span>
+          <span>{lib().placeName(a()) ?? '所属なし'}</span>
         </div>
       </AudioPlayer>
     )
@@ -466,15 +466,12 @@ export function AssetScreen(props: AssetScreenProps) {
                     <span class={styles.spec}>{spec(a())}</span>
                   </div>
                   <div class={styles.fl}>
-                    <span class={styles.k}>プロジェクト</span>
-                    <Select
-                      aria-label="プロジェクト"
-                      value={a().folder ?? ''}
-                      options={[
-                        { value: '', label: 'プロジェクトなし' },
-                        ...lib().projects.map((p) => ({ value: p.name, label: p.name })),
-                      ]}
-                      onChange={(v) => props.onProject?.(a().id, v || null)}
+                    <span class={styles.k}>所属</span>
+                    <PlaceSelect
+                      lib={lib()}
+                      aria-label="所属"
+                      value={a()}
+                      onChange={(to) => props.onMove?.(a().id, to)}
                     />
                   </div>
                   <div class={styles.fl}>

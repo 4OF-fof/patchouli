@@ -29,17 +29,17 @@ export function sampleBackend(): Backend {
     },
     async deleteItem() {},
     async saveState() {},
-    async createNote(name, folder) {
-      return emptyNote(`new-${++n}`, name, folder)
+    async createNote(name, place) {
+      return emptyNote(`new-${++n}`, name, place)
     },
-    async importData(file, folder) {
+    async importData(file, place) {
       const dot = file.name.lastIndexOf('.')
       const ext = dot > 0 ? file.name.slice(dot + 1).toLowerCase() : ''
       const src = URL.createObjectURL(file)
       const id = `import-${++n}`
       imported.set(id, ext)
       return {
-        ...emptyNote(id, dot > 0 ? file.name.slice(0, dot) : file.name, folder),
+        ...emptyNote(id, dot > 0 ? file.name.slice(0, dot) : file.name, place),
         note: false,
         ext,
         body: undefined,

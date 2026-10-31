@@ -1,5 +1,5 @@
 import { createMemo, createSignal } from 'solid-js'
-import { type Item, type Library, newerFirst } from '../../../model/library'
+import { type Item, type Library, type Place, newerFirst, samePlace } from '../../../model/library'
 import { findItems, searchTerms } from '../../../model/search'
 import { SearchPalette } from '../SearchPalette/SearchPalette'
 import { type Row, SearchResults } from '../SearchResults/SearchResults'
@@ -7,7 +7,7 @@ import { type Row, SearchResults } from '../SearchResults/SearchResults'
 export interface LinkPickerProps {
   lib: Library
   embed?: boolean
-  folder?: string | null
+  place?: Place
   exclude?: string
   query?: string
   onPick: (it: Item) => void
@@ -19,7 +19,7 @@ export function LinkPicker(props: LinkPickerProps) {
   const [query, setQuery] = createSignal(props.query ?? '')
   const [idx, setIdx] = createSignal(0)
   const terms = () => searchTerms(query())
-  const near = (it: Item) => (props.folder !== undefined && it.folder === props.folder ? 0 : 1)
+  const near = (it: Item) => (props.place && samePlace(it, props.place) ? 0 : 1)
   const rows = createMemo<Row[]>(() => {
     const ok = (it: Item) => it.id !== props.exclude && (!props.embed || !it.note)
     const ts = terms()
@@ -28,7 +28,7 @@ export function LinkPicker(props: LinkPickerProps) {
       : props.lib.items
           .filter(ok)
           .toSorted(newerFirst)
-          .map((it) => ({ it, where: `最近 · ${it.folder ?? 'プロジェクトなし'}` }))
+          .map((it) => ({ it, where: `最近 · ${props.lib.placeName(it) ?? '所属なし'}` }))
     const out: Row[] = found
       .toSorted((a, b) => near(a.it) - near(b.it))
       .slice(0, 8)

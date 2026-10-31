@@ -1,6 +1,7 @@
 import {
   COVER_TYPES,
   type CoverPart,
+  type Group,
   type Item,
   NOTE_RATIO,
   type Project,
@@ -18,7 +19,8 @@ export interface StoredItem {
   note: boolean
   name: string
   ext: string
-  folder: string | null
+  project: string | null
+  group: string | null
   tags: string[]
   memo: string
   aliases?: string[]
@@ -35,10 +37,20 @@ export interface StoredProject {
   mtime: number
 }
 
+export interface StoredGroup {
+  id: string
+  name: string
+  project: string | null
+  parent: string | null
+  type?: string
+  mtime: number
+}
+
 export interface StoredLibrary<I extends StoredItem = StoredItem> {
   root: string
   items: I[]
   projects: StoredProject[]
+  groups: StoredGroup[]
   state: Partial<LibraryState>
   tagCovers: Record<string, TagCoverPart[]>
   orphans: Orphan[]
@@ -50,6 +62,7 @@ export interface StoredChanged<I extends StoredItem = StoredItem> {
   items: I[]
   removed: string[]
   projects?: StoredProject[]
+  groups?: StoredGroup[]
   state?: Partial<LibraryState>
   tagCovers?: Record<string, TagCoverPart[]>
   orphans?: Orphan[]
@@ -82,12 +95,13 @@ export function toItem(
   urls: ItemUrls = {},
 ): Item {
   const h = hash(s.name)
-  const base = s.folder ? hueOfName(s.folder) : 40
+  const base = s.project ? hueOfName(s.project) : 40
   return {
     id: s.id,
     note: s.note,
     name: s.name,
-    folder: s.folder,
+    project: s.project,
+    group: s.group,
     tags: s.tags,
     moved: daysBefore(today, new Date(s.mtime)),
     mtime: s.mtime,
@@ -112,6 +126,16 @@ export const toProject = (s: StoredProject, today: Date): Project => ({
   cover: s.cover.filter((c) => COVER_TYPES.has(c.type)),
 })
 
+export const toGroup = (s: StoredGroup, today: Date): Group => ({
+  id: s.id,
+  name: s.name,
+  project: s.project,
+  parent: s.parent,
+  ...(s.type && { type: s.type }),
+  touched: touchedLabel(today, new Date(s.mtime)),
+  mtime: s.mtime,
+})
+
 // 並びにだけ書かれた知らない id は、中身のない種類として届くので外す
 const toTagCovers = (s: Record<string, TagCoverPart[]>) =>
   new Map(Object.entries(s).map(([t, c]) => [t, c.filter((x) => TAG_COVER_TYPES.has(x.type))]))
@@ -130,6 +154,7 @@ export function toOpened<I extends StoredItem>(s: StoredLibrary<I>, today: Date,
       covers,
       (s.state.pins ?? []).filter((id) => ids.has(id)),
       formats,
+      s.groups.map((g) => toGroup(g, today)),
     ),
     pinnedProjects: s.state.pinnedProjects ?? [],
     pinnedTags: s.state.pinnedTags ?? [],
@@ -150,6 +175,7 @@ export const toChanged = <I extends StoredItem>(
   ...(s.projects && {
     projects: s.projects.toSorted((a, b) => b.mtime - a.mtime).map((p) => toProject(p, today)),
   }),
+  ...(s.groups && { groups: s.groups.map((g) => toGroup(g, today)) }),
   ...(s.state && { state: s.state }),
   ...(s.tagCovers && { tagCovers: toTagCovers(s.tagCovers) }),
   ...(s.orphans && { orphans: s.orphans }),

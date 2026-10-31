@@ -14,6 +14,7 @@ import {
 } from '../app/src/samples/spec.ts'
 
 const ID_KEY = 'patchouli-id'
+const TYPE_KEY = 'patchouli-type'
 const DAY = 864e5
 
 const example = path.resolve(import.meta.dirname, '..', 'example')
@@ -168,9 +169,20 @@ const state = path.join(root, '.patchouli')
 spec.projects.forEach((p, i) => {
   const id = `p${i + 1}`
   fs.mkdirSync(path.join(root, p.name))
-  fs.writeFileSync(path.join(root, `${p.name}.meta`), json({ [ID_KEY]: id }))
+  fs.writeFileSync(path.join(root, `${p.name}.meta`), json({ [ID_KEY]: id, [TYPE_KEY]: 'project' }))
   if (p.cover.length) writeCards(path.join(state, 'projects', id), p.cover)
 })
+
+// 照合用の値（patchouli-print）は、アプリが最初に読んだときに書く
+const groupDir = new Map<string, string>()
+const dirOf = (place: { project: string | null; group: string | null }): string =>
+  (place.group && groupDir.get(place.group)) || (place.project ? path.join(root, place.project) : root)
+for (const g of spec.groups) {
+  const dir = path.join(dirOf({ project: g.project, group: g.parent }), g.name)
+  groupDir.set(g.id, dir)
+  fs.mkdirSync(dir)
+  fs.writeFileSync(`${dir}.meta`, json({ [ID_KEY]: g.id }))
+}
 
 const tagIds = Object.fromEntries([...spec.tagCovers.keys()].map((t, i) => [t, `t${i + 1}`]))
 for (const [t, cover] of spec.tagCovers) writeCards(path.join(state, 'tags', tagIds[t] ?? t), cover)
@@ -190,7 +202,7 @@ fs.writeFileSync(
 const jobs: (() => Promise<void>)[] = []
 const touched: { file: string; moved: number }[] = []
 for (const it of spec.items) {
-  const dir = it.folder ? path.join(root, it.folder) : root
+  const dir = dirOf(it)
   if (it.media === 'note') {
     const file = path.join(dir, `${it.name}.md`)
     fs.writeFileSync(file, markdown(it))
@@ -229,6 +241,6 @@ fs.rmSync(tmp, { recursive: true, force: true })
 const count = (k: string) => spec.items.filter((i) => i.media === k).length
 console.log(
   `${path.relative(process.cwd(), root) || root} を作った（見本の今日 ${TODAY.toLocaleDateString('ja-JP')}）: ` +
-    `プロジェクト ${spec.projects.length}、ノート ${count('note')}、画像 ${count('image')}、動画 ${count('video')}、音声 ${count('audio')}、` +
+    `プロジェクト ${spec.projects.length}、グループ ${spec.groups.length}、ノート ${count('note')}、画像 ${count('image')}、動画 ${count('video')}、音声 ${count('audio')}、` +
     `未対応 ${count('other')}、例のプラグイン ${EXAMPLE_PLUGINS.length}（${path.relative(process.cwd(), pluginDir)}）`,
 )

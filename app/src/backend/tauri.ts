@@ -4,10 +4,12 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import {
   type ItemUrls,
   type StoredChanged,
+  type StoredGroup,
   type StoredItem,
   type StoredLibrary,
   type StoredProject,
   toChanged,
+  toGroup,
   toItem,
   toOpened,
   toProject,
@@ -263,8 +265,8 @@ export function tauriBackend(): Backend {
       const it = await invoke<TauriItem | null>('save_item', { id, patch })
       return it ? toItem(it, new Date(), formats, urlsOf(it)) : undefined
     },
-    async moveItem(id, folder) {
-      const it = await invoke<TauriItem>('move_item', { id, folder })
+    async moveItem(id, place) {
+      const it = await invoke<TauriItem>('move_item', { id, place })
       return toItem(it, new Date(), formats, urlsOf(it))
     },
     async renameItem(id, name) {
@@ -275,8 +277,8 @@ export function tauriBackend(): Backend {
     saveState: (state) => invoke('save_state', { state }),
     tagHistory: () => invoke<string[]>('tag_history'),
     saveTagHistory: (tags) => invoke('save_tag_history', { tags }),
-    async createNote(name, folder) {
-      const it = await invoke<TauriItem>('create_note', { name, folder })
+    async createNote(name, place) {
+      const it = await invoke<TauriItem>('create_note', { name, place })
       return toItem(it, new Date(), formats, urlsOf(it))
     },
     async createProject(name) {
@@ -321,24 +323,24 @@ export function tauriBackend(): Backend {
       })
       return () => void off.then((f) => f())
     },
-    async importDropped(folder, projects) {
-      const r = await invoke<{ items: TauriItem[]; projects: StoredProject[]; skipped: number; failed: string[] }>(
+    async importDropped(place) {
+      const r = await invoke<{ items: TauriItem[]; groups: StoredGroup[]; skipped: number; failed: string[] }>(
         'import_files',
-        { paths: dropped, folder, projects },
+        { paths: dropped, place },
       )
       const now = new Date()
       void makeUiThumbs(r.items)
       void makeWaves(r.items)
       return {
         items: r.items.map((it) => toItem(it, now, formats, urlsOf(it))),
-        projects: r.projects.map((p) => toProject(p, now)),
+        groups: r.groups.map((g) => toGroup(g, now)),
         skipped: r.skipped,
         failed: r.failed,
       }
     },
-    async importData(file, folder) {
+    async importData(file, place) {
       const it = await invoke<TauriItem>('import_data', await file.arrayBuffer(), {
-        headers: { meta: asciiJson([file.name, folder]) },
+        headers: { meta: asciiJson([file.name, place]) },
       })
       void makeUiThumbs([it])
       void makeWaves([it])

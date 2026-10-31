@@ -4,7 +4,9 @@ use std::time::SystemTime;
 
 use serde::Serialize;
 
-use crate::library::{Library, StoredItem, StoredProject, check_name, dunce, listed, meta_path};
+use crate::library::{
+    Library, Place, StoredGroup, StoredItem, check_name, dunce, listed, meta_path,
+};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,7 +29,7 @@ pub struct FolderInfo {
 #[serde(rename_all = "camelCase")]
 pub struct Imported {
     pub items: Vec<StoredItem>,
-    pub projects: Vec<StoredProject>,
+    pub groups: Vec<StoredGroup>,
     pub skipped: usize,
     pub failed: Vec<String>,
 }
@@ -103,26 +105,13 @@ fn touch(p: &Path) -> std::io::Result<()> {
 }
 
 impl Library {
-    pub fn import(
-        &mut self,
-        paths: &[PathBuf],
-        folder: Option<&str>,
-        projects: &[usize],
-    ) -> Result<Imported, String> {
+    /// フォルダは、中のフォルダも含めてグループとして取り込む。
+    pub fn import(&mut self, paths: &[PathBuf], place: &Place) -> Result<Imported, String> {
         let root = self.root().to_owned();
-        let dest = match folder {
-            Some(f) => {
-                check_name(f)?;
-                let d = root.join(f);
-                if !d.is_dir() {
-                    return Err(format!("プロジェクト「{f}」が見つかりません"));
-                }
-                d
-            }
-            None => root.clone(),
-        };
+        let (dest, project, group) = self.place_dir(place)?;
+        let at = Place { project, group };
         let mut out = Imported::default();
-        for (key, p) in paths.iter().enumerate() {
+        for p in paths {
             let p = match fs::canonicalize(p) {
                 Ok(p) => dunce(p),
                 Err(e) => {
@@ -132,51 +121,57 @@ impl Library {
             };
             if p.starts_with(&root) {
                 out.skipped += 1;
-                continue;
-            }
-            if !p.is_dir() {
-                if listed(&p) {
-                    self.copy_in(&p, &dest, folder, &mut out);
-                } else {
-                    out.skipped += 1;
-                }
-                continue;
-            }
-            let mut files = Vec::new();
-            files_in(&p, &mut files);
-            if !projects.contains(&key) {
-                for f in &files {
-                    self.copy_in(f, &dest, folder, &mut out);
-                }
-                continue;
-            }
-            let base = p
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("取り込んだフォルダ");
-            let name = numbered(base, |n| {
-                root.join(n).exists() || meta_path(&root.join(n)).exists()
-            });
-            let project = match self.create_project(&name) {
-                Ok(pr) => pr,
-                Err(e) => {
-                    out.failed.push(format!("{}: {e}", p.display()));
-                    continue;
-                }
-            };
-            out.projects.push(project);
-            let dir = root.join(&name);
-            for f in &files {
-                self.copy_in(f, &dir, Some(&name), &mut out);
+            } else if p.is_dir() {
+                self.copy_dir(&p, &at, &mut out);
+            } else if listed(&p) {
+                self.copy_in(&p, &dest, &at, &mut out);
+            } else {
+                out.skipped += 1;
             }
         }
+        self.reprint([dest]);
         Ok(out)
     }
 
-    fn copy_in(&mut self, src: &Path, dir: &Path, folder: Option<&str>, out: &mut Imported) {
+    fn copy_dir(&mut self, src: &Path, place: &Place, out: &mut Imported) {
+        let base = src
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or("取り込んだフォルダ");
+        let g = match self.create_group(base, place) {
+            Ok(g) => g,
+            Err(e) => {
+                out.failed.push(format!("{}: {e}", src.display()));
+                return;
+            }
+        };
+        let inner = Place {
+            project: g.project.clone(),
+            group: Some(g.id.clone()),
+        };
+        let dir = g.dir.clone();
+        out.groups.push(g);
+        let Ok(rd) = fs::read_dir(src) else { return };
+        let mut paths: Vec<PathBuf> = rd
+            .filter_map(Result::ok)
+            .map(|e| e.path())
+            .filter(|p| listed(p))
+            .collect();
+        paths.sort();
+        for p in paths {
+            if p.is_dir() {
+                self.copy_dir(&p, &inner, out);
+            } else {
+                self.copy_in(&p, &dir, &inner, out);
+            }
+        }
+        self.reprint([dir]);
+    }
+
+    fn copy_in(&mut self, src: &Path, dir: &Path, place: &Place, out: &mut Imported) {
         let name = src.file_name().and_then(|n| n.to_str()).unwrap_or_default();
         let put = |to: &Path| fs::copy(src, to).and_then(|_| touch(to)).map(drop);
-        match self.put_in(name, dir, folder, put) {
+        match self.put_in(name, dir, place, put) {
             Ok((item, problems)) => {
                 out.items.extend(item);
                 out.failed.extend(problems);
@@ -190,7 +185,7 @@ impl Library {
         &mut self,
         file_name: &str,
         dir: &Path,
-        folder: Option<&str>,
+        place: &Place,
         write: impl FnOnce(&Path) -> std::io::Result<()>,
     ) -> Result<(Option<StoredItem>, Vec<String>), String> {
         let src = Path::new(file_name);
@@ -205,7 +200,13 @@ impl Library {
         let to = file(&name);
         write(&to).map_err(|e| e.to_string())?;
         let mut problems = Vec::new();
-        let row = self.read_item(&to, folder, None, &mut problems);
+        let row = self.read_item(
+            &to,
+            place.project.as_deref(),
+            place.group.as_deref(),
+            None,
+            &mut problems,
+        );
         if let Some(row) = &row {
             self.remember(row);
         }
@@ -217,24 +218,17 @@ impl Library {
         &mut self,
         file_name: &str,
         bytes: &[u8],
-        folder: Option<&str>,
+        place: &Place,
     ) -> Result<StoredItem, String> {
         let file_name = Path::new(file_name)
             .file_name()
             .and_then(|n| n.to_str())
             .filter(|n| check_name(n).is_ok() && listed(Path::new(n)))
             .ok_or_else(|| format!("「{file_name}」はファイル名として使用できません"))?;
-        let dir = match folder {
-            Some(f) => {
-                check_name(f)?;
-                self.root().join(f)
-            }
-            None => self.root().to_owned(),
-        };
-        if !dir.is_dir() {
-            return Err(format!("プロジェクト「{}」が見つかりません", folder.unwrap_or_default()));
-        }
-        let (item, problems) = self.put_in(file_name, &dir, folder, |to| fs::write(to, bytes))?;
+        let (dir, project, group) = self.place_dir(place)?;
+        let at = Place { project, group };
+        let (item, problems) = self.put_in(file_name, &dir, &at, |to| fs::write(to, bytes))?;
+        self.reprint([dir]);
         item.ok_or_else(|| {
             problems
                 .into_iter()

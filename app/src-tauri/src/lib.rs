@@ -16,7 +16,7 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use cache::Cache;
-use library::{ItemPatch, Library, LibraryState, Opened, StoredItem, StoredProject};
+use library::{ItemPatch, Library, LibraryState, Opened, Place, StoredItem, StoredProject};
 use plugin::record::{self, Source};
 use plugin::{By, Part, Reads, Registry, Runner, ViewOut};
 use serde::Serialize;
@@ -543,12 +543,11 @@ async fn import_files(
     app: tauri::AppHandle,
     cur: State<'_, Current>,
     paths: Vec<PathBuf>,
-    folder: Option<String>,
-    projects: Vec<usize>,
+    place: Place,
 ) -> Result<import::Imported, String> {
     let (mut out, thumbs, plugins, cache) = with_session(&cur, |s| {
         Ok((
-            s.lib.import(&paths, folder.as_deref(), &projects)?,
+            s.lib.import(&paths, &place)?,
             s.thumbs.clone(),
             Arc::clone(&s.plugins),
             s.lib.cache(),
@@ -571,14 +570,14 @@ async fn import_data(
         return Err("リクエスト本文がファイルの中身ではありません".into());
     };
     let head = |k: &str| request.headers().get(k).and_then(|v| v.to_str().ok());
-    let meta: (String, Option<String>) = head("meta")
+    let meta: (String, Place) = head("meta")
         .map(serde_json::from_str)
         .ok_or("ファイル名が指定されていません")?
         .map_err(|e| format!("meta の読み込みに失敗しました：{e}"))?;
-    let (name, folder) = meta;
+    let (name, place) = meta;
     let (item, thumbs, plugins, cache) = with_session(&cur, |s| {
         Ok((
-            s.lib.import_data(&name, bytes, folder.as_deref())?,
+            s.lib.import_data(&name, bytes, &place)?,
             s.thumbs.clone(),
             Arc::clone(&s.plugins),
             s.lib.cache(),
@@ -1234,9 +1233,9 @@ async fn save_item(
 async fn move_item(
     cur: State<'_, Current>,
     id: String,
-    folder: Option<String>,
+    place: Place,
 ) -> Result<StoredItem, String> {
-    with(&cur, |l| l.move_item(&id, folder.as_deref()))
+    with(&cur, |l| l.move_item(&id, &place))
 }
 
 #[tauri::command]
@@ -1283,9 +1282,9 @@ async fn save_tag_history(cur: State<'_, Current>, tags: Vec<String>) -> Result<
 async fn create_note(
     cur: State<'_, Current>,
     name: String,
-    folder: Option<String>,
+    place: Place,
 ) -> Result<StoredItem, String> {
-    with(&cur, |l| l.create_note(&name, folder.as_deref()))
+    with(&cur, |l| l.create_note(&name, &place))
 }
 
 #[tauri::command]

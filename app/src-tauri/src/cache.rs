@@ -7,11 +7,11 @@ use std::time::{Duration, SystemTime};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde_json::{Map, Value};
 
-use crate::library::{LibraryState, StoredItem, StoredProject, meta_path, mtime_of};
+use crate::library::{LibraryState, StoredGroup, StoredItem, StoredProject, meta_path, mtime_of};
 use crate::plugin::Reads;
 
 /// 中身の形を変えたら上げる。違う版の写しは捨てて作り直す。
-const VERSION: i32 = 5;
+const VERSION: i32 = 6;
 
 /// この版から、波形から描いたサムネイルをジャケットと別の場所に置く。
 const WAVE_THUMBS_APART: i32 = 5;
@@ -51,6 +51,7 @@ impl Row {
 pub struct Snapshot {
     pub rows: Vec<Row>,
     pub projects: Vec<StoredProject>,
+    pub groups: Vec<StoredGroup>,
     pub state: LibraryState,
     pub tag_covers: Map<String, Value>,
 }
@@ -130,7 +131,7 @@ fn connect(path: &Path) -> rusqlite::Result<(Connection, bool)> {
     let mixed = v != 0 && v < WAVE_THUMBS_APART;
     if v != VERSION {
         c.execute_batch(
-            "DROP TABLE IF EXISTS items; DROP TABLE IF EXISTS projects; DROP TABLE IF EXISTS state;
+            "DROP TABLE IF EXISTS items; DROP TABLE IF EXISTS projects; DROP TABLE IF EXISTS groups; DROP TABLE IF EXISTS state;
             DROP TABLE IF EXISTS tag_covers; DROP TABLE IF EXISTS thumb_reads;",
         )?;
         c.pragma_update(None, "user_version", VERSION)?;
@@ -144,6 +145,7 @@ fn connect(path: &Path) -> rusqlite::Result<(Connection, bool)> {
             item TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS projects (name TEXT PRIMARY KEY, project TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS groups (id TEXT PRIMARY KEY, dir TEXT NOT NULL, grp TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS state (id INTEGER PRIMARY KEY CHECK (id = 0), state TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS tag_covers (id INTEGER PRIMARY KEY CHECK (id = 0), covers TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS thumb_reads (path TEXT PRIMARY KEY, reads TEXT NOT NULL);",
@@ -178,6 +180,18 @@ fn put_projects(c: &Connection, projects: &[StoredProject]) -> Result<(), String
     for p in projects {
         let json = serde_json::to_string(p).map_err(|e| e.to_string())?;
         st.execute(params![p.name, json])
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+fn put_groups(c: &Connection, groups: &[StoredGroup]) -> Result<(), String> {
+    let mut st = c
+        .prepare_cached("INSERT OR REPLACE INTO groups (id, dir, grp) VALUES (?1, ?2, ?3)")
+        .map_err(|e| e.to_string())?;
+    for g in groups {
+        let json = serde_json::to_string(g).map_err(|e| e.to_string())?;
+        st.execute(params![g.id, g.dir.to_string_lossy(), json])
             .map_err(|e| e.to_string())?;
     }
     Ok(())
@@ -262,6 +276,7 @@ impl Cache {
         Some(Snapshot {
             rows,
             projects: self.projects(),
+            groups: self.groups(),
             state,
             tag_covers: self.tag_covers(),
         })
@@ -341,6 +356,31 @@ impl Cache {
         })
     }
 
+    pub fn groups(&self) -> Vec<StoredGroup> {
+        self.groups_where("", [])
+    }
+
+    pub fn group(&self, id: &str) -> Option<StoredGroup> {
+        self.groups_where("WHERE id = ?1", [id]).pop()
+    }
+
+    fn groups_where<P: rusqlite::Params>(&self, filter: &str, p: P) -> Vec<StoredGroup> {
+        self.with("読めない", |c| {
+            let mut st = c
+                .prepare(&format!("SELECT grp FROM groups {filter} ORDER BY dir"))
+                .map_err(|e| e.to_string())?;
+            let it = st
+                .query_map(p, |r| r.get::<_, String>(0))
+                .map_err(|e| e.to_string())?;
+            let mut out = Vec::new();
+            for g in it {
+                let g = g.map_err(|e| e.to_string())?;
+                out.push(serde_json::from_str(&g).map_err(|e| e.to_string())?);
+            }
+            Ok(out)
+        })
+    }
+
     pub fn state(&self) -> LibraryState {
         self.with("読めない", |c| {
             let s: Option<String> = c
@@ -369,15 +409,17 @@ impl Cache {
         &self,
         rows: &[Row],
         projects: &[StoredProject],
+        groups: &[StoredGroup],
         state: &LibraryState,
         tag_covers: &Map<String, Value>,
     ) {
         self.with("書けない", |c| {
             let tx = c.transaction().map_err(|e| e.to_string())?;
-            tx.execute_batch("DELETE FROM items; DELETE FROM projects;")
+            tx.execute_batch("DELETE FROM items; DELETE FROM projects; DELETE FROM groups;")
                 .map_err(|e| e.to_string())?;
             put_rows(&tx, rows)?;
             put_projects(&tx, projects)?;
+            put_groups(&tx, groups)?;
             put_state(&tx, state)?;
             put_tag_covers(&tx, tag_covers)?;
             tx.commit().map_err(|e| e.to_string())
@@ -416,6 +458,22 @@ impl Cache {
             tx.execute("DELETE FROM projects", [])
                 .map_err(|e| e.to_string())?;
             put_projects(&tx, projects)?;
+            tx.commit().map_err(|e| e.to_string())
+        })
+    }
+
+    pub fn put_group(&self, group: &StoredGroup) {
+        self.with("書けない", |c| {
+            put_groups(c, std::slice::from_ref(group))
+        })
+    }
+
+    pub fn replace_groups(&self, groups: &[StoredGroup]) {
+        self.with("書けない", |c| {
+            let tx = c.transaction().map_err(|e| e.to_string())?;
+            tx.execute("DELETE FROM groups", [])
+                .map_err(|e| e.to_string())?;
+            put_groups(&tx, groups)?;
             tx.commit().map_err(|e| e.to_string())
         })
     }

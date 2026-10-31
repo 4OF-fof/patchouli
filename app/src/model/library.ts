@@ -16,7 +16,9 @@ export interface Item {
   id: string
   note: boolean
   name: string
-  folder: string | null
+  project: string | null
+  /** 直接入っているグループの ID */
+  group: string | null
   tags: string[]
   moved: number
   /** 更新した時刻（ミリ秒）。同じ日のものを並べるのに使う */
@@ -59,6 +61,32 @@ export interface Project {
   touched: string
   cover: CoverPart[]
 }
+
+export interface Group {
+  id: string
+  name: string
+  project: string | null
+  parent: string | null
+  /** プラグインが足す特殊なグループの種類。ただのグループは持たない */
+  type?: string
+  touched: string
+  mtime: number
+}
+
+/** 素材を置く場所。group があれば、project はそのグループのものになる */
+export interface Place {
+  project: string | null
+  group: string | null
+}
+
+export const ROOT: Place = { project: null, group: null }
+
+export const placeOf = (x: { project: string | null; group: string | null }): Place => ({
+  project: x.project,
+  group: x.group,
+})
+
+export const samePlace = (a: Place, b: Place) => a.project === b.project && a.group === b.group
 
 export const LINK_SCHEME = 'patchouli:'
 
@@ -141,12 +169,25 @@ export interface Library {
   byId: Map<string, Item>
   byName: Map<string, Item>
   projectBy: Map<string, Project>
+  groups: Group[]
+  groupBy: Map<string, Group>
   tagCovers: Map<string, TagCoverPart[]>
   pins: string[]
   linksOf: (note: Item) => Item[]
   backOf: (it: Item) => Item[]
   linkCount: (it: Item) => number
+  /** プロジェクトの中の項目。グループの中のものも含む */
   inProject: (name: string) => Item[]
+  /** グループの中の項目。下のグループの中のものも含む */
+  inGroup: (id: string) => Item[]
+  /** place に直接ある項目 */
+  inPlace: (place: Place) => Item[]
+  /** place に直接あるグループ */
+  groupsIn: (place: Place) => Group[]
+  /** 上から順に並べた、グループの並び。いちばん下が id のグループ */
+  groupPath: (id: string) => Group[]
+  /** 「プロジェクト / グループ / …」の形の名前。どこにも属さなければ null */
+  placeName: (place: Place) => string | null
   tagGroups: () => Map<string, Item[]>
   pending: () => Item[]
   formats: ReadonlyMap<string, FormatInfo>
@@ -160,10 +201,26 @@ export function buildLibrary(
   tagCovers = new Map<string, TagCoverPart[]>(),
   pins: string[] = [],
   formats: ReadonlyMap<string, FormatInfo> = BUILTIN_FORMATS,
+  groups: Group[] = [],
 ): Library {
   const byId = new Map(items.map((i) => [i.id, i]))
   const byName = new Map(items.map((i) => [i.name, i]))
   const projectBy = new Map(projects.map((p) => [p.name, p]))
+  const groupBy = new Map(groups.map((g) => [g.id, g]))
+  const groupPath = (id: string) => {
+    const out: Group[] = []
+    for (let g = groupBy.get(id); g && !out.includes(g); g = g.parent ? groupBy.get(g.parent) : undefined)
+      out.unshift(g)
+    return out
+  }
+  const below = (id: string) => {
+    const ids = new Set([id])
+    for (let n = 0; n !== ids.size;) {
+      n = ids.size
+      for (const g of groups) if (g.parent && ids.has(g.parent)) ids.add(g.id)
+    }
+    return ids
+  }
   const links = new Map<string, Item[]>()
   const back = new Map<string, Item[]>()
   for (const n of items) {
@@ -183,12 +240,30 @@ export function buildLibrary(
     byId,
     byName,
     projectBy,
+    groups,
+    groupBy,
     tagCovers,
     pins,
     linksOf,
     backOf,
     linkCount: (it) => (it.note ? linksOf(it).length : 0) + backOf(it).length,
-    inProject: (name) => items.filter((i) => i.folder === name),
+    inProject: (name) => items.filter((i) => i.project === name),
+    inGroup: (id) => {
+      const ids = below(id)
+      return items.filter((i) => i.group !== null && ids.has(i.group))
+    },
+    inPlace: (place) =>
+      items.filter((i) => i.group === place.group && (place.group !== null || i.project === place.project)),
+    groupsIn: (place) =>
+      groups.filter((g) => g.parent === place.group && (place.group !== null || g.project === place.project)),
+    groupPath,
+    placeName: (place) => {
+      const names = [
+        ...(place.project ? [place.project] : []),
+        ...(place.group ? groupPath(place.group) : []).map((g) => g.name),
+      ]
+      return names.length ? names.join(' / ') : null
+    },
     tagGroups: () => {
       const m = new Map<string, Item[]>()
       for (const i of items) for (const t of i.tags) m.set(t, [...(m.get(t) ?? []), i])
@@ -196,7 +271,7 @@ export function buildLibrary(
     },
     pending: () =>
       items
-        .filter((i) => i.suggestion && !i.folder && !i.tags.length)
+        .filter((i) => i.suggestion && !i.project && !i.group && !i.tags.length)
         .toSorted((a, b) => (a.suggestion?.order ?? 0) - (b.suggestion?.order ?? 0)),
     formats,
     formatLabel: (it) => (it.note ? NOTE_LABEL : (formats.get(it.ext)?.label ?? it.ext.toUpperCase())),
@@ -218,7 +293,7 @@ export const emptyProject = (name: string, now = new Date()): Project => ({
 })
 
 export const withProject = (lib: Library, p: Project) =>
-  buildLibrary(lib.items, [...lib.projects, p], lib.today, lib.tagCovers, lib.pins, lib.formats)
+  buildLibrary(lib.items, [...lib.projects, p], lib.today, lib.tagCovers, lib.pins, lib.formats, lib.groups)
 
 export function withEmptyProject(lib: Library, now = new Date()): { lib: Library; name: string } {
   const name = newProjectName(lib)
@@ -226,7 +301,7 @@ export function withEmptyProject(lib: Library, now = new Date()): { lib: Library
 }
 
 export const withToggledPin = (lib: Library, id: string) =>
-  buildLibrary(lib.items, lib.projects, lib.today, lib.tagCovers, toggled(lib.pins, id), lib.formats)
+  buildLibrary(lib.items, lib.projects, lib.today, lib.tagCovers, toggled(lib.pins, id), lib.formats, lib.groups)
 
 export interface Thumbnail {
   url: string
@@ -245,6 +320,7 @@ export const withThumbs = (lib: Library, thumbs: Map<string, Thumbnail>) =>
     lib.tagCovers,
     lib.pins,
     lib.formats,
+    lib.groups,
   )
 
 export const retag = (from: string, to: string) => (t: string) =>
@@ -280,7 +356,7 @@ export function withRenamedTag(lib: Library, from: string, to: string, keepFrom 
   }))
   const covers = new Map([...lib.tagCovers].filter(([t]) => re(t) === t))
   for (const [t, c] of lib.tagCovers) if (re(t) !== t && (keepFrom || !covers.has(re(t)))) covers.set(re(t), c)
-  return buildLibrary(items, lib.projects, lib.today, covers, lib.pins, lib.formats)
+  return buildLibrary(items, lib.projects, lib.today, covers, lib.pins, lib.formats, lib.groups)
 }
 
 export const newCardId = () => crypto.randomUUID().replaceAll('-', '')
@@ -293,6 +369,7 @@ export const withProjectCover = (lib: Library, name: string, cover: CoverPart[])
     lib.tagCovers,
     lib.pins,
     lib.formats,
+    lib.groups,
   )
 
 /** cover を渡さなければ、概要を消す。 */
@@ -300,17 +377,18 @@ export function withTagCover(lib: Library, tag: string, cover?: TagCoverPart[]) 
   const covers = new Map(lib.tagCovers)
   if (cover) covers.set(tag, cover)
   else covers.delete(tag)
-  return buildLibrary(lib.items, lib.projects, lib.today, covers, lib.pins, lib.formats)
+  return buildLibrary(lib.items, lib.projects, lib.today, covers, lib.pins, lib.formats, lib.groups)
 }
 
 export const withRenamedProject = (lib: Library, from: string, to: string) =>
   buildLibrary(
-    lib.items.map((i) => (i.folder === from ? { ...i, folder: to } : i)),
+    lib.items.map((i) => (i.project === from ? { ...i, project: to } : i)),
     lib.projects.map((p) => (p.name === from ? { ...p, name: to } : p)),
     lib.today,
     lib.tagCovers,
     lib.pins,
     lib.formats,
+    lib.groups.map((g) => (g.project === from ? { ...g, project: to } : g)),
   )
 
 export function newNoteName(lib: Library, name = '新しいノート') {
@@ -319,11 +397,11 @@ export function newNoteName(lib: Library, name = '新しいノート') {
   return n
 }
 
-export const emptyNote = (id: string, name: string, folder: string | null = null): Item => ({
+export const emptyNote = (id: string, name: string, place: Place = ROOT): Item => ({
   id,
   note: true,
   name,
-  folder,
+  ...placeOf(place),
   ext: NOTE_EXT,
   tags: [],
   moved: 0,
@@ -338,7 +416,7 @@ export const emptyNote = (id: string, name: string, folder: string | null = null
 
 export const withItem = (lib: Library, it: Item) => withAdded(lib, [it])
 
-export const withAdded = (lib: Library, items: Item[], projects: Project[] = []) =>
+export const withAdded = (lib: Library, items: Item[], projects: Project[] = [], groups: Group[] = []) =>
   buildLibrary(
     [...lib.items, ...items],
     [...projects, ...lib.projects],
@@ -346,6 +424,7 @@ export const withAdded = (lib: Library, items: Item[], projects: Project[] = [])
     lib.tagCovers,
     lib.pins,
     lib.formats,
+    [...lib.groups, ...groups],
   )
 
 export function withChanged(
@@ -355,6 +434,7 @@ export function withChanged(
   projects = lib.projects,
   tagCovers = lib.tagCovers,
   pins = lib.pins,
+  groups = lib.groups,
 ) {
   const gone = new Set(removed)
   const next = new Map(items.map((i) => [i.id, i]))
@@ -369,6 +449,7 @@ export function withChanged(
     tagCovers,
     pins.filter((id) => ids.has(id)),
     lib.formats,
+    groups,
   )
 }
 

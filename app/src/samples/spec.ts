@@ -3,7 +3,7 @@
  * （scripts/dev-library.ts）の両方がここから作る。スクリプトは Node が TS をそのまま読むので、
  * ここでは型のほかは何も import しない。
  */
-import type { CoverPart, Item, Project, Suggestion, TagCoverPart } from '../model/library'
+import type { CoverPart, Group, Item, Project, Suggestion, TagCoverPart } from '../model/library'
 
 export const TODAY = new Date(2026, 9, 22, 12)
 
@@ -24,6 +24,7 @@ export type SpecItem = Item & {
 export interface Spec {
   items: SpecItem[]
   projects: Project[]
+  groups: Group[]
   tagCovers: Map<string, TagCoverPart[]>
   pins: string[]
 }
@@ -252,6 +253,17 @@ const SHOWCASE = [
   '```',
   '',
 ].join('\n')
+
+/** [プロジェクト（ライブラリ直下なら null）, 上からのグループの並び, 入れる項目の名前] */
+const GROUPS: [project: string | null, path: string[], names: string[]][] = [
+  ['秋の企画', ['写真'], ['IMG_2041', 'IMG_2042', 'IMG_2043', 'IMG_2044', 'IMG_2045', 'leaf-macro']],
+  ['秋の企画', ['写真', 'ボツ'], ['IMG_2046']],
+  ['秋の企画', ['配色'], ['sage-swatch', 'vermilion-dot', 'paper-tone', 'palette-autumn', '配色ガイド']],
+  ['旅行 2026', ['動画'], ['train-pass', 'station-vertical']],
+  ['旅行 2026', ['メモ'], ['撮影リスト']],
+  [null, ['参考'], ['ref-a', 'ref-b']],
+  [null, ['参考', '本'], []],
+]
 
 const CONTENTS: Record<string, { a: RawAsset[]; n: RawNote[] }> = {
   秋の企画: {
@@ -570,13 +582,14 @@ export function sampleSpec(): Spec {
     const h = hueOf.get(pn) ?? 0
     for (const [name, ext, tags, moved] of s.a) {
       const hue = h + ri(-20, 20)
-      add({ name, ext, tags: [...tags], folder: pn, moved, hue, sat: ri(14, 30) })
+      add({ name, ext, tags: [...tags], project: pn, group: null, moved, hue, sat: ri(14, 30) })
     }
     for (const [name, moved, tags, raw] of s.n) {
       add({
         name,
         ext: 'md',
-        folder: pn,
+        project: pn,
+        group: null,
         tags,
         moved,
         hue: h,
@@ -595,7 +608,18 @@ export function sampleSpec(): Spec {
     const name = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
     const raw: RawBlock[] = [['p', DAILY[(d * 3) % DAILY.length] ?? '']]
     if (d % 2 === 0) raw.push(['p', `候補：[[${pick()}]]、[[${pick()}]]。`])
-    add({ name, ext: 'md', folder: '日記', tags: [], moved: d, hue: 262, sat: 14, body: markdown(raw), aliases: [] })
+    add({
+      name,
+      ext: 'md',
+      project: '日記',
+      group: null,
+      tags: [],
+      moved: d,
+      hue: 262,
+      sat: 14,
+      body: markdown(raw),
+      aliases: [],
+    })
   }
 
   let order = 0
@@ -610,17 +634,18 @@ export function sampleSpec(): Spec {
   for (const [name, ext, moved, like, main] of LOOSE) {
     const base = like ? (hueOf.get(like) ?? 40) : 40
     const hue = base + ri(-14, 14)
-    const it = add({ name, ext, tags: [], folder: null, moved, hue, sat: ri(10, 24) })
+    const it = add({ name, ext, tags: [], project: null, group: null, moved, hue, sat: ri(10, 24) })
     it.suggestion = suggest(like, main)
   }
-  add({ name: 'ref-a', ext: 'jpg', tags: ['参考'], folder: null, moved: 26, hue: 40, sat: 18 })
-  add({ name: 'ref-b', ext: 'jpg', tags: ['参考'], folder: null, moved: 26, hue: 44, sat: 18 })
-  add({ name: 'ポスター案', ext: 'psd', tags: [], folder: '秋の企画', moved: 3, hue: 28, sat: 20 })
+  add({ name: 'ref-a', ext: 'jpg', tags: ['参考'], project: null, group: null, moved: 26, hue: 40, sat: 18 })
+  add({ name: 'ref-b', ext: 'jpg', tags: ['参考'], project: null, group: null, moved: 26, hue: 44, sat: 18 })
+  add({ name: 'ポスター案', ext: 'psd', tags: [], project: '秋の企画', group: null, moved: 3, hue: 28, sat: 20 })
   add({
     name: '記法の見本',
     ext: 'md',
     tags: [],
-    folder: '資料',
+    project: '資料',
+    group: null,
     moved: 0,
     hue: 36,
     sat: 16,
@@ -629,6 +654,23 @@ export function sampleSpec(): Spec {
   })
 
   const byName = new Map(items.map((i) => [i.name, i]))
+  const groups: Group[] = []
+  for (const [project, path, names] of GROUPS) {
+    let parent: Group | undefined
+    for (const name of path) {
+      const pid = parent?.id ?? null
+      let g = groups.find((x) => x.name === name && x.project === project && x.parent === pid)
+      if (!g) {
+        g = { id: `g${groups.length + 1}`, name, project, parent: pid, touched: '今日', mtime: TODAY.getTime() }
+        groups.push(g)
+      }
+      parent = g
+    }
+    for (const n of names) {
+      const it = byName.get(n)
+      if (it && parent) it.group = parent.id
+    }
+  }
   // 見本では [[名前]] で書き、ファイルの形の [名前](patchouli:ID) に直す。ない名前は、リンク切れの見本として使う
   let lost = 0
   const lostId = new Map<string, string>()
@@ -657,5 +699,5 @@ export function sampleSpec(): Spec {
   }))
   const tagCovers = new Map(Object.entries(TAG_COVERS).map(([t, c]) => [t, c.map(withId) as TagCoverPart[]]))
   const pins = [...PROJECTS.flatMap((p) => p.pinNames), ...PINNED_ITEMS].flatMap((n) => byName.get(n)?.id ?? [])
-  return { items, projects, tagCovers, pins }
+  return { items, projects, groups, tagCovers, pins }
 }

@@ -1,4 +1,4 @@
-import type { CoverPart, Item, Library, Project, TagCoverPart, Thumbnail } from '../model/library'
+import type { CoverPart, Group, Item, Library, Place, Project, TagCoverPart, Thumbnail } from '../model/library'
 import type { ItemDetails, ItemView, MenuEntry, Part, PluginActions, PluginReport, UiRef } from '../plugins/types'
 import type { UiApi, UiItem } from '../plugins/ui'
 
@@ -24,9 +24,10 @@ export interface ItemPatch {
 export interface Orphan {
   meta: string
   name: string
-  folder: string | null
-  project: boolean
-  /** つなぎ直せる先の名前。素材なら同じフォルダのタグもメモもない素材、プロジェクトなら .meta のないフォルダ */
+  /** ある場所。ライブラリからのフォルダの並びを / でつないだもの */
+  place: string | null
+  kind: 'asset' | 'project' | 'group'
+  /** つなぎ直せる先の名前。素材なら同じフォルダのタグもメモもない素材、グループなら種類のないグループ */
   candidates: string[]
 }
 
@@ -43,6 +44,7 @@ export interface Changed {
   items: Item[]
   removed: string[]
   projects?: Project[]
+  groups?: Group[]
   state?: Partial<LibraryState>
   tagCovers?: Map<string, TagCoverPart[]>
   orphans?: Orphan[]
@@ -68,7 +70,7 @@ export type FileDrag =
 
 export interface Imported {
   items: Item[]
-  projects: Project[]
+  groups: Group[]
   skipped: number
   failed: string[]
 }
@@ -128,7 +130,7 @@ export interface PluginWork {
 export interface Backend {
   open(): Promise<Opened>
   saveItem(id: string, patch: ItemPatch): Promise<Item | undefined>
-  moveItem(id: string, folder: string | null): Promise<Item | undefined>
+  moveItem(id: string, place: Place): Promise<Item | undefined>
   renameItem(id: string, name: string): Promise<Item | undefined>
   /** ファイルとメタ情報をごみ箱に移動する。 */
   deleteItem?: (id: string) => Promise<void>
@@ -136,7 +138,7 @@ export interface Backend {
   /** 最近付けたタグ。新しい順。 */
   tagHistory?: () => Promise<string[]>
   saveTagHistory?: (tags: string[]) => Promise<void>
-  createNote(name: string, folder: string | null): Promise<Item>
+  createNote(name: string, place: Place): Promise<Item>
   createProject(name: string): Promise<Project>
   saveProject(name: string, cover: CoverPart[]): Promise<void>
   /** フォルダの名前を変える。中の項目は、あとで onChanged で届く。 */
@@ -157,8 +159,9 @@ export interface Backend {
   tidy?: TidyActions
   developer?: DeveloperActions
   onFileDrag?(cb: (e: FileDrag) => void): () => void
-  importDropped?(folder: string | null, projects: number[]): Promise<Imported>
-  importData?: (file: File, folder: string | null) => Promise<Item>
+  /** フォルダは、中のフォルダも含めてグループとして取り込む。 */
+  importDropped?(place: Place): Promise<Imported>
+  importData?: (file: File, place: Place) => Promise<Item>
   onThumbnail(cb: (id: string, thumb: Thumbnail) => void): () => void
   onChanged?(cb: (c: Changed) => void): () => void
   plugins(): Promise<PluginReport>

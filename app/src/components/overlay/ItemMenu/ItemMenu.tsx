@@ -1,7 +1,8 @@
 import { Match, Switch, createEffect, createSignal } from 'solid-js'
-import type { Item } from '../../../model/library'
+import { type Item, type Library, type Place, placeOf, samePlace } from '../../../model/library'
 import { TagPicker } from '../../controls/TagPicker/TagPicker'
 import { NavMenu, type NavMenuEntry } from '../../nav/NavMenu/NavMenu'
+import { PlaceMenu } from '../../nav/PlaceMenu/PlaceMenu'
 import { ContextMenu } from '../ContextMenu/ContextMenu'
 import styles from './ItemMenu.module.css'
 
@@ -18,7 +19,7 @@ export interface ItemMenuProps {
   y: number
   /** items のうち、ピン留めしている数。 */
   pinned: number
-  projects: string[]
+  lib: Library
   tags: string[]
   recentTags: string[]
   plugins?: ItemMenuEntry[]
@@ -27,7 +28,7 @@ export interface ItemMenuProps {
   onOpenDefault?: () => void
   onReveal?: () => void
   onRename: (name: string) => void
-  onMove: (folder: string | null) => void
+  onMove: (place: Place) => void
   onTag: (tag: string, on: boolean) => void
   onPin: (on: boolean) => void
   onCopyPath?: () => void
@@ -39,8 +40,6 @@ export interface ItemMenuProps {
 
 type Mode = 'main' | 'move' | 'tag' | 'rename'
 
-const NO_PROJECT = ':none:'
-const BACK = ':back:'
 const PLUGIN = 'plugin:'
 
 const group = (xs: (NavMenuEntry | false | undefined)[]): NavMenuEntry[] => xs.filter((x): x is NavMenuEntry => !!x)
@@ -70,7 +69,7 @@ export function ItemMenu(props: ItemMenuProps) {
             { id: 'rename', icon: 'rename' as const, label: '名前を変更' },
           ]
         : []),
-      { id: 'move', icon: 'move', label: 'プロジェクトへ移動' },
+      { id: 'move', icon: 'move', label: '移動' },
       { id: 'tag', icon: 'tag', label: 'タグを追加' },
       'separator',
       ...group([
@@ -92,21 +91,10 @@ export function ItemMenu(props: ItemMenuProps) {
         : []),
     ]
   }
-  const folder = () => {
-    const fs = new Set(props.items.map((i) => i.folder))
-    return fs.size === 1 ? [...fs][0] : undefined
+  const current = () => {
+    const [first, ...rest] = props.items
+    return first && rest.every((i) => samePlace(i, first)) ? placeOf(first) : undefined
   }
-  const projects = (): NavMenuEntry[] => [
-    {
-      id: BACK,
-      icon: 'back',
-      label: one() ? 'プロジェクトへ移動' : `${n()} 件をプロジェクトへ移動`,
-      heading: true,
-    },
-    'separator',
-    { id: NO_PROJECT, label: 'プロジェクトなし', current: folder() === null },
-    ...props.projects.map((p) => ({ id: p, icon: 'folder' as const, label: p, current: folder() === p })),
-  ]
   const countOf = (t: string) => props.items.filter((i) => i.tags.includes(t)).length
   const common = () => props.tags.filter((t) => countOf(t) === n())
   const mixed = () =>
@@ -134,10 +122,6 @@ export function ItemMenu(props: ItemMenuProps) {
     name: props.onCopyName,
     delete: props.onDelete,
   })
-  const onProject = (id: string) => {
-    if (id === BACK) setMode('main')
-    else done(() => props.onMove(id === NO_PROJECT ? null : id))
-  }
   const [name, setName] = createSignal(one()?.name ?? '')
   const rename = (e: SubmitEvent) => {
     e.preventDefault()
@@ -152,7 +136,14 @@ export function ItemMenu(props: ItemMenuProps) {
             <NavMenu items={main()} onSelect={onMain} onClose={props.onClose} />
           </Match>
           <Match when={mode() === 'move'}>
-            <NavMenu items={projects()} onSelect={onProject} onClose={props.onClose} />
+            <PlaceMenu
+              lib={props.lib}
+              title={one() ? '移動' : `${n()} 件を移動`}
+              current={current()}
+              onPick={(to) => done(() => props.onMove(to))}
+              onBack={() => setMode('main')}
+              onClose={props.onClose}
+            />
           </Match>
           <Match when={mode() === 'tag'}>
             <TagPicker

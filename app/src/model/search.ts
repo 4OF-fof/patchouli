@@ -17,9 +17,9 @@ export function findItems(lib: Library, terms: string[]): { it: Item; where: str
       } else if (it.tags.some((x) => x.toLowerCase().includes(t))) {
         sc += 2
         where.push(`タグ # ${it.tags.find((x) => x.toLowerCase().includes(t))}`)
-      } else if (it.folder?.toLowerCase().includes(t)) {
+      } else if (lib.placeName(it)?.toLowerCase().includes(t)) {
         sc += 1
-        where.push(`プロジェクト ${it.folder}`)
+        where.push(`所属 ${lib.placeName(it)}`)
       } else if (text.toLowerCase().includes(t)) {
         sc += 1
         const p = text.toLowerCase().indexOf(t)
@@ -27,7 +27,7 @@ export function findItems(lib: Library, terms: string[]): { it: Item; where: str
       } else return false
       return true
     })
-    if (ok) found.push({ it, sc, where: where.join(' · ') || (it.folder ?? 'プロジェクトなし') })
+    if (ok) found.push({ it, sc, where: where.join(' · ') || (lib.placeName(it) ?? '所属なし') })
   }
   return found.toSorted((a, b) => b.sc - a.sc || newerFirst(a.it, b.it)).map(({ it, where }) => ({ it, where }))
 }

@@ -78,7 +78,7 @@ export function TagScreen(props: TagScreenProps) {
   const together = createMemo(() =>
     count(shown().flatMap((i) => [...new Set(i.tags)].filter((t) => !near(props.tag, t)))).slice(0, 6),
   )
-  const projectCount = () => new Set(all().flatMap((i) => i.folder ?? [])).size
+  const projectCount = () => new Set(all().flatMap((i) => i.project ?? [])).size
 
   const body = (c: TagCoverPart, i: number): JSX.Element => {
     if (c.type === 'desc')

@@ -22,7 +22,6 @@ import {
 } from './backend'
 import { DropZone } from './components/overlay/DropZone/DropZone'
 import { ReloadOverlay } from './components/overlay/ReloadOverlay/ReloadOverlay'
-import { ImportDialog } from './components/dialog/ImportDialog/ImportDialog'
 import { DeleteDialog } from './components/dialog/DeleteDialog/DeleteDialog'
 import { OrphanDialog } from './components/dialog/OrphanDialog/OrphanDialog'
 import { TagGoneDialog } from './components/dialog/TagGoneDialog/TagGoneDialog'
@@ -35,11 +34,15 @@ import {
   hasTag,
   type Item,
   type Library,
+  type Place as ItemPlace,
+  ROOT,
   newNoteName,
   newProjectName,
+  placeOf,
   refsOf,
   retag,
   retaggedItems,
+  samePlace,
   tagClash,
   type TagCoverPart,
   toggled,
@@ -115,7 +118,7 @@ export interface AppProps {
 const importedNotice = (r: Imported) => {
   const n = r.items.length
   const parts = [n ? `${n} 件を取り込みました` : '取り込めるファイルがありませんでした']
-  if (r.projects.length) parts.push(`プロジェクト ${r.projects.length} 件`)
+  if (r.groups.length) parts.push(`グループ ${r.groups.length} 件`)
   if (r.skipped) parts.push(`${r.skipped} 件はライブラリ内のファイルなどのためスキップ`)
   if (r.failed.length) parts.push(`${r.failed.length} 件のコピーに失敗`)
   return parts.join('、')
@@ -315,22 +318,21 @@ export function App(props: AppProps) {
       }
     })
   }
-  const moveItem = (id: string, folder: string | null) => {
+  const moveItem = (id: string, to: ItemPlace) => {
     const it = lib().byId.get(id)
-    if (it && it.folder !== folder)
-      changeFile(id, { folder }, { folder: it.folder }, () => backend.moveItem(id, folder))
+    if (it && !samePlace(it, to)) changeFile(id, { ...to }, placeOf(it), () => backend.moveItem(id, to))
   }
   // 1 件ずつ動かし、動かせなかったものは元に戻して名前を知らせる
-  const moveItems = (ids: string[], folder: string | null) => {
-    const its = ids.flatMap((id) => lib().byId.get(id) ?? []).filter((it) => it.folder !== folder)
+  const moveItems = (ids: string[], to: ItemPlace) => {
+    const its = ids.flatMap((id) => lib().byId.get(id) ?? []).filter((it) => !samePlace(it, to))
     if (its.length <= 1) {
-      if (its[0]) moveItem(its[0].id, folder)
+      if (its[0]) moveItem(its[0].id, to)
       return
     }
     setLib(
       withChanged(
         lib(),
-        its.map((it) => ({ ...it, folder })),
+        its.map((it) => ({ ...it, ...to })),
         [],
       ),
     )
@@ -339,15 +341,15 @@ export function App(props: AppProps) {
       const failed: Item[] = []
       for (const it of its) {
         try {
-          const done = await backend.moveItem(it.id, folder)
+          const done = await backend.moveItem(it.id, to)
           if (done) setLib(withChanged(lib(), [done], []))
         } catch {
           const now = lib().byId.get(it.id)
-          if (now) setLib(withChanged(lib(), [{ ...now, folder: it.folder }], []))
+          if (now) setLib(withChanged(lib(), [{ ...now, ...placeOf(it) }], []))
           failed.push(it)
         }
       }
-      const place = `「${folder ?? 'プロジェクトなし'}」へ`
+      const place = `「${lib().placeName(to) ?? '所属なし'}」へ`
       const moved = its.length - failed.length
       setNotice(
         failed.length
@@ -446,9 +448,9 @@ export function App(props: AppProps) {
       fail(e)
     }
   }
-  const addNote = async (name: string | undefined, folder: string | null) => {
+  const addNote = async (name: string | undefined, place: ItemPlace) => {
     try {
-      const it = await backend.createNote(newNoteName(lib(), name), folder)
+      const it = await backend.createNote(newNoteName(lib(), name), place)
       setLib(withItem(lib(), it))
       return it
     } catch (e) {
@@ -457,7 +459,7 @@ export function App(props: AppProps) {
     }
   }
   const createNote = async (name?: string) => {
-    const it = await addNote(name, null)
+    const it = await addNote(name, ROOT)
     if (it) go({ s: 'note', id: it.id })
   }
   const embedOf = (it: Item) =>
@@ -689,7 +691,7 @@ export function App(props: AppProps) {
   const stopChanged =
     backend.onChanged?.((c) => {
       const s = c.state
-      setLib(withChanged(lib(), c.items, c.removed, c.projects, c.tagCovers, s?.pins))
+      setLib(withChanged(lib(), c.items, c.removed, c.projects, c.tagCovers, s?.pins, c.groups))
       if (s?.pinnedProjects) setPinnedProjects(s.pinnedProjects)
       if (s?.pinnedTags) setPinnedTags(s.pinnedTags)
       if (c.orphans) {
@@ -704,19 +706,18 @@ export function App(props: AppProps) {
   onCleanup(stopChanged)
 
   const [drag, setDrag] = createSignal<Dropped>()
-  const [asking, setAsking] = createSignal<Dropped>()
-  const dropFolder = () => {
+  const dropPlace = (): ItemPlace => {
     const v = view()
-    return v.s === 'project' ? v.name : null
+    return v.s === 'project' ? { project: v.name, group: null } : ROOT
   }
   const [importing, setImporting] = createSignal(0)
-  const importDropped = async (projects: number[], folder = dropFolder()) => {
+  const importDropped = async (place = dropPlace()) => {
     if (!backend.importDropped) return []
     setImporting(importing() + 1)
     try {
-      const r = await backend.importDropped(folder, projects)
+      const r = await backend.importDropped(place)
       if (r.failed.length) console.warn('取り込めなかったもの', r.failed)
-      setLib(withAdded(lib(), r.items, r.projects))
+      setLib(withAdded(lib(), r.items, [], r.groups))
       setNotice(importedNotice(r))
       return r.items
     } catch (e) {
@@ -726,12 +727,12 @@ export function App(props: AppProps) {
       setImporting(importing() - 1)
     }
   }
-  const importFiles = async (files: File[], folder: string | null) => {
+  const importFiles = async (files: File[], place: ItemPlace) => {
     const take = backend.importData
     if (!take) return []
     setImporting(importing() + 1)
     try {
-      const done = await Promise.allSettled(files.map((f) => take(f, folder)))
+      const done = await Promise.allSettled(files.map((f) => take(f, place)))
       const items = done.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
       const failed = done.flatMap((r) => (r.status === 'rejected' ? [r.reason] : []))
       if (failed.length) console.warn('取り込めなかったもの', failed)
@@ -746,7 +747,7 @@ export function App(props: AppProps) {
   const intoNote = () => {
     const v = view()
     return v.s === 'note' && noteEditor && !peek()
-      ? { editor: noteEditor, folder: lib().byId.get(v.id)?.folder ?? null }
+      ? { editor: noteEditor, place: placeOf(lib().byId.get(v.id) ?? ROOT) }
       : undefined
   }
   const stopDrag =
@@ -760,9 +761,8 @@ export function App(props: AppProps) {
         into?.editor.dropAt(undefined)
         if (!d?.files) return
         const at = { x: e.x, y: e.y }
-        if (into) void importDropped([], into.folder).then((items) => into.editor.insertItems(items, at))
-        else if (d.folders.length) setAsking(d)
-        else void importDropped([])
+        if (into) void importDropped(into.place).then((items) => into.editor.insertItems(items, at))
+        else void importDropped()
       } else if (e.type === 'leave') {
         setDrag(undefined)
         into?.editor.dropAt(undefined)
@@ -794,8 +794,8 @@ export function App(props: AppProps) {
     ...(importing() ? [{ key: 'import', icon: 'import' as const, label: 'ファイルを取り込み中' }] : []),
   ]
   const flatSub = () => {
-    const f = dropFolder()
-    return f ? `ドロップして「${f}」に追加します` : 'ドロップしてプロジェクト未指定で取り込みます'
+    const f = lib().placeName(dropPlace())
+    return f ? `ドロップして「${f}」に追加します` : 'ドロップして所属なしで取り込みます'
   }
 
   const noteScreen = (noteId: string, main: boolean) => (
@@ -808,7 +808,7 @@ export function App(props: AppProps) {
       onTogglePin={togglePin}
       onBody={(id, body) => editItem(id, { body }, { body })}
       onRename={renameItem}
-      onProject={moveItem}
+      onMove={moveItem}
       onAliases={setAliases}
       onTag={tagItem}
       recentTags={recentTags()}
@@ -827,7 +827,7 @@ export function App(props: AppProps) {
       onOpenNote={(id) => openItem(id)}
       onOpenTag={(tag) => go({ s: 'tag', tag })}
       onTogglePin={togglePin}
-      onProject={moveItem}
+      onMove={moveItem}
       onRename={renameItem}
       onTag={tagItem}
       recentTags={recentTags()}
@@ -1123,21 +1123,6 @@ export function App(props: AppProps) {
                       </Show>
                     )}
                   </Show>
-                  <Show when={asking()}>
-                    {(d) => (
-                      <ImportDialog
-                        files={d().files}
-                        folders={d().folders}
-                        loose={d().loose}
-                        into={dropFolder() ?? undefined}
-                        onImport={(projects) => {
-                          setAsking(undefined)
-                          void importDropped(projects)
-                        }}
-                        onClose={() => setAsking(undefined)}
-                      />
-                    )}
-                  </Show>
                   <Show when={menu()} keyed>
                     {(m) => {
                       const its = () => m.ids.flatMap((id) => lib().byId.get(id) ?? [])
@@ -1151,7 +1136,7 @@ export function App(props: AppProps) {
                             x={m.x}
                             y={m.y}
                             pinned={ids().filter((id) => lib().pins.includes(id)).length}
-                            projects={lib().projects.map((p) => p.name)}
+                            lib={lib()}
                             tags={allTags()}
                             recentTags={recentTags()}
                             plugins={menuPlugins()}
@@ -1160,7 +1145,7 @@ export function App(props: AppProps) {
                             onOpenDefault={openDefault && (() => one() && void openDefault(one()!).catch(fail))}
                             onReveal={reveal && (() => one() && void reveal(one()!).catch(fail))}
                             onRename={(name) => one() && renameItem(one()!, name)}
-                            onMove={(folder) => moveItems(ids(), folder)}
+                            onMove={(to) => moveItems(ids(), to)}
                             onTag={(tag, on) => tagItems(ids(), tag, on)}
                             onPin={(on) => pinItems(ids(), on)}
                             onCopyPath={

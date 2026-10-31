@@ -1,0 +1,37 @@
+/* 置き場所の側で、--select-width と --select-min-width で幅を変えられる */
+.root {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: var(--select-width, 100%);
+  min-width: var(--select-min-width, 0);
+  height: 28px;
+  padding: 0 8px 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-list);
+  text-align: left;
+  cursor: pointer;
+}
+.root:hover {
+  border-color: var(--faint);
+}
+.root:focus-visible,
+.root[aria-expanded='true'] {
+  border-color: var(--accent);
+  outline: 0;
+}
+.value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chevron {
+  flex: none;
+  color: var(--muted);
+}

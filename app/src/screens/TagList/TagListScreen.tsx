@@ -43,7 +43,7 @@ export function TagListScreen(props: TagListScreenProps) {
   })
 
   const row = (r: Row, sub: boolean) => {
-    const projects = new Set(r.items.flatMap((i) => i.folder ?? [])).size
+    const projects = new Set(r.items.flatMap((i) => i.project ?? [])).size
     const isOpen = () => open().includes(r.tag)
     const [head, ...rest] = r.tag.split('/')
     return (

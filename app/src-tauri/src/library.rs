@@ -15,6 +15,9 @@ use crate::orphan::{self, Orphan};
 use crate::plugin::{FormatInfo, Registry};
 
 pub const ID_KEY: &str = "patchouli-id";
+pub const TYPE_KEY: &str = "patchouli-type";
+pub const PRINT_KEY: &str = "patchouli-print";
+pub const PROJECT_TYPE: &str = "project";
 pub(crate) const STATE_DIR: &str = ".patchouli";
 const STATE_FILE: &str = "library.json";
 const TAG_HISTORY: &str = "tag-history.json";
@@ -50,7 +53,8 @@ pub struct StoredItem {
     pub note: bool,
     pub name: String,
     pub ext: String,
-    pub folder: Option<String>,
+    pub project: Option<String>,
+    pub group: Option<String>,
     pub tags: Vec<String>,
     pub memo: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -80,6 +84,28 @@ pub struct StoredProject {
     pub mtime: f64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StoredGroup {
+    pub id: String,
+    pub name: String,
+    pub project: Option<String>,
+    pub parent: Option<String>,
+    /// プラグインが足す特殊なグループの種類。ただのグループは持たない
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    pub dir: PathBuf,
+    pub mtime: f64,
+}
+
+/// 素材を置く場所。group があれば、project はそのグループのものに合わせる
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default)]
+pub struct Place {
+    pub project: Option<String>,
+    pub group: Option<String>,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct LibraryState {
@@ -94,6 +120,7 @@ pub struct Opened {
     pub root: PathBuf,
     pub items: Vec<StoredItem>,
     pub projects: Vec<StoredProject>,
+    pub groups: Vec<StoredGroup>,
     pub state: LibraryState,
     pub tag_covers: Map<String, Value>,
     pub orphans: Vec<Orphan>,
@@ -104,6 +131,7 @@ pub struct Opened {
 pub struct Scan {
     pub items: Vec<Row>,
     pub projects: Vec<StoredProject>,
+    pub groups: Vec<StoredGroup>,
     pub state: LibraryState,
     pub tag_covers: Map<String, Value>,
     pub orphans: Vec<Orphan>,
@@ -118,6 +146,8 @@ pub struct Changes {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub projects: Option<Vec<StoredProject>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub groups: Option<Vec<StoredGroup>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub state: Option<LibraryState>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tag_covers: Option<Map<String, Value>>,
@@ -131,6 +161,7 @@ impl Changes {
         self.items.is_empty()
             && self.removed.is_empty()
             && self.projects.is_none()
+            && self.groups.is_none()
             && self.state.is_none()
             && self.tag_covers.is_none()
             && self.orphans.is_none()
@@ -280,6 +311,7 @@ impl Library {
         let snap = self.cache.load().unwrap_or_else(|| crate::cache::Snapshot {
             rows: Vec::new(),
             projects: Vec::new(),
+            groups: Vec::new(),
             state: LibraryState::default(),
             tag_covers: Map::new(),
         });
@@ -287,6 +319,7 @@ impl Library {
             root: self.root.clone(),
             items: snap.rows.into_iter().map(|r| r.item).collect(),
             projects: snap.projects,
+            groups: snap.groups,
             state: snap.state,
             tag_covers: snap.tag_covers,
             orphans: self.orphans.clone(),
@@ -375,6 +408,7 @@ impl Library {
                 root: root.to_owned(),
                 items,
                 projects: snap.projects,
+                groups: snap.groups,
                 state: snap.state,
                 tag_covers: snap.tag_covers,
                 orphans: vec![],
@@ -392,42 +426,64 @@ impl Library {
             .filter(|(_, r)| r.saved)
             .map(|(p, r)| (r.item.id.clone(), p.clone()))
             .collect();
-        let mut items = Vec::new();
+        let mut f = Found {
+            known: &known,
+            items: Vec::new(),
+            groups: Vec::new(),
+            problems: Vec::new(),
+        };
         let mut projects = Vec::new();
-        let mut problems = Vec::new();
 
-        // 外で名前を変えた素材に、新しい ID を書く前に .meta を引き継ぐ
-        orphan::relink(root, &known, &mut problems);
-        for (path, is_dir) in list_dir(root, &mut problems) {
-            let name = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or_default()
-                .to_owned();
+        // 外で名前を変えた素材とグループに、新しい ID を書く前に .meta を引き継ぐ
+        orphan::relink(root, &known, &mut f.problems);
+        for (path, is_dir) in list_dir(root, &mut f.problems) {
             if !is_dir {
-                items.extend(lib.read_item(&path, None, known.get(&path), &mut problems));
+                let row = lib.read_item(&path, None, None, known.get(&path), &mut f.problems);
+                f.items.extend(row);
                 continue;
             }
             let meta = meta_path(&path);
-            let id = match read_json(&meta) {
-                Ok(m) => m.and_then(|m| m.get(ID_KEY)?.as_str().map(str::to_owned)),
+            let m = match read_json(&meta) {
+                Ok(m) => m,
                 Err(e) => {
-                    problems.push(format!("{}: {e}", meta.display()));
-                    None
+                    f.problems.push(format!("{}: {e}", meta.display()));
+                    continue;
                 }
             };
-            let (cover, cover_mtime) = match id.filter(|id| check_name(id).is_ok()) {
-                Some(id) => cover::read(&lib.cards_dir(&id), &mut problems),
+            let project = m
+                .as_ref()
+                .is_some_and(|m| m.get(TYPE_KEY).and_then(Value::as_str) == Some(PROJECT_TYPE));
+            if !project {
+                lib.read_group(&path, None, None, m, &mut f);
+                continue;
+            }
+            let mut m = m.unwrap_or_default();
+            let name = name_of(&path);
+            let id = m
+                .get(ID_KEY)
+                .and_then(Value::as_str)
+                .filter(|id| check_name(id).is_ok())
+                .map(str::to_owned);
+            let (cover, cover_mtime) = match &id {
+                Some(id) => cover::read(&lib.cards_dir(id), &mut f.problems),
                 None => (json!([]), 0.0),
             };
-            let from = items.len();
-            lib.read_dir(&path, &name, &known, &mut items, &mut problems);
-            let mtime = items[from..].iter().map(|r| r.item.mtime).fold(
+            let from = f.items.len();
+            let kids = lib.read_dir(&path, Some(&name), None, &mut f);
+            put_print(&meta, &mut m, kids, &mut f.problems);
+            let mtime = f.items[from..].iter().map(|r| r.item.mtime).fold(
                 mtime_of(&path).max(mtime_of(&meta)).max(cover_mtime),
                 f64::max,
             );
             projects.push(StoredProject { name, cover, mtime });
         }
+        let Found {
+            items,
+            mut groups,
+            mut problems,
+            ..
+        } = f;
+        groups.sort_by(|a, b| a.dir.cmp(&b.dir));
 
         let state_path = lib.state_path();
         let state = match read_json(&state_path) {
@@ -443,14 +499,14 @@ impl Library {
         };
         let tag_covers = lib.read_tag_covers(&mut problems);
         orphan::sweep(root, &mut problems);
-        let ids = items.iter().map(|r| r.item.id.clone()).collect();
-        let orphans = orphan::find(root, &ids);
+        let orphans = orphan::find(root);
         lib.orphans = orphans.clone();
         (
             lib,
             Scan {
                 items,
                 projects,
+                groups,
                 state,
                 tag_covers,
                 orphans,
@@ -460,12 +516,18 @@ impl Library {
     }
 
     pub fn opened(&self, scan: Scan) -> Opened {
-        self.cache
-            .replace(&scan.items, &scan.projects, &scan.state, &scan.tag_covers);
+        self.cache.replace(
+            &scan.items,
+            &scan.projects,
+            &scan.groups,
+            &scan.state,
+            &scan.tag_covers,
+        );
         Opened {
             root: self.root.clone(),
             items: scan.items.into_iter().map(|r| r.item).collect(),
             projects: scan.projects,
+            groups: scan.groups,
             state: scan.state,
             tag_covers: scan.tag_covers,
             orphans: scan.orphans,
@@ -539,6 +601,20 @@ impl Library {
             changes.projects = Some(projects);
         }
 
+        let mut was = self.cache.groups();
+        was.sort_by(|a, b| a.dir.cmp(&b.dir));
+        let mut groups: Vec<StoredGroup> = scan
+            .groups
+            .into_iter()
+            .filter(|g| !touched.contains(&g.dir))
+            .chain(was.iter().filter(|g| touched.contains(&g.dir)).cloned())
+            .collect();
+        groups.sort_by(|a, b| a.dir.cmp(&b.dir));
+        if serde_json::to_value(&groups).ok() != serde_json::to_value(&was).ok() {
+            self.cache.replace_groups(&groups);
+            changes.groups = Some(groups);
+        }
+
         if !touched.contains(&self.state_path())
             && serde_json::to_value(&scan.state).ok()
                 != serde_json::to_value(self.cache.state()).ok()
@@ -560,27 +636,90 @@ impl Library {
         }
     }
 
+    /// 直下の項目とグループを読み、その ID を返す。
     fn read_dir(
         &mut self,
         dir: &Path,
-        project: &str,
-        known: &HashMap<PathBuf, Row>,
-        items: &mut Vec<Row>,
-        problems: &mut Vec<String>,
-    ) {
-        for (path, is_dir) in list_dir(dir, problems) {
+        project: Option<&str>,
+        group: Option<&str>,
+        f: &mut Found,
+    ) -> Vec<String> {
+        let mut kids = Vec::new();
+        for (path, is_dir) in list_dir(dir, &mut f.problems) {
             if is_dir {
-                self.read_dir(&path, project, known, items, problems);
+                let m = match read_json(&meta_path(&path)) {
+                    Ok(m) => m,
+                    Err(e) => {
+                        f.problems
+                            .push(format!("{}: {e}", meta_path(&path).display()));
+                        continue;
+                    }
+                };
+                kids.extend(self.read_group(&path, project, group, m, f));
             } else {
-                items.extend(self.read_item(&path, Some(project), known.get(&path), problems));
+                let row =
+                    self.read_item(&path, project, group, f.known.get(&path), &mut f.problems);
+                if let Some(r) = row {
+                    kids.push(r.item.id.clone());
+                    f.items.push(r);
+                }
             }
         }
+        kids
+    }
+
+    /// グループのフォルダを読む。.meta がなければ ID を書く。コピーで ID が重なったら、あとのほうに新しい ID を書く。
+    fn read_group(
+        &mut self,
+        dir: &Path,
+        project: Option<&str>,
+        parent: Option<&str>,
+        meta: Option<Map<String, Value>>,
+        f: &mut Found,
+    ) -> Option<String> {
+        let mut m = meta.unwrap_or_default();
+        let id = m
+            .get(ID_KEY)
+            .and_then(Value::as_str)
+            .filter(|id| check_name(id).is_ok() && !f.groups.iter().any(|g| g.id == *id))
+            .map(str::to_owned)
+            .unwrap_or_else(|| {
+                let id = new_id();
+                m.insert(ID_KEY.into(), json!(id));
+                m.remove(PRINT_KEY);
+                id
+            });
+        let kind = m
+            .get(TYPE_KEY)
+            .and_then(Value::as_str)
+            .filter(|t| *t != PROJECT_TYPE)
+            .map(str::to_owned);
+        let at = f.groups.len();
+        f.groups.push(StoredGroup {
+            id: id.clone(),
+            name: name_of(dir),
+            project: project.map(str::to_owned),
+            parent: parent.map(str::to_owned),
+            kind,
+            dir: dir.to_owned(),
+            mtime: 0.0,
+        });
+        let from = f.items.len();
+        let kids = self.read_dir(dir, project, Some(&id), f);
+        let meta = meta_path(dir);
+        put_print(&meta, &mut m, kids, &mut f.problems);
+        f.groups[at].mtime = f.items[from..]
+            .iter()
+            .map(|r| r.item.mtime)
+            .fold(mtime_of(dir).max(mtime_of(&meta)), f64::max);
+        Some(id)
     }
 
     pub(crate) fn read_item(
         &mut self,
         path: &Path,
-        folder: Option<&str>,
+        project: Option<&str>,
+        group: Option<&str>,
         known: Option<&Row>,
         problems: &mut Vec<String>,
     ) -> Option<Row> {
@@ -602,7 +741,10 @@ impl Library {
                     saved: k.saved,
                 },
             );
-            return Some(k.clone());
+            let mut k = k.clone();
+            k.item.project = project.map(str::to_owned);
+            k.item.group = group.map(str::to_owned);
+            return Some(k);
         }
         let name = path
             .file_stem()
@@ -658,7 +800,8 @@ impl Library {
                 note,
                 name,
                 ext,
-                folder: folder.map(str::to_owned),
+                project: project.map(str::to_owned),
+                group: group.map(str::to_owned),
                 tags: r.tags,
                 memo: r.memo,
                 aliases: r.aliases,
@@ -757,34 +900,78 @@ impl Library {
         Ok(item.filter(|_| changed))
     }
 
-    pub fn move_item(&mut self, id: &str, folder: Option<&str>) -> Result<StoredItem, String> {
+    pub fn move_item(&mut self, id: &str, place: &Place) -> Result<StoredItem, String> {
         // 生成物は ID で引くので、ID をメタ情報に書いてから動かす
         self.ensure_saved(id)?;
         let from = self.entry(id)?.path.clone();
         let row = self.row_of(&from)?;
-        if row.item.folder.as_deref() == folder {
+        let (dir, project, group) = self.place_dir(place)?;
+        if row.item.project == project && row.item.group == group {
             return Ok(row.item);
         }
-        let dir = match folder {
-            Some(f) => {
-                let d = self.project_dir(f)?;
-                if !d.is_dir() {
-                    return Err(format!("プロジェクト「{f}」が見つかりません"));
-                }
-                d
-            }
-            None => self.root.clone(),
-        };
         let name = from.file_name().ok_or("ファイル名がありません")?;
-        let place = folder.unwrap_or("プロジェクトなし");
         let taken = format!(
-            "「{place}」に同じ名前のファイル（{}）があるため、移動できません",
+            "「{}」に同じ名前のファイル（{}）があるため、移動できません",
+            self.place_name(&dir),
             name.to_string_lossy()
         );
         let to = dir.join(name);
-        self.relocate(id, row, &to, taken, |it| {
-            it.folder = folder.map(str::to_owned);
-        })
+        let it = self.relocate(id, row, &to, taken, |it| {
+            (it.project, it.group) = (project, group);
+        })?;
+        self.reprint([from.parent().unwrap_or(&self.root).to_owned(), dir]);
+        Ok(it)
+    }
+
+    /// 置き場所のフォルダと、そこに置いた素材の project・group。
+    pub(crate) fn place_dir(
+        &self,
+        place: &Place,
+    ) -> Result<(PathBuf, Option<String>, Option<String>), String> {
+        if let Some(id) = &place.group {
+            let g = self
+                .cache
+                .group(id)
+                .ok_or_else(|| format!("ID「{id}」のグループが見つかりません"))?;
+            if !g.dir.is_dir() {
+                return Err(format!("グループ「{}」が見つかりません", g.name));
+            }
+            return Ok((g.dir, g.project, Some(g.id)));
+        }
+        match &place.project {
+            Some(p) => {
+                let d = self.project_dir(p)?;
+                if !d.is_dir() {
+                    return Err(format!("プロジェクト「{p}」が見つかりません"));
+                }
+                Ok((d, Some(p.clone()), None))
+            }
+            None => Ok((self.root.clone(), None, None)),
+        }
+    }
+
+    pub(crate) fn place_name(&self, dir: &Path) -> String {
+        if dir == self.root {
+            "所属なし".into()
+        } else {
+            name_of(dir)
+        }
+    }
+
+    /// 直下が変わったフォルダの照合用の値を、裏で書き直す。
+    pub(crate) fn reprint(&self, dirs: impl IntoIterator<Item = PathBuf>) {
+        let mut dirs: Vec<PathBuf> = dirs.into_iter().filter(|d| *d != self.root).collect();
+        dirs.dedup();
+        if dirs.is_empty() {
+            return;
+        }
+        std::thread::spawn(move || {
+            for d in dirs {
+                if let Err(e) = orphan::reprint(&d) {
+                    log::warn!("照合用の値を書けない: {e}");
+                }
+            }
+        });
     }
 
     pub fn rename_item(&mut self, id: &str, name: &str) -> Result<StoredItem, String> {
@@ -834,6 +1021,7 @@ impl Library {
         if self.owners.get(id) == Some(&path) {
             self.owners.remove(id);
         }
+        self.reprint(path.parent().map(Path::to_owned));
         self.cache.update(&[], &[path]);
         Ok(())
     }
@@ -967,12 +1155,9 @@ impl Library {
         Ok(self.root.join(name))
     }
 
-    pub fn create_note(&mut self, name: &str, folder: Option<&str>) -> Result<StoredItem, String> {
+    pub fn create_note(&mut self, name: &str, place: &Place) -> Result<StoredItem, String> {
         check_name(name)?;
-        let dir = match folder {
-            Some(f) => self.project_dir(f)?,
-            None => self.root.clone(),
-        };
+        let (dir, project, group) = self.place_dir(place)?;
         // 画面の知らないファイルがあっても作れるよう、かぶったら番号を付ける
         let base = name;
         let mut name = base.to_owned();
@@ -1006,7 +1191,8 @@ impl Library {
             note: true,
             name,
             ext: NOTE_EXT.into(),
-            folder: folder.map(str::to_owned),
+            project,
+            group,
             tags: vec![],
             memo: String::new(),
             aliases: Some(vec![]),
@@ -1024,6 +1210,7 @@ impl Library {
             saved: true,
             sig: Sig::of(&path, true),
         });
+        self.reprint([dir]);
         Ok(item)
     }
 
@@ -1036,6 +1223,8 @@ impl Library {
         fs::create_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let mut m = Map::new();
         m.insert(ID_KEY.into(), json!(new_id()));
+        m.insert(TYPE_KEY.into(), json!(PROJECT_TYPE));
+        m.insert(PRINT_KEY.into(), json!(orphan::group_print(vec![])));
         write_json(&meta, &m)?;
         let p = StoredProject {
             name: name.to_owned(),
@@ -1045,6 +1234,45 @@ impl Library {
         self.mark(&dir);
         self.cache.put_project(&p);
         Ok(p)
+    }
+
+    /// place の中にグループのフォルダを作る。同じ名前があれば番号を付ける。
+    pub(crate) fn create_group(
+        &mut self,
+        base: &str,
+        place: &Place,
+    ) -> Result<StoredGroup, String> {
+        check_name(base)?;
+        let (parent, project, group) = self.place_dir(place)?;
+        let mut name = base.to_owned();
+        for k in 2.. {
+            let d = parent.join(&name);
+            if !d.exists() && !meta_path(&d).exists() {
+                break;
+            }
+            name = format!("{base} {k}");
+        }
+        let dir = parent.join(&name);
+        fs::create_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let id = new_id();
+        let meta = meta_path(&dir);
+        let mut m = Map::new();
+        m.insert(ID_KEY.into(), json!(id));
+        m.insert(PRINT_KEY.into(), json!(orphan::group_print(vec![])));
+        write_json(&meta, &m)?;
+        let g = StoredGroup {
+            id,
+            name,
+            project,
+            parent: group,
+            kind: None,
+            dir: dir.clone(),
+            mtime: mtime_of(&meta),
+        };
+        self.mark(&dir);
+        self.cache.put_group(&g);
+        self.reprint([parent]);
+        Ok(g)
     }
 
     pub fn save_project(&mut self, name: &str, cover: Value) -> Result<(), String> {
@@ -1239,6 +1467,37 @@ fn hidden(path: &Path) -> bool {
 #[cfg(not(windows))]
 fn hidden(_: &Path) -> bool {
     false
+}
+
+struct Found<'a> {
+    known: &'a HashMap<PathBuf, Row>,
+    items: Vec<Row>,
+    groups: Vec<StoredGroup>,
+    problems: Vec<String>,
+}
+
+pub(crate) fn name_of(path: &Path) -> String {
+    path.file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// 直下の ID から作った照合用の値を、変わっていれば .meta に書く。
+fn put_print(
+    meta: &Path,
+    m: &mut Map<String, Value>,
+    kids: Vec<String>,
+    problems: &mut Vec<String>,
+) {
+    let print = json!(orphan::group_print(kids));
+    if m.get(PRINT_KEY) == Some(&print) && meta.exists() {
+        return;
+    }
+    m.insert(PRINT_KEY.into(), print);
+    if let Err(e) = write_json(meta, m) {
+        problems.push(format!("{}: {e}", meta.display()));
+    }
 }
 
 pub(crate) fn listed(path: &Path) -> bool {
