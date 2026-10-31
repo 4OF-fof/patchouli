@@ -1,4 +1,4 @@
-import { Index } from 'solid-js'
+import { Index, Show } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
 import { middleClick } from '../../nav/TabPane/newTab'
 import { Thumb, type ThumbProps } from '../Thumb/Thumb'
@@ -30,11 +30,10 @@ export function GroupCard(props: GroupCardProps) {
         <Index each={DEPTHS}>
           {(d) => {
             const face = () => props.faces[d()]
-            const layer = () => `${styles.layer} ${styles[`d${d()}`]}`
-            return face() ? (
-              <Thumb {...face()} id={undefined} menu={false} class={layer()} />
-            ) : (
-              <span class={`${layer()} ${styles.blank}`} />
+            return (
+              <Show when={face()}>
+                {(f) => <Thumb {...f()} menu={false} class={`${styles.layer} ${styles[`d${d()}`]}`} />}
+              </Show>
             )
           }}
         </Index>

@@ -43,11 +43,6 @@
   inset: 10% 26% 22%;
   filter: brightness(0.62);
 }
-.blank {
-  display: block;
-  border-radius: var(--radius-sm);
-  background: var(--line-2);
-}
 .nm {
   display: flex;
   align-items: baseline;
