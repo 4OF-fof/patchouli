@@ -1,8 +1,11 @@
-/* 中のカードは --select-mark で選ぶ印を出すかを決める */
+/* 中のカードは、--select-mark ですべての、--select-hover でホバーしているものの選ぶ印を出すかを決める */
 .root {
   --select-mark: hidden;
 }
 .root[data-mod] {
+  --select-hover: visible;
+}
+.root[data-any] {
   --select-mark: visible;
 }
 .root[data-dragging] {

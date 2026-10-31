@@ -76,7 +76,8 @@ const typing = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || !!t.closest('input, textarea, select'))
 
 /**
- * カードを選べる範囲。Ctrl か Shift を押しているあいだはカードに選ぶ印を出し、空いた所からのドラッグで囲んで選ぶ。
+ * カードを選べる範囲。Ctrl か Shift を押しているあいだはホバーしているカードに、選んでいるものがあればすべてのカードに選ぶ印を出す。
+ * 空いた所からのドラッグで囲んで選ぶ。
  * 空いた所を押すか Esc で選択を外し、Ctrl A ですべて選ぶ。
  */
 export function SelectArea(props: SelectAreaProps) {
@@ -166,6 +167,7 @@ export function SelectArea(props: SelectAreaProps) {
         ref={el}
         class={`${styles.root} ${props.class ?? ''}`}
         data-mod={mod() || undefined}
+        data-any={sel.ids().length > 0 || undefined}
         data-dragging={!!rect() || undefined}
         onPointerDown={onDown}
         onPointerMove={onMove}

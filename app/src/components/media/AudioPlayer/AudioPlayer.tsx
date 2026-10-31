@@ -27,6 +27,8 @@ export interface AudioPlayerProps {
 /** 棒の幅と、棒と次の棒の間（CSS px）。stage は src-tauri/src/thumb.rs の WAVE_BAR・WAVE_GAP と合わせる。 */
 const BARS = { stage: [5, 2], row: [3, 1] } as const
 
+const fix = (v: number) => +v.toFixed(2)
+
 function wavePath(wave: Uint8Array | null | undefined, w: number, h: number, [BAR, GAP]: readonly [number, number]) {
   const vals = wave ?? new Uint8Array(1)
   const n = vals.length
@@ -42,13 +44,12 @@ function wavePath(wave: Uint8Array | null | undefined, w: number, h: number, [BA
   const top = Math.max(...levels)
   const pitch = w / count
   const r = BAR / 2
-  const f = (v: number) => +v.toFixed(2)
   let d = ''
   for (let k = 0; k < count; k++) {
     const len = Math.max(BAR, top > 0 ? ((levels[k] ?? 0) / top) * h : 0)
     const x = k * pitch + (pitch - BAR) / 2
     const y = (h - len) / 2
-    d += `M${f(x)} ${f(y + r)}a${r} ${r} 0 0 1 ${BAR} 0v${f(len - BAR)}a${r} ${r} 0 0 1 ${-BAR} 0z`
+    d += `M${fix(x)} ${fix(y + r)}a${r} ${r} 0 0 1 ${BAR} 0v${fix(len - BAR)}a${r} ${r} 0 0 1 ${-BAR} 0z`
   }
   return d
 }
