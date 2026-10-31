@@ -1,0 +1,125 @@
+/* 本文の上に浮かべる。隠れているあいだも場所は取らず、左端に寄せたときだけ出す */
+.root {
+  position: absolute;
+  top: var(--space-6);
+  bottom: var(--space-6);
+  left: var(--space-6);
+  z-index: var(--z-panel);
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--float);
+  box-shadow: var(--shadow-float);
+  color: var(--ink-2);
+  font-size: var(--fs-list);
+  user-select: none;
+  transition:
+    transform 0.14s ease,
+    opacity 0.14s ease,
+    visibility 0.14s;
+}
+.root[data-open='false'] {
+  visibility: hidden;
+  opacity: 0;
+  transform: translateX(-12px);
+}
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.add,
+.tab {
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-sm);
+}
+.add {
+  gap: var(--space-8);
+  padding: 0 var(--space-8);
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.add:hover {
+  background: var(--card);
+  color: var(--ink);
+}
+.tab {
+  color: var(--ink-2);
+}
+/* 表のタブより目立たないよう、縁と表のタブの中間の色にする */
+.tab:hover {
+  background: color-mix(in oklch, var(--card) 50%, var(--side));
+  color: var(--ink);
+}
+.tab[data-current='true'] {
+  background: var(--card);
+  color: var(--ink);
+}
+.main {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: 0 var(--space-4) 0 var(--space-8);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.main:focus-visible {
+  outline-offset: -2px;
+}
+.add svg,
+.main svg {
+  flex: none;
+}
+/* かなは字面の中心が高く見えるので、アイコンの中心より 1px 下げる */
+.label {
+  min-width: 0;
+  padding-top: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-right: var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  visibility: hidden;
+}
+.tab:hover .close,
+.tab[data-current='true'] .close,
+.close:focus-visible {
+  visibility: visible;
+}
+.close:hover {
+  background: var(--line-2);
+  color: var(--ink);
+}

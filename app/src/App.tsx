@@ -70,7 +70,8 @@ import type { Activity } from './components/nav/ActivityButton/ActivityButton'
 import type { NavMenuItem } from './components/nav/NavMenu/NavMenu'
 import { asNewTab, inNewTab } from './components/nav/TabPane/newTab'
 import { TabPane } from './components/nav/TabPane/TabPane'
-import type { TabEntry } from './components/nav/TabStrip/TabStrip'
+import { TabList } from './components/nav/TabList/TabList'
+import type { TabEntry, TabStripProps } from './components/nav/TabStrip/TabStrip'
 import type { IconName } from './components/base/Icon/Icon'
 import { SelectionProvider, createSelection } from './components/media/Selection/Selection'
 import { ItemMenuProvider, ThumbMakingProvider, ThumbSeenProvider, watchSeen } from './components/media/Thumb/Thumb'
@@ -134,6 +135,15 @@ interface Tab {
   setStack: (s: View[]) => void
   /** 裏に開いたタブの、開いたもとのタブ。 */
   from?: Tab
+}
+
+const TABS_AT = 'patchouli.tabsAt'
+const readTabsAt = (): 'top' | 'left' => {
+  try {
+    return localStorage.getItem(TABS_AT) === 'left' ? 'left' : 'top'
+  } catch {
+    return 'top'
+  }
 }
 
 const str = (x: unknown) => (typeof x === 'string' ? x : undefined)
@@ -264,6 +274,25 @@ export function App(props: AppProps) {
     if (!rest.length) rest.push(makeTab())
     setTabs(rest)
     if (currentTab() === t) setCurrentTab(rest[Math.min(i, rest.length - 1)])
+  }
+  const tabStrip = (): TabStripProps => ({
+    tabs: tabs().map(tabEntry),
+    current: currentTab().id,
+    onSelect: (id) => {
+      const t = tabs().find((x) => x.id === id)
+      if (t) setCurrentTab(t)
+    },
+    onClose: closeTab,
+    onNew: addTab,
+  })
+  // 試しに切り替えて見比べるためのもの。どこで切り替えるかは決まっていないので、この窓にだけ覚えておく
+  const [tabsAt, setTabsAt] = createSignal<'top' | 'left'>(readTabsAt())
+  const toggleTabsAt = () => {
+    const next = tabsAt() === 'top' ? 'left' : 'top'
+    setTabsAt(next)
+    try {
+      localStorage.setItem(TABS_AT, next)
+    } catch {}
   }
   const tabEntry = (t: Tab): TabEntry => {
     const v = t.stack().at(-1) ?? { s: 'edition' }
@@ -1196,18 +1225,11 @@ export function App(props: AppProps) {
                       onPluginsChanged={reloadPlugins}
                       request={barRequest()}
                       activities={activities()}
-                      tabs={{
-                        tabs: tabs().map(tabEntry),
-                        current: currentTab().id,
-                        onSelect: (id) => {
-                          const t = tabs().find((x) => x.id === id)
-                          if (t) setCurrentTab(t)
-                        },
-                        onClose: closeTab,
-                        onNew: addTab,
-                      }}
+                      tabs={tabsAt() === 'top' ? tabStrip() : undefined}
+                      onToggleTabs={toggleTabsAt}
                     />
                   }
+                  side={tabsAt() === 'left' ? <TabList {...tabStrip()} /> : undefined}
                   toast={
                     (notice() || broken().length > 0 || clashes().length > 0) && (
                       <>

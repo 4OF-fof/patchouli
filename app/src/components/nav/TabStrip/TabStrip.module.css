@@ -24,25 +24,21 @@
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   color: var(--muted);
 }
-/* 裏のタブどうしの境目に線を引く。表のタブとホバーしているタブの両側には引かない */
+/* タブどうしの境目に線を引く。表のタブは地の色で分かるので、その両側には引かない */
 .tab + .tab::before {
   content: '';
   position: absolute;
   left: 0;
-  top: var(--space-8);
-  bottom: var(--space-8);
+  top: var(--space-6);
+  bottom: var(--space-6);
   width: 1px;
-  background: var(--line-2);
+  background: var(--disabled);
 }
 .tab[data-current='true']::before,
-.tab[data-current='true'] + .tab::before,
-.tab:hover::before,
-.tab:hover + .tab::before {
+.tab[data-current='true'] + .tab::before {
   visibility: hidden;
 }
-/* 表のタブより目立たないよう、タイトルバーと表のタブの中間の色にする */
 .tab:hover {
-  background: color-mix(in oklch, var(--paper) 50%, var(--side));
   color: var(--ink);
 }
 .tab[data-current='true'] {

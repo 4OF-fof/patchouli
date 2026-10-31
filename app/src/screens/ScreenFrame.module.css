@@ -8,10 +8,16 @@
   font-size: var(--fs-body);
   line-height: 1.6;
 }
-.body {
+.main {
   position: relative;
   flex: 1;
   min-height: 0;
+  display: flex;
+}
+.body {
+  position: relative;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
 }
 .toast {

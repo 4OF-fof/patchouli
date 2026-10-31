@@ -67,6 +67,7 @@ export interface AppBarProps {
   request?: BarRequest
   /** あれば、タイトルバーにタブを並べ、いまの場所はその下の段に出す。 */
   tabs?: TabStripProps
+  onToggleTabs?: () => void
 }
 
 const toggleTheme = () => {
@@ -211,6 +212,7 @@ export function AppBar(props: AppBarProps) {
     { id: 'plugins', icon: 'plugin', label: 'プラグイン' },
     'separator',
     { id: 'theme', icon: 'theme', label: 'テーマを切り替え' },
+    ...(props.onToggleTabs ? [{ id: 'tabs', icon: 'newTab' as const, label: 'タブの位置を切り替え' }] : []),
     { id: 'keys', icon: 'keyboard', label: 'ショートカット一覧', kbd: '?' },
     { id: 'notices', icon: 'notices', label: '権利表示' },
     { id: 'settings', icon: 'settings', label: '設定' },
@@ -231,6 +233,10 @@ export function AppBar(props: AppBarProps) {
   const onMenu = (id: string) => {
     if (id === 'settings') return setState('settings')
     if (id === 'theme') return toggleTheme()
+    if (id === 'tabs') {
+      close()
+      return props.onToggleTabs?.()
+    }
     if (id === 'keys') return setState('help')
     if (id === 'plugins') return setState('plugins')
     if (id === 'notices') return setState('notices')
