@@ -74,7 +74,7 @@ export function TagListScreen(props: TagListScreenProps) {
                 )}
               </b>
               <span>
-                {r.items.length} 件 · {projects} プロジェクト
+                {r.items.length} 件 | {projects} プロジェクト
               </span>
             </span>
             <ThumbStrip class={styles.strip} items={r.items.toSorted(coverOrder(lib())).slice(0, 8)} />
@@ -95,7 +95,7 @@ export function TagListScreen(props: TagListScreenProps) {
           <header class={shared.mast}>
             <h1>タグ</h1>
             <span class={shared.meta}>
-              {flat().size} 件 / {sort() === 'name' ? '名前順' : '件数順'}
+              {flat().size} 件 | {sort() === 'name' ? '名前順' : '件数順'}
             </span>
             <span class={shared.end}>
               <Tabs

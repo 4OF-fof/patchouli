@@ -6,12 +6,12 @@ import { type SearchMode, SearchPalette } from './SearchPalette'
 const recent = () => (
   <>
     <ResultHeading>プロジェクト</ResultHeading>
-    <ResultRow kind="project" title="秋の企画" sub="32 件 · 最終更新 2 日前" selected />
-    <ResultRow kind="project" title="日記" sub="64 件 · 最終更新 今日" />
+    <ResultRow kind="project" title="秋の企画" sub="32 件 | 最終更新 2 日前" selected />
+    <ResultRow kind="project" title="日記" sub="64 件 | 最終更新 今日" />
     <ResultHeading>項目</ResultHeading>
-    <ResultRow kind="note" title="配色のメモ" sub="最近 · 秋の企画" />
-    <ResultRow kind="asset" title="夕方の港" sub="最近 · 秋の企画" thumb={{ hue: 205 }} />
-    <ResultRow kind="asset" title="路地の看板" sub="最近 · 日記" thumb={{ hue: 20 }} />
+    <ResultRow kind="note" title="配色のメモ" sub="最近 | 秋の企画" />
+    <ResultRow kind="asset" title="夕方の港" sub="最近 | 秋の企画" thumb={{ hue: 205 }} />
+    <ResultRow kind="asset" title="路地の看板" sub="最近 | 日記" thumb={{ hue: 20 }} />
   </>
 )
 

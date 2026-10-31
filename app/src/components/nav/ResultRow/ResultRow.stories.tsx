@@ -18,10 +18,10 @@ type Story = StoryObj<typeof meta>
 
 export const Command: Story = {}
 export const Project: Story = {
-  args: { kind: 'project', title: '秋の企画', sub: '32 件 · 最終更新 2 日前', kbd: undefined },
+  args: { kind: 'project', title: '秋の企画', sub: '32 件 | 最終更新 2 日前', kbd: undefined },
 }
 export const Note: Story = {
-  args: { kind: 'note', sub: '最近 · 秋の企画', kbd: undefined },
+  args: { kind: 'note', sub: '最近 | 秋の企画', kbd: undefined },
   render: (args) => (
     <ResultRow
       {...args}
@@ -53,7 +53,7 @@ export const Selected: Story = {
   args: {
     kind: 'note',
     title: '配色のメモ',
-    sub: '最近 · 秋の企画',
+    sub: '最近 | 秋の企画',
     selected: true,
     kbd: undefined,
   },

@@ -23,7 +23,7 @@ export function GroupScreen(props: GroupScreenProps) {
         <DetailScreen
           label="グループ"
           title={<h1>{gr().name}</h1>}
-          meta={`${lib().inGroup(props.id).length} 件 / 最終更新 ${gr().touched}`}
+          meta={`${lib().inGroup(props.id).length} 件 | 最終更新 ${gr().touched}`}
           items={list()}
           lib={lib()}
           groups={flat() ? [] : lib().groupsIn(here())}

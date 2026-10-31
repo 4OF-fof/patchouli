@@ -27,7 +27,7 @@ export function findItems(lib: Library, terms: string[]): { it: Item; where: str
       } else return false
       return true
     })
-    if (ok) found.push({ it, sc, where: where.join(' · ') || (lib.placeName(it) ?? '所属なし') })
+    if (ok) found.push({ it, sc, where: where.join(' | ') || (lib.placeName(it) ?? '所属なし') })
   }
   return found.toSorted((a, b) => b.sc - a.sc || newerFirst(a.it, b.it)).map(({ it, where }) => ({ it, where }))
 }

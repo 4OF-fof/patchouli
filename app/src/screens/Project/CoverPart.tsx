@@ -204,7 +204,7 @@ export function CoverPartView(props: CoverPartViewProps) {
   const label = () => {
     const c = props.part
     return c.type === 'todo'
-      ? `タスク · ${c.items.filter((x) => x.done).length} / ${c.items.length}`
+      ? `タスク | ${c.items.filter((x) => x.done).length} / ${c.items.length}`
       : PARTS[c.type].label
   }
   return (

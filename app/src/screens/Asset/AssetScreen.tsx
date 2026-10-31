@@ -325,7 +325,7 @@ export function AssetScreen(props: AssetScreenProps) {
       ...(d?.rows.map((r) => `${r.label} ${r.value}`) ?? []),
       ...(d ? [bytes(d.size)] : []),
       `更新 ${relDay(lib(), a.moved)}`,
-    ].join(' · ')
+    ].join(' | ')
   }
   const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
   const closePicker = () => {

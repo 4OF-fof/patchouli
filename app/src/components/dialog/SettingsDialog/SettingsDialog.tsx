@@ -140,7 +140,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   <div class={styles.row}>
                     <b data-tip={props.unused?.map((p) => p.name).join('、')}>未使用のプラグイン</b>
                     <span class={styles.mono}>
-                      {props.unused ? `${props.unused.length} 件 · ${bytesLabel(unusedBytes())}` : '…'}
+                      {props.unused ? `${props.unused.length} 件 | ${bytesLabel(unusedBytes())}` : '…'}
                     </span>
                     <Button
                       size="sm"

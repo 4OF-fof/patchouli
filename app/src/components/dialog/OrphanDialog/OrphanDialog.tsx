@@ -17,7 +17,7 @@ function Row(props: { orphan: Orphan; onRelink?: (to: string) => void; onDiscard
   const o = () => props.orphan
   const [to, setTo] = createSignal(o().candidates.length === 1 ? (o().candidates[0] ?? '') : '')
   const kind = () => ({ asset: '素材', project: 'プロジェクト', group: 'グループ' })[o().kind]
-  const where = () => (o().place ? `${kind()} · ${o().place}` : kind())
+  const where = () => (o().place ? `${kind()} | ${o().place}` : kind())
   return (
     <li class={styles.row}>
       <div class={styles.name}>

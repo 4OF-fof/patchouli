@@ -62,7 +62,7 @@ export function EditionScreen(props: EditionScreenProps) {
           {
             key: `p:${n}`,
             name: n,
-            meta: `プロジェクト · ${inside.length} 件`,
+            meta: `プロジェクト | ${inside.length} 件`,
             moved: Math.min(...inside.map((i) => i.moved)),
             tiles: coverOf(lib(), p, 5),
             open: () => props.onOpenProject?.(n),
@@ -78,7 +78,7 @@ export function EditionScreen(props: EditionScreenProps) {
           {
             key: `t:${t}`,
             name: `# ${t}`,
-            meta: `タグ · ${list.length} 件`,
+            meta: `タグ | ${list.length} 件`,
             moved: Math.min(...list.map((i) => i.moved)),
             tiles: list.slice(0, 5),
             open: () => props.onOpenTag?.(t),
@@ -157,7 +157,7 @@ export function EditionScreen(props: EditionScreenProps) {
               <Show when={props.location}>
                 {(l) => (
                   <div class={styles.emptyPlace}>
-                    {l().split(/[\\/]/).findLast(Boolean)} · {l()}
+                    {l().split(/[\\/]/).findLast(Boolean)} | {l()}
                   </div>
                 )}
               </Show>

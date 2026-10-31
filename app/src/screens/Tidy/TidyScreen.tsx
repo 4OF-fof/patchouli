@@ -124,7 +124,7 @@ export function TidyScreen(props: TidyScreenProps) {
     <section class={shared.screen} aria-label="整理">
       <div class={styles.head}>
         <FloatingLabel class={styles.mid}>
-          <b>整理</b>タグの候補を確認 · 残り {pending().length} 件
+          <b>整理</b>タグの候補を確認 | 残り {pending().length} 件
         </FloatingLabel>
         <span class={styles.sp} />
         <FloatingPill kbd="←" onClick={undo}>

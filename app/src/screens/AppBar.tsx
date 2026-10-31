@@ -120,7 +120,7 @@ export function AppBar(props: AppBarProps) {
       out.push({ type: 'proj', p })
     if (!ts.length) {
       for (const it of lib().items.toSorted(newerFirst).slice(0, 7))
-        out.push({ type: 'item', it, where: `最近 · ${lib().placeName(it) ?? '所属なし'}` })
+        out.push({ type: 'item', it, where: `最近 | ${lib().placeName(it) ?? '所属なし'}` })
     } else for (const f of findItems(lib(), ts).slice(0, 8)) out.push({ type: 'item', ...f })
     if (query().trim()) out.push({ type: 'create', q: query().trim() })
     return out

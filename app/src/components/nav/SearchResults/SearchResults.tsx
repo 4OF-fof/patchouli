@@ -57,7 +57,7 @@ export function SearchResults(props: SearchResultsProps) {
                 <ResultRow
                   kind="project"
                   title={marked(r.p.name, props.terms)}
-                  sub={`${props.lib.inProject(r.p.name).length} 件 · 最終更新 ${r.p.touched}`}
+                  sub={`${props.lib.inProject(r.p.name).length} 件 | 最終更新 ${r.p.touched}`}
                   selected={sel()}
                   onClick={() => props.onRun(r)}
                 />

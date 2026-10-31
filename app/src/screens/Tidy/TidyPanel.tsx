@@ -39,9 +39,9 @@ export function TidyPanel(props: TidyPanelProps) {
       <div class={styles.nmh}>
         <b>{props.it.name}</b>
         <small>
-          {props.pos} / {props.total} · {monthDay(lib(), props.it.moved)} に追加
-          {props.later && ' · 保留中'}
-          {props.approved > 0 && ` · 承認済み ${props.approved} 件`}
+          {props.pos} / {props.total} | {monthDay(lib(), props.it.moved)} に追加
+          {props.later && ' | 保留中'}
+          {props.approved > 0 && ` | 承認済み ${props.approved} 件`}
         </small>
       </div>
       <div class={styles.fl}>

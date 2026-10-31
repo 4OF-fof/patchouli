@@ -28,7 +28,7 @@ export function LinkPicker(props: LinkPickerProps) {
       : props.lib.items
           .filter(ok)
           .toSorted(newerFirst)
-          .map((it) => ({ it, where: `最近 · ${props.lib.placeName(it) ?? '所属なし'}` }))
+          .map((it) => ({ it, where: `最近 | ${props.lib.placeName(it) ?? '所属なし'}` }))
     const out: Row[] = found
       .toSorted((a, b) => near(a.it) - near(b.it))
       .slice(0, 8)

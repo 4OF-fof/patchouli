@@ -36,7 +36,7 @@ const captionOf = (icon: IconName, name: string, label: string) => (el: HTMLElem
     () => (
       <>
         <Icon name={icon} size={13} />
-        <b>{name}</b> · {label}
+        <b>{name}</b> | {label}
       </>
     ),
     el,

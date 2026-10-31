@@ -503,10 +503,10 @@ export function dueLabel(lib: Library, date: string) {
 }
 
 export function whyOf(lib: Library, it: Item) {
-  if (it.note && it.moved === 0) return '編集 · 今日'
+  if (it.note && it.moved === 0) return '編集 | 今日'
   const n = lib.linkCount(it)
-  if (n >= 2) return `リンク ${n} · ${relDay(lib, it.moved)}`
-  return `${it.note ? '編集' : '更新'} · ${relDay(lib, it.moved)}`
+  if (n >= 2) return `リンク ${n} | ${relDay(lib, it.moved)}`
+  return `${it.note ? '編集' : '更新'} | ${relDay(lib, it.moved)}`
 }
 
 /** 音声のジャケット。音声のサムネイルは、波形から描いたものでなければジャケット */

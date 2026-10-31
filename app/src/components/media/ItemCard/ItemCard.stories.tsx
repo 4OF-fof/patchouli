@@ -18,13 +18,13 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
-export const WithWhy: Story = { args: { why: 'リンク 3 · 2 日前' } }
+export const WithWhy: Story = { args: { why: 'リンク 3 | 2 日前' } }
 export const Note: Story = {
   args: {
     note: true,
     name: '配色のメモ',
     excerpt: '彩度を落とした青を基調に、差し色を一点だけ使う。',
-    why: '編集 · 今日',
+    why: '編集 | 今日',
   },
 }
 export const Unsaved: Story = {
