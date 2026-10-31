@@ -268,7 +268,7 @@ pub fn draw_wave(wave: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
             if x < left || x > right || y < top || y > bottom {
                 return false;
             }
-            let cy = y.clamp(top + rad, bottom - rad);
+            let cy = y.clamp(top + rad, (bottom - rad).max(top + rad));
             let (dx, dy) = (x - (left + rad), y - cy);
             dx * dx + dy * dy <= rad * rad
         };
