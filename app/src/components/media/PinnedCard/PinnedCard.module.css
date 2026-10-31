@@ -3,7 +3,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-8);
   padding: 0;
   border: 0;
   background: none;
@@ -21,7 +21,7 @@
 .t {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-8);
   white-space: nowrap;
   overflow: hidden;
 }

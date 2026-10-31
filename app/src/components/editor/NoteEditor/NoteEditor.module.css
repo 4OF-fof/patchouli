@@ -33,7 +33,7 @@
   background: transparent;
 }
 .selection {
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
 }
 /* 置き換えた部分の両側に入る画像は、そこで行を折り返させて「。」だけを次の行に送ってしまう。
@@ -99,14 +99,14 @@
   text-decoration: line-through;
 }
 .code {
-  padding: 1px 4px;
+  padding: 1px var(--space-4);
   border-radius: var(--radius-sm);
   background: var(--side);
   font-family: var(--f-mono);
   font-size: 0.88em;
 }
 .raw {
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
   color: var(--ink);
 }
@@ -156,7 +156,7 @@
   text-decoration: line-through;
 }
 .quote {
-  padding-left: 14px !important;
+  padding-left: var(--space-14) !important;
   border-left: 3px solid var(--line-2);
   color: var(--muted);
 }
@@ -168,7 +168,7 @@
 }
 
 .codeLine {
-  padding: 0 14px !important;
+  padding: 0 var(--space-14) !important;
   background: var(--base00);
   color: var(--base05);
   font-family: var(--f-mono);
@@ -176,12 +176,12 @@
   line-height: 1.6;
 }
 .codeTop {
-  padding-top: 10px !important;
+  padding-top: var(--space-10) !important;
   border-top-left-radius: var(--radius-md);
   border-top-right-radius: var(--radius-md);
 }
 .codeBottom {
-  padding-bottom: 10px !important;
+  padding-bottom: var(--space-10) !important;
   border-bottom-left-radius: var(--radius-md);
   border-bottom-right-radius: var(--radius-md);
 }
@@ -221,7 +221,7 @@
   cursor: text;
 }
 .mathBlock {
-  padding: 4px 0;
+  padding: var(--space-4) 0;
   overflow-x: auto;
   overflow-y: hidden;
   line-height: normal;
@@ -251,7 +251,7 @@
   --pele-accent: var(--accent);
   --pele-font: inherit;
   --pele-radius: var(--radius-sm);
-  padding: 8px 0;
+  padding: var(--space-8) 0;
   overflow-x: auto;
   line-height: normal;
   cursor: text;
@@ -265,7 +265,7 @@
   --embed-room: calc(100cqw - 12px);
   display: inline-block;
   max-width: var(--embed-room);
-  margin: 0 6px;
+  margin: 0 var(--space-6);
   vertical-align: bottom;
 }
 .embed[data-selected='true'] {
@@ -277,10 +277,10 @@
 .caption {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
   width: 0;
   min-width: 100%;
-  margin-top: 8px;
+  margin-top: var(--space-8);
   overflow: hidden;
   font-size: var(--fs-meta);
   line-height: 1.4;
@@ -321,11 +321,11 @@
 .card {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 10px 4px 4px;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-10) var(--space-4) var(--space-4);
   border: 1px solid var(--card);
   border-radius: var(--radius-md);
-  background: color-mix(in oklch, var(--ink) 4%, transparent);
+  background: var(--side);
   font-size: var(--fs-list);
   line-height: 1.6;
   color: var(--ink);
@@ -352,7 +352,7 @@
   position: relative;
   width: fit-content;
   max-width: 100%;
-  padding: 6px 0;
+  padding: var(--space-6) 0;
 }
 .tableScroll {
   overflow-x: auto;
@@ -365,7 +365,7 @@
 .cell {
   min-width: 80px;
   height: 34px;
-  padding: 6px 10px;
+  padding: var(--space-6) var(--space-10);
   border: 1px solid var(--line-2);
   vertical-align: top;
   cursor: text;
@@ -386,7 +386,7 @@
   width: 100%;
   min-width: 80px;
   height: 34px;
-  padding: 6px 10px;
+  padding: var(--space-6) var(--space-10);
   border: 0;
   background: none;
   color: inherit;
@@ -399,8 +399,8 @@
   right: 0;
   z-index: 2;
   display: flex;
-  gap: 2px;
-  padding: 3px;
+  gap: var(--space-2);
+  padding: var(--space-2);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
   background: var(--menu);
@@ -411,7 +411,7 @@
 }
 .tableTools button {
   height: 22px;
-  padding: 0 8px;
+  padding: 0 var(--space-8);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -427,7 +427,7 @@
 
 .menu {
   position: fixed;
-  z-index: 40;
+  z-index: var(--z-popover);
   display: flex;
   flex-direction: column;
   min-width: 200px;
@@ -440,14 +440,14 @@
   max-height: 320px;
 }
 .menuList {
-  padding: 4px;
+  padding: var(--space-4);
 }
 .item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-10);
   height: 30px;
-  padding: 0 10px;
+  padding: 0 var(--space-10);
   border-radius: var(--radius-sm);
   font-size: var(--fs-body);
   color: var(--ink-2);
@@ -459,10 +459,10 @@
 }
 .linkMenu {
   position: fixed;
-  z-index: 40;
+  z-index: var(--z-popover);
   display: flex;
-  gap: 2px;
-  padding: 3px;
+  gap: var(--space-2);
+  padding: var(--space-2);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
   background: var(--menu);
@@ -470,7 +470,7 @@
 }
 .linkMenu button {
   height: 26px;
-  padding: 0 9px;
+  padding: 0 var(--space-8);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -490,24 +490,24 @@
 .menuSep {
   align-self: stretch;
   width: 1px;
-  margin: 3px 2px;
+  margin: var(--space-2) var(--space-2);
   background: var(--line-2);
 }
 .caret {
   position: fixed;
-  z-index: 40;
+  z-index: var(--z-popover);
   width: 2px;
   margin-left: -1px;
-  border-radius: 1px;
+  border-radius: var(--radius-full);
   background: var(--accent);
   pointer-events: none;
 }
 .bar {
   position: fixed;
-  z-index: 40;
+  z-index: var(--z-popover);
   display: flex;
-  gap: 2px;
-  padding: 3px;
+  gap: var(--space-2);
+  padding: var(--space-2);
   transform: translateY(-100%);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);

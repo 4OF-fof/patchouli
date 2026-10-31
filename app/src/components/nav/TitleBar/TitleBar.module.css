@@ -1,10 +1,10 @@
 .root {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2);
   height: var(--title-bar);
   flex: none;
-  padding-left: 4px;
+  padding-left: var(--space-4);
   border-bottom: 1px solid var(--line);
   background: var(--desk);
   color: var(--ink-2);
@@ -14,7 +14,7 @@
 .start {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2);
   min-width: 0;
 }
 .drag {

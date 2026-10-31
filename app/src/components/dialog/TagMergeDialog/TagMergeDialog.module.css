@@ -1,22 +1,22 @@
 .keep {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin: 14px 0 0;
-  padding: 10px 12px;
+  gap: var(--space-6);
+  margin: var(--space-14) 0 0;
+  padding: var(--space-10) var(--space-12);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
   font-size: var(--fs-body);
 }
 .keep legend {
-  padding: 0 4px;
+  padding: 0 var(--space-4);
   color: var(--muted);
   font-size: var(--fs-meta);
 }
 .keep label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   cursor: pointer;
 }
 .keep small {
@@ -25,13 +25,13 @@
 }
 .rename {
   display: flex;
-  margin-top: 14px;
-  gap: 8px;
+  margin-top: var(--space-14);
+  gap: var(--space-8);
 }
 .rename input {
   flex: 1;
   min-width: 0;
-  padding: 5px 8px;
+  padding: var(--space-4) var(--space-8);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   background: var(--paper);

@@ -1,19 +1,19 @@
 .root {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: var(--z-reload);
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 16px;
+  padding: var(--space-16);
   background: var(--scrim);
 }
 .box {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--space-10);
   width: min(420px, 100%);
-  padding: 20px 22px;
+  padding: var(--space-20) var(--space-20);
   border-radius: var(--radius-lg);
   background: var(--paper);
   border: 1px solid var(--line-2);
@@ -31,11 +31,11 @@
 .actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 6px;
+  gap: var(--space-8);
+  margin-top: var(--space-6);
 }
 .busy {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-10);
 }

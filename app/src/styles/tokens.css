@@ -28,6 +28,7 @@
   --unsaved: var(--warm-ink);
   --danger: oklch(0.69 0.13 25);
   --danger-line: oklch(0.69 0.13 25 / 0.45);
+  --danger-soft: oklch(0.69 0.13 25 / 0.12);
   --ok: oklch(0.665 0.09 155);
   --mark: oklch(0.674 0.035 235 / 0.35);
   --scrim: rgba(0, 0, 0, 0.5);
@@ -51,6 +52,29 @@
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-full: 999px;
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
+  --space-32: 32px;
+  --space-40: 40px;
+  --space-48: 48px;
+  --z-palette: 19;
+  --z-dialog: 20;
+  --z-panel: 30;
+  --z-popover: 40;
+  --z-toast: 50;
+  --z-menu: 60;
+  --z-reload: 100;
+  --z-tooltip: 1000;
+  --blur: 12px;
   --fs-title: 28px;
   --fs-heading: 20px;
   --fs-large: 16px;
@@ -104,6 +128,7 @@
   --warm-ink: oklch(0.529 0.09 55);
   --danger: oklch(0.54 0.15 25);
   --danger-line: oklch(0.54 0.15 25 / 0.35);
+  --danger-soft: oklch(0.54 0.15 25 / 0.12);
   --ok: oklch(0.508 0.11 155);
   --mark: oklch(0.52 0.045 235 / 0.22);
   --scrim: rgba(0, 0, 0, 0.3);
@@ -164,7 +189,7 @@ textarea {
 mark {
   background: var(--mark);
   color: inherit;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 :focus-visible {
   outline: 2px solid var(--accent);

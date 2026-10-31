@@ -3,17 +3,17 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: var(--space-8);
+  padding: var(--space-10) var(--space-12);
   border-radius: var(--radius-md);
   background: var(--card);
   font-size: var(--fs-list);
   line-height: 1.6;
 }
 .root[data-editing='true'] {
-  padding: 4px 10px 12px;
+  padding: var(--space-4) var(--space-10) var(--space-12);
   border: 1px solid var(--line);
-  background: color-mix(in oklch, var(--card) 50%, transparent);
+  background: var(--side);
 }
 .root[data-editing='true']:hover {
   border-color: var(--line-2);
@@ -34,9 +34,9 @@
 .head {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-4);
   min-height: 26px;
-  margin: 0 -6px;
+  margin: 0 calc(-1 * var(--space-6));
   cursor: grab;
   user-select: none;
 }
@@ -72,10 +72,10 @@
 .root input[type='text'],
 .root input[type='url'] {
   width: 100%;
-  padding: 5px 8px;
-  border: 1px solid color-mix(in oklch, var(--ink) 6%, transparent);
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
-  background: color-mix(in oklch, var(--ink) 4%, transparent);
+  background: var(--card);
   color: var(--ink);
   font-size: var(--fs-list);
 }

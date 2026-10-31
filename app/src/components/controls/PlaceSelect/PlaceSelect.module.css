@@ -2,11 +2,11 @@
 .root {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   width: var(--select-width, 100%);
   min-width: var(--select-min-width, 0);
   height: 28px;
-  padding: 0 8px 0 10px;
+  padding: 0 var(--space-8) 0 var(--space-10);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   background: var(--card);

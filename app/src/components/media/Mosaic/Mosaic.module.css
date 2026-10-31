@@ -1,12 +1,12 @@
 .root {
   --thumb-h: 100%;
   --radius-thumb: 0;
-  --note-pad: 7px 9px;
-  --note-font: 11px;
+  --note-pad: var(--space-6) var(--space-8);
+  --note-font: var(--fs-tiny);
   display: grid;
   grid-template-columns: 2fr 1fr 1fr;
   grid-template-rows: 1fr 1fr;
-  gap: 2px;
+  gap: var(--space-2);
   width: 100%;
   /* 幅に合わせて、枠がどれも 4:3 になる高さを取る。置き場所の側が --mosaic-h で高さを決めてもよい */
   height: var(--mosaic-h, auto);

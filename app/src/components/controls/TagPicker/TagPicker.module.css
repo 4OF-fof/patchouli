@@ -2,8 +2,8 @@
   width: 320px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 12px;
+  gap: var(--space-12);
+  padding: var(--space-12);
   border-radius: var(--radius-lg);
   background: var(--float);
   box-shadow: var(--shadow-float);
@@ -14,8 +14,8 @@
 .search {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 8px;
+  gap: var(--space-6);
+  padding: 0 var(--space-8);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   background: var(--card);
@@ -37,9 +37,9 @@
 .fresh {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: -6px;
-  padding: 5px 6px;
+  gap: var(--space-6);
+  margin-top: calc(-1 * var(--space-6));
+  padding: var(--space-4) var(--space-6);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -54,13 +54,13 @@
 .root section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-4);
   min-height: 0;
 }
 .root h3 {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-8);
   margin: 0;
   font-size: var(--fs-meta);
   font-weight: 600;
@@ -79,15 +79,15 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 2px 6px;
+  gap: var(--space-2) var(--space-6);
 }
 .grid button {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
   min-width: 0;
   height: 26px;
-  padding: 0 6px;
+  padding: 0 var(--space-6);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -110,7 +110,7 @@
   width: 14px;
   height: 14px;
   border: 1px solid var(--frame);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: transparent;
 }
 [aria-checked='true'] > .box {
@@ -131,7 +131,7 @@
   color: var(--accent);
 }
 .wait {
-  margin: 4px 6px;
+  margin: var(--space-4) var(--space-6);
 }
 [aria-checked='mixed'] > .box {
   border-color: var(--accent);

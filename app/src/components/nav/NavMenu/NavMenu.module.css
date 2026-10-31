@@ -11,21 +11,21 @@
 .list {
   display: flex;
   flex-direction: column;
-  padding: 6px;
+  padding: var(--space-6);
 }
 .root hr {
   border: 0;
   height: 1px;
   background: var(--line-2);
-  margin: 5px 4px;
+  margin: var(--space-4) var(--space-4);
 }
 .root button {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-10);
   height: 36px;
-  padding: 0 10px;
+  padding: 0 var(--space-10);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;

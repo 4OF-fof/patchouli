@@ -1,6 +1,6 @@
 .names {
-  margin: 8px 0 0;
-  padding: 0 0 0 18px;
+  margin: var(--space-8) 0 0;
+  padding: 0 0 0 var(--space-16);
   color: var(--muted);
   font-size: var(--fs-meta);
 }
@@ -11,6 +11,6 @@
 }
 .more {
   list-style: none;
-  margin-left: -18px;
+  margin-left: calc(-1 * var(--space-16));
   color: var(--faint);
 }

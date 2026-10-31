@@ -2,8 +2,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
   align-items: start;
-  gap: 22px 28px;
-  padding-top: 16px;
+  gap: var(--space-20) var(--space-28);
+  padding-top: var(--space-16);
 }
 .body[data-wide] {
   grid-template-columns: minmax(0, 1fr);
@@ -13,7 +13,7 @@
 }
 .side {
   display: grid;
-  gap: 10px;
+  gap: var(--space-10);
 }
 @media (max-width: 760px) {
   .body {

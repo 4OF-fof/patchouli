@@ -5,13 +5,13 @@
 .body {
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: var(--space-20);
 }
 .nmh {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 4px 10px;
+  gap: var(--space-4) var(--space-10);
 }
 .nmh b {
   font-size: var(--fs-heading);
@@ -24,10 +24,10 @@
 .fl {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-6);
 }
 .sub {
-  margin: 0 0 4px;
+  margin: 0 0 var(--space-4);
   font-size: var(--fs-meta);
   font-weight: 400;
   color: var(--faint);
@@ -35,14 +35,14 @@
 .cands {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .cand {
   height: 36px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px;
+  gap: var(--space-8);
+  padding: 0 var(--space-14);
   border-radius: var(--radius-md);
   background: var(--card);
   color: var(--ink-2);
@@ -78,7 +78,7 @@
   width: 160px;
   max-width: 100%;
   height: 36px;
-  padding: 0 10px;
+  padding: 0 var(--space-10);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
   background: none;
@@ -92,12 +92,12 @@
   --thumb-h: 56px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  gap: var(--space-6);
 }
 .why {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-4);
   font-size: var(--fs-meta);
   line-height: 1.8;
   color: var(--faint);
@@ -105,7 +105,7 @@
 .dec {
   margin-top: auto;
   display: flex;
-  gap: 10px;
+  gap: var(--space-10);
 }
 .dec button {
   flex: 1;
@@ -113,7 +113,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-6);
   border: 0;
   border-radius: var(--radius-lg);
   background: var(--card);

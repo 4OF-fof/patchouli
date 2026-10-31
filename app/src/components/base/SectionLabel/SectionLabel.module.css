@@ -1,8 +1,8 @@
 .root {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  margin: 0 0 8px;
+  gap: var(--space-8);
+  margin: 0 0 var(--space-8);
   font-size: var(--fs-meta);
   color: var(--faint);
 }
@@ -16,7 +16,7 @@
 .btn {
   display: inline-flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--space-8);
   padding: 0;
   border: 0;
   background: none;

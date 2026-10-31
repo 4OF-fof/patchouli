@@ -69,7 +69,7 @@
   position: absolute;
   top: -26px;
   left: 50%;
-  padding: 1px 7px;
+  padding: 1px var(--space-6);
   border-radius: var(--radius-sm);
   background: var(--accent);
   color: var(--stage);
@@ -99,7 +99,7 @@
 .bar {
   flex: none;
   width: min(600px, 100%);
-  margin-bottom: 18px;
+  margin-bottom: var(--space-16);
 }
 
 .root[data-look='row'] .wave {
@@ -116,5 +116,5 @@
   max-width: 78px;
   height: 44px;
   object-fit: cover;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }

@@ -28,8 +28,8 @@
 .root[data-note='true'] {
   background: var(--card);
   border: 1px solid var(--line-2);
-  padding: var(--note-pad, 10px 12px);
-  font-size: var(--note-font, 12px);
+  padding: var(--note-pad, var(--space-10) var(--space-12));
+  font-size: var(--note-font, var(--fs-meta));
   line-height: 1.65;
   color: var(--note-ink, var(--muted));
 }
@@ -39,7 +39,7 @@
   text-wrap: balance;
   word-break: auto-phrase;
   overflow-wrap: anywhere;
-  margin-bottom: 3px;
+  margin-bottom: var(--space-2);
   color: var(--ink);
   font-size: var(--fs-list);
   font-weight: 600;

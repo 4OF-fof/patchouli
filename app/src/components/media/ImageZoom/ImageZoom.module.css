@@ -36,14 +36,14 @@
   bottom: 18px;
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2);
   height: 36px;
   box-sizing: border-box;
-  padding: 0 4px;
+  padding: 0 var(--space-4);
   border-radius: var(--radius-lg);
   background: var(--overlay);
   color: var(--overlay-ink);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--blur));
   transform: translateX(-50%);
   opacity: var(--player-controls, 1);
   pointer-events: var(--player-events, auto);

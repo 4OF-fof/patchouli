@@ -41,7 +41,7 @@
   bottom: 10px;
   width: auto;
   height: 36px;
-  padding: 0 8px;
+  padding: 0 var(--space-8);
   border-radius: var(--radius-md);
   transform: none;
 }

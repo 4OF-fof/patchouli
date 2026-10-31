@@ -1,4 +1,4 @@
 .root {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-menu);
 }

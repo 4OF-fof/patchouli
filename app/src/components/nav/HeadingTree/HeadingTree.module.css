@@ -72,7 +72,7 @@
 .label {
   flex: 1;
   min-width: 0;
-  padding: 5px 6px;
+  padding: var(--space-4) var(--space-6);
   overflow: hidden;
   border: 0;
   border-radius: var(--radius-sm);

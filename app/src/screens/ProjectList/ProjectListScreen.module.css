@@ -1,23 +1,23 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px 16px;
+  gap: var(--space-20) var(--space-16);
 }
 .grid[data-pinned] {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  gap: var(--space-20);
 }
 .quiet {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 16px;
-  padding-top: 14px;
+  gap: var(--space-16);
+  padding-top: var(--space-14);
 }
 .card {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--space-4);
   padding: 0;
   border: 0;
   background: none;
@@ -49,7 +49,7 @@
 .pm {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-10);
   font-size: var(--fs-meta);
   color: var(--muted);
 }

@@ -5,10 +5,10 @@
 .doc {
   max-width: 760px;
   margin: 0 auto;
-  padding: 96px 40px 140px;
+  padding: 96px var(--space-40) 140px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-14);
 }
 /* 見出しのカードを開いているとき、中くらいの窓では本文を右へ寄せてカードと重ねない */
 @media (min-width: 861px) and (max-width: 1319px) {
@@ -35,8 +35,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px 10px;
-  margin-top: -6px;
+  gap: var(--space-2) var(--space-10);
+  margin-top: calc(-1 * var(--space-6));
   padding: 0;
   border: 0;
   background: none;
@@ -54,9 +54,9 @@
 .panel {
   display: grid;
   grid-template-columns: 90px 1fr;
-  gap: 6px 12px;
+  gap: var(--space-6) var(--space-12);
   margin: 0;
-  padding: 12px 14px;
+  padding: var(--space-12) var(--space-14);
   border-radius: var(--radius-md);
   background: var(--side);
   font-size: var(--fs-list);
@@ -78,7 +78,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
 }
 .tags {
   position: relative;
@@ -132,8 +132,8 @@
 }
 /* スクロールしたカードの切り口が見えないよう、枠を下の端の外まで広げる */
 .cardView {
-  padding-bottom: 32px;
-  margin-bottom: -32px;
+  padding-bottom: var(--space-32);
+  margin-bottom: calc(-1 * var(--space-32));
 }
 .cardView > section {
   width: 100%;
@@ -145,7 +145,7 @@
 }
 @media (max-width: 640px) {
   .doc {
-    padding: 64px 18px 100px;
+    padding: 64px var(--space-16) 100px;
   }
   .card {
     left: 12px;

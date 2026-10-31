@@ -51,12 +51,12 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 70px 48px 0;
+  padding: 70px var(--space-48) 0;
 }
 .title {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
   color: var(--jacket-ink, inherit);
 }
 .title b {
@@ -89,8 +89,8 @@
   height: 56px;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 16px;
+  gap: var(--space-8);
+  padding: 0 var(--space-16);
 }
 .btn {
   width: 30px;
@@ -103,18 +103,18 @@
   border-radius: var(--radius-md);
   background: var(--overlay);
   color: var(--overlay-ink);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--blur));
   cursor: pointer;
 }
 .btn:hover {
-  background: color-mix(in oklch, var(--overlay), var(--overlay-ink) 10%);
+  background: linear-gradient(var(--overlay-hover), var(--overlay-hover)), var(--overlay);
 }
 .count {
-  padding: 4px 8px;
+  padding: var(--space-4) var(--space-8);
   border-radius: var(--radius-md);
   background: var(--overlay);
   color: var(--overlay-ink);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--blur));
   font-family: var(--f-mono);
   font-size: var(--fs-meta);
   font-variant-numeric: tabular-nums;
@@ -182,7 +182,7 @@
   height: 38px;
   display: flex;
   align-items: center;
-  padding: 0 56px 0 16px;
+  padding: 0 56px 0 var(--space-16);
   font-weight: 600;
 }
 .infoScroll {
@@ -191,13 +191,13 @@
 .infoView {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 4px 16px 16px;
+  gap: var(--space-16);
+  padding: var(--space-4) var(--space-16) var(--space-16);
 }
 .fl {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-6);
 }
 .k {
   font-size: var(--fs-meta);
@@ -208,10 +208,10 @@
 .fl input,
 .fl textarea {
   width: 100%;
-  padding: 5px 8px;
-  border: 1px solid color-mix(in oklch, var(--ink) 6%, transparent);
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
-  background: color-mix(in oklch, var(--ink) 4%, transparent);
+  background: var(--card);
   color: var(--ink);
   font-size: var(--fs-list);
 }
@@ -221,8 +221,8 @@
   outline: 0;
 }
 .fl .name {
-  padding: 2px 6px;
-  margin: 0 -6px;
+  padding: var(--space-2) var(--space-6);
+  margin: 0 calc(-1 * var(--space-6));
   width: calc(100% + 12px);
   border-color: transparent;
   background: none;
@@ -230,7 +230,7 @@
   font-weight: 600;
 }
 .fl .name:hover {
-  border-color: color-mix(in oklch, var(--ink) 6%, transparent);
+  border-color: var(--line-2);
 }
 .spec {
   font-size: var(--fs-meta);
@@ -240,7 +240,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
 }
 .picker {
   position: absolute;

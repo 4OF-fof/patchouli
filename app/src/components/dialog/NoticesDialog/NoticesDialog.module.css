@@ -1,11 +1,11 @@
 .ov {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: var(--z-dialog);
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 40px 48px;
+  padding: var(--space-40) var(--space-48);
   background: var(--scrim);
 }
 .frame {
@@ -22,32 +22,32 @@
   box-shadow: var(--shadow);
 }
 .body {
-  padding: 28px 36px 36px;
+  padding: var(--space-28) var(--space-32) var(--space-32);
 }
 .body:focus {
   outline: none;
 }
 .root h2 {
-  margin: 0 0 20px;
+  margin: 0 0 var(--space-20);
   font-size: var(--fs-heading);
   font-weight: 600;
 }
 .root h3 {
-  margin: 0 0 10px;
+  margin: 0 0 var(--space-10);
   font-size: var(--fs-body);
   font-weight: 600;
 }
 .root h3 small {
-  margin-left: 6px;
+  margin-left: var(--space-6);
   font: 400 var(--fs-meta) var(--f-mono);
   color: var(--faint);
 }
 .root section + section {
-  margin-top: 32px;
+  margin-top: var(--space-32);
 }
 .root pre {
   margin: 0;
-  padding: 12px 14px;
+  padding: var(--space-12) var(--space-14);
   border-radius: var(--radius-md);
   background: var(--side);
   color: var(--muted);
@@ -64,8 +64,8 @@
 .groups > details > summary {
   display: flex;
   align-items: baseline;
-  gap: 8px;
-  padding: 11px 4px;
+  gap: var(--space-8);
+  padding: var(--space-10) var(--space-4);
   font-size: var(--fs-list);
   cursor: pointer;
 }
@@ -90,7 +90,7 @@
   color: var(--faint);
 }
 .groups > details[open] {
-  padding-bottom: 20px;
+  padding-bottom: var(--space-20);
 }
 .groups ul {
   display: grid;
@@ -104,8 +104,8 @@
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
   align-items: baseline;
-  column-gap: 16px;
-  padding: 6px 4px;
+  column-gap: var(--space-16);
+  padding: var(--space-6) var(--space-4);
   border-top: 1px solid var(--line);
   font-size: var(--fs-list);
 }
@@ -137,13 +137,13 @@
   user-select: text;
 }
 .text + .text {
-  margin-top: 16px;
+  margin-top: var(--space-16);
 }
 .text + ul {
-  margin-top: 12px;
+  margin-top: var(--space-12);
 }
 .text h4 {
-  margin: 0 0 6px;
+  margin: 0 0 var(--space-6);
   font: 600 var(--fs-meta) var(--f-mono);
   color: var(--ink-2);
 }

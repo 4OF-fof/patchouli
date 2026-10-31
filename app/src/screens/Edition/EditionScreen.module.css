@@ -1,24 +1,24 @@
 /* 一番下までスクロールしたとき、最後の段が検索バー（下から 64px）の 12px 上で終わる。段の下の 14px を引く */
 .ed {
-  padding: 18px 28px 28px;
+  padding: var(--space-16) var(--space-28) var(--space-28);
 }
 .ed > section {
-  margin-bottom: 14px;
+  margin-bottom: var(--space-14);
 }
 .ed > .recent {
-  margin-bottom: 22px;
+  margin-bottom: var(--space-20);
 }
 .recent {
   display: grid;
-  gap: 10px;
-  padding: 12px 14px 14px;
+  gap: var(--space-10);
+  padding: var(--space-12) var(--space-14) var(--space-14);
   border-radius: var(--radius-md);
   background: var(--card);
 }
 .recentHead {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: var(--space-10);
   font-size: var(--fs-meta);
   color: var(--faint);
 }
@@ -47,7 +47,7 @@
 .pins {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 16px 12px;
+  gap: var(--space-16) var(--space-12);
 }
 .hero {
   grid-column: span 2;
@@ -79,8 +79,8 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 10px;
-  padding: 18px 0 8px;
+  gap: var(--space-10);
+  padding: var(--space-16) 0 var(--space-8);
   font-size: var(--fs-meta);
   color: var(--muted);
 }
@@ -99,15 +99,15 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 0 16px 80px;
+  gap: var(--space-10);
+  padding: 0 var(--space-16) 80px;
   text-align: center;
   container-type: inline-size;
 }
 .emptyIcon {
   width: 40px;
   height: 40px;
-  margin-bottom: 6px;
+  margin-bottom: var(--space-6);
   color: var(--faint);
 }
 .emptyTitle {
@@ -122,7 +122,7 @@
   color: var(--muted);
 }
 .emptyKey {
-  margin: 0 2px;
+  margin: 0 var(--space-2);
 }
 /* 左下に置く。下の真ん中の検索バーに届く幅では、案内の下に回す */
 .emptyPlace {
@@ -140,6 +140,6 @@
   .emptyPlace {
     position: static;
     max-width: 100%;
-    margin-top: 8px;
+    margin-top: var(--space-8);
   }
 }

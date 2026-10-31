@@ -1,10 +1,10 @@
 .root {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   width: 100%;
   min-width: 0;
-  padding: 5px 6px;
+  padding: var(--space-4) var(--space-6);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -46,14 +46,14 @@
   color: var(--muted);
 }
 .cap {
-  padding: 0 6px 2px;
+  padding: 0 var(--space-6) var(--space-2);
   font-size: var(--fs-meta);
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--muted);
 }
 .none {
-  padding: 4px 6px;
+  padding: var(--space-4) var(--space-6);
   font-size: var(--fs-meta);
   color: var(--faint);
 }

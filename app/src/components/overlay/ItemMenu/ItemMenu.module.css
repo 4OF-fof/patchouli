@@ -2,8 +2,8 @@
   width: 280px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
+  gap: var(--space-8);
+  padding: var(--space-12);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-lg);
   background: var(--menu);
@@ -15,7 +15,7 @@
 }
 .rename input {
   height: 30px;
-  padding: 0 8px;
+  padding: 0 var(--space-8);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   outline: 0;

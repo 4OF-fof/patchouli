@@ -2,14 +2,14 @@
 .root {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   height: 40px;
   box-sizing: border-box;
-  padding: 0 10px;
+  padding: 0 var(--space-10);
   border-radius: var(--radius-lg);
   background: var(--overlay);
   color: var(--overlay-ink);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--blur));
   opacity: var(--player-controls, 1);
   pointer-events: var(--player-events, auto);
   transition: opacity 0.2s ease;
@@ -36,7 +36,7 @@
   height: 15px;
 }
 .rate {
-  padding: 0 6px;
+  padding: 0 var(--space-6);
   font-family: var(--f-mono);
   font-size: var(--fs-meta);
 }
@@ -71,18 +71,18 @@
 }
 .range::-webkit-slider-runnable-track {
   height: 3px;
-  border-radius: 3px;
+  border-radius: var(--radius-full);
   background: linear-gradient(to right, currentColor var(--p, 0%), var(--overlay-track) var(--p, 0%));
 }
 .range::-moz-range-track {
   height: 3px;
-  border-radius: 3px;
+  border-radius: var(--radius-full);
   background: linear-gradient(to right, currentColor var(--p, 0%), var(--overlay-track) var(--p, 0%));
 }
 .range::-webkit-slider-thumb {
   width: 11px;
   height: 11px;
-  margin-top: -4px;
+  margin-top: calc(-1 * var(--space-4));
   border: 0;
   border-radius: var(--radius-full);
   background: currentColor;
@@ -104,7 +104,7 @@
   flex: none;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-4);
 }
 .level {
   flex: none;
@@ -115,11 +115,11 @@
 /* 1 行に並べるとき（ノートの音声）。紙面の上に置くので、重ねる帯の地は使わない */
 .root[data-layout='row'] {
   height: auto;
-  gap: 12px;
-  padding: 10px 12px 10px 10px;
+  gap: var(--space-12);
+  padding: var(--space-10) var(--space-12) var(--space-10) var(--space-10);
   border: 1px solid var(--card);
   border-radius: var(--radius-lg);
-  background: color-mix(in oklch, var(--ink) 4%, transparent);
+  background: var(--side);
   color: var(--muted);
   backdrop-filter: none;
   --overlay-track: var(--line-2);

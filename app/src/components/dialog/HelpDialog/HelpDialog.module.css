@@ -1,11 +1,11 @@
 .ov {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: var(--z-dialog);
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 9vh 16px 16px;
+  padding: 9vh var(--space-16) var(--space-16);
   background: var(--scrim);
 }
 .frame {
@@ -22,20 +22,20 @@
   box-shadow: var(--shadow);
 }
 .body {
-  padding: 20px 22px;
+  padding: var(--space-20) var(--space-20);
 }
 .body:focus {
   outline: none;
 }
 .root h2 {
-  margin: 0 0 12px;
+  margin: 0 0 var(--space-12);
   font-size: var(--fs-heading);
   font-weight: 600;
 }
 .root dl {
   display: grid;
   grid-template-columns: 150px 1fr;
-  gap: 8px 16px;
+  gap: var(--space-8) var(--space-16);
   margin: 0;
   font-size: var(--fs-list);
 }

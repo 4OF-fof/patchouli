@@ -1,11 +1,11 @@
 .ov {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: var(--z-dialog);
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 40px 48px;
+  padding: var(--space-40) var(--space-48);
   background: var(--scrim);
 }
 .root {
@@ -25,20 +25,20 @@
 }
 .root h2 {
   margin: 0;
-  padding: 24px 28px 12px;
+  padding: var(--space-24) var(--space-28) var(--space-12);
   font-size: var(--fs-heading);
   font-weight: 600;
 }
 .status {
-  margin: 0 28px 12px;
-  padding: 8px 12px;
+  margin: 0 var(--space-28) var(--space-12);
+  padding: var(--space-8) var(--space-12);
   border-radius: var(--radius-md);
   background: var(--accent-soft);
   color: var(--accent-ink);
   font-size: var(--fs-list);
 }
 .status[data-error='true'] {
-  background: color-mix(in srgb, var(--danger) 10%, var(--paper));
+  background: var(--danger-soft);
   color: var(--danger);
 }
 .list {
@@ -46,11 +46,11 @@
   min-height: 0;
 }
 .listView {
-  padding: 0 16px 12px;
+  padding: 0 var(--space-16) var(--space-12);
 }
 .listView ul {
   display: grid;
-  gap: 2px;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -58,8 +58,8 @@
 .listView li {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding-right: 8px;
+  gap: var(--space-8);
+  padding-right: var(--space-8);
   border-radius: var(--radius-md);
 }
 .listView li:hover {
@@ -71,9 +71,9 @@
 .open {
   display: grid;
   flex: 1;
-  gap: 2px;
+  gap: var(--space-2);
   min-width: 0;
-  padding: 10px 12px;
+  padding: var(--space-10) var(--space-12);
   border: 0;
   background: none;
   color: inherit;
@@ -119,14 +119,14 @@
 }
 .none {
   margin: 0;
-  padding: 8px 12px;
+  padding: var(--space-8) var(--space-12);
   font-size: var(--fs-list);
   color: var(--faint);
 }
 .foot {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 20px 16px;
+  padding: var(--space-12) var(--space-20) var(--space-16);
   border-top: 1px solid var(--line);
 }
 .x {

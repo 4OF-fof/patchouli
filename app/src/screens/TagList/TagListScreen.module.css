@@ -2,13 +2,13 @@
   --thumb-h: 62px;
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 0;
+  gap: var(--space-16);
+  padding: var(--space-12) 0;
   border-bottom: 1px solid var(--line);
 }
 .row[data-sub='true'] {
   --thumb-h: 44px;
-  padding: 8px 0 8px 36px;
+  padding: var(--space-8) 0 var(--space-8) var(--space-32);
 }
 .tw {
   width: 24px;
@@ -44,9 +44,9 @@ button.tw:hover {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 16px;
-  margin: -6px 0;
-  padding: 6px 4px 6px 10px;
+  gap: var(--space-16);
+  margin: calc(-1 * var(--space-6)) 0;
+  padding: var(--space-6) var(--space-4) var(--space-6) var(--space-10);
   border: 0;
   border-radius: var(--radius-md);
   background: none;
@@ -61,7 +61,7 @@ button.tw:hover {
   width: 14px;
   height: 14px;
   flex: none;
-  margin: 0 6px;
+  margin: 0 var(--space-6);
   color: var(--faint);
 }
 .link:hover .go {
@@ -72,7 +72,7 @@ button.tw:hover {
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
 }
 .row[data-sub='true'] .tn {
   width: 144px;

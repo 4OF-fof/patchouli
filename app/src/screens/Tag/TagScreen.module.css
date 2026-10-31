@@ -1,7 +1,7 @@
 .title {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-10);
 }
 .title input {
   width: 440px;
@@ -10,19 +10,19 @@
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--space-6);
 }
 .bars {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
 }
 .row {
   display: grid;
   grid-template-columns: 4em minmax(0, 1fr) 2.5em;
   align-items: center;
-  gap: 8px;
-  padding: 3px 0;
+  gap: var(--space-8);
+  padding: var(--space-2) 0;
 }
 .ext {
   font: var(--fs-meta) var(--f-mono);

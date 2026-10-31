@@ -12,9 +12,9 @@
 }
 .error {
   margin: auto;
-  padding: 8px 12px;
+  padding: var(--space-8) var(--space-12);
   border-radius: var(--radius-md);
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  background: var(--danger-soft);
   color: var(--danger);
   font-size: var(--fs-list);
 }
@@ -22,7 +22,7 @@
 /* プラグインが描く素の要素の既定の見た目。:where で詳細度を 0 にして、プラグインの CSS で上書きできるようにする */
 :where(.mount) :where(button) {
   height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--space-10);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
   background: var(--card);
@@ -41,7 +41,7 @@
 :where(.mount) :where(input:not([type='checkbox'], [type='radio'], [type='range']), select, textarea) {
   min-width: 0;
   height: 28px;
-  padding: 0 8px;
+  padding: 0 var(--space-8);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-sm);
   background: var(--card);
@@ -51,7 +51,7 @@
 }
 :where(.mount) :where(textarea) {
   height: auto;
-  padding: 6px 8px;
+  padding: var(--space-6) var(--space-8);
 }
 :where(.mount) :where(input, select, textarea, button):focus-visible {
   outline: 2px solid var(--accent);

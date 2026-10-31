@@ -7,7 +7,7 @@
   height: 34px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-10);
   white-space: nowrap;
 }
 .mid {
@@ -26,8 +26,8 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 28px;
-  padding: 66px 28px 18px;
+  gap: var(--space-28);
+  padding: 66px var(--space-28) var(--space-16);
 }
 
 .view {
@@ -36,7 +36,7 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-14);
 }
 .big {
   --thumb-h: 100%;
@@ -54,8 +54,8 @@
   --thumb-h: 52px;
   display: flex;
   align-items: flex-end;
-  gap: 6px;
-  padding: 4px;
+  gap: var(--space-6);
+  padding: var(--space-4);
 }
 .q {
   position: relative;
@@ -96,8 +96,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  padding: 20px;
+  gap: var(--space-10);
+  padding: var(--space-20);
   color: var(--muted);
   text-align: center;
 }

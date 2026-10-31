@@ -1,6 +1,6 @@
 .root {
   height: 32px;
-  padding: 0 14px;
+  padding: 0 var(--space-14);
   border: 1px solid var(--line-2);
   border-radius: var(--radius-md);
   background: var(--card);
@@ -8,14 +8,14 @@
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
 }
 .root:hover {
   border-color: var(--faint);
 }
 .root[data-size='sm'] {
   height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--space-10);
   font-size: var(--fs-meta);
 }
 .root[data-variant='primary'] {
@@ -39,13 +39,12 @@
 }
 .root[data-variant='danger'] {
   border-color: var(--danger-line);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  background: var(--danger-soft);
   color: var(--danger);
   font-weight: 600;
 }
 .root[data-variant='danger']:hover {
   border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 20%, transparent);
 }
 .root[data-variant='danger']:disabled {
   border-color: var(--line-2);

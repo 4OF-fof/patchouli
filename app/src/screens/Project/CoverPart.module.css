@@ -1,10 +1,10 @@
 .todo {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .check {
-  margin-top: 3px;
+  margin-top: var(--space-2);
 }
 .todo[data-done='true'] > span {
   color: var(--muted);
@@ -27,7 +27,7 @@
 .row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .row .check {
   margin-top: 0;
@@ -49,15 +49,15 @@
   margin-left: auto;
   flex: none;
   height: 30px;
-  border-color: color-mix(in oklch, var(--ink) 6%, transparent);
-  background: color-mix(in oklch, var(--ink) 4%, transparent);
+  border-color: var(--line-2);
+  background: var(--card);
   font-size: var(--fs-meta);
 }
 .adder {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding-left: 2px;
+  gap: var(--space-6);
+  padding-left: var(--space-2);
   color: var(--muted);
 }
 .root .adder input {
@@ -66,7 +66,7 @@
   background: none;
 }
 .root .adder input:hover {
-  border-color: color-mix(in oklch, var(--ink) 6%, transparent);
+  border-color: var(--line-2);
 }
 .addLink {
   background: var(--card);
@@ -78,7 +78,7 @@
 .link {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .link a {
   color: var(--wl);

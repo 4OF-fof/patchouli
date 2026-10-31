@@ -1,11 +1,11 @@
 .ov {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: var(--z-dialog);
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 40px 48px;
+  padding: var(--space-40) var(--space-48);
   background: var(--scrim);
 }
 .root {
@@ -25,7 +25,7 @@
 }
 .root h2 {
   margin: 0;
-  padding: 24px 28px 4px;
+  padding: var(--space-24) var(--space-28) var(--space-4);
   font-size: var(--fs-heading);
   font-weight: 600;
 }
@@ -34,36 +34,36 @@
   min-height: 0;
 }
 .mainView {
-  padding: 8px 28px 28px;
+  padding: var(--space-8) var(--space-28) var(--space-28);
 }
 .mainView section {
-  margin-top: 24px;
+  margin-top: var(--space-24);
 }
 .mainView h4 {
-  margin: 0 0 10px;
-  padding-bottom: 6px;
+  margin: 0 0 var(--space-10);
+  padding-bottom: var(--space-6);
   border-bottom: 1px solid var(--line);
   font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--muted);
 }
 .status {
-  margin: 12px 0 0;
-  padding: 8px 12px;
+  margin: var(--space-12) 0 0;
+  padding: var(--space-8) var(--space-12);
   border-radius: var(--radius-md);
   background: var(--accent-soft);
   color: var(--accent-ink);
   font-size: var(--fs-list);
 }
 .status[data-error='true'] {
-  background: color-mix(in srgb, var(--danger) 10%, var(--paper));
+  background: var(--danger-soft);
   color: var(--danger);
 }
 .row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 0;
+  gap: var(--space-12);
+  padding: var(--space-8) 0;
 }
 .row b {
   flex: 1;
@@ -82,13 +82,13 @@
   color: var(--faint);
 }
 .places {
-  padding: 8px 0;
+  padding: var(--space-8) 0;
 }
 .placesHead {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 4px;
+  gap: var(--space-12);
+  margin-bottom: var(--space-4);
 }
 .placesHead span {
   flex: 1;
@@ -99,8 +99,8 @@
 .place {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 2px 0;
+  gap: var(--space-12);
+  padding: var(--space-2) 0;
 }
 .path {
   flex: 1;
@@ -114,8 +114,8 @@
 .reload {
   display: flex;
   justify-content: flex-end;
-  margin-top: 8px;
-  padding: 8px 0;
+  margin-top: var(--space-8);
+  padding: var(--space-8) 0;
 }
 .x {
   position: absolute;

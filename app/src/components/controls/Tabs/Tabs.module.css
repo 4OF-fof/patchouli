@@ -1,13 +1,13 @@
 .root {
   display: inline-flex;
-  gap: 2px;
-  padding: 2px;
+  gap: var(--space-2);
+  padding: var(--space-2);
   border-radius: var(--radius-md);
   background: var(--side);
 }
 .root button {
   height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--space-10);
   border: 0;
   border-radius: var(--radius-sm);
   background: transparent;

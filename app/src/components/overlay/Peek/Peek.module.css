@@ -2,7 +2,7 @@
   --w: min(1440px, calc(100% - 112px));
   position: absolute;
   inset: 0;
-  z-index: 30;
+  z-index: var(--z-panel);
   background: var(--scrim);
 }
 .panel {
@@ -27,7 +27,7 @@
   left: calc(50% + var(--w) / 2 + 10px);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-6);
 }
 .tools button {
   display: grid;
