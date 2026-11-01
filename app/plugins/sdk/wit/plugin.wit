@@ -93,8 +93,12 @@ interface types {
 
   /// content に渡す上限。
   record content-budget {
-    /// 種類（画像・音声・文章）ごとの区間の数。
-    max-parts: u32,
+    /// 画像の区間の数。
+    max-image-parts: u32,
+    /// 音声の区間の数。
+    max-audio-parts: u32,
+    /// 文章の区間の数。
+    max-text-parts: u32,
     /// 1 つの区間に入れる画像の数。
     max-images: u32,
     /// 画像の長いほうの辺（px）。

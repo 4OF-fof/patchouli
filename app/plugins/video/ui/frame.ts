@@ -100,7 +100,7 @@ async function grabParts(url: string, budget: ContentBudget, signal: AbortSignal
     const secs = v.duration
     if (!Number.isFinite(secs)) throw new Error('動画の長さがわかりません')
     const parts: ContentPart[] = []
-    for (const start of starts(secs, budget.maxParts)) {
+    for (const start of starts(secs, budget.maxImageParts)) {
       const end = Math.min(start + SPAN, secs)
       const images: Blob[] = []
       for (let t = start; t < end && images.length < budget.maxImages; t += EVERY) {
@@ -150,7 +150,7 @@ export default definePlugin<Video>({
       const secs = await api.call('secs')
       if (!secs) throw new Error('動画の長さがわかりません')
       const parts: ContentPart[] = []
-      for (const start of starts(secs, budget.maxParts)) {
+      for (const start of starts(secs, budget.maxImageParts)) {
         signal.throwIfAborted()
         const got = await api.call('frames', `${start},${SPAN},${EVERY},${budget.maxImages},${budget.edge}`)
         if (got.length) parts.push({ start, end: Math.min(start + SPAN, secs), images: got.map(bytes) })

@@ -113,8 +113,12 @@ export interface WaveformApi<T extends PluginTypes = PluginTypes> extends Api<T>
 
 /** 内容で探したり分けたりするときに読む区間の上限。WIT の content-budget と同じ。 */
 export interface ContentBudget {
-  /** 種類（画像・音声・文章）ごとの区間の数。 */
-  maxParts: number
+  /** 画像の区間の数。 */
+  maxImageParts: number
+  /** 音声の区間の数。 */
+  maxAudioParts: number
+  /** 文章の区間の数。 */
+  maxTextParts: number
   /** 1 つの区間に入れる画像の数。 */
   maxImages: number
   /** 画像の長いほうの辺（px）。 */

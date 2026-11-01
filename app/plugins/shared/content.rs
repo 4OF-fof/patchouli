@@ -54,9 +54,9 @@ pub fn ffmpeg(f: &File, start: f64, len: f64, out: &[&str]) -> Result<Vec<u8>, S
 /// 長さがわからなければ、頭から空になるまで読む。
 pub fn audio(f: &File, secs: Option<f64>, budget: &ContentBudget) -> Vec<ContentPart> {
     let len = budget.max_audio_secs.max(1.0);
-    let limit = secs.unwrap_or(len * f64::from(budget.max_parts));
+    let limit = secs.unwrap_or(len * f64::from(budget.max_audio_parts));
     let mut out = Vec::new();
-    for s in starts(limit, len, budget.max_parts) {
+    for s in starts(limit, len, budget.max_audio_parts) {
         let wav = ffmpeg(
             f,
             s,

@@ -136,8 +136,8 @@ pub fn audio(ext: &str, f: &File, budget: &ContentBudget) -> Result<Vec<ContentP
         .and_then(|(b, d)| b.calc_duration(d))
         .map(|t| t.as_secs_f64())
         .or(track.num_frames.map(|n| n as f64 / rate));
-    let secs = known.unwrap_or(len * f64::from(budget.max_parts));
-    let picked = starts(secs, len, budget.max_parts);
+    let secs = known.unwrap_or(len * f64::from(budget.max_audio_parts));
+    let picked = starts(secs, len, budget.max_audio_parts);
     let seek = (picked.len() as f64) * len < secs;
     let mut decoder = symphonia::default::get_codecs()
         .make_audio_decoder(&params, &Default::default())

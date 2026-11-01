@@ -15,7 +15,9 @@ use crate::plugin::{By, ContentBudget, ContentMedia, ContentPart, Part, Registry
 
 fn budget() -> ContentBudget {
     ContentBudget {
-        max_parts: 120,
+        max_image_parts: 240,
+        max_audio_parts: 120,
+        max_text_parts: 120,
         max_images: 3,
         edge: 512,
         max_audio_secs: 30.0,
@@ -126,7 +128,9 @@ pub fn collect(app: &tauri::AppHandle, plugins: &Arc<Registry>, items: &[StoredI
             json!({
                 "items": wanted,
                 "budget": {
-                    "maxParts": b.max_parts,
+                    "maxImageParts": b.max_image_parts,
+                    "maxAudioParts": b.max_audio_parts,
+                    "maxTextParts": b.max_text_parts,
                     "maxImages": b.max_images,
                     "edge": b.edge,
                     "maxAudioSecs": b.max_audio_secs,
