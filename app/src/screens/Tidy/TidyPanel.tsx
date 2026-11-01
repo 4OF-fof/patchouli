@@ -19,6 +19,7 @@ export interface TidyPanelProps {
   batch?: { size: number; ok: number }
   onTag: (k: number, on: boolean) => void
   onProject: (name: string) => void
+  onAddTag?: (tag: string) => void
   onPutOff: () => void
   onApprove: () => void
 }
@@ -57,11 +58,28 @@ export function TidyPanel(props: TidyPanelProps) {
                   </i>
                   {t.tag}
                 </span>
-                <small>{t.conf}</small>
+                <Show when={t.conf}>
+                  <small>{t.conf}</small>
+                </Show>
               </label>
             )}
           </For>
-          <input class={styles.tagin} type="text" placeholder="＋ タグを追加" aria-label="タグを追加" />
+          <Show when={!props.tags.length}>
+            <span class={styles.hint}>候補はありません</span>
+          </Show>
+          <input
+            class={styles.tagin}
+            type="text"
+            placeholder="＋ タグを追加"
+            aria-label="タグを追加"
+            onKeyDown={(e) => {
+              const tag = e.currentTarget.value.trim()
+              if (e.key !== 'Enter' || e.isComposing || !tag) return
+              e.preventDefault()
+              props.onAddTag?.(tag)
+              e.currentTarget.value = ''
+            }}
+          />
         </div>
       </div>
       <div class={styles.fl}>
@@ -78,29 +96,31 @@ export function TidyPanel(props: TidyPanelProps) {
           onChange={(v) => props.onProject(v)}
         />
       </div>
-      <div class={styles.fl}>
-        <span class={styles.sub}># {firstTag()} の類似項目</span>
-        <div class={styles.near}>
-          <For each={near()} fallback={<span class={styles.hint}>まだありません</span>}>
-            {(x) => <Thumb {...thumbOf(x)} />}
-          </For>
+      <Show when={firstTag()}>
+        <div class={styles.fl}>
+          <span class={styles.sub}># {firstTag()} の類似項目</span>
+          <div class={styles.near}>
+            <For each={near()} fallback={<span class={styles.hint}>まだありません</span>}>
+              {(x) => <Thumb {...thumbOf(x)} />}
+            </For>
+          </div>
         </div>
-      </div>
-      <div class={styles.why}>
-        <span class={styles.sub}>提案の理由</span>
-        <Show when={props.batch?.ok}>
+        <div class={styles.why}>
+          <span class={styles.sub}>提案の理由</span>
+          <Show when={props.batch?.ok}>
+            <span>
+              {monthDay(lib(), props.it.moved)} に同時追加した {props.batch?.size} 件のうち {props.batch?.ok} 件で #{' '}
+              {firstTag()} を承認済み
+            </span>
+          </Show>
           <span>
-            {monthDay(lib(), props.it.moved)} に同時追加した {props.batch?.size} 件のうち {props.batch?.ok} 件で #{' '}
-            {firstTag()} を承認済み
+            {reason()
+              .map((t) => `# ${t}`)
+              .join('・')}
+            の項目と類似
           </span>
-        </Show>
-        <span>
-          {reason()
-            .map((t) => `# ${t}`)
-            .join('・')}
-          の項目と類似
-        </span>
-      </div>
+        </div>
+      </Show>
       <div class={styles.dec}>
         <button type="button" onClick={() => props.onPutOff()}>
           保留 <Kbd>→</Kbd>

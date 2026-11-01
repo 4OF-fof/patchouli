@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
+import { withSuggestions } from '../../model/library'
 import { sampleLibrary } from '../../samples/library'
 import { ScreenFrame } from '../ScreenFrame'
 import { TidyScreen } from './TidyScreen'
@@ -40,6 +41,24 @@ export const Done: Story = {
     return (
       <ScreenFrame>
         <TidyScreen lib={lib} approved={lib.pending().map((i) => i.id)} />
+      </ScreenFrame>
+    )
+  },
+}
+export const Filed: Story = {
+  name: 'プロジェクトの項目と候補なし',
+  render: () => {
+    const base = sampleLibrary()
+    const s = Object.fromEntries(base.items.flatMap((i) => (i.suggestion ? [[i.id, i.suggestion]] : [])))
+    const n = Object.keys(s).length
+    const poster = base.byName.get('ポスター案')
+    const scan = base.byName.get('scan-0930')
+    if (poster) s[poster.id] = { tags: [{ tag: '配色', conf: '類似度：中', on: true }], order: n }
+    if (scan) s[scan.id] = { tags: [], order: n + 1 }
+    const lib = withSuggestions(base, s)
+    return (
+      <ScreenFrame>
+        <TidyScreen lib={lib} currentId={scan?.id} />
       </ScreenFrame>
     )
   },

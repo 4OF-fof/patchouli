@@ -1,6 +1,7 @@
 pub mod cache;
 mod content;
 mod cover;
+mod decisions;
 mod embed;
 pub mod import;
 pub mod library;
@@ -10,6 +11,7 @@ pub mod plugin;
 mod search;
 mod settings;
 mod shell;
+mod suggest;
 pub mod thumb;
 mod tidy;
 mod vectors;
@@ -1472,6 +1474,59 @@ async fn search_content(
         .map_err(|e| e.to_string())?
 }
 
+/// いまのライブラリのタグ候補を作り直し、できたら画面に渡す。
+fn refresh_suggestions(app: &tauri::AppHandle) {
+    if !settings::auto_tag(app).unwrap_or(false) || !embed::installed() {
+        return;
+    }
+    let cur = app.state::<Current>();
+    let Ok((root, thumbs, items)) = with_session(&cur, |s| {
+        Ok((
+            s.lib.root().to_owned(),
+            s.thumbs.clone(),
+            s.lib.snapshot().items,
+        ))
+    }) else {
+        return;
+    };
+    let app = app.clone();
+    suggest::refresh(&root, &thumbs, items, move |s| {
+        let _ = app.emit("suggestions-changed", s);
+    });
+}
+
+/// 整理で承認した item の判断を残す。chosen は付けたタグ、rejected は外した候補。
+#[tauri::command]
+fn record_tags(
+    app: tauri::AppHandle,
+    cur: State<Current>,
+    item: String,
+    chosen: Vec<String>,
+    rejected: Vec<String>,
+) -> Result<(), String> {
+    decisions::record(
+        &root_of(&cur)?,
+        &settings::device(&app)?,
+        &item,
+        &chosen,
+        &rejected,
+    )?;
+    refresh_suggestions(&app);
+    Ok(())
+}
+
+#[tauri::command]
+fn undo_tags(app: tauri::AppHandle, cur: State<Current>, item: String) -> Result<(), String> {
+    decisions::undo(&root_of(&cur)?, &settings::device(&app)?, &item)?;
+    refresh_suggestions(&app);
+    Ok(())
+}
+
+#[tauri::command]
+fn suggest_tags(id: String) -> Vec<String> {
+    suggest::suggest_tags(&id)
+}
+
 #[tauri::command]
 async fn cache_usage(
     app: tauri::AppHandle,
@@ -1783,6 +1838,9 @@ pub fn run() {
             cancel_auto_tag_download,
             prepare_content_search,
             search_content,
+            record_tags,
+            undo_tags,
+            suggest_tags,
             cache_usage,
             clear_cache,
             unused_plugins,

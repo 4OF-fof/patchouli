@@ -12,6 +12,7 @@ const LIBRARY: &str = "library";
 const RECENT: &str = "recent";
 const DEVELOPER: &str = "developer";
 const AUTO_TAG: &str = "autoTag";
+const DEVICE: &str = "device";
 
 fn path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
@@ -110,6 +111,18 @@ pub fn auto_tag(app: &AppHandle) -> Result<bool, String> {
         .get(AUTO_TAG)
         .and_then(Value::as_bool)
         .unwrap_or(false))
+}
+
+/// この端末の ID。端末ごとに分けて同期するファイルの名前に使う。初めて使うときに作る。
+pub fn device(app: &AppHandle) -> Result<String, String> {
+    let mut m = read(app)?;
+    if let Some(id) = m.get(DEVICE).and_then(Value::as_str) {
+        return Ok(id.to_owned());
+    }
+    let id = uuid::Uuid::new_v4().to_string();
+    m.insert(DEVICE.into(), json!(id));
+    write(app, &m)?;
+    Ok(id)
 }
 
 pub fn set_auto_tag(app: &AppHandle, on: bool) -> Result<(), String> {

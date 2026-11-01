@@ -37,6 +37,7 @@ import {
   type CoverPart,
   hasTag,
   type Item,
+  type Suggestion,
   type Library,
   type Place as ItemPlace,
   ROOT,
@@ -52,6 +53,7 @@ import {
   toggled,
   withAdded,
   withChanged,
+  withSuggestions,
   withItem,
   withProject,
   withProjectCover,
@@ -90,7 +92,7 @@ import { ProjectListScreen } from './screens/ProjectList/ProjectListScreen'
 import { ScreenFrame } from './screens/ScreenFrame'
 import { TagScreen } from './screens/Tag/TagScreen'
 import { TagListScreen } from './screens/TagList/TagListScreen'
-import { TidyScreen } from './screens/Tidy/TidyScreen'
+import { type TidyDecision, TidyScreen } from './screens/Tidy/TidyScreen'
 
 type View =
   | { s: 'edition' }
@@ -508,6 +510,24 @@ export function App(props: AppProps) {
       )
     })
   }
+  const approveTags = (id: string, d: TidyDecision) => {
+    const it = lib().byId.get(id)
+    if (!it) return
+    const add = d.tags.filter((t) => !it.tags.includes(t))
+    if (add.length) editItem(id, { tags: [...it.tags, ...add] }, { tags: { add } })
+    if (d.project !== it.project) moveItem(id, { project: d.project, group: null })
+    const decisions = backend.tagDecisions
+    if (decisions) persist(() => decisions.record(id, d.tags, d.rejected))
+  }
+  const undoTags = (before: Item) => {
+    const it = lib().byId.get(before.id)
+    if (!it) return
+    const remove = it.tags.filter((t) => !before.tags.includes(t))
+    if (remove.length) editItem(it.id, { tags: before.tags }, { tags: { remove } })
+    moveItem(it.id, placeOf(before))
+    const decisions = backend.tagDecisions
+    if (decisions) persist(() => decisions.undo(it.id))
+  }
   const tagItems = (ids: string[], tag: string, on: boolean) => {
     for (const id of ids) if (lib().byId.get(id)?.tags.includes(tag) !== on) tagItem(id, tag, on)
   }
@@ -727,7 +747,7 @@ export function App(props: AppProps) {
     }, 500)
     try {
       const o = await backend.reloadPlugins(wait)
-      setLib(o.lib)
+      setLib(suggestions ? withSuggestions(o.lib, suggestions) : o.lib)
       setPinnedProjects(o.pinnedProjects)
       setPinnedTags(o.pinnedTags)
       setPlugged(plugged() + 1)
@@ -875,6 +895,13 @@ export function App(props: AppProps) {
     clearTimeout(flush)
   })
 
+  let suggestions: Record<string, Suggestion> | undefined
+  const stopSuggestions = backend.tagDecisions?.onSuggestions((s) => {
+    suggestions = s
+    setLib(withSuggestions(lib(), s))
+  })
+  onCleanup(() => stopSuggestions?.())
+
   const stopChanged =
     backend.onChanged?.((c) => {
       const s = c.state
@@ -1000,6 +1027,7 @@ export function App(props: AppProps) {
       onAliases={setAliases}
       onTag={tagItem}
       recentTags={recentTags()}
+      suggestTags={backend.tagDecisions?.suggestTags}
       onCreateNote={addNote}
       embedOf={embedOf}
       onImport={backend.importData && importFiles}
@@ -1020,6 +1048,7 @@ export function App(props: AppProps) {
       onRename={renameItem}
       onTag={tagItem}
       recentTags={recentTags()}
+      suggestTags={backend.tagDecisions?.suggestTags}
       onMemo={(id, memo) => editItem(id, { memo }, { memo })}
       host={viewHost}
       blocker={blockerOf}
@@ -1188,7 +1217,17 @@ export function App(props: AppProps) {
           }
         </Match>
         <Match when={shown().s === 'tidy' && shown()} keyed>
-          {(v) => v.s === 'tidy' && <TidyScreen lib={lib()} currentId={v.id} onOpenItem={(id) => openItem(id)} />}
+          {(v) =>
+            v.s === 'tidy' && (
+              <TidyScreen
+                lib={lib()}
+                currentId={v.id}
+                onOpenItem={(id) => openItem(id)}
+                onApprove={(it, d) => approveTags(it.id, d)}
+                onUndo={undoTags}
+              />
+            )
+          }
         </Match>
       </Switch>
     )

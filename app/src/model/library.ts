@@ -273,7 +273,7 @@ export function buildLibrary(
     },
     pending: () =>
       items
-        .filter((i) => i.suggestion && !i.project && !i.group && !i.tags.length)
+        .filter((i) => i.suggestion && !i.tags.length)
         .toSorted((a, b) => (a.suggestion?.order ?? 0) - (b.suggestion?.order ?? 0)),
     formats,
     formatLabel: (it) => (it.note ? NOTE_LABEL : (formats.get(it.ext)?.label ?? it.ext.toUpperCase())),
@@ -427,6 +427,19 @@ export const withAdded = (lib: Library, items: Item[], projects: Project[] = [],
     [...lib.groups, ...groups],
   )
 
+/** タグのない項目の候補を、届いたものに置き換える。 */
+export function withSuggestions(lib: Library, s: Record<string, Suggestion>) {
+  return buildLibrary(
+    lib.items.map((i) => ({ ...i, suggestion: s[i.id] })),
+    lib.projects,
+    lib.today,
+    lib.tagCovers,
+    lib.pins,
+    lib.formats,
+    lib.groups,
+  )
+}
+
 export function withChanged(
   lib: Library,
   items: Item[],
@@ -438,7 +451,12 @@ export function withChanged(
 ) {
   const gone = new Set(removed)
   const next = new Map(items.map((i) => [i.id, i]))
-  const kept = lib.items.filter((i) => !gone.has(i.id) || next.has(i.id)).map((i) => next.get(i.id) ?? i)
+  const kept = lib.items
+    .filter((i) => !gone.has(i.id) || next.has(i.id))
+    .map((i) => {
+      const n = next.get(i.id)
+      return n ? { ...n, suggestion: n.suggestion ?? i.suggestion } : i
+    })
   const have = new Set(kept.map((i) => i.id))
   const all = [...kept, ...items.filter((i) => !have.has(i.id))]
   const ids = new Set(all.map((i) => i.id))

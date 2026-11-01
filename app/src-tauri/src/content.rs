@@ -234,7 +234,12 @@ pub fn collect(
     );
     {
         let stop = Arc::clone(&stop);
-        std::thread::spawn(move || embed_all(&mut store, texts, by_thumb, &rx, &stop));
+        let app = app.clone();
+        std::thread::spawn(move || {
+            if embed_all(&mut store, texts, by_thumb, &rx, &stop) {
+                crate::refresh_suggestions(&app);
+            }
+        });
     }
     if !wanted.is_empty() {
         let b = budget();
@@ -283,29 +288,30 @@ pub fn collect(
 }
 
 /// texts は（ID・sig・文章）。区間はすべて揃ってから保存するので、途中で止めたものは次に作り直す。
+/// 止めたか失敗したら false。
 fn embed_all(
     store: &mut Store,
     texts: Vec<(String, String, String)>,
     by_thumb: Vec<Work>,
     rx: &Receiver<Work>,
     stop: &AtomicBool,
-) {
+) -> bool {
     let started = Instant::now();
     let n = texts.len();
     for (id, sig, text) in texts {
         if stop.load(Ordering::Relaxed) {
-            return;
+            return false;
         }
         let v = match embed::text("classification", &text) {
             Ok(v) => v,
             Err(e) => {
                 log::warn!("文章をベクトルにできない: {e}");
-                return;
+                return false;
             }
         };
         if let Err(e) = store.put_text(&id, &sig, &v) {
             log::warn!("ベクトルを保存できない: {e}");
-            return;
+            return false;
         }
     }
     if n > 0 {
@@ -316,22 +322,23 @@ fn embed_all(
     }
     for w in by_thumb.into_iter().chain(rx.iter()) {
         if stop.load(Ordering::Relaxed) {
-            return;
+            return false;
         }
         match embed_work(&w, stop) {
             Ok(Some((whole, parts))) => {
                 if let Err(e) = store.put_content(&w.id, &w.sig, whole.as_deref(), &parts) {
                     log::warn!("ベクトルを保存できない: {e}");
-                    return;
+                    return false;
                 }
             }
-            Ok(None) => return,
+            Ok(None) => return false,
             Err(e) => {
                 log::warn!("ベクトルにできない: {}: {e}", w.name);
-                return;
+                return false;
             }
         }
     }
+    true
 }
 
 type Embedded = (Option<Vec<f32>>, Vec<vectors::Part>);

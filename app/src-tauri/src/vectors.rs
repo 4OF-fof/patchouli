@@ -54,12 +54,15 @@ impl Store {
             std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
         }
         let c = Connection::open(path).map_err(|e| e.to_string())?;
+        c.busy_timeout(std::time::Duration::from_secs(5))
+            .map_err(|e| e.to_string())?;
         c.execute_batch(
             "PRAGMA journal_mode = WAL;
              CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
              CREATE TABLE IF NOT EXISTS content (id TEXT PRIMARY KEY, sig TEXT NOT NULL, vec BLOB);
              CREATE TABLE IF NOT EXISTS parts (id TEXT NOT NULL, k INTEGER NOT NULL, start REAL, end REAL, kind TEXT NOT NULL, vec BLOB NOT NULL, PRIMARY KEY (id, k));
-             CREATE TABLE IF NOT EXISTS text (id TEXT PRIMARY KEY, sig TEXT NOT NULL, vec BLOB NOT NULL);",
+             CREATE TABLE IF NOT EXISTS text (id TEXT PRIMARY KEY, sig TEXT NOT NULL, vec BLOB NOT NULL);
+             CREATE TABLE IF NOT EXISTS words (key TEXT PRIMARY KEY, vec BLOB NOT NULL);",
         )
         .map_err(|e| e.to_string())?;
         let model: Option<String> = c
@@ -69,8 +72,10 @@ impl Store {
             .optional()
             .map_err(|e| e.to_string())?;
         if model.as_deref() != Some(MODEL) {
-            c.execute_batch("DELETE FROM content; DELETE FROM parts; DELETE FROM text;")
-                .map_err(|e| e.to_string())?;
+            c.execute_batch(
+                "DELETE FROM content; DELETE FROM parts; DELETE FROM text; DELETE FROM words;",
+            )
+            .map_err(|e| e.to_string())?;
             c.execute(
                 "INSERT OR REPLACE INTO meta (key, value) VALUES ('model', ?1)",
                 [MODEL],
@@ -124,6 +129,30 @@ impl Store {
         tx.commit().map_err(|e| e.to_string())?;
         changed();
         Ok(())
+    }
+
+    /// 語やタグ名のベクトル。key は、渡し方と語をつないだもの。なければ make で作って残す。
+    pub fn word(
+        &self,
+        key: &str,
+        make: impl FnOnce() -> Result<Vec<f32>, String>,
+    ) -> Result<Vec<f32>, String> {
+        let got: Option<Vec<u8>> = self
+            .0
+            .query_row("SELECT vec FROM words WHERE key = ?1", [key], |r| r.get(0))
+            .optional()
+            .map_err(|e| e.to_string())?;
+        if let Some(b) = got {
+            return Ok(to_vec(&b));
+        }
+        let v = make()?;
+        self.0
+            .execute(
+                "INSERT OR REPLACE INTO words (key, vec) VALUES (?1, ?2)",
+                params![key, to_blob(&v)],
+            )
+            .map_err(|e| e.to_string())?;
+        Ok(v)
     }
 
     pub fn put_text(&self, id: &str, sig: &str, vec: &[f32]) -> Result<(), String> {

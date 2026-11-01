@@ -1,4 +1,14 @@
-import type { CoverPart, Group, Item, Library, Place, Project, TagCoverPart, Thumbnail } from '../model/library'
+import type {
+  CoverPart,
+  Group,
+  Item,
+  Library,
+  Place,
+  Project,
+  Suggestion,
+  TagCoverPart,
+  Thumbnail,
+} from '../model/library'
 import type { ItemDetails, ItemView, MenuEntry, Part, PluginActions, PluginReport, UiRef } from '../plugins/types'
 import type { UiApi, UiItem } from '../plugins/ui'
 
@@ -165,6 +175,17 @@ export interface ContentSearch {
   search(query: string): Promise<ContentHit[]>
 }
 
+export interface TagDecisions {
+  /** 整理で承認した item の判断を残す。chosen は付けたタグ、rejected は外した候補。 */
+  record(item: string, chosen: string[], rejected: string[]): Promise<void>
+  /** item の判断を取り消す。 */
+  undo(item: string): Promise<void>
+  /** タグを付ける欄に出す候補。 */
+  suggestTags: (id: string) => Promise<string[]>
+  /** タグのない項目の候補を作り直すたびに呼ぶ。 */
+  onSuggestions(cb: (s: Record<string, Suggestion>) => void): () => void
+}
+
 export interface PluginWork {
   thumbnails: string[]
   waveforms: string[]
@@ -206,6 +227,7 @@ export interface Backend {
   developer?: DeveloperActions
   autoTag?: AutoTagActions
   contentSearch?: ContentSearch
+  tagDecisions?: TagDecisions
   onFileDrag?(cb: (e: FileDrag) => void): () => void
   /** フォルダは、中のフォルダも含めてグループとして取り込む。 */
   importDropped?(place: Place): Promise<Imported>

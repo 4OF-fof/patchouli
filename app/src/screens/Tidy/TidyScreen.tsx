@@ -1,4 +1,7 @@
-import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { Button } from '../../components/controls/Button/Button'
+import { Kbd } from '../../components/base/Kbd/Kbd'
+import { ConfirmDialog } from '../../components/dialog/ConfirmDialog/ConfirmDialog'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { createStore } from 'solid-js/store'
 import { FloatingLabel, FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
@@ -10,28 +13,67 @@ import styles from './TidyScreen.module.css'
 import { TidyPanel } from './TidyPanel'
 import { Icon } from '../../components/base/Icon/Icon'
 
+export interface TidyDecision {
+  tags: string[]
+  /** 選ばなかった候補 */
+  rejected: string[]
+  project: string | null
+}
+
 export interface TidyScreenProps {
   lib: Library
   currentId?: string
   approved?: string[]
   onOpenItem?: (id: string) => void
+  onApprove?: (it: Item, d: TidyDecision) => void
+  /** before は承認する前の項目 */
+  onUndo?: (before: Item) => void
 }
+
+// 保留にしたものは、アプリを閉じるまで覚えておき、次に整理を開いたときに先頭に出す
+let heldOver: string[] = []
+
+const HIGH = '類似度：高'
+
+const fresh = (i: Item) => ({ tags: structuredClone(i.suggestion?.tags ?? []), project: i.project ?? '' })
 
 export function TidyScreen(props: TidyScreenProps) {
   const lib = () => props.lib
-  const queue = createMemo(() =>
-    lib()
-      .items.filter((i) => i.suggestion)
-      .toSorted((a, b) => (a.suggestion?.order ?? 0) - (b.suggestion?.order ?? 0)),
-  )
+  const firstOrder = () => {
+    const ids = lib()
+      .pending()
+      .map((i) => i.id)
+    const held = heldOver.filter((id) => ids.includes(id))
+    return [...held, ...ids.filter((id) => !held.includes(id))]
+  }
+  const [order, setOrder] = createSignal(firstOrder())
+  const queue = createMemo(() => order().flatMap((id) => lib().byId.get(id) ?? []))
   // 候補は画面の中だけで書き換える（ライブラリには戻さない）
   const [draft, setDraft] = createStore<Record<string, { tags: TagCandidate[]; project: string }>>(
-    Object.fromEntries(queue().map((i) => [i.id, { tags: structuredClone(i.suggestion?.tags ?? []), project: '' }])),
+    Object.fromEntries(queue().map((i) => [i.id, fresh(i)])),
   )
-  const [decided, setDecided] = createSignal<string[]>(props.approved ?? [])
+  const [decided, setDecided] = createSignal<{ id: string; before?: Item }[]>(
+    (props.approved ?? []).map((id) => ({ id })),
+  )
+  const decidedIds = createMemo(() => new Set(decided().map((d) => d.id)))
+  // 候補は作り直すたびに届く。並びは変えず、新しく候補の出たものを後ろに足す
+  createEffect(
+    on(
+      lib,
+      (l) => {
+        const kept = order().filter((id) => decidedIds().has(id) || l.byId.get(id)?.tags.length === 0)
+        const have = new Set(kept)
+        const added = l.pending().filter((i) => !have.has(i.id))
+        for (const i of added) if (!draft[i.id]) setDraft(i.id, fresh(i))
+        if (added.length || kept.length !== order().length) setOrder([...kept, ...added.map((i) => i.id)])
+      },
+      { defer: true },
+    ),
+  )
   const [later, setLater] = createSignal<string[]>([])
   const [cur, setCur] = createSignal<string | undefined>(props.currentId)
-  const pending = () => queue().filter((i) => !decided().includes(i.id))
+  const [bulk, setBulk] = createSignal(false)
+  const pending = () => queue().filter((i) => !decidedIds().has(i.id))
   const current = createMemo(() => {
     const c = pending().find((i) => i.id === cur())
     if (c) return c
@@ -43,32 +85,63 @@ export function TidyScreen(props: TidyScreenProps) {
   }
   const onTags = (it: Item) => draft[it.id]?.tags.filter((t) => t.on) ?? []
   const firstTag = (it: Item) => (onTags(it)[0] ?? draft[it.id]?.tags[0])?.tag ?? ''
-  const nothing = (it: Item) => !onTags(it).length && !draft[it.id]?.project
+  const nothing = (it: Item) => !onTags(it).length && (draft[it.id]?.project ?? '') === (it.project ?? '')
+  const sure = () =>
+    pending().filter((it) => {
+      const chosen = onTags(it)
+      return chosen.length > 0 && chosen.every((t) => t.conf === HIGH)
+    })
 
+  const decide = (it: Item) => {
+    const d = draft[it.id]
+    heldOver = heldOver.filter((id) => id !== it.id)
+    props.onApprove?.(it, {
+      tags: onTags(it).map((t) => t.tag),
+      rejected: d?.tags.filter((t) => !t.on).map((t) => t.tag) ?? [],
+      project: d?.project || null,
+    })
+  }
   const approve = (it: Item) => {
     if (nothing(it)) return
     const next = nextAfter(it.id)
-    setDecided([...decided(), it.id])
+    setDecided([...decided(), { id: it.id, before: it }])
     setCur(next)
+    decide(it)
+  }
+  const approveSure = () => {
+    const its = sure()
+    setBulk(false)
+    setDecided([...decided(), ...its.map((it) => ({ id: it.id, before: it }))])
+    for (const it of its) decide(it)
   }
   const putOff = (it: Item) => {
     const next = nextAfter(it.id)
     setLater([...later(), it.id])
+    if (!heldOver.includes(it.id)) heldOver = [...heldOver, it.id]
     setCur(next)
   }
   const undo = () => {
     const last = decided().at(-1)
     if (!last) return
     setDecided(decided().slice(0, -1))
-    setCur(last)
+    setCur(last.id)
+    if (last.before) props.onUndo?.(last.before)
+  }
+  const addTag = (it: Item, tag: string) => {
+    const k = draft[it.id]?.tags.findIndex((t) => t.tag === tag) ?? -1
+    if (k >= 0) setDraft(it.id, 'tags', k, 'on', true)
+    else setDraft(it.id, 'tags', (ts) => [...ts, { tag, conf: '', on: true }])
   }
 
   const active = useTabActive()
   const onKey = (e: KeyboardEvent) => {
     const it = current()
-    if (!active()) return
+    if (!active() || bulk()) return
     if (!it || (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, [role="dialog"]'))) return
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault()
+      if (sure().length) setBulk(true)
+    } else if (e.key === 'Enter') {
       e.preventDefault()
       approve(it)
     } else if (e.key === 'ArrowRight') putOff(it)
@@ -104,15 +177,15 @@ export function TidyScreen(props: TidyScreenProps) {
             }
             type="button"
             class={styles.q}
-            data-later={later().includes(x.id) && !decided().includes(x.id)}
+            data-later={later().includes(x.id) && !decidedIds().has(x.id)}
             aria-current={x.id === current()?.id}
             data-tip={x.name}
             aria-label={x.name}
             style={{ '--ar': x.ratio }}
-            onClick={() => (decided().includes(x.id) ? props.onOpenItem?.(x.id) : setCur(x.id))}
+            onClick={() => (decidedIds().has(x.id) ? props.onOpenItem?.(x.id) : setCur(x.id))}
           >
             <Thumb {...thumbOf(x)} />
-            <Show when={decided().includes(x.id)}>
+            <Show when={decidedIds().has(x.id)}>
               <i class={styles.ok}>
                 <Icon name="check" size={12} />
               </i>
@@ -130,6 +203,9 @@ export function TidyScreen(props: TidyScreenProps) {
           <b>整理</b>タグの候補を確認 | 残り {pending().length} 件
         </FloatingLabel>
         <span class={styles.sp} />
+        <FloatingPill kbd="Ctrl Enter" disabled={!sure().length} onClick={() => setBulk(true)}>
+          まとめて承認
+        </FloatingPill>
         <FloatingPill kbd="←" onClick={undo}>
           元に戻す
         </FloatingPill>
@@ -181,13 +257,14 @@ export function TidyScreen(props: TidyScreenProps) {
                       ? {
                           size: batch().length,
                           ok: batch().filter(
-                            (x) => decided().includes(x.id) && onTags(x).some((t) => t.tag === firstTag(it())),
+                            (x) => decidedIds().has(x.id) && onTags(x).some((t) => t.tag === firstTag(it())),
                           ).length,
                         }
                       : undefined
                   }
-                  onTag={(k, on) => setDraft(it().id, 'tags', k, 'on', on)}
+                  onTag={(k, v) => setDraft(it().id, 'tags', k, 'on', v)}
                   onProject={(name) => setDraft(it().id, 'project', name)}
+                  onAddTag={(tag) => addTag(it(), tag)}
                   onPutOff={() => putOff(it())}
                   onApprove={() => approve(it())}
                 />
@@ -196,6 +273,26 @@ export function TidyScreen(props: TidyScreenProps) {
           }}
         </Show>
       </div>
+      <Show when={bulk()}>
+        <ConfirmDialog
+          label="まとめて承認"
+          title={`${sure().length} 件をまとめて承認します`}
+          onClose={() => setBulk(false)}
+          onEnter={approveSure}
+          footer={
+            <>
+              <Button variant="ghost" onClick={() => setBulk(false)}>
+                キャンセル <Kbd>Esc</Kbd>
+              </Button>
+              <Button variant="primary" onClick={approveSure}>
+                承認 <Kbd>Enter</Kbd>
+              </Button>
+            </>
+          }
+        >
+          <p>選択中の候補がすべて「{HIGH}」の項目を、そのタグで承認しますか？</p>
+        </ConfirmDialog>
+      </Show>
     </section>
   )
 }

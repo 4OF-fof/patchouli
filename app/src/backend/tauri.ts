@@ -14,7 +14,7 @@ import {
   toOpened,
   toProject,
 } from './stored'
-import type { Thumbnail } from '../model/library'
+import type { Suggestion, Thumbnail } from '../model/library'
 import type {
   FormatInfo,
   ItemDetails,
@@ -369,6 +369,15 @@ export function tauriBackend(): Backend {
     }
   }
   let listeningContent: Promise<unknown> | undefined
+  let suggestions: Record<string, Suggestion> | undefined
+  const suggestionSubs = new Set<(s: Record<string, Suggestion>) => void>()
+  let listeningSuggestions: Promise<unknown> | undefined
+  const listenSuggestions = () =>
+    (listeningSuggestions ??= listen<Record<string, Suggestion>>('suggestions-changed', (e) => {
+      suggestions = e.payload
+      for (const cb of suggestionSubs) cb(e.payload)
+    }))
+
   const listenContent = () =>
     (listeningContent ??= listen<{ items: ContentWanted[]; budget?: ContentBudget }>('content-wanted', (e) => {
       contentStop.abort()
@@ -396,7 +405,8 @@ export function tauriBackend(): Backend {
 
   return {
     async open() {
-      await Promise.all([listenThumbs(), listenChanges(), listenContent()])
+      suggestions = undefined
+      await Promise.all([listenThumbs(), listenChanges(), listenContent(), listenSuggestions()])
       for (const it of waveQueue.splice(0)) waveIds.delete(it.id)
       return openedOf(await invoke<StoredLibrary<TauriItem>>('open_library'))
     },
@@ -474,6 +484,16 @@ export function tauriBackend(): Backend {
     contentSearch: {
       prepare: () => invoke('prepare_content_search'),
       search: (query) => invoke<ContentHit[]>('search_content', { query }),
+    },
+    tagDecisions: {
+      record: (item, chosen, rejected) => invoke('record_tags', { item, chosen, rejected }),
+      undo: (item) => invoke('undo_tags', { item }),
+      suggestTags: (id) => invoke<string[]>('suggest_tags', { id }),
+      onSuggestions(cb) {
+        suggestionSubs.add(cb)
+        if (suggestions) cb(suggestions)
+        return () => void suggestionSubs.delete(cb)
+      },
     },
     autoTag: {
       get: () => invoke<AutoTag>('auto_tag'),
