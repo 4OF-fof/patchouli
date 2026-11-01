@@ -7,6 +7,7 @@ pub mod library;
 pub mod note;
 mod orphan;
 pub mod plugin;
+mod search;
 mod settings;
 mod shell;
 pub mod thumb;
@@ -1447,6 +1448,30 @@ fn cancel_auto_tag_download() {
     embed::install::cancel();
 }
 
+/// 内容での検索に入ったときに呼ぶ。llama-server が起動し終えるまで待つ。
+#[tauri::command]
+async fn prepare_content_search(app: tauri::AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if !settings::auto_tag(&app)? {
+            return Err("自動分類が無効になっています".into());
+        }
+        embed::warm()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn search_content(
+    cur: State<'_, Current>,
+    query: String,
+) -> Result<Vec<search::Hit>, String> {
+    let thumbs = with_session(&cur, |s| Ok(s.thumbs.clone()))?;
+    tauri::async_runtime::spawn_blocking(move || search::search(&thumbs, &query))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn cache_usage(
     app: tauri::AppHandle,
@@ -1756,6 +1781,8 @@ pub fn run() {
             auto_tag,
             set_auto_tag,
             cancel_auto_tag_download,
+            prepare_content_search,
+            search_content,
             cache_usage,
             clear_cache,
             unused_plugins,

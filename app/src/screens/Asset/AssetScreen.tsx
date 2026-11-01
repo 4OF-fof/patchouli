@@ -44,6 +44,8 @@ export interface AssetScreenProps {
   lib: Library
   list: string[]
   index?: number
+  /** 最初に開いた素材を、この秒から再生する */
+  startAt?: number
   infoOpen?: boolean
   idle?: boolean
   onOpenNote?: (id: string) => void
@@ -228,6 +230,7 @@ export function AssetScreen(props: AssetScreenProps) {
     return !!l && l.kind !== 'ui' && broken() === l.src
   }
   const lookView = (l: Look, a: () => Item) => {
+    const start = a().id === props.list[props.index ?? 0] ? props.startAt : undefined
     const onReady = () => ready(l)
     const onUnsupported = () => setBroken(l.src)
     if (l.kind === 'ui') return <PluginView url={l.src} api={l.api()} class={styles.page} onReady={onReady} />
@@ -242,6 +245,7 @@ export function AssetScreen(props: AssetScreenProps) {
           poster={a().thumb}
           name={a().name}
           class={styles.player}
+          start={start}
           onReady={onReady}
           onUnsupported={onUnsupported}
         />
@@ -254,6 +258,7 @@ export function AssetScreen(props: AssetScreenProps) {
         look="stage"
         jacket={jacketOf(a())}
         class={styles.audio}
+        start={start}
         onReady={onReady}
         onUnsupported={onUnsupported}
       >

@@ -14,6 +14,8 @@ export interface VideoPlayerProps {
   /** 再生速度のボタンを出すか。既定は出す */
   rate?: boolean
   class?: string
+  /** あれば、読み込めたときにこの秒から再生する */
+  start?: number
   /** 読み込めたとき。読めなかったときも呼ぶ */
   onReady?: () => void
   /** WebView のデコーダーが、入れ物か映像の形式に対応していなかったとき */
@@ -53,6 +55,10 @@ export function VideoPlayer(props: VideoPlayerProps) {
           onLoadedMetadata={(e) => {
             const v = e.currentTarget
             if (v.videoWidth && v.videoHeight) setNatural(v.videoWidth / v.videoHeight)
+            if (props.start !== undefined) {
+              v.currentTime = props.start
+              void v.play().catch(() => undefined)
+            }
           }}
           onLoadedData={(e) => {
             // 映像を読めず音だけ流れるときは、エラーにならず大きさが 0 になる

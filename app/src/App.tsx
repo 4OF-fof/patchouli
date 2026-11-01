@@ -101,7 +101,7 @@ type View =
   | { s: 'tlist' }
   | { s: 'tag'; tag: string }
   | { s: 'note'; id: string }
-  | { s: 'asset'; list: string[]; index: number }
+  | { s: 'asset'; list: string[]; index: number; at?: number }
   | { s: 'tidy'; id?: string }
 
 const LABEL: Record<View['s'], string> = {
@@ -324,16 +324,16 @@ export function App(props: AppProps) {
               : LABEL[v.s]
   const crumbs = () => stack().map(labelOf)
   const go = (v: View) => (inNewTab() ? openTab([...stack(), v]) : setStack([...stack(), v]))
-  const itemView = (id: string, list?: string[]): View | undefined => {
+  const itemView = (id: string, list?: string[], at?: number): View | undefined => {
     const it = lib().byId.get(id)
     if (!it) return undefined
     if (it.note) return { s: 'note', id }
     const l = (list ?? [id]).filter((x) => lib().byId.get(x)?.note === false)
-    return { s: 'asset', list: l, index: Math.max(0, l.indexOf(id)) }
+    return { s: 'asset', list: l, index: Math.max(0, l.indexOf(id)), at }
   }
   const openGroup = (id: string) => go({ s: 'group', id })
-  const openItem = (id: string, list?: string[]) => {
-    const v = itemView(id, list)
+  const openItem = (id: string, list?: string[], at?: number) => {
+    const v = itemView(id, list, at)
     if (v) go(v)
   }
   const siblingItems = (v: View): Item[] | undefined => {
@@ -1006,11 +1006,12 @@ export function App(props: AppProps) {
       editorRef={tab ? (api) => (api ? editors.set(tab.id, api) : editors.delete(tab.id)) : undefined}
     />
   )
-  const assetScreen = (list: string[], index: number, onIndex?: (i: number) => void) => (
+  const assetScreen = (list: string[], index: number, onIndex?: (i: number) => void, at?: number) => (
     <AssetScreen
       lib={lib()}
       list={list}
       index={index}
+      startAt={at}
       onIndex={onIndex}
       onOpenNote={(id) => openItem(id)}
       onOpenTag={(tag) => go({ s: 'tag', tag })}
@@ -1182,6 +1183,7 @@ export function App(props: AppProps) {
               v.list,
               untrack(() => assetIndex(v)),
               (i) => assetIndexOf(v)[1](i),
+              v.at,
             )
           }
         </Match>
@@ -1211,7 +1213,7 @@ export function App(props: AppProps) {
                       onSibling={toSibling}
                       onGo={onGo}
                       onOpenProject={(name) => go({ s: 'project', name })}
-                      onOpenItem={(id) => openItem(id)}
+                      onOpenItem={(id, at) => openItem(id, undefined, at)}
                       onCreate={createNote}
                       library={props.location}
                       onChooseLibrary={chooseLibrary}
@@ -1219,6 +1221,7 @@ export function App(props: AppProps) {
                       tidy={backend.tidy}
                       developer={backend.developer}
                       autoTag={backend.autoTag}
+                      contentSearch={backend.contentSearch}
                       onReopen={() => window.location.reload()}
                       loadPlugins={() => backend.plugins()}
                       pluginActions={backend.pluginActions}

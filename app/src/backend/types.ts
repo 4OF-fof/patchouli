@@ -152,6 +152,19 @@ export interface AutoTagActions {
   onProgress(cb: (p: AutoTagProgress) => void): () => void
 }
 
+export interface ContentHit {
+  id: string
+  score: number
+  /** 当たった区間の始まり（秒） */
+  at?: number
+}
+
+export interface ContentSearch {
+  /** llama-server が起動し終えるまで待つ。 */
+  prepare(): Promise<void>
+  search(query: string): Promise<ContentHit[]>
+}
+
 export interface PluginWork {
   thumbnails: string[]
   waveforms: string[]
@@ -192,6 +205,7 @@ export interface Backend {
   tidy?: TidyActions
   developer?: DeveloperActions
   autoTag?: AutoTagActions
+  contentSearch?: ContentSearch
   onFileDrag?(cb: (e: FileDrag) => void): () => void
   /** フォルダは、中のフォルダも含めてグループとして取り込む。 */
   importDropped?(place: Place): Promise<Imported>

@@ -3,6 +3,8 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
@@ -17,12 +19,33 @@ pub struct Part {
 
 pub struct Store(Connection);
 
+/// 書き換えるたびに増やし、読み込んだ索引を作り直す目安にする。
+static GEN: AtomicU64 = AtomicU64::new(0);
+
+fn changed() {
+    GEN.fetch_add(1, Ordering::Relaxed);
+}
+
 pub fn path_for(thumbs: &Path) -> PathBuf {
     thumbs.join("embed").join("vectors.sqlite")
 }
 
 fn to_blob(v: &[f32]) -> Vec<u8> {
     v.iter().flat_map(|x| x.to_le_bytes()).collect()
+}
+
+fn to_vec(b: &[u8]) -> Vec<f32> {
+    b.chunks_exact(4)
+        .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect()
+}
+
+fn kind_of(s: &str) -> &'static str {
+    match s {
+        "images" => "images",
+        "audio" => "audio",
+        _ => "text",
+    }
 }
 
 impl Store {
@@ -53,6 +76,7 @@ impl Store {
                 [MODEL],
             )
             .map_err(|e| e.to_string())?;
+            changed();
         }
         Ok(Store(c))
     }
@@ -97,7 +121,9 @@ impl Store {
             params![id, sig, whole.map(to_blob)],
         )
         .map_err(|e| e.to_string())?;
-        tx.commit().map_err(|e| e.to_string())
+        tx.commit().map_err(|e| e.to_string())?;
+        changed();
+        Ok(())
     }
 
     pub fn put_text(&self, id: &str, sig: &str, vec: &[f32]) -> Result<(), String> {
@@ -106,8 +132,9 @@ impl Store {
                 "INSERT OR REPLACE INTO text (id, sig, vec) VALUES (?1, ?2, ?3)",
                 params![id, sig, to_blob(vec)],
             )
-            .map(|_| ())
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string())?;
+        changed();
+        Ok(())
     }
 
     /// keep にない項目の行を消す。
@@ -128,6 +155,83 @@ impl Store {
             }
         }
         tx.commit().map_err(|e| e.to_string())?;
+        if !gone.is_empty() {
+            changed();
+        }
         Ok(gone.len())
     }
+
+    fn vecs(&self, sql: &str) -> HashMap<String, Vec<f32>> {
+        let Ok(mut st) = self.0.prepare(sql) else {
+            return HashMap::new();
+        };
+        st.query_map([], |r| Ok((r.get(0)?, to_vec(&r.get::<_, Vec<u8>>(1)?))))
+            .map(|rows| rows.filter_map(Result::ok).collect())
+            .unwrap_or_default()
+    }
+
+    fn parts(&self) -> HashMap<String, Vec<Part>> {
+        let mut out: HashMap<String, Vec<Part>> = HashMap::new();
+        let Ok(mut st) = self
+            .0
+            .prepare("SELECT id, start, end, kind, vec FROM parts ORDER BY id, k")
+        else {
+            return out;
+        };
+        let rows = st.query_map([], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                Part {
+                    start: r.get(1)?,
+                    end: r.get(2)?,
+                    kind: kind_of(&r.get::<_, String>(3)?),
+                    vec: to_vec(&r.get::<_, Vec<u8>>(4)?),
+                },
+            ))
+        });
+        if let Ok(rows) = rows {
+            for (id, p) in rows.filter_map(Result::ok) {
+                out.entry(id).or_default().push(p);
+            }
+        }
+        out
+    }
+}
+
+/// 1 件のベクトル。whole は区間の平均（区間がなければサムネイル）、text は名前・メモ・本文。
+#[derive(Default)]
+pub struct Entry {
+    pub whole: Option<Vec<f32>>,
+    pub parts: Vec<Part>,
+    pub text: Option<Vec<f32>>,
+}
+
+pub type Index = HashMap<String, Entry>;
+
+/// path のベクトルをすべて読む。書き換えがなければ、前に読んだものを返す。
+pub fn index(path: &Path) -> Result<Arc<Index>, String> {
+    static LOADED: Mutex<Option<(PathBuf, u64, Arc<Index>)>> = Mutex::new(None);
+    let mut g = LOADED.lock().map_err(|e| e.to_string())?;
+    let now = GEN.load(Ordering::Relaxed);
+    if let Some((p, at, ix)) = g.as_ref()
+        && p == path
+        && *at == now
+    {
+        return Ok(Arc::clone(ix));
+    }
+    let s = Store::open(path)?;
+    let now = GEN.load(Ordering::Relaxed);
+    let mut ix = Index::new();
+    for (id, v) in s.vecs("SELECT id, vec FROM content WHERE vec IS NOT NULL") {
+        ix.entry(id).or_default().whole = Some(v);
+    }
+    for (id, ps) in s.parts() {
+        ix.entry(id).or_default().parts = ps;
+    }
+    for (id, v) in s.vecs("SELECT id, vec FROM text") {
+        ix.entry(id).or_default().text = Some(v);
+    }
+    let ix = Arc::new(ix);
+    *g = Some((path.to_owned(), now, Arc::clone(&ix)));
+    Ok(ix)
 }

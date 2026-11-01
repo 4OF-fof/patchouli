@@ -6,6 +6,8 @@ export type Row =
   | { type: 'cmd'; label: string; key: string; run: () => void }
   | { type: 'proj'; p: Project }
   | { type: 'item'; it: Item; where: string }
+  /** 内容での検索で当たった項目。at は当たった区間の始まり（秒） */
+  | { type: 'hit'; it: Item; where: string; at?: number }
   | { type: 'create'; q: string }
 
 function marked(text: string, terms: string[]): JSX.Element {
@@ -25,7 +27,7 @@ function marked(text: string, terms: string[]): JSX.Element {
   return out
 }
 
-const SEC = { cmd: '操作', proj: 'プロジェクト', item: '項目', create: '' }
+const SEC = { cmd: '操作', proj: 'プロジェクト', item: '項目', hit: '内容で一致', create: '' }
 
 export interface SearchResultsProps {
   lib: Library
@@ -61,7 +63,7 @@ export function SearchResults(props: SearchResultsProps) {
                   selected={sel()}
                   onClick={() => props.onRun(r)}
                 />
-              ) : r.type === 'item' ? (
+              ) : r.type === 'item' || r.type === 'hit' ? (
                 <ResultRow
                   kind={r.it.note ? 'note' : 'asset'}
                   title={marked(r.it.name, props.terms)}

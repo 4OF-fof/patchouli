@@ -11,7 +11,7 @@ const MODES: Record<SearchMode, { label: string; placeholder: string; hints: [st
     label: '検索',
     placeholder: '名前・プロジェクト・タグ・本文で検索',
     hints: [
-      ['Tab', 'AI に質問'],
+      ['Tab', 'AI で検索'],
       ['Enter', '開く'],
       ['Ctrl Enter', 'ノートを作成'],
       ['Esc', '閉じる'],
@@ -19,10 +19,10 @@ const MODES: Record<SearchMode, { label: string; placeholder: string; hints: [st
   },
   prompt: {
     label: 'AI',
-    placeholder: 'AI に質問・依頼（例：秋の企画の素材から配色の候補を 3 つ挙げて）',
+    placeholder: '内容で検索（例：夕焼けの海、雨の音、会議の録音）',
     hints: [
       ['Tab', '検索に戻る'],
-      ['Enter', '送信'],
+      ['Enter', '開く'],
       ['Esc', '閉じる'],
     ],
   },
@@ -47,6 +47,8 @@ const MODES: Record<SearchMode, { label: string; placeholder: string; hints: [st
 
 export interface SearchPaletteProps {
   mode?: SearchMode
+  /** false なら、Tab で AI での検索に入れないので、その案内を出さない */
+  ai?: boolean
   query?: string
   results?: JSX.Element
   onClose?: () => void
@@ -90,7 +92,7 @@ export function SearchPalette(props: SearchPaletteProps) {
           </ScrollArea>
         </Show>
         <div class={styles.ht}>
-          <For each={mode().hints}>
+          <For each={mode().hints.filter(([k]) => props.ai !== false || props.mode !== 'search' || k !== 'Tab')}>
             {([k, label]) => (
               <span>
                 <Kbd class={styles.kbd}>{k}</Kbd>

@@ -18,6 +18,8 @@ export interface AudioPlayerProps {
   /** キーを、この中にフォーカスがあるときだけ受ける */
   local?: boolean
   class?: string
+  /** あれば、読み込めたときにこの秒から再生する */
+  start?: number
   /** 読み込めたとき。読めなかったときも呼ぶ */
   onReady?: () => void
   /** WebView のデコーダーが形式に対応していなかったとき */
@@ -216,7 +218,13 @@ export function AudioPlayer(props: AudioPlayerProps) {
       ref={setAudio}
       src={props.src}
       preload="metadata"
-      onLoadedMetadata={() => props.onReady?.()}
+      onLoadedMetadata={(e) => {
+        if (props.start !== undefined) {
+          e.currentTarget.currentTime = props.start
+          void e.currentTarget.play().catch(() => undefined)
+        }
+        props.onReady?.()
+      }}
       onError={(e) => {
         if (undecodable(e.currentTarget.error)) props.onUnsupported?.()
         props.onReady?.()

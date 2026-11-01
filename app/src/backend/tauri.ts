@@ -44,6 +44,7 @@ import type {
   Backend,
   CacheUsage,
   Changed,
+  ContentHit,
   Developer,
   Dropped,
   FileDrag,
@@ -469,6 +470,10 @@ export function tauriBackend(): Backend {
       get: () => invoke<Developer>('developer'),
       set: (developer) => invoke('set_developer', { developer }),
       pick: async (kind) => (await invoke<string | null>('pick_dev_path', { repo: kind === 'repo' })) ?? undefined,
+    },
+    contentSearch: {
+      prepare: () => invoke('prepare_content_search'),
+      search: (query) => invoke<ContentHit[]>('search_content', { query }),
     },
     autoTag: {
       get: () => invoke<AutoTag>('auto_tag'),

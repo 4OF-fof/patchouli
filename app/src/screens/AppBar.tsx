@@ -1,7 +1,14 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import { version } from '../../package.json'
 import appIcon from '../../src-tauri/icons/32x32.png'
-import type { AutoTagActions, AutoTagProgress, DeveloperActions, LibraryActions, TidyActions } from '../backend/types'
+import type {
+  AutoTagActions,
+  AutoTagProgress,
+  ContentSearch,
+  DeveloperActions,
+  LibraryActions,
+  TidyActions,
+} from '../backend/types'
 import { Icon } from '../components/base/Icon/Icon'
 import { TitleBar } from '../components/nav/TitleBar/TitleBar'
 import { HelpDialog } from '../components/dialog/HelpDialog/HelpDialog'
@@ -19,6 +26,7 @@ import type { PluginActions, PluginReport } from '../plugins/types'
 import { findItems, searchTerms } from '../model/search'
 import styles from './AppBar.module.css'
 import { type Row, SearchResults } from '../components/nav/SearchResults/SearchResults'
+import { ResultHeading } from '../components/nav/ResultRow/ResultRow'
 
 export type Place = 'home' | 'all' | 'tags' | 'projects' | 'tidy'
 export type BarState =
@@ -53,7 +61,8 @@ export interface AppBarProps {
   activities?: Activity[]
   onGo?: (to: Place) => void
   onOpenProject?: (name: string) => void
-  onOpenItem?: (id: string) => void
+  /** at は、内容での検索で当たった区間の始まり（秒） */
+  onOpenItem?: (id: string, at?: number) => void
   onCreate?: (name?: string) => void
   library?: string
   onChooseLibrary?: () => void | Promise<void>
@@ -61,6 +70,7 @@ export interface AppBarProps {
   tidy?: TidyActions
   developer?: DeveloperActions
   autoTag?: AutoTagActions
+  contentSearch?: ContentSearch
   onReopen?: () => void
   loadPlugins?: () => Promise<PluginReport>
   pluginActions?: PluginActions
@@ -71,6 +81,8 @@ export interface AppBarProps {
   tabsAt?: TabsAt
   onTabsAtChange?: (at: TabsAt) => void
 }
+
+const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
 const toggleTheme = () => {
   const d = document.documentElement.dataset
@@ -132,12 +144,65 @@ export function AppBar(props: AppBarProps) {
     return out
   })
 
+  // 自動分類が有効でなければ、Tab で内容での検索に入れない
+  const [aiOn] = createResource(
+    () => (searching() && props.contentSearch && props.autoTag) || undefined,
+    async (a) => {
+      const s = await a.get()
+      return s.enabled && s.installed
+    },
+  )
+  const [prepared, setPrepared] = createSignal<'preparing' | 'ready' | { error: string }>()
+  // 入るたびに起動を確かめる。止まっていれば、起動し終えるまで「準備しています」と出す
+  createEffect(() => {
+    if (state() !== 'prompt' || !props.contentSearch) {
+      setPrepared(undefined)
+      return
+    }
+    let live = true
+    onCleanup(() => (live = false))
+    setPrepared('preparing')
+    props.contentSearch.prepare().then(
+      () => live && setPrepared('ready'),
+      (e: unknown) => live && setPrepared({ error: e instanceof Error ? e.message : String(e) }),
+    )
+  })
+  const [settled, setSettled] = createSignal('')
+  createEffect(() => {
+    const q = state() === 'prompt' ? query().trim() : ''
+    const t = window.setTimeout(() => setSettled(q), 250)
+    onCleanup(() => clearTimeout(t))
+  })
+  const [hits] = createResource(
+    () => (state() === 'prompt' && prepared() === 'ready' && settled()) || undefined,
+    async (q) => (await props.contentSearch?.search(q).catch(() => undefined)) ?? [],
+  )
+  const hitRows = createMemo<Row[]>(() => {
+    if (state() !== 'prompt' || !settled()) return []
+    return (hits.latest ?? []).flatMap((h) => {
+      const it = lib().byId.get(h.id)
+      if (!it) return []
+      const at = h.at === undefined ? '' : ` | ${clock(h.at)} から`
+      const where = `類似度 ${h.score.toFixed(2)}${at} | ${lib().placeName(it) ?? '所属なし'}`
+      return [{ type: 'hit' as const, it, where, at: h.at }]
+    })
+  })
+  const shownRows = () => (state() === 'prompt' ? hitRows() : rows())
+  const promptResults = () => {
+    const p = prepared()
+    if (p === 'preparing') return <ResultHeading>準備しています…</ResultHeading>
+    if (typeof p === 'object') return <ResultHeading>{p.error}</ResultHeading>
+    if (!settled()) return undefined
+    return <SearchResults lib={lib()} rows={hitRows()} selected={idx()} terms={[]} onRun={run} />
+  }
+
   const run = (r: Row | undefined) => {
     if (!r) return
     close()
     if (r.type === 'cmd') r.run()
     else if (r.type === 'proj') props.onOpenProject?.(r.p.name)
     else if (r.type === 'item') props.onOpenItem?.(r.it.id)
+    else if (r.type === 'hit') props.onOpenItem?.(r.it.id, r.at)
     else props.onCreate?.(r.q)
   }
 
@@ -381,11 +446,14 @@ export function AppBar(props: AppBarProps) {
       <Show when={searching()}>
         <SearchPalette
           mode={state() === 'prompt' ? 'prompt' : 'search'}
+          ai={aiOn.latest === true}
           query={query()}
           results={
             state() === 'search' ? (
               <SearchResults lib={lib()} rows={rows()} selected={idx()} terms={terms()} onRun={run} />
-            ) : undefined
+            ) : (
+              promptResults()
+            )
           }
           onClose={close}
           onQueryInput={(q) => {
@@ -396,11 +464,13 @@ export function AppBar(props: AppBarProps) {
             if (e.key === 'Escape') close()
             else if (e.key === 'Tab') {
               e.preventDefault()
-              setState(state() === 'prompt' ? 'search' : 'prompt')
+              if (state() === 'prompt') setState('search')
+              else if (aiOn.latest) setState('prompt')
+              else return
               setIdx(0)
             } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
               e.preventDefault()
-              const n = rows().length
+              const n = shownRows().length
               setIdx(Math.max(0, Math.min(n - 1, idx() + (e.key === 'ArrowDown' ? 1 : -1))))
             } else if (e.key === 'Enter' && state() === 'search') {
               e.preventDefault()
@@ -409,6 +479,9 @@ export function AppBar(props: AppBarProps) {
                 close()
                 props.onCreate?.(q || undefined)
               } else run(rows()[idx()])
+            } else if (e.key === 'Enter' && state() === 'prompt') {
+              e.preventDefault()
+              run(hitRows()[idx()])
             }
           }}
         />

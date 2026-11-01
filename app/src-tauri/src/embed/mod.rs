@@ -120,7 +120,7 @@ pub fn gpus() -> Result<Vec<String>, String> {
     let out = quiet(&exe())
         .arg("--list-devices")
         .output()
-        .map_err(|e| format!("llama-server を起動できない: {e}"))?;
+        .map_err(|e| format!("llama-server の起動に失敗しました：{e}"))?;
     let text = String::from_utf8_lossy(&out.stdout);
     let v: Vec<String> = text
         .lines()
@@ -195,7 +195,7 @@ fn port() -> Result<u16, String> {
     }
     *g = None;
     if !installed() {
-        return Err("llama.cpp かモデルがありません".into());
+        return Err("llama.cpp かモデルが見つかりません".into());
     }
     watch_idle();
     let port = std::net::TcpListener::bind("127.0.0.1:0")
@@ -213,7 +213,7 @@ fn port() -> Result<u16, String> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .map_err(|e| format!("llama-server を起動できない: {e}"))?;
+        .map_err(|e| format!("llama-server の起動に失敗しました：{e}"))?;
     bind(&child);
     let mut s = Server {
         child,
@@ -226,10 +226,13 @@ fn port() -> Result<u16, String> {
         .is_err()
     {
         if !matches!(s.child.try_wait(), Ok(None)) {
-            return Err("llama-server が途中で終わった".into());
+            return Err("llama-server が途中で終了しました".into());
         }
         if start.elapsed() > START_LIMIT {
-            return Err("llama-server が起動しない".into());
+            return Err(format!(
+                "llama-server の起動が {} 秒以内に終わりませんでした",
+                START_LIMIT.as_secs()
+            ));
         }
         std::thread::sleep(Duration::from_millis(300));
     }
@@ -240,6 +243,11 @@ fn port() -> Result<u16, String> {
     s.used = Instant::now();
     *g = Some(s);
     Ok(port)
+}
+
+/// llama-server を起動し終えるまで待つ。
+pub fn warm() -> Result<(), String> {
+    port().map(|_| ())
 }
 
 pub fn shutdown() {
@@ -262,7 +270,7 @@ fn embed(input: Value) -> Result<Vec<f32>, String> {
     let v: Value = res.body_mut().read_json().map_err(|e| e.to_string())?;
     let e = v["data"][0]["embedding"]
         .as_array()
-        .ok_or("埋め込みが返ってこない")?;
+        .ok_or("llama-server からベクトルが返ってきませんでした")?;
     if let Ok(mut g) = server().lock()
         && let Some(s) = g.as_mut()
     {
