@@ -182,8 +182,8 @@ export function AppBar(props: AppBarProps) {
     return (hits.latest ?? []).flatMap((h) => {
       const it = lib().byId.get(h.id)
       if (!it) return []
-      const at = h.at === undefined ? '' : ` | ${clock(h.at)} から`
-      const where = `類似度 ${h.score.toFixed(2)}${at} | ${lib().placeName(it) ?? '所属なし'}`
+      const at = h.at === undefined ? '' : `${clock(h.at)} から | `
+      const where = `${at}${lib().placeName(it) ?? '所属なし'}`
       return [{ type: 'hit' as const, it, where, at: h.at }]
     })
   })

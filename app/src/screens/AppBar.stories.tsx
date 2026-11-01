@@ -57,6 +57,30 @@ export const Prompt: Story = {
   name: '内容で検索',
   render: () => bar({ initial: 'prompt', query: '夕焼けの海', contentSearch }),
 }
+const autoTag: AppBarProps['autoTag'] = {
+  get: async () => ({ enabled: true, installed: true, downloading: false, need: 0, gpus: [] }),
+  set: async () => {},
+  cancelDownload: async () => {},
+  onProgress: () => () => {},
+}
+export const SearchAi: Story = {
+  name: '検索を開く（自動分類が有効）',
+  render: () => bar({ initial: 'search', contentSearch, autoTag }),
+}
+export const PromptPreparing: Story = {
+  name: '内容で検索（準備中）',
+  render: () =>
+    bar({
+      initial: 'prompt',
+      query: '夕焼けの海',
+      contentSearch: { ...contentSearch, prepare: () => new Promise(() => {}) },
+    }),
+}
+export const PromptNone: Story = {
+  name: '内容で検索（一致なし）',
+  render: () =>
+    bar({ initial: 'prompt', query: '夕焼けの海', contentSearch: { prepare: async () => {}, search: async () => [] } }),
+}
 export const Help: Story = { name: 'キー操作の一覧', render: () => bar({ initial: 'help' }) }
 
 const working: Activity[] = [

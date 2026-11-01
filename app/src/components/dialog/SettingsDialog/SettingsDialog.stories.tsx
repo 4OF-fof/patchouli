@@ -92,3 +92,18 @@ export const DeveloperFailed: Story = {
     await expect(canvas.getByLabelText('開発者モードを有効化')).not.toBeChecked()
   },
 }
+export const AutoTagDownloading: Story = {
+  name: '自動分類をダウンロード中',
+  args: {
+    autoTag: { enabled: false, installed: false, downloading: true, need: 864_676_512 },
+    autoTagProgress: { file: 'embeddinggemma-2-Q8_0.gguf', done: 312_000_000, total: 829_000_000 },
+  },
+}
+export const AutoTagGpu: Story = {
+  name: '自動分類が有効（GPU）',
+  args: { autoTag: { enabled: true, installed: true, downloading: false, need: 0, gpus: ['NVIDIA GeForce RTX 4070'] } },
+}
+export const AutoTagCpu: Story = {
+  name: '自動分類が有効（CPU）',
+  args: { autoTag: { enabled: true, installed: true, downloading: false, need: 0, gpus: [] } },
+}
