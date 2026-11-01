@@ -7,8 +7,7 @@ use serde::Serialize;
 use crate::{embed, vectors};
 
 const MAX_HITS: usize = 20;
-/// 区間の多い素材は、どの言葉にも近い区間が 1 つは出やすい。素材全体の近さを混ぜ、区間の数で割り引く。
-const WHOLE: f32 = 0.3;
+/// 区間の多い素材は、どの言葉にも近い区間が 1 つは出やすいので、区間の数で割り引く。
 const PER_PARTS: f32 = 0.01;
 
 #[derive(Serialize)]
@@ -38,11 +37,7 @@ pub fn search(thumbs: &Path, query: &str) -> Result<Vec<Hit>, String> {
                 .max_by(|a, b| a.0.total_cmp(&b.0));
             let whole = e.whole.as_ref().map(|w| dot(&q, w));
             let (score, at) = match (part, whole) {
-                (Some((s, at)), w) => {
-                    let w = w.unwrap_or(s);
-                    let n = e.parts.len() as f32;
-                    ((1.0 - WHOLE) * s + WHOLE * w - PER_PARTS * n.ln(), at)
-                }
+                (Some((s, at)), _) => (s - PER_PARTS * (e.parts.len() as f32).ln(), at),
                 (None, Some(w)) => (w, None),
                 (None, None) => (dot(&q, e.text.as_ref()?), None),
             };
