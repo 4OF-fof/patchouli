@@ -1,13 +1,16 @@
 import { For, type JSX, Show } from 'solid-js'
 import { ResultHeading, ResultRow } from '../ResultRow/ResultRow'
 import { type Item, type Library, type Project, thumbOf } from '../../../model/library'
+import { clock } from '../../media/PlayerBar/clock'
+import styles from './SearchResults.module.css'
 
 export type Row =
   | { type: 'cmd'; label: string; key: string; run: () => void }
   | { type: 'proj'; p: Project }
-  | { type: 'item'; it: Item; where: string }
+  /** why は、所属とタグのあとに足す当たりの説明 */
+  | { type: 'item'; it: Item; why?: string }
   /** 内容での検索で当たった項目。at は当たった区間の始まり（秒） */
-  | { type: 'hit'; it: Item; where: string; at?: number }
+  | { type: 'hit'; it: Item; at?: number }
   | { type: 'create'; q: string }
 
 function marked(text: string, terms: string[]): JSX.Element {
@@ -25,6 +28,16 @@ function marked(text: string, terms: string[]): JSX.Element {
     i = j
   }
   return out
+}
+
+function Where(props: { lib: Library; it: Item; terms: string[]; why?: string }) {
+  return (
+    <>
+      {marked(props.lib.placeName(props.it) ?? '所属なし', props.terms)}
+      <For each={props.it.tags}>{(t) => <span class={styles.tag}>{marked(`# ${t}`, props.terms)}</span>}</For>
+      {props.why && <> | {marked(props.why, props.terms)}</>}
+    </>
+  )
 }
 
 const SEC = { cmd: '操作', proj: 'プロジェクト', item: '項目', hit: '内容で一致', create: '' }
@@ -67,7 +80,10 @@ export function SearchResults(props: SearchResultsProps) {
                 <ResultRow
                   kind={r.it.note ? 'note' : 'asset'}
                   title={marked(r.it.name, props.terms)}
-                  sub={marked(r.where, props.terms)}
+                  sub={
+                    <Where lib={props.lib} it={r.it} terms={props.terms} why={r.type === 'item' ? r.why : undefined} />
+                  }
+                  aside={r.type === 'hit' && r.at !== undefined ? `${clock(r.at)} から` : undefined}
                   thumb={thumbOf(r.it)}
                   selected={sel()}
                   onClick={() => props.onRun(r)}

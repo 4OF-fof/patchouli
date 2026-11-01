@@ -25,7 +25,7 @@ const recent: Row[] = [
   ...lib.items
     .toSorted((a, b) => a.moved - b.moved)
     .slice(0, 5)
-    .map((it): Row => ({ type: 'item', it, where: `最近 | ${lib.placeName(it) ?? '所属なし'}` })),
+    .map((it): Row => ({ type: 'item', it })),
 ]
 
 const typed: Row[] = [

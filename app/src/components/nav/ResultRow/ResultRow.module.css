@@ -51,12 +51,18 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.tx span {
+.tx > span {
   font-size: var(--fs-meta);
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.aside {
+  flex: none;
+  font-family: var(--f-mono);
+  font-size: var(--fs-meta);
+  color: var(--muted);
 }
 .root[data-kind='create'] .tx b {
   color: var(--accent);

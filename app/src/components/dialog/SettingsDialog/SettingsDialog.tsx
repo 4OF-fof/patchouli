@@ -210,9 +210,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
                           </div>
                         )}
                       </Show>
-                      <p class={styles.empty}>
-                        モデルは EmbeddingGemma 2（Apache License 2.0）、実行環境は llama.cpp（MIT License）を使用します
-                      </p>
                     </>
                   )}
                 </Show>

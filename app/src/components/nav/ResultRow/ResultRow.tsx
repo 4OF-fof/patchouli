@@ -12,6 +12,7 @@ export interface ResultRowProps {
   title: JSX.Element
   sub?: JSX.Element
   kbd?: string
+  aside?: string
   thumb?: ThumbProps
   selected?: boolean
   onClick?: () => void
@@ -51,6 +52,7 @@ export function ResultRow(props: ResultRowProps) {
         <b>{props.title}</b>
         {props.sub && <span>{props.sub}</span>}
       </span>
+      {props.aside && <span class={styles.aside}>{props.aside}</span>}
       {props.kbd && <Kbd>{props.kbd}</Kbd>}
     </div>
   )

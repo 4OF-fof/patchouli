@@ -10,6 +10,7 @@ import type {
   TidyActions,
 } from '../backend/types'
 import { Icon } from '../components/base/Icon/Icon'
+import { Spinner } from '../components/base/Spinner/Spinner'
 import { TitleBar } from '../components/nav/TitleBar/TitleBar'
 import { HelpDialog } from '../components/dialog/HelpDialog/HelpDialog'
 import { LibrariesDialog } from '../components/dialog/LibrariesDialog/LibrariesDialog'
@@ -82,8 +83,6 @@ export interface AppBarProps {
   onTabsAtChange?: (at: TabsAt) => void
 }
 
-const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
-
 const toggleTheme = () => {
   const d = document.documentElement.dataset
   d.theme = d.theme === 'light' ? 'dark' : 'light'
@@ -137,8 +136,7 @@ export function AppBar(props: AppBarProps) {
       .slice(0, ts.length ? 3 : 2))
       out.push({ type: 'proj', p })
     if (!ts.length) {
-      for (const it of lib().items.toSorted(newerFirst).slice(0, 7))
-        out.push({ type: 'item', it, where: `最近 | ${lib().placeName(it) ?? '所属なし'}` })
+      for (const it of lib().items.toSorted(newerFirst).slice(0, 7)) out.push({ type: 'item', it })
     } else for (const f of findItems(lib(), ts).slice(0, 8)) out.push({ type: 'item', ...f })
     if (query().trim()) out.push({ type: 'create', q: query().trim() })
     return out
@@ -153,7 +151,7 @@ export function AppBar(props: AppBarProps) {
     },
   )
   const [prepared, setPrepared] = createSignal<'preparing' | 'ready' | { error: string }>()
-  // 入るたびに起動を確かめる。止まっていれば、起動し終えるまで「準備しています」と出す
+  // 入るたびに起動を確かめる。止まっていれば、起動し終えるまで「モデルを起動しています」と出す
   createEffect(() => {
     if (state() !== 'prompt' || !props.contentSearch) {
       setPrepared(undefined)
@@ -182,15 +180,19 @@ export function AppBar(props: AppBarProps) {
     return (hits.latest ?? []).flatMap((h) => {
       const it = lib().byId.get(h.id)
       if (!it) return []
-      const at = h.at === undefined ? '' : `${clock(h.at)} から | `
-      const where = `${at}${lib().placeName(it) ?? '所属なし'}`
-      return [{ type: 'hit' as const, it, where, at: h.at }]
+      return [{ type: 'hit' as const, it, at: h.at }]
     })
   })
   const shownRows = () => (state() === 'prompt' ? hitRows() : rows())
   const promptResults = () => {
     const p = prepared()
-    if (p === 'preparing') return <ResultHeading>準備しています…</ResultHeading>
+    if (p === 'preparing')
+      return (
+        <div class={styles.preparing}>
+          <Spinner size={16} />
+          モデルを起動しています…
+        </div>
+      )
     if (typeof p === 'object') return <ResultHeading>{p.error}</ResultHeading>
     if (!settled()) return undefined
     return <SearchResults lib={lib()} rows={hitRows()} selected={idx()} terms={[]} onRun={run} />
