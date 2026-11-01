@@ -1,17 +1,22 @@
-//! 自動分類で読む区間を、プラグインに作らせて集める。
+//! 自動分類で読む区間を、プラグインに作らせてベクトルにする。
 //! sandbox が受け持つ形式は裏で WASM を呼び、elevated が受け持つ形式は画面に頼む（content-wanted）。
 //! elevated が api.sandbox() で呼んだ WASM の区間は、画面に渡さずにここで持ち、画面が返した区間と合わせる。
+//! ベクトルにするのは 1 つのスレッドで、区間を作る側はそこへ 1 件ずつ渡す。
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::HashMap;
-use std::path::PathBuf;
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::sync::{Arc, Mutex, OnceLock};
+use std::time::Instant;
 use tauri::Emitter;
 
 use crate::library::StoredItem;
 use crate::plugin::{By, ContentBudget, ContentMedia, ContentPart, Part, Registry, Runner, UiRef};
+use crate::vectors::{self, Store};
+use crate::{embed, thumb};
 
 fn budget() -> ContentBudget {
     ContentBudget {
@@ -24,14 +29,36 @@ fn budget() -> ContentBudget {
     }
 }
 
+fn budget_key() -> String {
+    let b = budget();
+    format!(
+        "{},{},{},{},{},{}",
+        b.max_image_parts,
+        b.max_audio_parts,
+        b.max_text_parts,
+        b.max_images,
+        b.edge,
+        b.max_audio_secs
+    )
+}
+
+/// ベクトルにする 1 件。parts が空なら、thumb で代える。
+struct Work {
+    id: String,
+    name: String,
+    sig: String,
+    parts: Vec<ContentPart>,
+    thumb: Option<PathBuf>,
+}
+
 /// 画面に頼んだ 1 件。
 struct Job {
-    name: String,
+    work: Work,
     ext: String,
     file: PathBuf,
     plugins: Arc<Registry>,
     stop: Arc<AtomicBool>,
-    sandbox: Vec<ContentPart>,
+    tx: SyncSender<Work>,
 }
 
 #[derive(Serialize)]
@@ -70,8 +97,29 @@ fn counts(parts: &[ContentPart]) -> String {
     format!("画像 {images}・音声 {audio}・文章 {text}")
 }
 
-/// items の区間を集める。いまは集めた数と時間をログに出すだけ。
-pub fn collect(app: &tauri::AppHandle, plugins: &Arc<Registry>, items: &[StoredItem]) {
+/// 項目の文章。タグは候補として当てるものなので入れない。
+pub fn text_of(it: &StoredItem) -> String {
+    let mut s = it.name.replace(['_', '-'], " ");
+    for t in [Some(&it.memo), it.body.as_ref()].into_iter().flatten() {
+        if !t.is_empty() {
+            s.push('\n');
+            s.push_str(t);
+        }
+    }
+    s
+}
+
+fn hash(s: &str) -> String {
+    format!("{:016x}", thumb::fnv(&[s.as_bytes()]))
+}
+
+/// items のベクトルを、変わったものだけ作り直す。新しく始めると、前のものは止める。
+pub fn collect(
+    app: &tauri::AppHandle,
+    plugins: &Arc<Registry>,
+    items: &[StoredItem],
+    thumbs: &Path,
+) {
     let stop = Arc::new(AtomicBool::new(false));
     if let Ok(mut c) = current().lock() {
         c.store(true, Ordering::Relaxed);
@@ -80,47 +128,103 @@ pub fn collect(app: &tauri::AppHandle, plugins: &Arc<Registry>, items: &[StoredI
     if let Ok(mut j) = jobs().lock() {
         j.clear();
     }
+    if !embed::installed() {
+        log::info!("llama.cpp かモデルがないので、ベクトルを作らない");
+        return;
+    }
+    let mut store = match Store::open(&vectors::path_for(thumbs)) {
+        Ok(s) => s,
+        Err(e) => {
+            log::warn!("ベクトルのキャッシュを開けない: {e}");
+            return;
+        }
+    };
+    let keep: HashSet<String> = items.iter().map(|it| it.id.clone()).collect();
+    match store.retain(&keep) {
+        Ok(n) if n > 0 => log::info!("消えた項目のベクトルを片付けた: {n} 件"),
+        Ok(_) => {}
+        Err(e) => log::warn!("消えた項目のベクトルを片付けられない: {e}"),
+    }
+    let (have_text, have_content) = (store.text_sigs(), store.content_sigs());
+    let texts: Vec<(String, String, String)> = items
+        .iter()
+        .filter_map(|it| {
+            let text = text_of(it);
+            let sig = hash(&text);
+            (have_text.get(&it.id) != Some(&sig)).then(|| (it.id.clone(), sig, text))
+        })
+        .collect();
+    let (tx, rx) = sync_channel::<Work>(1);
     let mut sandbox = Vec::new();
     let mut wanted = Vec::new();
+    let mut by_thumb = Vec::new();
+    let key = budget_key();
     for it in items.iter().filter(|it| !it.note) {
         let ext = it.ext.to_lowercase();
-        match plugins.handles(&ext, Part::Content) {
-            Some(By::Sandbox) => sandbox.push((it.name.clone(), ext, it.file.clone())),
+        let thumb = it.thumb.clone().filter(|t| t.is_file());
+        let by = plugins.handles(&ext, Part::Content);
+        let sig = match (plugins.content_owner(&ext), thumb.as_ref()) {
+            (Some(owner), _) => format!("{}|{owner}|{key}", it.mtime),
+            (None, Some(t)) => format!(
+                "{}|thumb|{}",
+                it.mtime,
+                t.file_name().unwrap_or_default().to_string_lossy()
+            ),
+            (None, None) => continue,
+        };
+        if have_content.get(&it.id) == Some(&sig) {
+            continue;
+        }
+        let work = Work {
+            id: it.id.clone(),
+            name: format!("{}.{}", it.name, it.ext),
+            sig,
+            parts: Vec::new(),
+            thumb,
+        };
+        match by {
+            Some(By::Sandbox) => sandbox.push((ext, it.file.clone(), work)),
             Some(By::Elevated) => {
                 let Some(ui) = plugins.ui_of(&ext, Part::Content) else {
                     continue;
                 };
                 let job = NEXT.fetch_add(1, Ordering::Relaxed);
-                if let Ok(mut j) = jobs().lock() {
-                    j.insert(
-                        job,
-                        Job {
-                            name: it.name.clone(),
-                            ext: ext.clone(),
-                            file: it.file.clone(),
-                            plugins: Arc::clone(plugins),
-                            stop: Arc::clone(&stop),
-                            sandbox: Vec::new(),
-                        },
-                    );
-                }
                 wanted.push(Wanted {
                     job,
                     ui,
                     id: it.id.clone(),
                     name: it.name.clone(),
-                    ext,
+                    ext: ext.clone(),
                     file: it.file.clone(),
                 });
+                if let Ok(mut j) = jobs().lock() {
+                    j.insert(
+                        job,
+                        Job {
+                            work,
+                            ext,
+                            file: it.file.clone(),
+                            plugins: Arc::clone(plugins),
+                            stop: Arc::clone(&stop),
+                            tx: tx.clone(),
+                        },
+                    );
+                }
             }
-            None => {}
+            None => by_thumb.push(work),
         }
     }
     log::info!(
-        "区間を集める: sandbox {} 件・elevated {} 件",
+        "ベクトルを作る: 文章 {} 件・sandbox {} 件・elevated {} 件・サムネイル {} 件",
+        texts.len(),
         sandbox.len(),
-        wanted.len()
+        wanted.len(),
+        by_thumb.len()
     );
+    {
+        let stop = Arc::clone(&stop);
+        std::thread::spawn(move || embed_all(&mut store, texts, by_thumb, &rx, &stop));
+    }
     if !wanted.is_empty() {
         let b = budget();
         let _ = app.emit(
@@ -142,22 +246,122 @@ pub fn collect(app: &tauri::AppHandle, plugins: &Arc<Registry>, items: &[StoredI
     std::thread::spawn(move || {
         let mut runner = Runner::new(plugins);
         runner.set_stop(Arc::clone(&stop));
-        for (name, ext, file) in sandbox {
+        for (ext, file, mut work) in sandbox {
             if stop.load(Ordering::Relaxed) {
                 return;
             }
-            let started = std::time::Instant::now();
+            let started = Instant::now();
             match runner.content(&ext, &file, budget()) {
-                Some(Ok(parts)) => log::info!(
-                    "区間を作った: {name}.{ext} {}（{:.1} 秒）",
-                    counts(&parts),
-                    started.elapsed().as_secs_f32()
-                ),
-                Some(Err(e)) => log::warn!("区間を作れない: {name}.{ext}: {e}"),
+                Some(Ok(parts)) => {
+                    log::info!(
+                        "区間を作った: {} {}（{:.1} 秒）",
+                        work.name,
+                        counts(&parts),
+                        started.elapsed().as_secs_f32()
+                    );
+                    work.parts = parts;
+                }
+                Some(Err(e)) => log::warn!("区間を作れない: {}: {e}", work.name),
                 None => {}
+            }
+            if tx.send(work).is_err() {
+                return;
             }
         }
     });
+}
+
+/// texts は（ID・sig・文章）。区間はすべて揃ってから保存するので、途中で止めたものは次に作り直す。
+fn embed_all(
+    store: &mut Store,
+    texts: Vec<(String, String, String)>,
+    by_thumb: Vec<Work>,
+    rx: &Receiver<Work>,
+    stop: &AtomicBool,
+) {
+    let started = Instant::now();
+    let n = texts.len();
+    for (id, sig, text) in texts {
+        if stop.load(Ordering::Relaxed) {
+            return;
+        }
+        let v = match embed::text("classification", &text) {
+            Ok(v) => v,
+            Err(e) => {
+                log::warn!("文章をベクトルにできない: {e}");
+                return;
+            }
+        };
+        if let Err(e) = store.put_text(&id, &sig, &v) {
+            log::warn!("ベクトルを保存できない: {e}");
+            return;
+        }
+    }
+    if n > 0 {
+        log::info!(
+            "文章をベクトルにした: {n} 件（{:.1} 秒）",
+            started.elapsed().as_secs_f32()
+        );
+    }
+    for w in by_thumb.into_iter().chain(rx.iter()) {
+        if stop.load(Ordering::Relaxed) {
+            return;
+        }
+        match embed_work(&w, stop) {
+            Ok(Some((whole, parts))) => {
+                if let Err(e) = store.put_content(&w.id, &w.sig, whole.as_deref(), &parts) {
+                    log::warn!("ベクトルを保存できない: {e}");
+                    return;
+                }
+            }
+            Ok(None) => return,
+            Err(e) => {
+                log::warn!("ベクトルにできない: {}: {e}", w.name);
+                return;
+            }
+        }
+    }
+}
+
+type Embedded = (Option<Vec<f32>>, Vec<vectors::Part>);
+
+/// 止めたら None。
+fn embed_work(w: &Work, stop: &AtomicBool) -> Result<Option<Embedded>, String> {
+    let started = Instant::now();
+    let mut parts = Vec::with_capacity(w.parts.len());
+    for p in &w.parts {
+        if stop.load(Ordering::Relaxed) {
+            return Ok(None);
+        }
+        parts.push(vectors::Part {
+            start: p.start,
+            end: p.end,
+            kind: kind_of(&p.media),
+            vec: embed::media(&p.media)?,
+        });
+    }
+    let whole = if let Some(first) = parts.first() {
+        let mut sum = vec![0.0; first.vec.len()];
+        for p in &parts {
+            sum.iter_mut().zip(&p.vec).for_each(|(s, x)| *s += x);
+        }
+        Some(embed::normalize(sum))
+    } else if let Some(t) = &w.thumb {
+        Some(embed::image(&std::fs::read(t).map_err(|e| e.to_string())?)?)
+    } else {
+        None
+    };
+    log::info!(
+        "ベクトルにした: {} {}（{:.1} 秒）",
+        w.name,
+        if parts.is_empty() {
+            "サムネイル".to_owned()
+        } else {
+            format!("区間 {}", parts.len())
+        },
+        started.elapsed().as_secs_f32()
+    );
+    Ok(Some((whole, parts)))
 }
 
 /// elevated の中から呼ぶ sandbox の content。区間はここで持ち、位置と種類だけを返す。
@@ -201,7 +405,7 @@ pub fn sandbox(job: u64) -> Result<Vec<SandboxPart>, String> {
         })
         .collect();
     if let Some(j) = jobs().lock().map_err(|e| e.to_string())?.get_mut(&job) {
-        j.sandbox = parts;
+        j.work.parts = parts;
     }
     Ok(out)
 }
@@ -217,16 +421,17 @@ struct SentPart {
     text: Option<String>,
 }
 
-/// 画面が作り終えた区間。body は、頭の 4 バイトが区間の形（SentPart）の JSON の長さで、JSON、中身と続く。
+/// 画面が作り終えた区間を、ベクトルにするスレッドへ渡す。body は、頭の 4 バイトが区間の形（SentPart）の JSON の長さで、JSON、中身と続く。
 /// error があれば、作れなかった。ms は画面で作るのにかかった時間。
 pub fn put(job: u64, body: &[u8], error: Option<&str>, ms: f64) -> Result<(), String> {
-    let j = jobs()
+    let Job { mut work, tx, .. } = jobs()
         .lock()
         .map_err(|e| e.to_string())?
         .remove(&job)
         .ok_or("区間を待っていない項目です")?;
     if let Some(e) = error {
-        log::warn!("区間を作れない: {}.{}: {e}", j.name, j.ext);
+        log::warn!("区間を作れない: {}: {e}", work.name);
+        let _ = tx.send(work);
         return Ok(());
     }
     let len = body
@@ -246,7 +451,7 @@ pub fn put(job: u64, body: &[u8], error: Option<&str>, ms: f64) -> Result<(), St
         at += n;
         Ok(b)
     };
-    let mut parts = j.sandbox;
+    let mut parts = std::mem::take(&mut work.parts);
     for p in sent {
         let media = if !p.images.is_empty() {
             ContentMedia::Images(
@@ -269,11 +474,13 @@ pub fn put(job: u64, body: &[u8], error: Option<&str>, ms: f64) -> Result<(), St
         });
     }
     log::info!(
-        "区間を作った: {}.{} {}（{:.1} 秒）",
-        j.name,
-        j.ext,
+        "区間を作った: {} {}（{:.1} 秒）",
+        work.name,
         counts(&parts),
         ms / 1000.0
     );
+    work.parts = parts;
+    // ベクトルにするスレッドが前の 1 件を受け取るまで待つ。止めたあとなら捨てる
+    let _ = tx.send(work);
     Ok(())
 }

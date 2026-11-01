@@ -4,6 +4,8 @@
 /example/dev-library/
 /example/dev-plugins/
 /example/dev-zips/
+# 自動分類の llama.cpp とモデル
+/example/dev-embed/
 # 例のプラグインのビルド
 /example/target/
 /example/*/dist/

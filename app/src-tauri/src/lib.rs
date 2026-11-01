@@ -1,6 +1,7 @@
 pub mod cache;
 mod content;
 mod cover;
+mod embed;
 pub mod import;
 pub mod library;
 pub mod note;
@@ -10,6 +11,7 @@ mod settings;
 mod shell;
 pub mod thumb;
 mod tidy;
+mod vectors;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -460,8 +462,9 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
         runner,
         ui_reads: HashMap::new(),
     });
-    if settings::auto_tag(&app).unwrap_or(false) {
-        content::collect(&app, &plugins, &opened.items);
+    // キャッシュから開いたときは、確かめ終えてから作る
+    if !checking && settings::auto_tag(&app).unwrap_or(false) {
+        content::collect(&app, &plugins, &opened.items, &thumbs);
     }
     if checking {
         CHECKING.fetch_add(1, Ordering::Relaxed);
@@ -585,6 +588,14 @@ fn check(
     // 何もないのに送ると、画面がライブラリを作り直してしまう
     if !changes.is_empty() {
         let _ = app.emit("library-changed", &changes);
+    }
+    let items = settings::auto_tag(app)
+        .unwrap_or(false)
+        .then(|| with_session(&cur, |s| Ok((s.id == id).then(|| s.lib.snapshot().items))))
+        .and_then(Result::ok)
+        .flatten();
+    if let Some(items) = items {
+        content::collect(app, plugins, &items, thumbs);
     }
     spawn_thumbs(app, plugins, cache, thumbs, job, all_found);
 }
@@ -1070,7 +1081,10 @@ async fn put_content(request: tauri::ipc::Request<'_>) -> Result<(), String> {
         .ok_or("job が指定されていません")?;
     let error: Option<String> = head("error").and_then(|v| serde_json::from_str(v).ok());
     let ms = head("ms").and_then(|v| v.parse().ok()).unwrap_or(0.0);
-    content::put(job, body, error.as_deref(), ms)
+    let body = body.to_vec();
+    tauri::async_runtime::spawn_blocking(move || content::put(job, &body, error.as_deref(), ms))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1666,6 +1680,9 @@ pub fn run() {
             if let Ok(d) = cache_dir(app.handle()) {
                 plugin::set_compiled_dir(d.join("wasm"));
             }
+            if let Ok(d) = app.path().app_data_dir() {
+                embed::init(&d);
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -1675,6 +1692,11 @@ pub fn run() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while building tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_, e| {
+            if let tauri::RunEvent::Exit = e {
+                embed::shutdown();
+            }
+        });
 }

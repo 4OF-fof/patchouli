@@ -806,6 +806,22 @@ impl Registry {
         })
     }
 
+    /// content を作るプラグインの ID と版。elevated が呼べる sandbox のものも並べる。版が変われば区間を作り直す。
+    pub fn content_owner(&self, ext: &str) -> Option<String> {
+        let by = self.handles(ext, Part::Content)?;
+        let mut out = Vec::new();
+        for b in [by, By::Sandbox] {
+            if let Some((i, _)) = self.slot(ext, Part::Content, b) {
+                let m = &self.plugins[i].manifest;
+                let s = format!("{}@{}", m.id, m.version);
+                if !out.contains(&s) {
+                    out.push(s);
+                }
+            }
+        }
+        Some(out.join(","))
+    }
+
     pub fn file(&self, id: &str, rel: &str) -> Option<Vec<u8>> {
         let p = self.plugins.iter().find(|p| p.manifest.id == id)?;
         match &p.dir {

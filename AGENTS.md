@@ -11,7 +11,7 @@
 - 中身は `app/src/samples/spec.ts` の 1 か所で決める。画面の見本（`library.ts`）と `example/dev-library/` は、どちらもここから作る。中身を変えるときは `spec.ts` を直す。
 - `example/dev-library/` は `node scripts/dev-library.ts` で作る（ffmpeg と、cargo の wasm32-wasip2、app の pnpm install が要る）。作り直すたびに消えるので、手で直さない。
 - 例のプラグインは `example/<名前>-plugin/` に置き、使うものを `spec.ts` の `EXAMPLE_PLUGINS` に書く。スクリプトが SDK の CLI でビルドして `example/dev-plugins/` に入れ、ライブラリに記録する。開発中のアプリは、既定でこのライブラリとプラグインの置き場を使う。
-- 開発中だけ効く環境変数: `PATCHOULI_LIBRARY`（開くライブラリ）、`PATCHOULI_PLUGIN_DIR`（プラグインの置き場）、`PATCHOULI_NO_COMMANDS`（「ffmpeg,magick」のように並べたコマンドを、見つからないことにする）。リリースビルドには残さない。
+- 開発中だけ効く環境変数: `PATCHOULI_LIBRARY`（開くライブラリ）、`PATCHOULI_PLUGIN_DIR`（プラグインの置き場）、`PATCHOULI_NO_COMMANDS`（「ffmpeg,magick」のように並べたコマンドを、見つからないことにする）、`PATCHOULI_EMBED_DIR`（自動分類の llama.cpp とモデルの置き場。既定は `example/dev-embed/`）。リリースビルドには残さない。
 - `spec.ts` は Node がそのまま読むので、型のほかは import しない。
 - ライブラリの形式が決まったり変わったりしたら、`spec.ts` とスクリプトにも反映する。
 
