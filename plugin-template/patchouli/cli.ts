@@ -1,5 +1,5 @@
 /*
- * プラグインをビルドし、アプリに入れられる形（plugin.json・plugin.wasm・組み込み UI の .js）を out に並べる。zip はそれを固める。
+ * プラグインをビルドし、アプリに入れられる形（plugin.json・plugin.wasm・elevated の .js）を out に並べる。zip はそれを固める。
  * 使い方: node cli.ts build [フォルダ] [--out <dir>] [--no-wasm]
  *         node cli.ts zip [フォルダ] [--out <file>]
  * フォルダの既定はいまの場所、out の既定は <フォルダ>/dist と <フォルダ>/<id>-<版>.zip。
@@ -21,14 +21,14 @@ const SDK = path.join(import.meta.dirname, 'index.ts')
 function readManifest(dir: string): Manifest {
   const file = path.join(dir, 'plugin.json')
   const m: Partial<Manifest> = JSON.parse(fs.readFileSync(file, 'utf8'))
-  const { id, name, version, formats, ui } = m
+  const { id, name, version, formats, elevated } = m
   const missing = (k: string) => new Error(`${file}: 「${k}」が指定されていません`)
   if (!id) throw missing('id')
   if (!name) throw missing('name')
   if (!version) throw missing('version')
   if (!formats || typeof formats !== 'object') throw missing('formats')
-  if (ui !== undefined && !ui.endsWith('.js'))
-    throw new Error(`${file}: 「ui」には .js のパスを指定してください（${ui}）`)
+  if (elevated !== undefined && !elevated.endsWith('.js'))
+    throw new Error(`${file}: 「elevated」には .js のパスを指定してください（${elevated}）`)
   return { ...m, id, name, version, formats }
 }
 
@@ -78,10 +78,10 @@ function cargo(dir: string): Promise<string> {
   })
 }
 
-/** 組み込み UI（ui の拡張子を .ts にしたもの）を、1 つの ES モジュールにまとめる。 */
+/** elevated（拡張子を .ts にしたもの）を、1 つの ES モジュールにまとめる。 */
 async function bundle(dir: string, ui: string, out: string) {
   const entry = path.join(dir, ui.replace(/\.js$/, '.ts'))
-  if (!fs.existsSync(entry)) throw new Error(`組み込み UI の元（${path.relative(dir, entry)}）が見つかりません`)
+  if (!fs.existsSync(entry)) throw new Error(`elevated の元（${path.relative(dir, entry)}）が見つかりません`)
   const esbuild = await loadEsbuild(dir)
   await esbuild.build({
     entryPoints: [entry],
@@ -120,7 +120,7 @@ export async function build(dir: string, opts: BuildOptions = {}) {
   fs.mkdirSync(out, { recursive: true })
   if (opts.wasm !== false && fs.existsSync(path.join(dir, 'Cargo.toml')))
     fs.copyFileSync(await cargo(dir), path.join(out, 'plugin.wasm'))
-  if (m.ui) await bundle(dir, m.ui, out)
+  if (m.elevated) await bundle(dir, m.elevated, out)
   fs.copyFileSync(path.join(dir, 'plugin.json'), path.join(out, 'plugin.json'))
   return { manifest: m, out }
 }

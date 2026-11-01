@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::{self, File as FsFile};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -18,6 +19,7 @@ wasmtime::component::bindgen!({ world: "plugin", path: "../plugins/sdk/wit" });
 
 use patchouli::plugin::host::{CommandArg, CommandOutput};
 use patchouli::plugin::types;
+pub use patchouli::plugin::types::ContentMedia;
 
 pub const READ_MAX: u32 = 16 << 20;
 
@@ -25,6 +27,7 @@ pub const READ_MAX: u32 = 16 << 20;
 const SETTINGS_LIMIT: Duration = Duration::from_secs(2);
 const THUMBNAIL_LIMIT: Duration = Duration::from_secs(10);
 const VIEW_LIMIT: Duration = Duration::from_secs(30);
+const CONTENT_LIMIT: Duration = Duration::from_secs(120);
 
 const TICK: Duration = Duration::from_millis(100);
 
@@ -56,10 +59,24 @@ impl std::fmt::Display for TimedOut {
 
 impl std::error::Error for TimedOut {}
 
+#[derive(Debug)]
+struct Stopped;
+
+impl std::fmt::Display for Stopped {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "止めました")
+    }
+}
+
+impl std::error::Error for Stopped {}
+
 fn store(state: HostState) -> Store<HostState> {
     let mut store = Store::new(engine(), state);
     store.epoch_deadline_callback(|s| {
         let st = s.data();
+        if st.stop.as_ref().is_some_and(|s| s.load(Ordering::Relaxed)) {
+            return Err(wasmtime::Error::new(Stopped));
+        }
         if st.started.elapsed().saturating_sub(st.outside) > st.limit {
             return Err(wasmtime::Error::new(TimedOut(st.limit)));
         }
@@ -97,6 +114,7 @@ pub struct HostState {
     started: Instant,
     limit: Duration,
     outside: Duration,
+    stop: Option<Arc<AtomicBool>>,
 }
 
 impl HostState {
@@ -113,6 +131,7 @@ impl HostState {
             started: Instant::now(),
             limit: Duration::ZERO,
             outside: Duration::ZERO,
+            stop: None,
         }
     }
 
@@ -387,7 +406,7 @@ impl Runner {
         limit: Duration,
         f: impl FnOnce(&Plugin, &mut Store<HostState>, &str, File) -> wasmtime::Result<R>,
     ) -> Option<Result<R, String>> {
-        let (i, format) = self.reg.part(ext, part, by)?;
+        let (i, format) = self.reg.slot(ext, part, by)?;
         let format = format.to_owned();
         Some(self.run(i, &format, ext, path, limit, f))
     }
@@ -456,9 +475,16 @@ impl Runner {
     /// 止まったプラグインを作り直す。止まったあとの store には入れないので、store から作り直す。
     fn reset(&mut self) {
         let reads = self.store.data_mut().reads.take();
+        let stop = self.store.data_mut().stop.take();
         self.store = store(HostState::new(Some(Arc::clone(&self.reg))));
         self.store.data_mut().reads = reads;
+        self.store.data_mut().stop = stop;
         self.instances.clear();
+    }
+
+    /// stop が立つと、動いている WASM を止める。
+    pub fn set_stop(&mut self, stop: Arc<AtomicBool>) {
+        self.store.data_mut().stop = Some(stop);
     }
 
     pub fn reading<R>(&mut self, f: impl FnOnce(&mut Runner) -> R) -> (R, Reads) {
@@ -472,7 +498,7 @@ impl Runner {
             r.call(
                 ext,
                 Part::Thumbnail,
-                By::Wasm,
+                By::Sandbox,
                 path,
                 THUMBNAIL_LIMIT,
                 |p, s, fmt, file| p.call_thumbnail(s, fmt, &file, edge),
@@ -489,7 +515,7 @@ impl Runner {
         let r = self.call(
             ext,
             Part::View,
-            By::Wasm,
+            By::Sandbox,
             path,
             VIEW_LIMIT,
             |p, s, fmt, file| p.call_view(s, fmt, &file),
@@ -513,13 +539,31 @@ impl Runner {
         let r = self.call(
             ext,
             Part::Details,
-            By::Wasm,
+            By::Sandbox,
             path,
             VIEW_LIMIT,
             |p, s, fmt, file| p.call_details(s, fmt, &file),
         );
         let ds = r.unwrap_or(Ok(Ok(Vec::new())))??;
         Ok(ds.into_iter().map(|d| (d.label, d.value)).collect())
+    }
+
+    /// sandbox の content。受け持たなければ None。
+    pub fn content(
+        &mut self,
+        ext: &str,
+        path: &Path,
+        budget: ContentBudget,
+    ) -> Option<Result<Vec<ContentPart>, String>> {
+        let r = self.call(
+            ext,
+            Part::Content,
+            By::Sandbox,
+            path,
+            CONTENT_LIMIT,
+            |p, s, fmt, file| p.call_content(s, fmt, &file, budget),
+        )?;
+        Some(r.and_then(|x| x))
     }
 
     /// 素材を 1 つのプラグインにまとめて渡す。どれかを受け持たないか、受け持つプラグインが分かれるときは None。
@@ -531,7 +575,7 @@ impl Runner {
         let mut plugin = None;
         let mut formats = Vec::new();
         for (ext, _) in files {
-            let (i, format) = self.reg.part(ext, Part::Menu, By::Wasm)?;
+            let (i, format) = self.reg.slot(ext, Part::Menu, By::Sandbox)?;
             if plugin.is_some_and(|p| p != i) {
                 return None;
             }
@@ -567,7 +611,7 @@ impl Runner {
         self.call(
             ext,
             Part::View,
-            By::Wasm,
+            By::Sandbox,
             path,
             VIEW_LIMIT,
             |p, s, fmt, file| p.call_decode(s, fmt, &file),
@@ -586,8 +630,8 @@ impl Runner {
     ) -> Result<String, String> {
         let (i, format) = self
             .reg
-            .part(ext, part, By::Ui)
-            .ok_or("UI ファイルで対応するプラグインがありません")?;
+            .part(ext, part, By::Elevated)
+            .ok_or("elevated で対応するプラグインがありません")?;
         let format = format.to_owned();
         let i = match target {
             None => i,

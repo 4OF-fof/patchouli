@@ -16,7 +16,7 @@ export type {
   SettingValue,
 } from '../../plugins/sdk'
 
-export type By = 'wasm' | 'ui'
+export type By = 'sandbox' | 'elevated'
 
 export interface Cap {
   part: Part

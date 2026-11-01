@@ -1,9 +1,22 @@
 /*
- * 組み込み UI。plugin.json の ui の ES モジュールを、隔離せずに本体の画面で動かす。中身は default で書き出した PluginModule。
+ * 組み込み UI。plugin.json の elevated の ES モジュールを、隔離せずに本体の画面で動かす。中身は default で書き出した PluginModule。
  * 本体の画面と同じ文書で動くので、色や字体の CSS 変数（src/styles/tokens.css）はそのまま使え、
  * 詳細の表示の中では、ボタンや入力欄などの素の要素に本体と同じ見た目が付く（PluginView）。
  */
-import type { Api, Item, PluginModule } from '../../plugins/sdk'
+import type {
+  Api,
+  ContentApi,
+  ContentBudget,
+  ContentPart,
+  Detail,
+  DetailsApi,
+  Item,
+  MenuApi,
+  MenuItem,
+  PluginModule,
+  RunMenuApi,
+  ThumbnailApi,
+} from '../../plugins/sdk'
 
 export type UiApi = Api
 export type UiItem = Item
@@ -40,11 +53,11 @@ export class WaveformTimeout extends Error {
 
 const loaded = new Map<string, Promise<UiModule>>()
 
+const MODULE_FNS = ['mount', 'thumbnail', 'waveform', 'hover', 'embed', 'details', 'menu', 'runMenu', 'content']
+
 const isFn = (v: unknown) => v === undefined || typeof v === 'function'
 const isModule = (m: unknown): m is UiModule =>
-  typeof m === 'object' &&
-  m !== null &&
-  ['mount', 'thumbnail', 'waveform', 'hover', 'embed'].every((k) => isFn(Reflect.get(m, k)))
+  typeof m === 'object' && m !== null && MODULE_FNS.every((k) => isFn(Reflect.get(m, k)))
 
 export const loadUi = (url: string): Promise<UiModule> => {
   let m = loaded.get(url)
@@ -52,9 +65,7 @@ export const loadUi = (url: string): Promise<UiModule> => {
     m = import(/* @vite-ignore */ url).then((ns: unknown) => {
       const mod: unknown = typeof ns === 'object' && ns !== null ? Reflect.get(ns, 'default') : undefined
       if (!isModule(mod))
-        throw new Error(
-          'default で書き出したものの mount・thumbnail・waveform・hover・embed のいずれかが関数ではありません',
-        )
+        throw new Error(`default で書き出したものの ${MODULE_FNS.join('・')} のいずれかが関数ではありません`)
       return mod
     })
     loaded.set(url, m)
@@ -65,7 +76,7 @@ export const loadUi = (url: string): Promise<UiModule> => {
 
 export async function uiThumbnail(
   url: string,
-  api: UiApi,
+  api: Omit<ThumbnailApi, 'edge'>,
 ): Promise<{ png: Uint8Array; width?: number; height?: number } | null> {
   const mod = await loadUi(url)
   if (!mod.thumbnail) throw new Error('サムネイル生成の関数（thumbnail）が見つかりません')
@@ -105,4 +116,48 @@ export async function uiWaveform(url: string, api: UiApi, limit: number): Promis
   const top = Math.max(...vals)
   const scale = top > 0 ? 255 / top : 0
   return Uint8Array.from(vals, (x) => Math.round(x * scale))
+}
+
+const isText = (v: unknown, k: string) => typeof Reflect.get(Object(v), k) === 'string'
+
+/** label と value が文字列のものだけを残す。 */
+const pairs = <T extends Detail | MenuItem>(v: unknown, keys: [string, string]): T[] =>
+  Array.isArray(v) ? v.filter((x): x is T => keys.every((k) => isText(x, k))) : []
+
+export async function uiDetails(url: string, api: DetailsApi): Promise<Detail[]> {
+  const mod = await loadUi(url)
+  if (!mod.details) throw new Error('ファイルの詳細を作る関数（details）が見つかりません')
+  return pairs(await mod.details(api), ['label', 'value'])
+}
+
+export async function uiMenu(url: string, api: MenuApi): Promise<MenuItem[]> {
+  const mod = await loadUi(url)
+  if (!mod.menu) throw new Error('右クリックメニューの項目を作る関数（menu）が見つかりません')
+  return pairs(await mod.menu(api), ['id', 'label'])
+}
+
+export async function uiRunMenu(url: string, api: RunMenuApi): Promise<string | undefined> {
+  const mod = await loadUi(url)
+  if (!mod.runMenu) throw new Error('右クリックメニューの項目を実行する関数（runMenu）が見つかりません')
+  const r = await mod.runMenu(api)
+  return typeof r === 'string' ? r : undefined
+}
+
+/** 区間を作るのを待つ長さ。長い動画では数百回シークする。 */
+const CONTENT_LIMIT = 600_000
+
+/** stop が中止になるか、時間の上限を過ぎると、signal で止めてもらう。 */
+export async function uiContent(
+  url: string,
+  api: Omit<ContentApi, 'budget' | 'signal'>,
+  budget: ContentBudget,
+  stop: AbortSignal,
+): Promise<ContentPart[]> {
+  const mod = await loadUi(url)
+  if (!mod.content) throw new Error('区間を作る関数（content）が見つかりません')
+  const late = AbortSignal.timeout(CONTENT_LIMIT)
+  const signal = AbortSignal.any([stop, late])
+  const parts = await mod.content({ ...api, budget, signal })
+  if (late.aborted) throw new Error(`区間の作成が ${CONTENT_LIMIT / 1000} 秒以内に終わりませんでした`)
+  return Array.isArray(parts) ? parts : []
 }

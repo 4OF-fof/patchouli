@@ -30,14 +30,15 @@ export interface RawManifest extends Omit<Manifest, 'formats'> {
       fit?: string
       hover?: string
       embed?: string
-      parts?: string[]
-      ui?: string[]
+      sandbox?: string[]
+      elevated?: string[]
       keepDecoded?: boolean
     }
   >
 }
 
-const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover', 'details', 'embed', 'menu']
+const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover', 'details', 'embed', 'menu', 'content']
+const ELEVATED_ONLY: readonly Part[] = ['waveform', 'hover', 'embed']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
 const HOVERS: readonly Hover[] = ['video']
 const EMBEDS: readonly Embed[] = ['view', 'card']
@@ -54,8 +55,8 @@ export const readManifest = (raw: RawManifest): Manifest => ({
         fit: FITS.find((f) => f === d.fit),
         hover: HOVERS.find((h) => h === d.hover),
         embed: EMBEDS.find((e) => e === d.embed),
-        parts: partsOf(d.parts),
-        ui: partsOf(d.ui),
+        sandbox: partsOf(d.sandbox),
+        elevated: partsOf(d.elevated),
       },
     ]),
   ),
@@ -101,7 +102,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
     let fit: Fit | undefined
     let hover: Hover | undefined
     let embed: Embed | undefined
-    const parts = new Map<Part, Manifest | 'wasm'>()
+    const parts = new Map<Part, Manifest | 'sandbox'>()
     const seen = new Set<string>()
     let at: Manifest | undefined = owner
     let fmt = ext
@@ -118,8 +119,14 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
       fit ??= d.fit
       hover ??= d.hover
       embed ??= d.embed
-      for (const p of d.parts ?? []) if (!parts.has(p)) parts.set(p, 'wasm')
-      for (const p of d.ui ?? []) if (!parts.has(p) && at.ui) parts.set(p, at)
+      for (const p of d.elevated ?? []) {
+        const now = parts.get(p)
+        if ((now === undefined || now === 'sandbox') && at.elevated) parts.set(p, at)
+      }
+      for (const p of d.sandbox ?? []) {
+        if (ELEVATED_ONLY.includes(p)) add(at.id, `「.${fmt}」の ${p} は elevated でしか受け持てません`)
+        else if (!parts.has(p)) parts.set(p, 'sandbox')
+      }
       if (!d.extends) break
       const next = claim.get(d.extends)
       if (!next) add(at.id, `「.${fmt}」が引き継ぐ「.${d.extends}」に対応するプラグインがありません`)
@@ -137,12 +144,16 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
       fit: fit ?? 'center',
       plugin: owner.id,
       thumbnail: parts.has('thumbnail'),
-      ...(ui && ui !== 'wasm' && ui.ui && { uiThumbnail: { plugin: ui.id, module: ui.ui } }),
-      ...(wave && wave !== 'wasm' && wave.ui && { uiWaveform: { plugin: wave.id, module: wave.ui } }),
+      ...(ui && ui !== 'sandbox' && ui.elevated && { uiThumbnail: { plugin: ui.id, module: ui.elevated } }),
+      ...(wave && wave !== 'sandbox' && wave.elevated && { uiWaveform: { plugin: wave.id, module: wave.elevated } }),
       ...(hover && { hover }),
-      ...(hoverUi && hoverUi !== 'wasm' && hoverUi.ui && { uiHover: { plugin: hoverUi.id, module: hoverUi.ui } }),
+      ...(hoverUi &&
+        hoverUi !== 'sandbox' &&
+        hoverUi.elevated && { uiHover: { plugin: hoverUi.id, module: hoverUi.elevated } }),
       ...(embed && { embed }),
-      ...(embedUi && embedUi !== 'wasm' && embedUi.ui && { uiEmbed: { plugin: embedUi.id, module: embedUi.ui } }),
+      ...(embedUi &&
+        embedUi !== 'sandbox' &&
+        embedUi.elevated && { uiEmbed: { plugin: embedUi.id, module: embedUi.elevated } }),
     })
   }
   return { formats, problems, conflicts }
@@ -151,10 +162,10 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
 const resolvedBuiltin = resolveFormats(BUILTIN_MANIFESTS)
 
 const capsOf = (m: Manifest): Cap[] => {
-  const has = (p: Part, k: 'parts' | 'ui') => Object.values(m.formats).some((d) => d[k]?.includes(p))
+  const has = (p: Part, k: 'sandbox' | 'elevated') => Object.values(m.formats).some((d) => d[k]?.includes(p))
   return [
-    ...PARTS.filter((p) => has(p, 'parts')).map((part): Cap => ({ part, by: 'wasm' })),
-    ...PARTS.filter((p) => has(p, 'ui')).map((part): Cap => ({ part, by: 'ui' })),
+    ...PARTS.filter((p) => has(p, 'sandbox')).map((part): Cap => ({ part, by: 'sandbox' })),
+    ...PARTS.filter((p) => has(p, 'elevated')).map((part): Cap => ({ part, by: 'elevated' })),
   ]
 }
 

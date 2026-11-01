@@ -11,6 +11,7 @@ const FILE: &str = "settings.json";
 const LIBRARY: &str = "library";
 const RECENT: &str = "recent";
 const DEVELOPER: &str = "developer";
+const AUTO_TAG: &str = "autoTag";
 
 fn path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
@@ -102,6 +103,13 @@ pub struct Developer {
     pub plugin_dirs: Vec<PathBuf>,
     #[serde(default)]
     pub repos: Vec<PathBuf>,
+}
+
+pub fn auto_tag(app: &AppHandle) -> Result<bool, String> {
+    Ok(read(app)?
+        .get(AUTO_TAG)
+        .and_then(Value::as_bool)
+        .unwrap_or(false))
 }
 
 pub fn developer(app: &AppHandle) -> Result<Developer, String> {

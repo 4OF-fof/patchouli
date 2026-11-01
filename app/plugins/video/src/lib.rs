@@ -2,20 +2,34 @@ wit_bindgen::generate!({ world: "plugin", path: "../sdk/wit" });
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
+use patchouli::plugin::host;
+use patchouli::plugin::types::Dimensions;
 
 #[path = "../../shared/clock.rs"]
 mod clock;
+#[path = "../../shared/content.rs"]
+mod content;
 #[path = "../../shared/frame.rs"]
 mod frame;
+mod frames;
 mod meta;
+#[path = "../../shared/pcm.rs"]
+mod pcm;
 #[path = "../../shared/probe.rs"]
 mod probe;
 
 struct Video;
 
 impl Guest for Video {
-    fn thumbnail(_format: String, _f: File, _edge: u32) -> Result<Option<Thumbnail>, String> {
-        Ok(None)
+    /// elevated が WebView で読めなかったときに呼ぶ。FFmpeg でコマを取り出す。
+    fn thumbnail(_format: String, f: File, edge: u32) -> Result<Option<Thumbnail>, String> {
+        // 最初のコマは黒いことが多いので 1 秒目から取る。それより短ければ最初のコマ
+        let png = frame::frame(&f, 1.0, edge).or_else(|_| frame::frame(&f, 0.0, edge))?;
+        let size = meta::meta(&f)
+            .or_else(|| probe::probe(&f))
+            .and_then(|p| p.size)
+            .map(|(width, height)| Dimensions { width, height });
+        Ok(Some(Thumbnail { png, size }))
     }
 
     fn view(_format: String, _f: File) -> Option<View> {
@@ -27,7 +41,7 @@ impl Guest for Video {
     }
 
     fn details(_format: String, f: File) -> Result<Vec<Detail>, String> {
-        let Some(p) = meta::meta(&f).or_else(|| probe::probe(&f)) else {
+        let Some(p) = probed(&f) else {
             return Ok(Vec::new());
         };
         let size = p.size.map(|(w, h)| Detail {
@@ -49,20 +63,54 @@ impl Guest for Video {
         Err(format!("{id} には対応していません"))
     }
 
+    /// 音声トラックだけを返す。コマは elevated が WebView で取る。
+    fn content(format: String, f: File, budget: ContentBudget) -> Result<Vec<ContentPart>, String> {
+        match pcm::audio(&format, &f, &budget) {
+            Ok(parts) => Ok(parts),
+            Err(_) if host::command_available("ffmpeg") => {
+                Ok(content::audio(&f, probed(&f).and_then(|p| p.secs), &budget))
+            }
+            Err(_) => Ok(Vec::new()),
+        }
+    }
+
     fn settings() -> Vec<Setting> {
         Vec::new()
     }
 
-    /// frame：WebView で読めなかったものを FFmpeg で取り出す。PNG を base64 にした JSON の文字列を返す。
+    /// WebView で読めなかったもののために、elevated から呼ぶ。
+    /// secs：長さ（秒）。わからなければ null。
+    /// frames：区間のコマを FFmpeg で取り出す。args は「start,span,every,count,edge」の JSON の文字列で、
+    /// JPEG を base64 にした配列の JSON を返す。
     fn call(_format: String, f: File, method: String, args: String) -> Result<String, String> {
-        if method != "frame" {
+        if method == "secs" {
+            return Ok(probed(&f)
+                .and_then(|p| p.secs)
+                .map_or("null".into(), |s| s.to_string()));
+        }
+        if method != "frames" {
             return Err(format!("{method} には対応していません"));
         }
-        let edge = args.trim().parse::<u32>().map_err(|e| e.to_string())?;
-        // 最初のコマは黒いことが多いので 1 秒目から取る。それより短ければ最初のコマ
-        let png = frame::frame(&f, 1.0, edge).or_else(|_| frame::frame(&f, 0.0, edge))?;
-        Ok(format!("\"{}\"", STANDARD.encode(png)))
+        let n: Vec<f64> = args
+            .trim()
+            .trim_matches('"')
+            .split(',')
+            .map(|s| s.trim().parse::<f64>().map_err(|e| e.to_string()))
+            .collect::<Result<_, _>>()?;
+        let [start, span, every, count, edge] = n[..] else {
+            return Err("frames の引数は「start,span,every,count,edge」です".into());
+        };
+        let jpegs = frames::frames(&f, start, span, every, count as u32, edge as u32)?;
+        let items: Vec<String> = jpegs
+            .iter()
+            .map(|b| format!("\"{}\"", STANDARD.encode(b)))
+            .collect();
+        Ok(format!("[{}]", items.join(",")))
     }
+}
+
+fn probed(f: &File) -> Option<probe::Probe> {
+    meta::meta(f).or_else(|| probe::probe(f))
 }
 
 export!(Video);

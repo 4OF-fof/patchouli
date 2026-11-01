@@ -43,6 +43,14 @@ impl Guest for Csv {
         Err(format!("{id} には対応していません"))
     }
 
+    fn content(
+        _format: String,
+        _f: File,
+        _budget: ContentBudget,
+    ) -> Result<Vec<ContentPart>, String> {
+        Ok(Vec::new())
+    }
+
     fn settings() -> Vec<Setting> {
         vec![Setting {
             key: "header".into(),

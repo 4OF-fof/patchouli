@@ -1,18 +1,19 @@
 /* plugin.json の形。 */
 
 /**
- * 形式ごとに受け持つもの。waveform は音の波形、hover はカーソルを合わせたときにサムネイルの上に重ねる表示、
- * embed はノートに埋め込んだときの表示で、どれも組み込み UI だけが受け持てる。
- * details はファイルの詳細に足す行、menu は右クリックメニューに足す項目で、どちらも WASM だけが受け持てる。
+ * 形式ごとに受け持つもの。details はファイルの詳細に足す行、menu は右クリックメニューに足す項目、
+ * content は内容で探したり分けたりするときに読む区間。
+ * waveform は音の波形、hover はカーソルを合わせたときにサムネイルの上に重ねる表示、
+ * embed はノートに埋め込んだときの表示で、この 3 つは elevated だけが受け持てる。
  */
-export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details' | 'embed' | 'menu'
+export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details' | 'embed' | 'menu' | 'content'
 
 /** カーソルを合わせたときに、本体がサムネイルの上で見せるもの。video は元のファイルを音を消して再生する。 */
 export type Hover = 'video'
 
 /**
  * ノートに埋め込んだときに、本体が見せるもの。view は詳細と同じ表示（画像・動画・音声）、card はサムネイルと名前のカード。
- * 詳細を組み込み UI で描く形式は、view でも埋め込みには描かない。
+ * 詳細を elevated で描く形式は、view でも埋め込みには描かない。
  */
 export type Embed = 'view' | 'card'
 
@@ -52,14 +53,17 @@ export interface FormatDecl {
   ratio?: number
   /** サムネイルの枠への収め方。書かなければ center。 */
   fit?: Fit
-  /** カーソルを合わせたときに、本体が見せるもの。組み込み UI の hover があれば、そちらを使う。 */
+  /** カーソルを合わせたときに、本体が見せるもの。elevated の hover があれば、そちらを使う。 */
   hover?: Hover
-  /** ノートに埋め込んだときに、本体が見せるもの。書かなければ view。組み込み UI の embed があれば、そちらを使う。 */
+  /** ノートに埋め込んだときに、本体が見せるもの。書かなければ view。elevated の embed があれば、そちらを使う。 */
   embed?: Embed
-  /** WASM で受け持つもの。 */
-  parts?: Part[]
-  /** 組み込み UI で受け持つもの。 */
-  ui?: Part[]
+  /** 権限を絞った WASM（plugin.wasm）で受け持つもの。ファイルは本体が渡したものだけを読め、ネットワークは使えない。 */
+  sandbox?: Part[]
+  /**
+   * 本体の画面と同じ WebView で動く TypeScript（plugin.json の elevated）で受け持つもの。
+   * sandbox と同じものを書いたときは、こちらを使う。中から api.sandbox() で sandbox の同じものを呼べる。
+   */
+  elevated?: Part[]
   /** 詳細用に WASM が PNG にしたものを、取っておけるようにする。取っておくかは、本体が足す設定の項目で選ぶ。 */
   keepDecoded?: boolean
 }
@@ -75,9 +79,9 @@ export interface Manifest {
   /** あれば使うもの。 */
   optional?: Deps
   /**
-   * 組み込み UI の ES モジュール（plugin.json からの相対パス、.js）。中身は PluginModule。
+   * formats の elevated を受け持つ ES モジュール（plugin.json からの相対パス、.js）。中身は PluginModule。
    * ビルドでは、拡張子を .ts にしたものから作る。
    */
-  ui?: string
+  elevated?: string
   formats: Record<string, FormatDecl>
 }

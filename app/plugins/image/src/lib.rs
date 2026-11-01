@@ -1,6 +1,7 @@
 wit_bindgen::generate!({ world: "plugin", path: "../sdk/wit" });
 
 use patchouli::plugin::host;
+use patchouli::plugin::types::ContentMedia;
 
 #[path = "../../shared/frame.rs"]
 mod frame;
@@ -46,6 +47,25 @@ impl Guest for Image {
 
     fn run_menu(_targets: Vec<Target>, id: String) -> Result<Option<String>, String> {
         Err(format!("{id} には対応していません"))
+    }
+
+    fn content(
+        _format: String,
+        f: File,
+        budget: ContentBudget,
+    ) -> Result<Vec<ContentPart>, String> {
+        let png = match host::image_thumbnail(&f, budget.edge) {
+            Ok(png) => png,
+            Err(e) if host::command_available("ffmpeg") => {
+                frame::frame(&f, 0.0, budget.edge).map_err(|e2| format!("{e} / {e2}"))?
+            }
+            Err(e) => return Err(e),
+        };
+        Ok(vec![ContentPart {
+            start: None,
+            end: None,
+            media: ContentMedia::Images(vec![png]),
+        }])
     }
 
     fn settings() -> Vec<Setting> {

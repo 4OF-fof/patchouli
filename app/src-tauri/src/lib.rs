@@ -1,4 +1,5 @@
 pub mod cache;
+mod content;
 mod cover;
 pub mod import;
 pub mod library;
@@ -18,7 +19,7 @@ use std::sync::{Arc, Mutex};
 use cache::Cache;
 use library::{ItemPatch, Library, LibraryState, Opened, Place, StoredItem, StoredProject};
 use plugin::record::{self, Source};
-use plugin::{By, Part, Reads, Registry, Runner, ViewOut};
+use plugin::{By, Part, Reads, Registry, Runner, UiRef, ViewOut};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{Emitter, Manager, State};
@@ -162,6 +163,68 @@ impl Target {
             Err(_) => f(&mut Runner::new(Arc::clone(&self.plugins))),
         }
     }
+
+    fn item(&self) -> ElevatedItem {
+        ElevatedItem {
+            id: self.id.clone(),
+            name: self
+                .path
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            ext: self.ext.clone(),
+            file: self.path.clone(),
+        }
+    }
+}
+
+/// elevated に渡す素材。
+#[derive(Serialize)]
+struct ElevatedItem {
+    id: String,
+    name: String,
+    ext: String,
+    file: PathBuf,
+}
+
+/// elevated が受け持つときに、画面に呼んでもらう先。
+#[derive(Serialize)]
+struct Elevated {
+    #[serde(flatten)]
+    ui: UiRef,
+    items: Vec<ElevatedItem>,
+}
+
+fn targets(cur: &State<Current>, ids: &[String]) -> Result<Vec<Target>, String> {
+    ids.iter().map(|id| Target::of(cur, id)).collect()
+}
+
+/// 右クリックメニューを受け持つもの。選んだものすべてを 1 つのプラグインの同じ側が受け持つときだけ Some で、
+/// sandbox なら中は None。
+fn menu_side(ts: &[Target]) -> Option<Option<Elevated>> {
+    let first = ts.first()?;
+    let by = first.plugins.handles(&first.ext, Part::Menu)?;
+    if ts
+        .iter()
+        .any(|t| t.plugins.handles(&t.ext, Part::Menu) != Some(by))
+    {
+        return None;
+    }
+    if by == By::Sandbox {
+        return Some(None);
+    }
+    let ui = first.plugins.ui_of(&first.ext, Part::Menu)?;
+    if ts.iter().any(|t| {
+        t.plugins
+            .ui_of(&t.ext, Part::Menu)
+            .is_none_or(|u| u.plugin != ui.plugin)
+    }) {
+        return None;
+    }
+    Some(Some(Elevated {
+        ui,
+        items: ts.iter().map(Target::item).collect(),
+    }))
 }
 
 /// 選んだ素材をまとめてプラグインに渡す。
@@ -170,10 +233,7 @@ fn run_targets<T>(
     ids: &[String],
     f: impl FnOnce(&mut Runner, &[(&str, &Path)]) -> Result<T, String>,
 ) -> Result<T, String> {
-    let ts = ids
-        .iter()
-        .map(|id| Target::of(cur, id))
-        .collect::<Result<Vec<_>, _>>()?;
+    let ts = targets(cur, ids)?;
     let first = ts.first().ok_or("素材を選んでいません")?;
     let files: Vec<_> = ts
         .iter()
@@ -238,7 +298,7 @@ fn plan_thumbs<'a>(
             }
             it.wave_thumb = thumb::is_wave_thumb(&found);
             it.thumb = Some(found);
-        } else if by == Some(By::Wasm) {
+        } else if by == Some(By::Sandbox) {
             thumb::start_making(&it.file);
             jobs.push(thumb::Job {
                 id: it.id.clone(),
@@ -400,6 +460,9 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
         runner,
         ui_reads: HashMap::new(),
     });
+    if settings::auto_tag(&app).unwrap_or(false) {
+        content::collect(&app, &plugins, &opened.items);
+    }
     if checking {
         CHECKING.fetch_add(1, Ordering::Relaxed);
         std::thread::spawn(move || {
@@ -797,7 +860,7 @@ async fn set_plugin_setting(
         }
     }
     items.retain(|it| {
-        it.thumb.is_none() && plugins.handles(&it.ext, Part::Thumbnail) == Some(By::Ui)
+        it.thumb.is_none() && plugins.handles(&it.ext, Part::Thumbnail) == Some(By::Elevated)
     });
     if !jobs.is_empty() {
         std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
@@ -826,14 +889,40 @@ struct MenuEntry {
 struct Details {
     size: u64,
     rows: Vec<Detail>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    elevated: Option<Elevated>,
 }
 
+fn rows_of(rows: Vec<(String, String)>) -> Vec<Detail> {
+    rows.into_iter()
+        .map(|(label, value)| Detail { label, value })
+        .collect()
+}
+
+fn entries_of(items: Vec<(String, String)>) -> Vec<MenuEntry> {
+    items
+        .into_iter()
+        .map(|(id, label)| MenuEntry { id, label })
+        .collect()
+}
+
+/// elevated が受け持つときは、行を作らずに elevated を返す（画面が作る）。
 #[tauri::command]
 async fn item_details(cur: State<'_, Current>, id: String) -> Result<Details, String> {
     let t = Target::of(&cur, &id)?;
     let size = std::fs::metadata(&t.path)
         .map_err(|e| format!("{}: {e}", t.path.display()))?
         .len();
+    if let Some(ui) = t.plugins.ui_of(&t.ext, Part::Details) {
+        return Ok(Details {
+            size,
+            rows: Vec::new(),
+            elevated: Some(Elevated {
+                ui,
+                items: vec![t.item()],
+            }),
+        });
+    }
     let rows = t
         .run(|r, ext, path| r.details(ext, path))
         .unwrap_or_else(|e| {
@@ -842,10 +931,8 @@ async fn item_details(cur: State<'_, Current>, id: String) -> Result<Details, St
         });
     Ok(Details {
         size,
-        rows: rows
-            .into_iter()
-            .map(|(label, value)| Detail { label, value })
-            .collect(),
+        rows: rows_of(rows),
+        elevated: None,
     })
 }
 
@@ -886,17 +973,121 @@ async fn item_path(cur: State<'_, Current>, id: String) -> Result<PathBuf, Strin
     with(&cur, |l| Ok(l.path(&id)?.to_owned()))
 }
 
+#[derive(Serialize)]
+struct MenuOut {
+    items: Vec<MenuEntry>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    elevated: Option<Elevated>,
+}
+
+#[derive(Serialize)]
+struct RunMenuOut {
+    message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    elevated: Option<Elevated>,
+}
+
+/// elevated が受け持つときは、項目を作らずに elevated を返す（画面が作る）。
 #[tauri::command]
-async fn item_menu(cur: State<'_, Current>, ids: Vec<String>) -> Result<Vec<MenuEntry>, String> {
-    let items = run_targets(&cur, &ids, |r, files| r.menu(files))?;
-    Ok(items
-        .into_iter()
-        .map(|(id, label)| MenuEntry { id, label })
-        .collect())
+async fn item_menu(cur: State<'_, Current>, ids: Vec<String>) -> Result<MenuOut, String> {
+    let elevated = match menu_side(&targets(&cur, &ids)?) {
+        None => None,
+        Some(Some(e)) => Some(e),
+        Some(None) => {
+            return Ok(MenuOut {
+                items: entries_of(run_targets(&cur, &ids, |r, files| r.menu(files))?),
+                elevated: None,
+            });
+        }
+    };
+    Ok(MenuOut {
+        items: Vec::new(),
+        elevated,
+    })
 }
 
 #[tauri::command]
 async fn run_item_menu(
+    cur: State<'_, Current>,
+    ids: Vec<String>,
+    entry: String,
+) -> Result<RunMenuOut, String> {
+    match menu_side(&targets(&cur, &ids)?) {
+        None => Err("メニューに対応するプラグインがありません".into()),
+        Some(Some(e)) => Ok(RunMenuOut {
+            message: None,
+            elevated: Some(e),
+        }),
+        Some(None) => Ok(RunMenuOut {
+            message: run_targets(&cur, &ids, |r, files| r.run_menu(files, &entry))?,
+            elevated: None,
+        }),
+    }
+}
+
+/// elevated の中から呼ぶ sandbox の thumbnail。頭の 8 バイトに素材の幅と高さ（わからなければ 0）、続けて PNG。
+/// 作らなければ空。
+#[tauri::command]
+async fn sandbox_thumbnail(
+    cur: State<'_, Current>,
+    id: String,
+    edge: u32,
+) -> Result<tauri::ipc::Response, String> {
+    let t = Target::of(&cur, &id)?;
+    let Some((png, size, reads)) = t.run(|r, ext, path| r.thumbnail(ext, path, edge))? else {
+        return Ok(tauri::ipc::Response::new(Vec::new()));
+    };
+    if let Ok(mut g) = cur.0.lock()
+        && let Some(s) = g.as_mut()
+        && Arc::ptr_eq(&s.plugins, &t.plugins)
+    {
+        s.ui_reads.entry(id).or_default().extend(reads);
+    }
+    let (w, h) = size.unwrap_or_default();
+    let mut out = Vec::with_capacity(8 + png.len());
+    out.extend_from_slice(&w.to_le_bytes());
+    out.extend_from_slice(&h.to_le_bytes());
+    out.extend_from_slice(&png);
+    Ok(tauri::ipc::Response::new(out))
+}
+
+#[tauri::command]
+async fn content_sandbox(job: u64) -> Result<Vec<content::SandboxPart>, String> {
+    tauri::async_runtime::spawn_blocking(move || content::sandbox(job))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn put_content(request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let body = match request.body() {
+        tauri::ipc::InvokeBody::Raw(b) => b.as_slice(),
+        tauri::ipc::InvokeBody::Json(_) => &[],
+    };
+    let head = |k: &str| request.headers().get(k).and_then(|v| v.to_str().ok());
+    let job = head("job")
+        .and_then(|v| v.parse().ok())
+        .ok_or("job が指定されていません")?;
+    let error: Option<String> = head("error").and_then(|v| serde_json::from_str(v).ok());
+    let ms = head("ms").and_then(|v| v.parse().ok()).unwrap_or(0.0);
+    content::put(job, body, error.as_deref(), ms)
+}
+
+#[tauri::command]
+async fn sandbox_details(cur: State<'_, Current>, id: String) -> Result<Vec<Detail>, String> {
+    let t = Target::of(&cur, &id)?;
+    Ok(rows_of(t.run(|r, ext, path| r.details(ext, path))?))
+}
+
+#[tauri::command]
+async fn sandbox_menu(cur: State<'_, Current>, ids: Vec<String>) -> Result<Vec<MenuEntry>, String> {
+    Ok(entries_of(run_targets(&cur, &ids, |r, files| {
+        r.menu(files)
+    })?))
+}
+
+#[tauri::command]
+async fn sandbox_run_menu(
     cur: State<'_, Current>,
     ids: Vec<String>,
     entry: String,
@@ -993,7 +1184,7 @@ async fn put_thumbnail(
     let (src, out, cache, reads) = with_session(&cur, |s| {
         let mut reads = s.ui_reads.remove(&id).unwrap_or_default();
         let (path, ext) = s.lib.asset(&id)?;
-        if s.plugins.handles(&ext, Part::Thumbnail) != Some(By::Ui) {
+        if s.plugins.handles(&ext, Part::Thumbnail) != Some(By::Elevated) {
             return Err(format!(
                 "「.{ext}」のサムネイルは UI ファイルで生成する設定になっていません"
             ));
@@ -1442,6 +1633,12 @@ pub fn run() {
             item_path,
             item_menu,
             run_item_menu,
+            sandbox_thumbnail,
+            sandbox_details,
+            sandbox_menu,
+            sandbox_run_menu,
+            content_sandbox,
+            put_content,
             delete_item,
             plugin_read,
             plugin_call,

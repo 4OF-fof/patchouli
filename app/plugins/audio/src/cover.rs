@@ -4,11 +4,11 @@ use image::{ImageFormat, ImageReader};
 use symphonia::core::meta::{StandardVisualKey, Visual};
 
 use crate::File;
-use crate::analyze;
+use crate::pcm;
 
 /// タグに入っている絵（表のジャケットを優先）を、長いほうの辺が edge 以下の PNG にする。絵がなければ none。
 pub fn cover(f: &File, edge: u32) -> Result<Option<Vec<u8>>, String> {
-    let mut format = analyze::reader(&f.ext, f)?;
+    let mut format = pcm::reader(&f.ext, f)?;
     let mut meta = format.metadata();
     let mut all: Vec<Visual> = Vec::new();
     loop {

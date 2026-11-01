@@ -15,7 +15,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use record::{Record, Source, Stored};
-pub use runtime::{Runner, ViewOut, read, set_compiled_dir};
+pub use runtime::{
+    ContentBudget, ContentMedia, ContentPart, Runner, ViewOut, read, set_compiled_dir,
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Deps {
@@ -43,8 +45,15 @@ pub enum Part {
     Details,
     Embed,
     Menu,
+    Content,
     #[serde(other)]
     Unknown,
+}
+
+impl Part {
+    fn elevated_only(self) -> bool {
+        matches!(self, Part::Waveform | Part::Hover | Part::Embed)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -77,8 +86,8 @@ pub enum Fit {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum By {
-    Wasm,
-    Ui,
+    Sandbox,
+    Elevated,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -91,9 +100,9 @@ pub struct FormatDecl {
     pub hover: Option<Hover>,
     pub embed: Option<Embed>,
     #[serde(default)]
-    pub parts: Vec<Part>,
+    pub sandbox: Vec<Part>,
     #[serde(default)]
-    pub ui: Vec<Part>,
+    pub elevated: Vec<Part>,
     #[serde(default)]
     pub keep_decoded: bool,
 }
@@ -120,7 +129,7 @@ pub const WAVEFORM_LIMIT_KEY: &str = "@waveformLimit";
 fn waveform_settings(m: &Manifest) -> Option<SettingDecl> {
     m.formats
         .values()
-        .any(|d| d.ui.contains(&Part::Waveform))
+        .any(|d| d.elevated.contains(&Part::Waveform))
         .then(|| SettingDecl {
             key: WAVEFORM_LIMIT_KEY.into(),
             label: "波形の作成時間の上限（秒）".into(),
@@ -146,7 +155,7 @@ pub struct Manifest {
     pub required: Deps,
     #[serde(default)]
     pub optional: Deps,
-    pub ui: Option<String>,
+    pub elevated: Option<String>,
     pub formats: BTreeMap<String, FormatDecl>,
 }
 
@@ -167,12 +176,12 @@ impl Manifest {
             .or_else(|| self.optional.commands.get(command))
     }
 
-    fn wants_wasm(&self) -> bool {
-        self.formats.values().any(|d| !d.parts.is_empty())
+    fn wants_sandbox(&self) -> bool {
+        self.formats.values().any(|d| !d.sandbox.is_empty())
     }
 
-    fn wants_ui(&self) -> bool {
-        self.formats.values().any(|d| !d.ui.is_empty())
+    fn wants_elevated(&self) -> bool {
+        self.formats.values().any(|d| !d.elevated.is_empty())
     }
 
     fn caps(&self) -> Vec<Cap> {
@@ -180,8 +189,14 @@ impl Manifest {
             .formats
             .values()
             .flat_map(|d| {
-                let wasm = d.parts.iter().map(|&part| Cap { part, by: By::Wasm });
-                wasm.chain(d.ui.iter().map(|&part| Cap { part, by: By::Ui }))
+                let sandbox = d.sandbox.iter().map(|&part| Cap {
+                    part,
+                    by: By::Sandbox,
+                });
+                sandbox.chain(d.elevated.iter().map(|&part| Cap {
+                    part,
+                    by: By::Elevated,
+                }))
             })
             .filter(|c| c.part != Part::Unknown)
             .collect();
@@ -285,7 +300,7 @@ struct Loaded {
     builtin: bool,
     dir: Option<PathBuf>,
     wasm: Option<Arc<runtime::Prepared>>,
-    ui: Option<String>,
+    elevated: Option<String>,
     settings: Vec<SettingDecl>,
     problems: Vec<Problem>,
     source: Option<Source>,
@@ -333,14 +348,14 @@ struct Resolved {
     fit: Fit,
     hover: Option<Hover>,
     embed: Option<Embed>,
-    parts: HashMap<Part, Handler>,
+    /// 同じ part を sandbox と elevated の両方に書いたものは、両方を持つ。使うのは elevated。
+    parts: HashMap<(Part, By), Handler>,
 }
 
 #[derive(Debug, Clone)]
 struct Handler {
     plugin: usize,
     format: String,
-    by: By,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -663,15 +678,25 @@ impl Registry {
                 fit = fit.or(decl.fit.filter(|&f| f != Fit::Unknown));
                 hover = hover.or(decl.hover.filter(|&h| h != Hover::Unknown));
                 embed = embed.or(decl.embed.filter(|&e| e != Embed::Unknown));
-                let own = decl.parts.iter().map(|&p| (p, By::Wasm));
-                for (part, by) in own.chain(decl.ui.iter().map(|&p| (p, By::Ui))) {
-                    if part != Part::Unknown {
-                        parts.entry(part).or_insert_with(|| Handler {
-                            plugin: at,
-                            format: fmt.clone(),
-                            by,
-                        });
+                let own = decl.sandbox.iter().map(|&p| (p, By::Sandbox));
+                for (part, by) in own.chain(decl.elevated.iter().map(|&p| (p, By::Elevated))) {
+                    if part == Part::Unknown {
+                        continue;
                     }
+                    if by == By::Sandbox && part.elevated_only() {
+                        problems.push((
+                            at,
+                            error(format!(
+                                "「.{fmt}」の {} は elevated でしか受け持てません",
+                                format!("{part:?}").to_lowercase()
+                            )),
+                        ));
+                        continue;
+                    }
+                    parts.entry((part, by)).or_insert_with(|| Handler {
+                        plugin: at,
+                        format: fmt.clone(),
+                    });
                 }
                 let Some(base) = &decl.extends else { break };
                 let Some(&next) = claim.get(base) else {
@@ -685,9 +710,9 @@ impl Registry {
                 };
                 (at, fmt) = (next, base.clone());
             }
-            parts.retain(|_, h| match h.by {
-                By::Wasm => self.plugins[h.plugin].wasm.is_some(),
-                By::Ui => self.plugins[h.plugin].ui.is_some(),
+            parts.retain(|&(_, by), h| match by {
+                By::Sandbox => self.plugins[h.plugin].wasm.is_some(),
+                By::Elevated => self.plugins[h.plugin].elevated.is_some(),
             });
             formats.insert(
                 ext.clone(),
@@ -703,14 +728,14 @@ impl Registry {
             );
         }
         for (i, p) in self.plugins.iter_mut().enumerate() {
-            if p.manifest.wants_wasm() && p.wasm.is_none() && p.problems.is_empty() {
+            if p.manifest.wants_sandbox() && p.wasm.is_none() && p.problems.is_empty() {
                 p.problems.push(error(
                     "plugin.wasm が見つからないため、サムネイルと詳細表示を処理できません".into(),
                 ));
             }
-            if p.manifest.wants_ui() && p.ui.is_none() && p.problems.is_empty() {
+            if p.manifest.wants_elevated() && p.elevated.is_none() && p.problems.is_empty() {
                 p.problems.push(error(
-                    "UI ファイル（plugin.json の ui）が見つからないため、UI を表示できません"
+                    "plugin.json の elevated のファイルが見つからないため、elevated の処理を使えません"
                         .into(),
                 ));
             }
@@ -729,12 +754,22 @@ impl Registry {
     }
 
     pub fn handles(&self, ext: &str, part: Part) -> Option<By> {
-        Some(self.formats.get(ext)?.parts.get(&part)?.by)
+        let parts = &self.formats.get(ext)?.parts;
+        [By::Elevated, By::Sandbox]
+            .into_iter()
+            .find(|&by| parts.contains_key(&(part, by)))
     }
 
+    /// by が実際に使う担当のときだけ返す。
     fn part(&self, ext: &str, part: Part, by: By) -> Option<(usize, &str)> {
-        let h = self.formats.get(ext)?.parts.get(&part)?;
-        (h.by == by).then_some((h.plugin, h.format.as_str()))
+        (self.handles(ext, part)? == by).then_some(())?;
+        self.slot(ext, part, by)
+    }
+
+    /// elevated があっても、sandbox の担当を返す。elevated の中から sandbox を呼ぶときに使う。
+    fn slot(&self, ext: &str, part: Part, by: By) -> Option<(usize, &str)> {
+        let h = self.formats.get(ext)?.parts.get(&(part, by))?;
+        Some((h.plugin, h.format.as_str()))
     }
 
     pub fn ratio_of(&self, ext: &str) -> f64 {
@@ -757,17 +792,17 @@ impl Registry {
     }
 
     pub fn keeps_decoded(&self, ext: &str) -> Option<(&str, &str)> {
-        let (i, format) = self.part(ext, Part::View, By::Wasm)?;
+        let (i, format) = self.part(ext, Part::View, By::Sandbox)?;
         let on = self.setting(i, &keep_decoded_key(format)) == Some(Value::Bool(true));
         on.then(|| (self.plugins[i].manifest.id.as_str(), format))
     }
 
     pub fn ui_of(&self, ext: &str, part: Part) -> Option<UiRef> {
-        let (i, _) = self.part(ext, part, By::Ui)?;
+        let (i, _) = self.part(ext, part, By::Elevated)?;
         let p = &self.plugins[i];
         Some(UiRef {
             plugin: p.manifest.id.clone(),
-            module: p.ui.clone()?,
+            module: p.elevated.clone()?,
         })
     }
 
@@ -876,7 +911,7 @@ impl Registry {
                 ratio: f.ratio,
                 fit: f.fit,
                 plugin: id(f.owner),
-                thumbnail: f.parts.contains_key(&Part::Thumbnail),
+                thumbnail: self.handles(ext, Part::Thumbnail).is_some(),
                 ui_thumbnail: self.ui_of(ext, Part::Thumbnail),
                 ui_waveform: self.ui_of(ext, Part::Waveform),
                 hover: f.hover,
@@ -997,8 +1032,8 @@ impl Registry {
                         });
                     }
                 }
-                // 組み込み UI は依存先の関数を呼べるので、依存先が動かせるコマンドも見せる
-                let via = if m.wants_ui() {
+                // elevated は依存先の関数を呼べるので、依存先が動かせるコマンドも見せる
+                let via = if m.wants_elevated() {
                     self.reachable(i)
                         .into_iter()
                         .flat_map(|(q, required)| {
@@ -1095,10 +1130,10 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
     } else {
         None
     };
-    let ui = manifest.ui.clone().filter(|m| {
+    let elevated = manifest.elevated.clone().filter(|m| {
         let ok = inside(m) && dir.join(m).is_file();
         if !ok {
-            problems.push(error(format!("UI ファイル（{m}）が見つかりません")));
+            problems.push(error(format!("elevated のファイル（{m}）が見つかりません")));
         }
         ok
     });
@@ -1108,7 +1143,7 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
         builtin: false,
         dir: Some(dir),
         wasm,
-        ui,
+        elevated,
         settings,
         problems,
         source: entry.source.clone(),

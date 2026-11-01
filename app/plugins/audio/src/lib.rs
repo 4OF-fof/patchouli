@@ -5,6 +5,10 @@ mod frame;
 
 #[path = "../../shared/clock.rs"]
 mod clock;
+#[path = "../../shared/content.rs"]
+mod content;
+#[path = "../../shared/pcm.rs"]
+mod pcm;
 
 mod analyze;
 mod bpm;
@@ -45,6 +49,16 @@ impl Guest for Audio {
 
     fn run_menu(_targets: Vec<Target>, id: String) -> Result<Option<String>, String> {
         Err(format!("{id} には対応していません"))
+    }
+
+    fn content(format: String, f: File, budget: ContentBudget) -> Result<Vec<ContentPart>, String> {
+        match pcm::audio(&format, &f, &budget) {
+            Ok(parts) => Ok(parts),
+            Err(_) if patchouli::plugin::host::command_available("ffmpeg") => {
+                Ok(content::audio(&f, None, &budget))
+            }
+            Err(e) => Err(e),
+        }
     }
 
     fn settings() -> Vec<Setting> {

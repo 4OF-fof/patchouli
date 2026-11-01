@@ -1,14 +1,10 @@
-use std::io::{self, Read, Seek, SeekFrom};
-
 use symphonia::core::errors::Error;
-use symphonia::core::formats::{FormatReader, TrackType};
-use symphonia::core::formats::probe::Hint;
-use symphonia::core::io::{MediaSource, MediaSourceStream};
+use symphonia::core::formats::TrackType;
 use symphonia::core::units::Duration;
 
 use crate::File;
 use crate::bpm;
-use crate::patchouli::plugin::host;
+use crate::pcm::reader;
 
 /// テンポを測る範囲（秒）。頭は前奏のことが多いので、長い曲では少し先から測る。
 const SKIP: f64 = 30.0;
@@ -17,60 +13,6 @@ const SPAN: f64 = 90.0;
 pub struct Analysis {
     pub secs: f64,
     pub bpm: Option<f64>,
-}
-
-/// ホストの read で読む MediaSource。
-struct Source {
-    f: File,
-    pos: u64,
-}
-
-impl Read for Source {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        if self.pos >= self.f.size || buf.is_empty() {
-            return Ok(0);
-        }
-        let len = buf.len().min(1 << 20) as u32;
-        let chunk = host::read(&self.f, self.pos, len).map_err(io::Error::other)?;
-        buf[..chunk.len()].copy_from_slice(&chunk);
-        self.pos += chunk.len() as u64;
-        Ok(chunk.len())
-    }
-}
-
-impl Seek for Source {
-    fn seek(&mut self, to: SeekFrom) -> io::Result<u64> {
-        let pos = match to {
-            SeekFrom::Start(n) => Some(n),
-            SeekFrom::End(d) => self.f.size.checked_add_signed(d),
-            SeekFrom::Current(d) => self.pos.checked_add_signed(d),
-        };
-        self.pos = pos.ok_or_else(|| io::Error::other("ファイルの外を指しています"))?;
-        Ok(self.pos)
-    }
-}
-
-impl MediaSource for Source {
-    fn is_seekable(&self) -> bool {
-        true
-    }
-
-    fn byte_len(&self) -> Option<u64> {
-        Some(self.f.size)
-    }
-}
-
-pub fn reader(ext: &str, f: &File) -> Result<Box<dyn FormatReader>, String> {
-    let src = Source {
-        f: f.clone(),
-        pos: 0,
-    };
-    let mss = MediaSourceStream::new(Box::new(src), Default::default());
-    let mut hint = Hint::new();
-    hint.with_extension(ext);
-    symphonia::default::get_probe()
-        .probe(&hint, mss, Default::default(), Default::default())
-        .map_err(|e| e.to_string())
 }
 
 pub fn analyze(ext: &str, f: &File) -> Result<Analysis, String> {

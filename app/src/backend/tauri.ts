@@ -15,9 +15,29 @@ import {
   toProject,
 } from './stored'
 import type { Thumbnail } from '../model/library'
-import type { FormatInfo, Part, PluginReport, PluginSource, SettingValue, UiRef } from '../plugins/types'
-import type { Caller } from '../../plugins/sdk'
-import { ThumbnailTimeout, type UiApi, type UiItem, uiThumbnail, uiWaveform } from '../plugins/ui'
+import type {
+  FormatInfo,
+  ItemDetails,
+  MenuEntry,
+  Part,
+  PluginReport,
+  PluginSource,
+  SettingValue,
+  UiRef,
+} from '../plugins/types'
+import type { Caller, ContentBudget, ContentPart, OwnApi } from '../../plugins/sdk'
+import {
+  EDGE,
+  ThumbnailTimeout,
+  type UiApi,
+  type UiItem,
+  uiContent,
+  uiDetails,
+  uiMenu,
+  uiRunMenu,
+  uiThumbnail,
+  uiWaveform,
+} from '../plugins/ui'
 import type {
   Backend,
   CacheUsage,
@@ -61,7 +81,19 @@ const watched = (s: Record<string, SettingValue>, read: Set<string>) =>
 const asciiJson = (v: unknown) =>
   JSON.stringify(v).replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
 
-const uiItemOf = (it: TauriItem): UiItem => ({ id: it.id, name: it.name, ext: it.ext, url: convertFileSrc(it.file) })
+/** Rust が elevated に回してきた素材。 */
+interface ElevatedItem {
+  id: string
+  name: string
+  ext: string
+  file: string
+}
+
+interface Elevated extends UiRef {
+  items: ElevatedItem[]
+}
+
+const uiItemOf = (it: ElevatedItem): UiItem => ({ id: it.id, name: it.name, ext: it.ext, url: convertFileSrc(it.file) })
 
 /** 波形を作る時間の上限（秒）の設定の key。src-tauri/src/plugin/mod.rs の WAVEFORM_LIMIT_KEY と合わせる。 */
 const WAVE_LIMIT = '@waveformLimit'
@@ -80,6 +112,49 @@ const callerOf = <M extends object>(item: UiItem, part: Part, plugin?: string): 
     return r === '' ? undefined : JSON.parse(r)
   },
 })
+
+const bytesOf = async (b: Blob | ArrayBuffer | Uint8Array) =>
+  b instanceof Uint8Array ? b : new Uint8Array(b instanceof Blob ? await b.arrayBuffer() : b)
+
+/**
+ * Rust に渡す区間。頭の 4 バイトが区間の形の JSON の長さで、JSON、中身と続く。
+ * 形は src-tauri/src/content.rs の SentPart と合わせる。
+ */
+async function packParts(parts: ContentPart[]) {
+  const chunks: Uint8Array[] = []
+  const sent = []
+  for (const p of parts) {
+    const images = await Promise.all((p.images ?? []).map(bytesOf))
+    const audio = p.audio && (await bytesOf(p.audio))
+    chunks.push(...images, ...(audio ? [audio] : []))
+    sent.push({ start: p.start, end: p.end, images: images.map((b) => b.length), audio: audio?.length, text: p.text })
+  }
+  const head = new TextEncoder().encode(JSON.stringify(sent))
+  const out = new Uint8Array(4 + head.length + chunks.reduce((n, c) => n + c.length, 0))
+  new DataView(out.buffer).setUint32(0, head.length, true)
+  out.set(head, 4)
+  let pos = 4 + head.length
+  for (const c of chunks) {
+    out.set(c, pos)
+    pos += c.length
+  }
+  return out
+}
+
+/** 頭の 8 バイトは素材の幅と高さ（わからなければ 0）。src-tauri/src/lib.rs の sandbox_thumbnail と合わせる。 */
+const sandboxThumbnail = async (id: string) => {
+  const b = new Uint8Array(await invoke<ArrayBuffer>('sandbox_thumbnail', { id, edge: EDGE }))
+  if (!b.length) return null
+  const v = new DataView(b.buffer, b.byteOffset, 8)
+  const [width, height] = [v.getUint32(0, true), v.getUint32(4, true)]
+  return { png: b.subarray(8), ...(width && height && { width, height }) }
+}
+
+const putContent = async (job: number, body: Uint8Array, headers: Record<string, string>) => {
+  await invoke('put_content', body, { headers: { job: `${job}`, ...headers } }).catch((e: unknown) =>
+    console.warn('区間を渡せない', e),
+  )
+}
 
 const idsOf = (xs: (TauriItem | undefined)[]) => xs.flatMap((it) => (it ? [it.id] : []))
 
@@ -126,17 +201,45 @@ export function tauriBackend(): Backend {
     void makeUiThumbs(await invoke<TauriItem[]>('set_plugin_setting', { id: plugin, key, value }))
   }
 
+  const ownApi = (plugin: string): OwnApi => ({
+    settings: () => invoke('plugin_settings', { plugin }),
+    setSetting: (key, value) => setSetting(plugin, key, value),
+    getData: async (key) => (await invoke<string | null>('plugin_data', { plugin, key })) ?? undefined,
+    setData: (key, value) => invoke('set_plugin_data', { plugin, key, value: value ?? null }),
+  })
+
   const uiApi = (item: UiItem, part: Part, plugin: string): UiApi => ({
     item,
     read: async (offset, length) =>
       new Uint8Array(await invoke<ArrayBuffer>('plugin_read', { id: item.id, offset, length })),
     ...callerOf(item, part),
     plugin: (dep) => callerOf(item, part, dep),
-    settings: () => invoke('plugin_settings', { plugin }),
-    setSetting: (key, value) => setSetting(plugin, key, value),
-    getData: async (key) => (await invoke<string | null>('plugin_data', { plugin, key })) ?? undefined,
-    setData: (key, value) => invoke('set_plugin_data', { plugin, key, value: value ?? null }),
+    ...ownApi(plugin),
   })
+
+  const menuApi = (e: Elevated) => ({
+    ...ownApi(e.plugin),
+    targets: e.items.map((it) => uiApi(uiItemOf(it), 'menu', e.plugin)),
+  })
+
+  const elevatedMenu = async (ids: string[], e: Elevated): Promise<MenuEntry[]> =>
+    uiMenu(pluginUrl(e.plugin, e.module), {
+      ...menuApi(e),
+      sandbox: () => invoke('sandbox_menu', { ids }),
+    })
+
+  const elevatedDetails = async (d: ItemDetails, e: Elevated): Promise<ItemDetails> => {
+    const [it] = e.items
+    if (!it) return d
+    const rows = await uiDetails(pluginUrl(e.plugin, e.module), {
+      ...uiApi(uiItemOf(it), 'details', e.plugin),
+      sandbox: () => invoke('sandbox_details', { id: it.id }),
+    }).catch((err: unknown) => {
+      console.warn(`ファイルの詳細を足せない: ${it.name}.${it.ext}`, err)
+      return []
+    })
+    return { size: d.size, rows }
+  }
 
   const makeUiThumb = async (it: TauriItem, ui: UiRef) => {
     const read = new Set<string>()
@@ -144,6 +247,7 @@ export function tauriBackend(): Backend {
     const t = await uiThumbnail(pluginUrl(ui.plugin, ui.module), {
       ...api,
       settings: async () => watched(await api.settings(), read),
+      sandbox: () => sandboxThumbnail(it.id),
     }).catch((e: unknown) => {
       if (!(e instanceof ThumbnailTimeout)) throw e
       console.warn(`サムネイルが ${e.ms / 1000} 秒で作り終わらない: ${it.name}.${it.ext}`)
@@ -225,6 +329,52 @@ export function tauriBackend(): Backend {
     }
   }
 
+  // 自動分類で読む区間のうち、elevated が受け持つもの。Rust が頼んできたものを 1 つずつ作って返す
+  interface ContentWanted extends ElevatedItem, UiRef {
+    job: number
+  }
+  let contentQueue: ContentWanted[] = []
+  let contentStop = new AbortController()
+  let contentBudget: ContentBudget | undefined
+  let contenting = false
+  const makeContents = async () => {
+    if (contenting) return
+    contenting = true
+    try {
+      for (let w = contentQueue.shift(); w; w = contentQueue.shift()) {
+        const budget = contentBudget
+        if (!budget) break
+        const started = performance.now()
+        const ms = () => `${performance.now() - started}`
+        try {
+          const parts = await uiContent(
+            pluginUrl(w.plugin, w.module),
+            { ...uiApi(uiItemOf(w), 'content', w.plugin), sandbox: () => invoke('content_sandbox', { job: w.job }) },
+            budget,
+            contentStop.signal,
+          )
+          await putContent(w.job, await packParts(parts), { ms: ms() })
+        } catch (e) {
+          await putContent(w.job, new Uint8Array(), {
+            error: asciiJson(e instanceof Error ? e.message : String(e)),
+            ms: ms(),
+          })
+        }
+      }
+    } finally {
+      contenting = false
+    }
+  }
+  let listeningContent: Promise<unknown> | undefined
+  const listenContent = () =>
+    (listeningContent ??= listen<{ items: ContentWanted[]; budget: ContentBudget }>('content-wanted', (e) => {
+      contentStop.abort()
+      contentStop = new AbortController()
+      contentQueue = [...e.payload.items]
+      contentBudget = e.payload.budget
+      void makeContents()
+    }))
+
   const openedOf = (s: StoredLibrary<TauriItem>) => {
     formats = new Map(s.formats.map((f) => [f.ext, f]))
     const items = s.items.toSorted((a, b) => b.mtime - a.mtime)
@@ -243,7 +393,7 @@ export function tauriBackend(): Backend {
 
   return {
     async open() {
-      await Promise.all([listenThumbs(), listenChanges()])
+      await Promise.all([listenThumbs(), listenChanges(), listenContent()])
       for (const it of waveQueue.splice(0)) waveIds.delete(it.id)
       return openedOf(await invoke<StoredLibrary<TauriItem>>('open_library'))
     },
@@ -391,12 +541,27 @@ export function tauriBackend(): Backend {
       decoded = URL.createObjectURL(new Blob([png], { type: 'image/png' }))
       return { kind: 'image', url: decoded }
     },
-    itemDetails: (id) => invoke('item_details', { id }),
+    async itemDetails(id) {
+      const d = await invoke<ItemDetails & { elevated?: Elevated }>('item_details', { id })
+      return d.elevated ? elevatedDetails(d, d.elevated) : d
+    },
     revealItem: (id) => invoke('reveal_item', { id }),
     openItemDefault: (id) => invoke('open_item_default', { id }),
     itemPath: (id) => invoke('item_path', { id }),
-    itemMenu: (ids) => invoke('item_menu', { ids }),
-    runItemMenu: async (ids, entry) => (await invoke<string | null>('run_item_menu', { ids, entry })) ?? undefined,
+    async itemMenu(ids) {
+      const m = await invoke<{ items: MenuEntry[]; elevated?: Elevated }>('item_menu', { ids })
+      return m.elevated ? elevatedMenu(ids, m.elevated) : m.items
+    },
+    async runItemMenu(ids, entry) {
+      const r = await invoke<{ message: string | null; elevated?: Elevated }>('run_item_menu', { ids, entry })
+      if (!r.elevated) return r.message ?? undefined
+      const e = r.elevated
+      return uiRunMenu(pluginUrl(e.plugin, e.module), {
+        ...menuApi(e),
+        id: entry,
+        sandbox: async () => (await invoke<string | null>('sandbox_run_menu', { ids, entry })) ?? undefined,
+      })
+    },
     async waveform(id) {
       const wave = new Uint8Array(await invoke<ArrayBuffer>('waveform', { id }))
       return wave.length > 0 ? wave : null

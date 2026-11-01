@@ -33,6 +33,7 @@ const PART: Record<Part, string> = {
   details: 'ファイルの詳細',
   embed: '埋め込み表示',
   menu: '右クリックメニュー',
+  content: '内容の読み取り',
 }
 
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [
@@ -81,7 +82,7 @@ const perms = (p: PluginStatus) => [
         },
       ]
     : []),
-  ...(p.caps.some((c) => c.by === 'ui')
+  ...(p.caps.some((c) => c.by === 'elevated')
     ? [{ label: 'フルアクセス', text: 'アプリの画面上で直接動作し、すべての機能にアクセス可能', full: true }]
     : []),
 ]

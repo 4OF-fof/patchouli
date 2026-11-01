@@ -8,3 +8,6 @@
 /example/target/
 /example/*/dist/
 /example/*/*.zip
+
+# 自動分類の試験用（モデルと llama.cpp、負荷試験の素材）
+/.experiment/
