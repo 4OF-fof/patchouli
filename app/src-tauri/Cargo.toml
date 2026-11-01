@@ -38,6 +38,7 @@ trash = "5.2.9"
 jpeg-decoder = { version = "0.3.2", default-features = false }
 ureq = { version = "3.5.0", features = ["json"] }
 base64 = "0.23.1"
+fs4 = "1.1.0"
 
 # 開発中も画像の読み込みと縮小が遅くならないよう、依存クレートは最適化してビルドする
 [profile.dev.package."*"]
@@ -45,3 +46,7 @@ opt-level = 3
 
 [target."cfg(windows)".dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_Security"] }
+
+[target."cfg(not(windows))".dependencies]
+flate2 = "1.1.10"
+tar = "0.4.46"

@@ -1361,6 +1361,92 @@ async fn forget_library(app: tauri::AppHandle, path: PathBuf) -> Result<(), Stri
     settings::forget(&app, &path)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AutoTag {
+    enabled: bool,
+    installed: bool,
+    downloading: bool,
+    /// これからダウンロードする大きさ
+    need: u64,
+    /// llama-server が使える GPU。空なら CPU で動かす。入れる前は None
+    gpus: Option<Vec<String>>,
+}
+
+#[tauri::command]
+async fn auto_tag(app: tauri::AppHandle) -> Result<AutoTag, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let installed = embed::installed();
+        let gpus = installed
+            .then(embed::gpus)
+            .transpose()
+            .inspect_err(|e| log::warn!("GPU を調べられない: {e}"))
+            .ok()
+            .flatten();
+        Ok(AutoTag {
+            enabled: settings::auto_tag(&app)?,
+            installed,
+            downloading: embed::install::downloading(),
+            need: embed::install::need(),
+            gpus,
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Clone, Serialize)]
+struct DownloadProgress<'a> {
+    file: &'a str,
+    done: u64,
+    total: u64,
+}
+
+/// 有効にするときは、なければ llama.cpp とモデルをダウンロードし終えてから、いまのライブラリのベクトルを作り始める。
+#[tauri::command]
+async fn set_auto_tag(app: tauri::AppHandle, on: bool) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if !on {
+            settings::set_auto_tag(&app, false)?;
+            content::stop(&app);
+            embed::shutdown();
+            return Ok(());
+        }
+        if !embed::installed() {
+            embed::install::install(&mut |p| {
+                let _ = app.emit(
+                    "auto-tag-progress",
+                    DownloadProgress {
+                        file: p.file,
+                        done: p.done,
+                        total: p.total,
+                    },
+                );
+            })?;
+        }
+        settings::set_auto_tag(&app, true)?;
+        let cur = app.state::<Current>();
+        let open = with_session(&cur, |s| {
+            Ok((
+                Arc::clone(&s.plugins),
+                s.lib.snapshot().items,
+                s.thumbs.clone(),
+            ))
+        });
+        if let Ok((plugins, items, thumbs)) = open {
+            content::collect(&app, &plugins, &items, &thumbs);
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn cancel_auto_tag_download() {
+    embed::install::cancel();
+}
+
 #[tauri::command]
 async fn cache_usage(
     app: tauri::AppHandle,
@@ -1667,6 +1753,9 @@ pub fn run() {
             libraries,
             switch_library,
             forget_library,
+            auto_tag,
+            set_auto_tag,
+            cancel_auto_tag_download,
             cache_usage,
             clear_cache,
             unused_plugins,

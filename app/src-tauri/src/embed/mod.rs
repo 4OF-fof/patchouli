@@ -13,6 +13,8 @@ use serde_json::{Value, json};
 
 use crate::plugin::ContentMedia;
 
+pub mod install;
+
 /// ベクトルの鍵に入れるモデルの名前。モデルか、モデルへの渡し方を変えたら変える。
 pub const MODEL: &str = "embeddinggemma-2-Q8_0/1";
 
@@ -95,14 +97,47 @@ fn watch_idle() {
     });
 }
 
+fn quiet(exe: &Path) -> Command {
+    let mut c = Command::new(exe);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        // 黒い窓を出さない
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        c.creation_flags(CREATE_NO_WINDOW);
+    }
+    c.stdin(Stdio::null());
+    c
+}
+
+/// llama-server が使える GPU の名前。空なら CPU で動かす。
+pub fn gpus() -> Result<Vec<String>, String> {
+    static FOUND: Mutex<Option<Vec<String>>> = Mutex::new(None);
+    let mut g = FOUND.lock().map_err(|e| e.to_string())?;
+    if let Some(v) = g.as_ref() {
+        return Ok(v.clone());
+    }
+    let out = quiet(&exe())
+        .arg("--list-devices")
+        .output()
+        .map_err(|e| format!("llama-server を起動できない: {e}"))?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let v: Vec<String> = text
+        .lines()
+        .skip_while(|l| !l.starts_with("Available devices"))
+        .skip(1)
+        .filter_map(|l| {
+            let (_, name) = l.trim().split_once(": ")?;
+            Some(name.split(" (").next().unwrap_or(name).to_owned())
+        })
+        .collect();
+    *g = Some(v.clone());
+    Ok(v)
+}
+
 #[cfg(windows)]
 fn command(exe: &Path) -> Command {
-    use std::os::windows::process::CommandExt;
-    let mut c = Command::new(exe);
-    // 黒い窓を出さない
-    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-    c.creation_flags(CREATE_NO_WINDOW).stdin(Stdio::null());
-    c
+    quiet(exe)
 }
 
 /// sh が llama-server を待ち、別のサブシェルが標準入力の終わり（アプリが閉じたか落ちた）で止める。

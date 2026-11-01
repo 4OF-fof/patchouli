@@ -1,5 +1,5 @@
 import { For, Show, createSignal, onCleanup, onMount } from 'solid-js'
-import type { CacheKind, CacheUsage, Developer, UnusedPlugin } from '../../../backend/types'
+import type { AutoTag, AutoTagProgress, CacheKind, CacheUsage, Developer, UnusedPlugin } from '../../../backend/types'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
@@ -13,6 +13,11 @@ export interface SettingsDialogProps {
   version: string
   tabsAt?: TabsAt
   onTabsAtChange?: (at: TabsAt) => void
+  autoTag?: AutoTag
+  autoTagProgress?: AutoTagProgress
+  /** 有効にするときは、ダウンロードし終えるまで待つ。 */
+  onAutoTagChange?: (on: boolean) => Promise<void>
+  onCancelDownload?: () => Promise<void>
   usage?: CacheUsage
   unused?: UnusedPlugin[]
   onClear?: (kind: CacheKind) => Promise<void>
@@ -41,6 +46,8 @@ const CACHES: { kind: CacheKind; label: string }[] = [
   { kind: 'thumbs', label: 'サムネイル' },
   { kind: 'all', label: 'すべて' },
 ]
+
+const progressLabel = (p: AutoTagProgress) => `${p.file}: ${Math.floor((p.done / p.total) * 100)}%`
 
 const PLACES = {
   dir: { key: 'pluginDirs', label: '開発用プラグインのフォルダ', noun: 'フォルダ' },
@@ -74,6 +81,21 @@ export function SettingsDialog(props: SettingsDialogProps) {
       setBusy(undefined)
     }
   }
+  const [switching, setSwitching] = createSignal(false)
+  const changeAutoTag = async (change: (on: boolean) => Promise<void>, on: boolean) => {
+    setSwitching(true)
+    setError(undefined)
+    try {
+      await change(on)
+    } catch (e) {
+      setError(message(e))
+      setFailed(failed() + 1)
+    } finally {
+      setSwitching(false)
+    }
+  }
+  const downloading = () => switching() || !!props.autoTag?.downloading
+
   const unusedBytes = () => (props.unused ?? []).reduce((n, p) => n + p.bytes, 0)
   const sizeOf = (u: CacheUsage, kind: CacheKind) =>
     kind === 'library' ? u.library : kind === 'thumbs' ? u.thumbs : u.library + u.thumbs + unusedBytes()
@@ -135,6 +157,65 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   }}
                   onChange={(v) => change()(v === 'left' ? 'left' : 'top')}
                 />
+              </section>
+            )}
+          </Show>
+          <Show when={props.onAutoTagChange}>
+            {(change) => (
+              <section>
+                <h4>自動分類</h4>
+                <Show when={props.autoTag} fallback={<p class={styles.loading}>読み込み中…</p>}>
+                  {(a) => (
+                    <>
+                      <For each={[failed()]}>
+                        {() => (
+                          <SettingField
+                            setting={{
+                              key: 'autoTag',
+                              label: '自動分類を有効化',
+                              kind: 'toggle',
+                              default: false,
+                              value: a().enabled || downloading(),
+                              help: a().installed
+                                ? 'タグの候補と、内容での検索に使用します'
+                                : `タグの候補と、内容での検索に使用します。有効にすると、モデルと llama.cpp（${bytesLabel(a().need)}）をダウンロードします`,
+                            }}
+                            disabled={downloading()}
+                            onChange={(v) => void changeAutoTag(change(), v === true)}
+                          />
+                        )}
+                      </For>
+                      <Show when={downloading() && !a().installed}>
+                        <div class={styles.row}>
+                          <b>ダウンロード中</b>
+                          <span class={styles.mono}>
+                            {props.autoTagProgress ? progressLabel(props.autoTagProgress) : '…'}
+                          </span>
+                          <Show when={props.onCancelDownload}>
+                            {(cancel) => (
+                              <Button size="sm" onClick={() => void cancel()()}>
+                                キャンセル
+                              </Button>
+                            )}
+                          </Show>
+                        </div>
+                      </Show>
+                      <Show when={a().gpus}>
+                        {(g) => (
+                          <div class={styles.row}>
+                            <b>実行環境</b>
+                            <span class={styles.mono}>
+                              {g().length ? `GPU: ${g().join('、')}` : 'CPU（GPU が見つからないため）'}
+                            </span>
+                          </div>
+                        )}
+                      </Show>
+                      <p class={styles.empty}>
+                        モデルは EmbeddingGemma 2（Apache License 2.0）、実行環境は llama.cpp（MIT License）を使用します
+                      </p>
+                    </>
+                  )}
+                </Show>
               </section>
             )}
           </Show>

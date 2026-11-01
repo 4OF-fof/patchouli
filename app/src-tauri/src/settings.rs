@@ -112,6 +112,12 @@ pub fn auto_tag(app: &AppHandle) -> Result<bool, String> {
         .unwrap_or(false))
 }
 
+pub fn set_auto_tag(app: &AppHandle, on: bool) -> Result<(), String> {
+    let mut m = read(app)?;
+    m.insert(AUTO_TAG.into(), json!(on));
+    write(app, &m)
+}
+
 pub fn developer(app: &AppHandle) -> Result<Developer, String> {
     Ok(read(app)?
         .get(DEVELOPER)

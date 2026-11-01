@@ -113,6 +113,17 @@ fn hash(s: &str) -> String {
     format!("{:016x}", thumb::fnv(&[s.as_bytes()]))
 }
 
+/// 作りかけを止め、画面に頼んだものも取り下げる。
+pub fn stop(app: &tauri::AppHandle) {
+    if let Ok(c) = current().lock() {
+        c.store(true, Ordering::Relaxed);
+    }
+    if let Ok(mut j) = jobs().lock() {
+        j.clear();
+    }
+    let _ = app.emit("content-wanted", json!({ "items": [] }));
+}
+
 /// items のベクトルを、変わったものだけ作り直す。新しく始めると、前のものは止める。
 pub fn collect(
     app: &tauri::AppHandle,

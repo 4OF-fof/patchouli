@@ -1218,6 +1218,7 @@ export function App(props: AppProps) {
                       libraries={backend.libraries}
                       tidy={backend.tidy}
                       developer={backend.developer}
+                      autoTag={backend.autoTag}
                       onReopen={() => window.location.reload()}
                       loadPlugins={() => backend.plugins()}
                       pluginActions={backend.pluginActions}

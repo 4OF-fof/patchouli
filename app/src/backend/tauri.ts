@@ -39,6 +39,8 @@ import {
   uiWaveform,
 } from '../plugins/ui'
 import type {
+  AutoTag,
+  AutoTagProgress,
   Backend,
   CacheUsage,
   Changed,
@@ -367,7 +369,7 @@ export function tauriBackend(): Backend {
   }
   let listeningContent: Promise<unknown> | undefined
   const listenContent = () =>
-    (listeningContent ??= listen<{ items: ContentWanted[]; budget: ContentBudget }>('content-wanted', (e) => {
+    (listeningContent ??= listen<{ items: ContentWanted[]; budget?: ContentBudget }>('content-wanted', (e) => {
       contentStop.abort()
       contentStop = new AbortController()
       contentQueue = [...e.payload.items]
@@ -467,6 +469,15 @@ export function tauriBackend(): Backend {
       get: () => invoke<Developer>('developer'),
       set: (developer) => invoke('set_developer', { developer }),
       pick: async (kind) => (await invoke<string | null>('pick_dev_path', { repo: kind === 'repo' })) ?? undefined,
+    },
+    autoTag: {
+      get: () => invoke<AutoTag>('auto_tag'),
+      set: (on) => invoke('set_auto_tag', { on }),
+      cancelDownload: () => invoke('cancel_auto_tag_download'),
+      onProgress(cb) {
+        const off = listen<AutoTagProgress>('auto-tag-progress', (e) => cb(e.payload))
+        return () => void off.then((f) => f())
+      },
     },
     onFileDrag(cb) {
       const send = (e: FileDrag) => cb(e)

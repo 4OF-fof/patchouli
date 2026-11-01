@@ -128,6 +128,30 @@ export interface DeveloperActions {
   pick(kind: 'dir' | 'repo'): Promise<string | undefined>
 }
 
+export interface AutoTag {
+  enabled: boolean
+  installed: boolean
+  downloading: boolean
+  /** これからダウンロードする大きさ（バイト） */
+  need: number
+  /** llama-server が使える GPU。空なら CPU で動かす。インストールする前は undefined */
+  gpus?: string[]
+}
+
+export interface AutoTagProgress {
+  file: string
+  done: number
+  total: number
+}
+
+export interface AutoTagActions {
+  get(): Promise<AutoTag>
+  /** 有効にするときは、ダウンロードし終えるまで待つ。 */
+  set(on: boolean): Promise<void>
+  cancelDownload(): Promise<void>
+  onProgress(cb: (p: AutoTagProgress) => void): () => void
+}
+
 export interface PluginWork {
   thumbnails: string[]
   waveforms: string[]
@@ -167,6 +191,7 @@ export interface Backend {
   libraries?: LibraryActions
   tidy?: TidyActions
   developer?: DeveloperActions
+  autoTag?: AutoTagActions
   onFileDrag?(cb: (e: FileDrag) => void): () => void
   /** フォルダは、中のフォルダも含めてグループとして取り込む。 */
   importDropped?(place: Place): Promise<Imported>

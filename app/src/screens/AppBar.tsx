@@ -1,7 +1,7 @@
 import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import { version } from '../../package.json'
 import appIcon from '../../src-tauri/icons/32x32.png'
-import type { DeveloperActions, LibraryActions, TidyActions } from '../backend/types'
+import type { AutoTagActions, AutoTagProgress, DeveloperActions, LibraryActions, TidyActions } from '../backend/types'
 import { Icon } from '../components/base/Icon/Icon'
 import { TitleBar } from '../components/nav/TitleBar/TitleBar'
 import { HelpDialog } from '../components/dialog/HelpDialog/HelpDialog'
@@ -60,6 +60,7 @@ export interface AppBarProps {
   libraries?: LibraryActions
   tidy?: TidyActions
   developer?: DeveloperActions
+  autoTag?: AutoTagActions
   onReopen?: () => void
   loadPlugins?: () => Promise<PluginReport>
   pluginActions?: PluginActions
@@ -180,6 +181,15 @@ export function AppBar(props: AppBarProps) {
     () => (state() === 'settings' && props.developer) || undefined,
     (d) => d.get(),
   )
+  const [autoTag, { refetch: reloadAutoTag }] = createResource(
+    () => (state() === 'settings' && props.autoTag) || undefined,
+    (a) => a.get(),
+  )
+  const [autoTagProgress, setAutoTagProgress] = createSignal<AutoTagProgress>()
+  createEffect(() => {
+    const a = props.autoTag
+    if (a) onCleanup(a.onProgress(setAutoTagProgress))
+  })
   // 一覧は大きいので、初めて開いたときに読む
   const [notices] = createResource(
     () => state() === 'notices' || undefined,
@@ -467,6 +477,20 @@ export function AppBar(props: AppBarProps) {
               await Promise.all([reloadUnused(), reloadUsage()])
             })
           }
+          autoTag={autoTag.latest}
+          autoTagProgress={autoTagProgress()}
+          onAutoTagChange={
+            props.autoTag &&
+            (async (on) => {
+              try {
+                await props.autoTag!.set(on)
+              } finally {
+                setAutoTagProgress(undefined)
+                await reloadAutoTag()
+              }
+            })
+          }
+          onCancelDownload={props.autoTag && (() => props.autoTag!.cancelDownload())}
           developer={dev.latest}
           onDeveloperChange={
             props.developer &&
