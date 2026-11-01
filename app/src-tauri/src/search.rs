@@ -7,6 +7,9 @@ use serde::Serialize;
 use crate::{embed, vectors};
 
 const MAX_HITS: usize = 20;
+/// 区間の多い素材は、どの言葉にも近い区間が 1 つは出やすい。素材全体の近さを混ぜ、区間の数で割り引く。
+const WHOLE: f32 = 0.3;
+const PER_PARTS: f32 = 0.01;
 
 #[derive(Serialize)]
 pub struct Hit {
@@ -21,31 +24,28 @@ fn dot(a: &[f32], b: &[f32]) -> f32 {
     a.iter().zip(b).map(|(x, y)| x * y).sum()
 }
 
-/// 項目ごとに、いちばん近いものの点数を取る。文章は、ノートや中身を読めなかったものにだけ使う。
+/// 項目ごとに、いちばん近い区間の点数を取る。文章は、ノートや中身を読めなかったものにだけ使う。
 pub fn search(thumbs: &Path, query: &str) -> Result<Vec<Hit>, String> {
     let ix = vectors::index(&vectors::path_for(thumbs))?;
     let q = embed::text("search result", query)?;
     let mut hits: Vec<Hit> = ix
         .iter()
         .filter_map(|(id, e)| {
-            let mut best: Option<(f32, Option<f64>)> = None;
-            let mut consider = |s: f32, at: Option<f64>| {
-                if best.is_none_or(|(b, _)| s > b) {
-                    best = Some((s, at));
+            let part = e
+                .parts
+                .iter()
+                .map(|p| (dot(&q, &p.vec), p.start))
+                .max_by(|a, b| a.0.total_cmp(&b.0));
+            let whole = e.whole.as_ref().map(|w| dot(&q, w));
+            let (score, at) = match (part, whole) {
+                (Some((s, at)), w) => {
+                    let w = w.unwrap_or(s);
+                    let n = e.parts.len() as f32;
+                    ((1.0 - WHOLE) * s + WHOLE * w - PER_PARTS * n.ln(), at)
                 }
+                (None, Some(w)) => (w, None),
+                (None, None) => (dot(&q, e.text.as_ref()?), None),
             };
-            if let Some(w) = &e.whole {
-                consider(dot(&q, w), None);
-            }
-            for p in &e.parts {
-                consider(dot(&q, &p.vec), p.start);
-            }
-            if e.whole.is_none()
-                && let Some(t) = &e.text
-            {
-                consider(dot(&q, t), None);
-            }
-            let (score, at) = best?;
             Some(Hit {
                 id: id.clone(),
                 score,
