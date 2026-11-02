@@ -13,9 +13,6 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.root[data-static] {
-  cursor: default;
-}
 .root[data-icon='true'] {
   width: 34px;
   justify-content: center;

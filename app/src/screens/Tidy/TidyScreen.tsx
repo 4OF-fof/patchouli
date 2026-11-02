@@ -4,7 +4,7 @@ import { Kbd } from '../../components/base/Kbd/Kbd'
 import { ConfirmDialog } from '../../components/dialog/ConfirmDialog/ConfirmDialog'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { createStore } from 'solid-js/store'
-import { FloatingLabel, FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
+import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { useTabActive } from '../../components/nav/TabPane/TabPane'
 import { type Item, type Library, type TagCandidate, thumbOf } from '../../model/library'
@@ -52,9 +52,11 @@ export function TidyScreen(props: TidyScreenProps) {
   const [draft, setDraft] = createStore<Record<string, { tags: TagCandidate[]; project: string }>>(
     Object.fromEntries(queue().map((i) => [i.id, fresh(i)])),
   )
-  const [decided, setDecided] = createSignal<{ id: string; before?: Item }[]>(
+  // 承認と保留を、した順に並べる。held は、その前に保留の記憶にあったか
+  const [steps, setSteps] = createSignal<{ id: string; later?: boolean; before?: Item; held?: boolean }[]>(
     (props.approved ?? []).map((id) => ({ id })),
   )
+  const decided = createMemo(() => steps().filter((s) => !s.later))
   const decidedIds = createMemo(() => new Set(decided().map((d) => d.id)))
   // 候補は作り直すたびに届く。並びは変えず、新しく候補の出たものを後ろに足す
   createEffect(
@@ -70,7 +72,7 @@ export function TidyScreen(props: TidyScreenProps) {
       { defer: true },
     ),
   )
-  const [later, setLater] = createSignal<string[]>([])
+  const later = createMemo(() => steps().flatMap((s) => (s.later ? [s.id] : [])))
   const [cur, setCur] = createSignal<string | undefined>(props.currentId)
   const [bulk, setBulk] = createSignal(false)
   const pending = () => queue().filter((i) => !decidedIds().has(i.id))
@@ -104,27 +106,29 @@ export function TidyScreen(props: TidyScreenProps) {
   const approve = (it: Item) => {
     if (nothing(it)) return
     const next = nextAfter(it.id)
-    setDecided([...decided(), { id: it.id, before: it }])
+    setSteps([...steps(), { id: it.id, before: it, held: heldOver.includes(it.id) }])
     setCur(next)
     decide(it)
   }
   const approveSure = () => {
     const its = sure()
     setBulk(false)
-    setDecided([...decided(), ...its.map((it) => ({ id: it.id, before: it }))])
+    setSteps([...steps(), ...its.map((it) => ({ id: it.id, before: it, held: heldOver.includes(it.id) }))])
     for (const it of its) decide(it)
   }
   const putOff = (it: Item) => {
     const next = nextAfter(it.id)
-    setLater([...later(), it.id])
-    if (!heldOver.includes(it.id)) heldOver = [...heldOver, it.id]
+    const held = heldOver.includes(it.id)
+    setSteps([...steps(), { id: it.id, later: true, held }])
+    if (!held) heldOver = [...heldOver, it.id]
     setCur(next)
   }
   const undo = () => {
-    const last = decided().at(-1)
+    const last = steps().at(-1)
     if (!last) return
-    setDecided(decided().slice(0, -1))
+    setSteps(steps().slice(0, -1))
     setCur(last.id)
+    if (last.held != null) heldOver = [...heldOver.filter((id) => id !== last.id), ...(last.held ? [last.id] : [])]
     if (last.before) props.onUndo?.(last.before)
   }
   const addTag = (it: Item, tag: string) => {
@@ -199,10 +203,6 @@ export function TidyScreen(props: TidyScreenProps) {
   return (
     <section class={shared.screen} aria-label="整理">
       <div class={styles.head}>
-        <FloatingLabel class={styles.mid}>
-          <b>整理</b>タグの候補を確認 | 残り {pending().length} 件
-        </FloatingLabel>
-        <span class={styles.sp} />
         <FloatingPill kbd="Ctrl Enter" disabled={!sure().length} onClick={() => setBulk(true)}>
           まとめて承認
         </FloatingPill>
@@ -244,6 +244,7 @@ export function TidyScreen(props: TidyScreenProps) {
                   {strip()}
                 </div>
                 <TidyPanel
+                  class={styles.panel}
                   lib={lib()}
                   it={it()}
                   tags={draft[it().id]?.tags ?? []}
@@ -251,7 +252,6 @@ export function TidyScreen(props: TidyScreenProps) {
                   pos={pending().indexOf(it()) + 1}
                   total={pending().length}
                   later={later().includes(it().id)}
-                  approved={decided().length}
                   batch={
                     batch().length
                       ? {

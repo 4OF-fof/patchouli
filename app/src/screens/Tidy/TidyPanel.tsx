@@ -8,6 +8,7 @@ import styles from './TidyPanel.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
 
 export interface TidyPanelProps {
+  class?: string
   lib: Library
   it: Item
   tags: TagCandidate[]
@@ -15,7 +16,6 @@ export interface TidyPanelProps {
   pos: number
   total: number
   later?: boolean
-  approved: number
   batch?: { size: number; ok: number }
   onTag: (k: number, on: boolean) => void
   onProject: (name: string) => void
@@ -36,13 +36,12 @@ export function TidyPanel(props: TidyPanelProps) {
       .slice(0, 6)
   const reason = () => (onTags().length ? onTags().map((t) => t.tag) : [firstTag()])
   return (
-    <ScrollArea class={styles.root} viewClass={styles.body} aria-label="分類の候補">
+    <ScrollArea class={`${styles.root} ${props.class ?? ''}`} viewClass={styles.body} aria-label="分類の候補">
       <div class={styles.nmh}>
         <b>{props.it.name}</b>
         <small>
-          {props.pos} / {props.total} | {monthDay(lib(), props.it.moved)} に追加
+          {props.pos} / {props.total}
           {props.later && ' | 保留中'}
-          {props.approved > 0 && ` | 承認済み ${props.approved} 件`}
         </small>
       </div>
       <div class={styles.fl}>

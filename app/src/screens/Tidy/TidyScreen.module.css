@@ -1,6 +1,5 @@
 .head {
   position: absolute;
-  left: 16px;
   right: 16px;
   top: 16px;
   z-index: 3;
@@ -10,24 +9,15 @@
   gap: var(--space-10);
   white-space: nowrap;
 }
-.mid {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-}
-.mid b {
-  font-weight: 600;
-  color: var(--ink);
-}
-.sp {
-  flex: 1;
-}
 .body {
   flex: 1;
   min-height: 0;
   display: flex;
   gap: var(--space-28);
-  padding: 66px var(--space-28) var(--space-16);
+  padding: var(--space-16) var(--space-28);
+}
+.panel {
+  margin-top: 50px;
 }
 
 .view {

@@ -18,11 +18,3 @@ export function FloatingPill(props: FloatingPillProps) {
     </button>
   )
 }
-
-export function FloatingLabel(props: { class?: string; children?: JSX.Element }) {
-  return (
-    <span class={`${styles.root} ${props.class ?? ''}`} data-static>
-      {props.children}
-    </span>
-  )
-}
