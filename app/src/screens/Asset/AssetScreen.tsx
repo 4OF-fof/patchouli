@@ -326,15 +326,7 @@ export function AssetScreen(props: AssetScreenProps) {
     () => (props.host?.details ? it()?.id : undefined),
     async (id) => (await props.host?.details?.(id).catch(() => null)) ?? null,
   )
-  const spec = (a: Item) => {
-    const d = details.state === 'ready' ? details() : null
-    return [
-      lib().formatLabel(a),
-      ...(d?.rows.map((r) => `${r.label} ${r.value}`) ?? []),
-      ...(d ? [bytes(d.size)] : []),
-      `更新 ${relDay(lib(), a.moved)}`,
-    ].join(' | ')
-  }
+  const [fileOpen, setFileOpen] = createSignal(false)
   const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
   const closePicker = () => {
     setPicking(false)
@@ -471,7 +463,6 @@ export function AssetScreen(props: AssetScreenProps) {
                       value={a().name}
                       onChange={(name) => props.onRename?.(a().id, name)}
                     />
-                    <span class={styles.spec}>{spec(a())}</span>
                   </div>
                   <div class={styles.fl}>
                     <span class={styles.k}>所属</span>
@@ -517,6 +508,38 @@ export function AssetScreen(props: AssetScreenProps) {
                       </For>
                     </Show>
                   </div>
+                  <details open={fileOpen()} onToggle={(e) => setFileOpen(e.currentTarget.open)}>
+                    <summary class={styles.sum}>
+                      <Icon name="chevron" size={12} class={styles.sumIcon} withText />
+                      ファイルの詳細
+                    </summary>
+                    <div class={styles.fi}>
+                      <span>種類</span>
+                      <span>{a().ext}</span>
+                      <Show when={details.loading}>
+                        <span />
+                        <Spinner size={12} />
+                      </Show>
+                      <For each={details.state === 'ready' ? details()?.rows : undefined}>
+                        {(r) => (
+                          <>
+                            <span>{r.label}</span>
+                            <span>{r.value}</span>
+                          </>
+                        )}
+                      </For>
+                      <Show when={details.state === 'ready' && details()}>
+                        {(d) => (
+                          <>
+                            <span>サイズ</span>
+                            <span>{bytes(d().size)}</span>
+                          </>
+                        )}
+                      </Show>
+                      <span>更新日</span>
+                      <span>{relDay(lib(), a().moved)}</span>
+                    </div>
+                  </details>
                 </ScrollArea>
               </aside>
               <Show when={picking()}>

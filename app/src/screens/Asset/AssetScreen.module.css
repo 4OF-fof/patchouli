@@ -232,8 +232,32 @@
 .fl .name:hover {
   border-color: var(--line-2);
 }
-.spec {
+.sum {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
   font-size: var(--fs-meta);
+  color: var(--accent);
+  cursor: pointer;
+}
+.sum::-webkit-details-marker {
+  display: none;
+}
+.sumIcon {
+  transition: rotate 0.15s;
+}
+details[open] > .sum > .sumIcon {
+  rotate: 90deg;
+}
+.fi {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 3px var(--space-8);
+  margin-top: var(--space-8);
+  align-items: center;
+  font-size: var(--fs-meta);
+}
+.fi > :nth-child(odd) {
   color: var(--muted);
 }
 .tags {
