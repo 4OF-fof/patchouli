@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { PlaceSelect } from '../../components/controls/PlaceSelect/PlaceSelect'
@@ -59,14 +59,15 @@ export function NoteScreen(props: NoteScreenProps) {
   const [links, setLinks] = createSignal(!!props.linksOpen)
   const [propsOpen, setPropsOpen] = createSignal(!!props.propsOpen)
   let editor: NoteEditorApi | undefined
-  const body = () => note()?.body ?? ''
-  const headings = () => headingsOf(body())
+  // ライブラリはサムネイルが届くたびに作り直すので、本文が変わったときだけ数え直す
+  const body = createMemo(() => note()?.body ?? '')
+  const headings = createMemo(() => headingsOf(body()))
   const [section, setSection] = createSignal(-1)
   const into = () => {
     const n = note()
     return n ? lib().backOf(n) : []
   }
-  const from = () => refsOf(body())
+  const from = createMemo(() => refsOf(body()))
 
   onMount(() => {
     if (typeof matchMedia !== 'function') return

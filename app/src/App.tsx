@@ -43,8 +43,8 @@ import {
   ROOT,
   newNoteName,
   newProjectName,
+  noteRefs,
   placeOf,
-  refsOf,
   retag,
   retaggedItems,
   samePlace,
@@ -1103,9 +1103,11 @@ export function App(props: AppProps) {
       }),
       peek() ?? '',
     ])
-    return lib().items.flatMap((it) => {
-      if (!it.note || open.has(it.id) || ignored().has(it.id)) return []
-      const lost = new Set(refsOf(it.body ?? '').filter((id) => !lib().byId.has(id)))
+    const l = lib()
+    const skip = ignored()
+    return l.items.flatMap((it) => {
+      if (!it.note || open.has(it.id) || skip.has(it.id)) return []
+      const lost = new Set(noteRefs(it).filter((id) => !l.byId.has(id)))
       return lost.size ? [{ note: it, lost: lost.size }] : []
     })
   })

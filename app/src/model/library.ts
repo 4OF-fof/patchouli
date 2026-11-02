@@ -196,6 +196,20 @@ export interface Library {
   formatLabel: (it: Item) => string
 }
 
+// サムネイルが届くたびにライブラリを作り直すので、変わっていないノートの本文は読み直さない。
+// 項目は届き直すと別のものになるので、ID で覚える
+const refsCache = new Map<string, { body: string; refs: string[] }>()
+
+/** ノートの本文にあるリンク先の ID。refsOf と同じものを、本文が変わったときだけ数え直す */
+export function noteRefs(n: Item) {
+  const body = n.body ?? ''
+  const c = refsCache.get(n.id)
+  if (c?.body === body) return c.refs
+  const refs = refsOf(body)
+  refsCache.set(n.id, { body, refs })
+  return refs
+}
+
 export function buildLibrary(
   items: Item[],
   projects: Project[],
@@ -227,11 +241,15 @@ export function buildLibrary(
   const back = new Map<string, Item[]>()
   for (const n of items) {
     if (!n.note || !n.body) continue
-    const to = refsOf(n.body)
+    const to = noteRefs(n)
       .map((r) => byId.get(r))
       .filter((x): x is Item => !!x && x !== n)
     links.set(n.id, to)
-    for (const t of to) back.set(t.id, [...(back.get(t.id) ?? []), n])
+    for (const t of to) {
+      const b = back.get(t.id)
+      if (b) b.push(n)
+      else back.set(t.id, [n])
+    }
   }
   const linksOf = (n: Item) => links.get(n.id) ?? []
   const backOf = (it: Item) => back.get(it.id) ?? []
@@ -268,7 +286,12 @@ export function buildLibrary(
     },
     tagGroups: () => {
       const m = new Map<string, Item[]>()
-      for (const i of items) for (const t of i.tags) m.set(t, [...(m.get(t) ?? []), i])
+      for (const i of items)
+        for (const t of i.tags) {
+          const l = m.get(t)
+          if (l) l.push(i)
+          else m.set(t, [i])
+        }
       return m
     },
     pending: () =>
