@@ -59,17 +59,25 @@
 .root button .kbd {
   margin-left: auto;
 }
+.root button .sub {
+  margin-left: auto;
+  color: var(--muted);
+}
 .root button:hover,
 .root button:focus-visible,
-.root button[aria-current='page'] {
+.root button[aria-expanded='true'] {
   background: var(--card);
   color: var(--ink);
 }
 .root button:focus-visible {
   outline-offset: -2px;
 }
+.root button[aria-current='page'],
 .root button[aria-current='page'] i {
   color: var(--accent);
+}
+.root button[aria-current='page'] {
+  font-weight: 600;
 }
 .root button[data-heading='true'] {
   color: var(--muted);

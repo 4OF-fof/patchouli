@@ -20,7 +20,7 @@ export interface ResultRowProps {
 
 const ICON: Record<Exclude<ResultKind, 'asset'>, IconName> = {
   command: 'chevron',
-  project: 'folder',
+  project: 'project',
   note: 'note',
   create: 'plus',
 }

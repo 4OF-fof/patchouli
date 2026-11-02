@@ -48,6 +48,7 @@ export function PlaceSelect(props: PlaceSelectProps) {
               current={props.value}
               onBack={close}
               onClose={close}
+              focusFirst
               onPick={(to) => {
                 close()
                 props.onChange?.(to)

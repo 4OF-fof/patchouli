@@ -15,13 +15,20 @@ export interface NavMenuItem {
   current?: boolean
   heading?: boolean
   danger?: boolean
+  /** 右にサブメニューを出す */
+  sub?: boolean
 }
 
 export type NavMenuEntry = NavMenuItem | 'separator'
 
 export interface NavMenuProps {
   items: NavMenuEntry[]
-  onSelect?: (id: string) => void
+  onSelect?: (id: string, el: HTMLButtonElement) => void
+  onHover?: (id: string, el: HTMLButtonElement) => void
+  /** sub の項目で → を押したとき */
+  onExpand?: (id: string, el: HTMLButtonElement) => void
+  /** サブメニューを開いている項目 */
+  open?: string
   onClose?: () => void
   focusFirst?: boolean
 }
@@ -44,6 +51,15 @@ export function NavMenu(props: NavMenuProps) {
       props.onClose?.()
       return
     }
+    if (e.key === 'ArrowRight') {
+      const b = document.activeElement
+      if (!(b instanceof HTMLButtonElement)) return
+      const it = props.items.filter((x) => x !== 'separator')[buttons().indexOf(b)]
+      if (!it?.sub) return
+      e.preventDefault()
+      props.onExpand?.(it.id, b)
+      return
+    }
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
     e.preventDefault()
     const bs = buttons()
@@ -63,16 +79,20 @@ export function NavMenu(props: NavMenuProps) {
                 type="button"
                 role="menuitem"
                 aria-current={it.current ? 'page' : undefined}
+                aria-haspopup={it.sub ? 'menu' : undefined}
+                aria-expanded={it.sub ? props.open === it.id : undefined}
                 data-heading={it.heading}
                 data-danger={it.danger}
                 data-tip={it.title}
-                onClick={() => props.onSelect?.(it.id)}
+                onClick={(e) => props.onSelect?.(it.id, e.currentTarget)}
+                onPointerEnter={(e) => props.onHover?.(it.id, e.currentTarget)}
               >
                 <i>{it.icon && <Icon name={it.icon} withText />}</i>
                 <span class={styles.label}>{it.label}</span>
                 {it.count != null && <small>{it.count}</small>}
                 {it.hint && <small>{it.hint}</small>}
                 {it.kbd && <Kbd class={styles.kbd}>{it.kbd}</Kbd>}
+                {it.sub && <Icon name="chevron" size={12} class={styles.sub} withText />}
               </button>
             )
           }

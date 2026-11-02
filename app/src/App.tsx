@@ -122,9 +122,9 @@ const LABEL: Record<View['s'], string> = {
 const TAB_ICON: Record<View['s'], IconName> = {
   edition: 'home',
   all: 'grid',
-  project: 'folder',
+  project: 'project',
   group: 'group',
-  plist: 'folder',
+  plist: 'project',
   tlist: 'hash',
   tag: 'hash',
   note: 'note',
@@ -354,7 +354,7 @@ export function App(props: AppProps) {
       p.s === 'plist'
         ? lib().projects.map((pr) => ({
             id: pr.name,
-            icon: 'folder',
+            icon: 'project',
             label: pr.name,
             current: v.s === 'project' && v.name === pr.name,
           }))

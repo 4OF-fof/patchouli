@@ -7,7 +7,7 @@ export const MAIN_ITEMS: NavMenuEntry[] = [
 
 export const PLACE_ITEMS: NavMenuEntry[] = [
   { id: 'home', icon: 'home', label: 'ホーム' },
-  { id: 'projects', icon: 'folder', label: 'プロジェクト', count: 8, current: true },
+  { id: 'projects', icon: 'project', label: 'プロジェクト', count: 8, current: true },
   { id: 'tags', icon: 'hash', label: 'タグ', count: 14 },
 ]
 

@@ -5,7 +5,7 @@
   position: absolute;
   left: 0;
   top: calc(100% + 6px);
-  z-index: var(--z-panel);
+  z-index: var(--z-menu);
 }
 .ib {
   width: 28px;
@@ -88,7 +88,7 @@
   position: absolute;
   left: 0;
   top: 100%;
-  z-index: var(--z-panel);
+  z-index: var(--z-menu);
   padding-top: var(--space-6);
   --nav-menu-height: min(420px, 70vh);
 }

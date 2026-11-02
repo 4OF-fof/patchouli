@@ -19,6 +19,7 @@ import { PluginsDialog } from '../components/dialog/PluginsDialog/PluginsDialog'
 import { SettingsDialog, type TabsAt } from '../components/dialog/SettingsDialog/SettingsDialog'
 import { type Activity, ActivityButton } from '../components/nav/ActivityButton/ActivityButton'
 import { NavMenu, type NavMenuEntry } from '../components/nav/NavMenu/NavMenu'
+import { GRACE, OPEN_DELAY, type Point, graceArea, inside } from '../components/nav/CascadeMenu/grace'
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
 import { TabStrip, type TabStripProps } from '../components/nav/TabStrip/TabStrip'
 import { type Library, newerFirst } from '../model/library'
@@ -268,7 +269,7 @@ export function AppBar(props: AppBarProps) {
     { id: 'all', icon: 'grid', label: 'すべて', count: lib().items.length, current: props.here === 'all' },
     {
       id: 'projects',
-      icon: 'folder',
+      icon: 'project',
       label: 'プロジェクト',
       count: lib().projects.length,
       current: props.here === 'projects',
@@ -296,17 +297,82 @@ export function AppBar(props: AppBarProps) {
   ]
   const [drop, setDrop] = createSignal(props.crumbMenu)
   const [clicked, setClicked] = createSignal(false)
+  const crumbEls: HTMLElement[] = []
+  let dropEl: HTMLDivElement | undefined
   let timer: ReturnType<typeof setTimeout> | undefined
-  const hover = (i: number) => {
-    clearTimeout(timer)
-    timer = setTimeout(() => setDrop(i), 500)
+  let pending: number | undefined
+  let grace: Point[] | undefined
+  let graceTimer: ReturnType<typeof setTimeout> | undefined
+  let pointer: Point | undefined
+  let under: Node | undefined
+  let onCrumb = false
+  let prevAt = -1
+  // 入ってきた段。猶予のあいだは待たせ、明けてもまだ上にいれば開く
+  let wanted: number | undefined
+  const endGrace = () => {
+    clearTimeout(graceTimer)
+    grace = undefined
   }
   const leave = () => {
     clearTimeout(timer)
+    pending = undefined
+    endGrace()
     setDrop(undefined)
     setClicked(false)
   }
-  onCleanup(() => clearTimeout(timer))
+  const holds = (p: Point) => drop() !== undefined && !!grace && inside(p, grace)
+  const enter = (i: number) => {
+    if (drop() === i || pending === i) return
+    clearTimeout(timer)
+    pending = i
+    timer = setTimeout(() => {
+      pending = undefined
+      if (!under || !crumbEls[i]?.contains(under)) return
+      endGrace()
+      setClicked(false)
+      setDrop(i)
+    }, OPEN_DELAY)
+  }
+  // 移動のメニューと同じく、段から出てもメニューへ向かう途中なら閉じず、ほかの段にも反応しない
+  const decide = () => {
+    const t = under
+    const p = pointer
+    if (!t || !p) return
+    const i = drop()
+    if (i !== undefined && !crumbEls[i]?.contains(t) && !dropEl?.contains(t) && !holds(p)) leave()
+    if (wanted !== undefined && crumbEls[wanted]?.contains(t) && !holds(p)) {
+      enter(wanted)
+      wanted = undefined
+    }
+  }
+  const onMove = (e: PointerEvent) => {
+    const t = e.target
+    if (!(t instanceof Node)) return
+    pointer = { x: e.clientX, y: e.clientY }
+    under = t
+    const at = crumbEls.findIndex((el) => el.contains(t))
+    if (at !== prevAt) wanted = at >= 0 ? at : undefined
+    prevAt = at
+    const i = drop()
+    const was = onCrumb
+    onCrumb = i !== undefined && crumbEls[i]?.contains(t)
+    if (dropEl?.contains(t)) endGrace()
+    else if (was && !onCrumb && dropEl) {
+      grace = graceArea(pointer, dropEl.getBoundingClientRect(), 'down')
+      clearTimeout(graceTimer)
+      graceTimer = setTimeout(() => {
+        grace = undefined
+        decide()
+      }, GRACE)
+    }
+    decide()
+  }
+  onMount(() => document.addEventListener('pointermove', onMove))
+  onCleanup(() => {
+    clearTimeout(timer)
+    clearTimeout(graceTimer)
+    document.removeEventListener('pointermove', onMove)
+  })
   const onMenu = (id: string) => {
     if (id === 'settings') return setState('settings')
     if (id === 'theme') return toggleTheme()
@@ -337,8 +403,9 @@ export function AppBar(props: AppBarProps) {
                     /
                   </span>
                 </Show>
-                <span class={styles.crumbAt} onPointerEnter={() => hover(i())} onPointerLeave={leave}>
+                <span class={styles.crumbAt}>
                   <button
+                    ref={(el) => (crumbEls[i()] = el)}
                     type="button"
                     class={styles.crumb}
                     aria-current={last() ? 'page' : undefined}
@@ -347,9 +414,10 @@ export function AppBar(props: AppBarProps) {
                     data-open={!!items()?.length}
                     onClick={() => {
                       if (places()) {
-                        const open = drop() === 0
-                        leave()
-                        if (!open) {
+                        clearTimeout(timer)
+                        pending = undefined
+                        endGrace()
+                        if (drop() !== 0) {
                           setClicked(true)
                           setDrop(0)
                         }
@@ -364,7 +432,7 @@ export function AppBar(props: AppBarProps) {
                   </button>
                   <Show when={items()?.length ? items() : undefined}>
                     {(list) => (
-                      <div class={styles.drop}>
+                      <div ref={dropEl} class={styles.drop}>
                         <NavMenu
                           focusFirst={clicked()}
                           items={list()}
