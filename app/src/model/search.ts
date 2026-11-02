@@ -3,11 +3,26 @@ import { type Item, type Library, type Place, hasTag, newerFirst, plainText } fr
 // 濁点などの結合文字と半角の濁点・半濁点は、前の文字とまとめてそろえる
 const UNIT = /.[\p{M}ﾞﾟ]*/gsu
 
+const KATAKANA = /[ァ-ヶヽヾ]/g
+const ASCII = /^[\0-\x7f]*$/
+
+// 本文をまとめて fold すると、同じ文字の NFKC を何万回も作るので、文字ごとの結果を覚えておく
+const units = new Map<string, string>()
+const foldUnit = (u: string) => {
+  let f = units.get(u)
+  if (f === undefined) {
+    f = u
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(KATAKANA, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
+    if (units.size > 20000) units.clear()
+    units.set(u, f)
+  }
+  return f
+}
+
 /** 検索のために表記をそろえる。NFKC にし、小文字にし、カタカナをひらがなにする */
-export const fold = (s: string) =>
-  s
-    .replace(UNIT, (u) => u.normalize('NFKC').toLowerCase())
-    .replace(/[ァ-ヶヽヾ]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0x60))
+export const fold = (s: string) => (ASCII.test(s) ? s.toLowerCase() : s.replace(UNIT, foldUnit))
 
 /** fold した文字列と、その 1 文字ずつが元の文字列のどこからどこまでにあたるか */
 export function foldMap(s: string): { text: string; from: number[]; to: number[] } {
@@ -104,6 +119,8 @@ interface Doc {
   aliases: string[]
   tags: string[]
   memo: string
+  /** 本文を平文にしたもの。body は、これを fold したもの */
+  plain: string
   body: string
   ext: string
   label: string
@@ -117,6 +134,7 @@ function docOf(lib: Library, it: Item): Doc {
   const placeRaw = lib.placeName(it)
   const d = docs.get(it)
   if (d && d.placeRaw === placeRaw) return d
+  const plain = d ? d.plain : it.note ? plainText(it.body ?? '') : ''
   const made: Doc = d
     ? { ...d, placeRaw, place: fold(placeRaw ?? '') }
     : {
@@ -124,7 +142,8 @@ function docOf(lib: Library, it: Item): Doc {
         aliases: (it.aliases ?? []).map(fold),
         tags: it.tags.map(fold),
         memo: fold(it.memo),
-        body: it.note ? fold(plainText(it.body ?? '')) : '',
+        plain,
+        body: fold(plain),
         ext: fold(it.ext),
         label: fold(lib.formatLabel(it)),
         placeRaw,
@@ -140,12 +159,28 @@ type Field = keyof typeof W
 const best = (fs: string[], t: string) => Math.max(0, ...fs.map((f) => strength(f, t)))
 
 /** 元の文字列で、fold した t のまわりを切り出す */
-function snippet(text: string, t: string) {
-  const m = foldMap(text)
+function snippet(text: string, t: string, folded = fold(text)) {
+  // 長い本文を丸ごと対応付けると重いので、fold したもので当たった位置のまわりだけを対応付ける。
+  // fold しても長さはほとんど変わらないので、たいていは元の文字列の同じ位置のまわりにある
+  const i = folded.indexOf(t)
+  for (const near of NEAR) {
+    const from = Math.max(0, i - near)
+    const s = around(text, from, text.slice(from, i + t.length + near), t)
+    if (s) return s
+  }
+  return around(text, 0, text, t) ?? text.slice(0, 24)
+}
+
+const NEAR = [32, 1024, 32768]
+
+/** text の at から始まる part で t を探し、そのまわりを text から切り出す */
+function around(text: string, at: number, part: string, t: string) {
+  const m = foldMap(part)
   const i = m.text.indexOf(t)
-  if (i < 0) return text.slice(0, 24)
-  const p = m.from[i] ?? 0
-  return `…${text.slice(Math.max(0, p - 8), (m.to[i + t.length - 1] ?? p) + 16)}…`
+  if (i < 0) return undefined
+  const p = at + (m.from[i] ?? 0)
+  const end = m.to[i + t.length - 1]
+  return `…${text.slice(Math.max(0, p - 8), end === undefined ? p + 16 : at + end + 16)}…`
 }
 
 /** 探す欄のどこかに t があるか */
@@ -185,13 +220,13 @@ export function findItems(
           : f.place.group
             ? !!inGroups.get(f.place.group)?.has(it)
             : it.project === f.place.project
-  const found: { it: Item; sc: number; why?: string }[] = []
+  const found: { it: Item; sc: number; why: [Field, string][] }[] = []
   for (const it of lib.items) {
     const d = docOf(lib, it)
     if (!chips.every((f) => matches(it, d, f))) continue
     if (!q.loose.every((l) => fits(d, l))) continue
     let sc = 0
-    const why: string[] = []
+    const why: [Field, string][] = []
     const ok = q.terms.every((t) => {
       const by: [Field, number][] = [
         ['name', strength(d.name, t)],
@@ -205,20 +240,39 @@ export function findItems(
       const [field, s] = by.reduce((a, b) => (W[b[0]] * b[1] > W[a[0]] * a[1] ? b : a))
       if (!s) return false
       sc += W[field] * s
-      if (field === 'alias') {
-        const a = it.aliases?.find((x) => fold(x).includes(t))
-        if (a) why.push(`別名 ${a}`)
-      } else if (field === 'memo') why.push(`メモ ${snippet(it.memo, t)}`)
-      else if (field === 'body') why.push(`本文 ${snippet(plainText(it.body ?? ''), t)}`)
+      if (field === 'alias' || field === 'memo' || field === 'body') why.push([field, t])
       return true
     })
-    if (ok) found.push({ it, sc, why: why.join(' | ') || undefined })
+    if (ok) found.push({ it, sc, why })
   }
   const rank = new Map(opened.map((id, i) => [id, i]))
   const rankOf = (it: Item) => rank.get(it.id) ?? rank.size
+  // 本文から切り出すのは重いので、画面に出す行で読まれたときに作る
   return found
     .toSorted((a, b) => b.sc - a.sc || rankOf(a.it) - rankOf(b.it) || newerFirst(a.it, b.it))
-    .map(({ it, why }) => ({ it, why }))
+    .map(({ it, why }) =>
+      why.length
+        ? {
+            it,
+            get why() {
+              return whyOf(it, why)
+            },
+          }
+        : { it },
+    )
+}
+
+function whyOf(it: Item, hits: [Field, string][]) {
+  const why = hits.flatMap(([field, t]) => {
+    if (field === 'alias') {
+      const a = it.aliases?.find((x) => fold(x).includes(t))
+      return a ? [`別名 ${a}`] : []
+    }
+    if (field === 'memo') return [`メモ ${snippet(it.memo, t, docs.get(it)?.memo)}`]
+    const d = docs.get(it)
+    return [`本文 ${d ? snippet(d.plain, t, d.body) : snippet(plainText(it.body ?? ''), t)}`]
+  })
+  return why.join(' | ') || undefined
 }
 
 export interface Candidate {
