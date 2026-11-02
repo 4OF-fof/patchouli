@@ -58,6 +58,10 @@ pub fn wave_thumb_path(thumbs: &Path, id: &str, src: &Path) -> Option<PathBuf> {
     path_for(&thumbs.join(WAVE_THUMBS), id, src, &Reads::new())
 }
 
+pub fn wave_thumb_path_of(thumbs: &Path, id: &str, m: &fs::Metadata) -> Option<PathBuf> {
+    path_of(&thumbs.join(WAVE_THUMBS), id, m, &Reads::new())
+}
+
 pub fn is_wave_thumb(file: &Path) -> bool {
     file.parent()
         .and_then(Path::file_name)
@@ -96,7 +100,11 @@ pub fn keep(out: &Path, bytes: &[u8]) {
 
 /// 置き場所の名前は項目の ID から決め、名前を変えたり移したりしても同じものを使う。中身の版は元の更新日時と大きさで決める。
 pub fn path_for(dir: &Path, id: &str, src: &Path, reads: &Reads) -> Option<PathBuf> {
-    let m = fs::metadata(src).ok()?;
+    path_of(dir, id, &fs::metadata(src).ok()?, reads)
+}
+
+/// path_for の、元のファイルの情報をもう持っているときのもの
+pub fn path_of(dir: &Path, id: &str, m: &fs::Metadata, reads: &Reads) -> Option<PathBuf> {
     let t = m
         .modified()
         .ok()?

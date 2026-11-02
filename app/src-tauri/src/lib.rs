@@ -255,6 +255,59 @@ fn reads_now(plugins: &Registry, before: Option<&Reads>, ext: &str) -> Reads {
     })
 }
 
+/// サムネイルがあるか。置き場には項目の数だけファイルがあり、1 つずつ確かめると遅いので、フォルダごとに一度に読む
+#[derive(Default)]
+struct Present(HashMap<PathBuf, HashSet<std::ffi::OsString>>);
+
+impl Present {
+    fn names(&mut self, dir: &Path) -> &mut HashSet<std::ffi::OsString> {
+        self.0.entry(dir.to_owned()).or_insert_with(|| {
+            std::fs::read_dir(dir)
+                .map(|rd| rd.flatten().map(|e| e.file_name()).collect())
+                .unwrap_or_default()
+        })
+    }
+
+    fn has(&mut self, p: &Path) -> bool {
+        match (p.parent(), p.file_name()) {
+            (Some(dir), Some(name)) => self.names(dir).contains(name),
+            _ => p.exists(),
+        }
+    }
+
+    fn forget(&mut self, p: &Path) {
+        if let (Some(dir), Some(name)) = (p.parent(), p.file_name()) {
+            self.names(dir).remove(name);
+        }
+    }
+}
+
+/// 元のファイルの更新日時と大きさ。Windows ではフォルダを読んだときに届くので、フォルダごとに一度に読む
+#[derive(Default)]
+struct Stats(HashMap<PathBuf, HashMap<std::ffi::OsString, std::fs::Metadata>>);
+
+impl Stats {
+    fn of(&mut self, p: &Path) -> Option<std::fs::Metadata> {
+        if let (Some(dir), Some(name)) = (p.parent(), p.file_name()) {
+            let list = self.0.entry(dir.to_owned()).or_insert_with(|| {
+                std::fs::read_dir(dir)
+                    .map(|rd| {
+                        rd.flatten()
+                            .filter_map(|e| Some((e.file_name(), e.metadata().ok()?)))
+                            // リンクは、たどった先を問い合わせる
+                            .filter(|(_, m)| !m.file_type().is_symlink())
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            });
+            if let Some(m) = list.get(name) {
+                return Some(m.clone());
+            }
+        }
+        std::fs::metadata(p).ok()
+    }
+}
+
 fn plan_thumbs<'a>(
     plugins: &Registry,
     thumbs: &Path,
@@ -263,6 +316,8 @@ fn plan_thumbs<'a>(
 ) -> (Vec<thumb::Job>, Vec<PathBuf>, bool) {
     let reads = cache.thumb_reads();
     let mixed = cache.take_mixed_thumbs();
+    let mut made = Present::default();
+    let mut stats = Stats::default();
     let mut jobs = Vec::new();
     let mut current = Vec::new();
     let mut all = true;
@@ -278,7 +333,11 @@ fn plan_thumbs<'a>(
         }
         // 値が変わっていれば、場所が変わって作り直しになる
         let now = reads_now(plugins, reads.get(&it.file), &it.ext);
-        let Some(out) = thumb::path_for(thumbs, &it.id, &it.file, &now) else {
+        let Some(src) = stats.of(&it.file) else {
+            all = false;
+            continue;
+        };
+        let Some(out) = thumb::path_of(thumbs, &it.id, &src, &now) else {
             all = false;
             continue;
         };
@@ -286,14 +345,15 @@ fn plan_thumbs<'a>(
         // 前の版は、波形から描いたものもジャケットと同じ場所に置いていて、見分けられないので作り直す
         if mixed && waves {
             let _ = std::fs::remove_file(&out);
+            made.forget(&out);
         }
         let drawn = waves
-            .then(|| thumb::wave_thumb_path(thumbs, &it.id, &it.file))
+            .then(|| thumb::wave_thumb_path_of(thumbs, &it.id, &src))
             .flatten();
-        let found = if out.exists() {
+        let found = if made.has(&out) {
             Some(out)
         } else {
-            drawn.filter(|p| p.exists())
+            drawn.filter(|p| made.has(p))
         };
         if let Some(found) = found {
             if it.width.is_none()

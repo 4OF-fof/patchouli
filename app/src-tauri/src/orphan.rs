@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -10,7 +11,7 @@ use sha2::{Digest, Sha256};
 use crate::cache::Row;
 use crate::library::{
     ID_KEY, NOTE_EXT, PRINT_KEY, PROJECT_TYPE, PROJECTS_DIR, STATE_DIR, TAG_INDEX, TAGS_DIR,
-    TYPE_KEY, check_name, listed, meta_path, name_of, read_json, write_json,
+    TYPE_KEY, check_name, listed_entry, meta_path, name_of, read_json, write_json,
 };
 use crate::note;
 
@@ -102,6 +103,8 @@ struct Listing {
     files: Vec<PathBuf>,
     dirs: Vec<PathBuf>,
     metas: Vec<PathBuf>,
+    /// フォルダにあるものすべての名前
+    names: HashSet<OsString>,
 }
 
 fn listing(dir: &Path) -> Listing {
@@ -109,16 +112,18 @@ fn listing(dir: &Path) -> Listing {
         files: vec![],
         dirs: vec![],
         metas: vec![],
+        names: HashSet::new(),
     };
     let Ok(rd) = fs::read_dir(dir) else {
         return l;
     };
     for e in rd.flatten() {
         let path = e.path();
+        l.names.insert(e.file_name());
         let name = e.file_name().to_string_lossy().into_owned();
         if name.ends_with(".meta") && !name.starts_with('.') {
             l.metas.push(path);
-        } else if listed(&path) {
+        } else if listed_entry(&e) {
             if e.file_type().is_ok_and(|t| t.is_dir()) {
                 l.dirs.push(path);
             } else {
@@ -143,6 +148,12 @@ fn walk(dir: &Path, f: &mut impl FnMut(&Path, &Listing)) {
 fn owner_of(meta: &Path) -> PathBuf {
     let s = meta.as_os_str().to_string_lossy();
     PathBuf::from(s.strip_suffix(".meta").unwrap_or(&s))
+}
+
+/// .meta の持ち主があるか。まず読んだフォルダの名前から探し、ないときだけ確かめる（大文字と小文字だけ違うものなど）
+fn owned(l: &Listing, meta: &Path) -> bool {
+    let owner = owner_of(meta);
+    owner.file_name().is_some_and(|n| l.names.contains(n)) || owner.exists()
 }
 
 fn is_note(path: &Path) -> bool {
@@ -204,7 +215,7 @@ pub fn relink(root: &Path, known: &HashMap<PathBuf, Row>, problems: &mut Vec<Str
         let lost_dirs: Vec<(&PathBuf, String)> = l
             .metas
             .iter()
-            .filter(|m| !owner_of(m).exists())
+            .filter(|m| !owned(l, m))
             .filter_map(|m| {
                 let p = read_json(m).ok()??.get(PRINT_KEY)?.as_str()?.to_owned();
                 (p != empty).then_some((m, p))
@@ -222,7 +233,7 @@ pub fn relink(root: &Path, known: &HashMap<PathBuf, Row>, problems: &mut Vec<Str
         let lost: Vec<(&PathBuf, String)> = l
             .metas
             .iter()
-            .filter(|m| !owner_of(m).exists())
+            .filter(|m| !owned(l, m))
             .filter_map(|m| {
                 let row = known.get(&owner_of(m)).or_else(|| {
                     let id = id_of(m)?;
@@ -247,7 +258,7 @@ pub fn relink(root: &Path, known: &HashMap<PathBuf, Row>, problems: &mut Vec<Str
 pub fn find(root: &Path) -> Vec<Orphan> {
     let mut out = vec![];
     walk(root, &mut |dir, l| {
-        for m in l.metas.iter().filter(|m| !owner_of(m).exists()) {
+        for m in l.metas.iter().filter(|m| !owned(l, m)) {
             let map = read_json(m).ok().flatten().unwrap_or_default();
             let kind = if !map.contains_key(PRINT_KEY) && !map.contains_key(TYPE_KEY) {
                 OrphanKind::Asset

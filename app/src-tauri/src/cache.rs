@@ -33,6 +33,14 @@ impl Sig {
             },
         }
     }
+
+    /// フォルダを読んだときに取れた更新日時から作る。of と同じ値になる
+    pub fn from_times(file: f64, meta: f64, note: bool) -> Sig {
+        Sig {
+            file,
+            meta: if note { 0.0 } else { meta },
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -44,7 +52,7 @@ pub struct Row {
 
 impl Row {
     pub fn same_item(&self, other: &Row) -> bool {
-        serde_json::to_value(&self.item).ok() == serde_json::to_value(&other.item).ok()
+        self.item == other.item
     }
 }
 

@@ -205,6 +205,7 @@ impl Library {
             place.project.as_deref(),
             place.group.as_deref(),
             None,
+            None,
             &mut problems,
         );
         if let Some(row) = &row {
