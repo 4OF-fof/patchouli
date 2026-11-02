@@ -9,7 +9,7 @@ import {
   StateEffect,
   StateField,
 } from '@codemirror/state'
-import { Decoration, type DecorationSet, EditorView, WidgetType, keymap } from '@codemirror/view'
+import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType, keymap } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import type { Mounted } from 'pele/lazy'
 import { targetOf } from '../../../model/library'
@@ -511,8 +511,61 @@ interface Built {
   atoms: DecorationSet
 }
 
+/**
+ * 装飾は打つたびに作り直すので、長いノートでは見えている範囲の前後 AROUND 文字だけを作る。
+ * WHOLE 文字までのノートは、いつも全体を作る。
+ */
+const WHOLE = 100_000
+const AROUND = 30_000
+
+interface Span {
+  from: number
+  to: number
+}
+
+const setSpan = StateEffect.define<Span>()
+const spanField = StateField.define<Span>({
+  create: (s) => ({ from: 0, to: Math.min(s.doc.length, AROUND * 2) }),
+  update: (w, tr) =>
+    tr.effects.find((e) => e.is(setSpan))?.value ??
+    (tr.docChanged ? { from: tr.changes.mapPos(w.from), to: tr.changes.mapPos(w.to, 1) } : w),
+})
+
+/** 見えている範囲が装飾した範囲の端に近づいたら、範囲を移す。 */
+const followViewport = ViewPlugin.define((view) => {
+  let queued = false
+  let gone = false
+  const move = () => {
+    queued = false
+    const len = view.state.doc.length
+    if (gone || len <= WHOLE) return
+    const w = view.state.field(spanField)
+    const { from, to } = view.viewport
+    const pad = AROUND / 3
+    if ((w.from === 0 || from >= w.from + pad) && (w.to >= len || to <= w.to - pad)) return
+    view.dispatch({ effects: setSpan.of({ from: Math.max(0, from - AROUND), to: Math.min(len, to + AROUND) }) })
+  }
+  const check = () => {
+    if (queued) return
+    queued = true
+    queueMicrotask(move)
+  }
+  check()
+  return {
+    update: (u) => {
+      if (u.viewportChanged || u.docChanged) check()
+    },
+    destroy: () => {
+      gone = true
+    },
+  }
+})
+
 function build(state: EditorState, h: LiveHooks, version: number): Built {
-  const tree = ensureSyntaxTree(state, state.doc.length, 100) ?? syntaxTree(state)
+  const span = state.doc.length <= WHOLE ? { from: 0, to: state.doc.length } : state.field(spanField)
+  const spanFrom = state.doc.lineAt(Math.min(span.from, state.doc.length)).from
+  const spanTo = state.doc.lineAt(Math.min(span.to, state.doc.length)).to
+  const tree = ensureSyntaxTree(state, spanTo, 100) ?? syntaxTree(state)
   const focused = state.field(focusField)
   const { ranges } = state.selection
   const near = (from: number, to: number) => focused && ranges.some((r) => r.from <= to && r.to >= from)
@@ -561,6 +614,8 @@ function build(state: EditorState, h: LiveHooks, version: number): Built {
   }
 
   tree.iterate({
+    from: spanFrom,
+    to: spanTo,
     enter: (ref) => {
       const n = ref.node
       const heading = HEADING.exec(n.name)
@@ -881,6 +936,8 @@ export function live(hooks: () => LiveHooks): Extension {
   return [
     focusField,
     EditorView.focusChangeEffect.of((_, focusing) => setFocus.of(focusing)),
+    spanField,
+    followViewport,
     field,
     skipLead,
     Prec.high(

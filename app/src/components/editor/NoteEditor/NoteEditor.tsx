@@ -91,8 +91,12 @@ const BAR: { mark: string; icon: IconName; label: string; wrap: string }[] = [
 const HEADING_RE = /^ {0,3}(#{1,6})\s+(.*?)\s*#*\s*$/
 const FENCE_RE = /^ {0,3}(```|~~~)/
 
+const headingCache = new WeakMap<EditorState['doc'], number[]>()
+
 /** 見出しの行の頭。見出しの一覧（headingsOf）と同じ数え方。 */
 function headingLines(state: EditorState) {
+  const had = headingCache.get(state.doc)
+  if (had) return had
   const out: number[] = []
   let fence = false
   for (let l = 1; l <= state.doc.lines; l++) {
@@ -102,6 +106,7 @@ function headingLines(state: EditorState) {
     const m = HEADING_RE.exec(line.text)
     if (m?.[1] && m[2]) out.push(line.from)
   }
+  headingCache.set(state.doc, out)
   return out
 }
 
@@ -263,10 +268,16 @@ export function NoteEditor(props: NoteEditorProps) {
     const r = el.getBoundingClientRect()
     const end = el.scrollTop > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 2
     const line = end ? r.bottom : r.top + SECTION_TOP
-    let at = -1
-    headingLines(v.state).forEach((pos, i) => {
-      if (v.lineBlockAt(pos).top + v.documentTop <= line) at = i
-    })
+    // 見出しは上から並んでいるので、頭が line より上にある最後のものを二分探索で探す
+    const heads = headingLines(v.state)
+    let lo = 0
+    let hi = heads.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (v.lineBlockAt(heads[mid] ?? 0).top + v.documentTop <= line) lo = mid + 1
+      else hi = mid
+    }
+    const at = lo - 1
     if (at === section) return
     section = at
     props.onSection(at)
