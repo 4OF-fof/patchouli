@@ -38,11 +38,6 @@
 .chevron {
   flex: none;
   color: var(--muted);
-  rotate: 90deg;
-  transition: rotate 0.15s ease;
-}
-.root[aria-expanded='true'] .chevron {
-  rotate: -90deg;
 }
 
 .list {

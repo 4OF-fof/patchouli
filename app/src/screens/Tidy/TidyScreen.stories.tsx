@@ -5,7 +5,7 @@ import { ScreenFrame } from '../ScreenFrame'
 import { TidyScreen } from './TidyScreen'
 
 const meta = {
-  title: '画面/02 整理',
+  title: '画面/02 分類の確認',
   parameters: { layout: 'fullscreen' },
 } satisfies Meta
 export default meta

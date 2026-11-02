@@ -176,7 +176,7 @@ export interface ContentSearch {
 }
 
 export interface TagDecisions {
-  /** 整理で承認した item の判断を残す。chosen は付けたタグ、rejected は外した候補。 */
+  /** 分類の確認で承認した item の判断を残す。chosen は付けたタグ、rejected は外した候補。 */
   record(item: string, chosen: string[], rejected: string[]): Promise<void>
   /** item の判断を取り消す。 */
   undo(item: string): Promise<void>

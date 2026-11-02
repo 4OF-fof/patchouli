@@ -88,7 +88,7 @@ const PROJECTS: (Omit<Project, 'cover'> & { cover: RawCard<CoverPart>[]; pinName
         type: 'todo',
         items: [
           { t: '紙面の一面を決める', done: true },
-          { t: '整理の承認画面', done: false },
+          { t: '分類の確認画面', done: false },
           { t: 'button-states の整理', ref: 'button-states', done: false },
         ],
       },

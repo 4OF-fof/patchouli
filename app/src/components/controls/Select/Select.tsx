@@ -116,7 +116,7 @@ export function Select(props: SelectProps) {
         onKeyDown={onButtonKey}
       >
         <span class={styles.value}>{current()?.label ?? ''}</span>
-        <Icon name="chevron" size={12} class={styles.chevron} withText />
+        <Icon name={open() ? 'chevronUp' : 'chevronDown'} size={12} class={styles.chevron} withText />
       </button>
       <Show when={open()}>
         <Portal>

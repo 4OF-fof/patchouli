@@ -1495,7 +1495,7 @@ fn refresh_suggestions(app: &tauri::AppHandle) {
     });
 }
 
-/// 整理で承認した item の判断を残す。chosen は付けたタグ、rejected は外した候補。
+/// 分類の確認で承認した item の判断を残す。chosen は付けたタグ、rejected は外した候補。
 #[tauri::command]
 fn record_tags(
     app: tauri::AppHandle,

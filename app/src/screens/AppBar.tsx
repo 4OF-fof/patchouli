@@ -110,7 +110,7 @@ export function AppBar(props: AppBarProps) {
     setPick(undefined)
   }
   const commands = (): Row[] => [
-    { type: 'cmd', label: '整理を開く', key: 'Ctrl U', run: () => props.onGo?.('tidy') },
+    { type: 'cmd', label: '分類の確認を開く', key: 'Ctrl U', run: () => props.onGo?.('tidy') },
     { type: 'cmd', label: 'すべての項目', key: '', run: () => props.onGo?.('all') },
     { type: 'cmd', label: 'プロジェクト一覧', key: '', run: () => props.onGo?.('projects') },
     { type: 'cmd', label: 'タグ一覧', key: '', run: () => props.onGo?.('tags') },

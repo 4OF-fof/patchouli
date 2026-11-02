@@ -4,7 +4,7 @@ import { ResultHeading, ResultRow } from './ResultRow'
 const meta = {
   title: '部品/nav/ResultRow',
   component: ResultRow,
-  args: { kind: 'command', title: '整理を開く', kbd: 'Ctrl U' },
+  args: { kind: 'command', title: '分類の確認を開く', kbd: 'Ctrl U' },
   decorators: [
     (Story) => (
       <div style={{ width: '620px' }}>

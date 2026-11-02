@@ -30,7 +30,7 @@ export interface TidyScreenProps {
   onUndo?: (before: Item) => void
 }
 
-// 保留にしたものは、アプリを閉じるまで覚えておき、次に整理を開いたときに先頭に出す
+// 保留にしたものは、アプリを閉じるまで覚えておき、次に分類の確認を開いたときに先頭に出す
 let heldOver: string[] = []
 
 const HIGH = '類似度：高'
@@ -86,7 +86,6 @@ export function TidyScreen(props: TidyScreenProps) {
     return q[(q.findIndex((x) => x.id === id) + 1) % q.length]?.id
   }
   const onTags = (it: Item) => draft[it.id]?.tags.filter((t) => t.on) ?? []
-  const firstTag = (it: Item) => (onTags(it)[0] ?? draft[it.id]?.tags[0])?.tag ?? ''
   const nothing = (it: Item) => !onTags(it).length && (draft[it.id]?.project ?? '') === (it.project ?? '')
   const sure = () =>
     pending().filter((it) => {
@@ -201,7 +200,7 @@ export function TidyScreen(props: TidyScreenProps) {
   )
 
   return (
-    <section class={shared.screen} aria-label="整理">
+    <section class={shared.screen} aria-label="分類の確認">
       <div class={styles.head}>
         <FloatingPill kbd="Ctrl Enter" disabled={!sure().length} onClick={() => setBulk(true)}>
           まとめて承認
@@ -233,44 +232,31 @@ export function TidyScreen(props: TidyScreenProps) {
             </div>
           }
         >
-          {(it) => {
-            const batch = () => (it().moved === 19 ? queue().filter((x) => x.moved === 19) : [])
-            return (
-              <>
-                <div class={styles.view}>
-                  <div class={styles.big}>
-                    <Thumb {...thumbOf(it(), 'L')} />
-                  </div>
-                  {strip()}
+          {(it) => (
+            <>
+              <div class={styles.view}>
+                <div class={styles.big}>
+                  <Thumb {...thumbOf(it(), 'L')} />
                 </div>
-                <TidyPanel
-                  class={styles.panel}
-                  lib={lib()}
-                  it={it()}
-                  tags={draft[it().id]?.tags ?? []}
-                  project={draft[it().id]?.project ?? ''}
-                  pos={pending().indexOf(it()) + 1}
-                  total={pending().length}
-                  later={later().includes(it().id)}
-                  batch={
-                    batch().length
-                      ? {
-                          size: batch().length,
-                          ok: batch().filter(
-                            (x) => decidedIds().has(x.id) && onTags(x).some((t) => t.tag === firstTag(it())),
-                          ).length,
-                        }
-                      : undefined
-                  }
-                  onTag={(k, v) => setDraft(it().id, 'tags', k, 'on', v)}
-                  onProject={(name) => setDraft(it().id, 'project', name)}
-                  onAddTag={(tag) => addTag(it(), tag)}
-                  onPutOff={() => putOff(it())}
-                  onApprove={() => approve(it())}
-                />
-              </>
-            )
-          }}
+                {strip()}
+              </div>
+              <TidyPanel
+                class={styles.panel}
+                lib={lib()}
+                it={it()}
+                tags={draft[it().id]?.tags ?? []}
+                project={draft[it().id]?.project ?? ''}
+                pos={pending().indexOf(it()) + 1}
+                total={pending().length}
+                later={later().includes(it().id)}
+                onTag={(k, v) => setDraft(it().id, 'tags', k, 'on', v)}
+                onProject={(name) => setDraft(it().id, 'project', name)}
+                onAddTag={(tag) => addTag(it(), tag)}
+                onPutOff={() => putOff(it())}
+                onApprove={() => approve(it())}
+              />
+            </>
+          )}
         </Show>
       </div>
       <Show when={bulk()}>

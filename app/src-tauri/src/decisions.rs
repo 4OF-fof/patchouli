@@ -1,4 +1,4 @@
-//! 整理で承認したタグと外したタグ。ライブラリの .patchouli/tag-decisions/<端末の ID>.jsonl に端末ごとに残して同期する。
+//! 分類の確認で承認したタグと外したタグ。ライブラリの .patchouli/tag-decisions/<端末の ID>.jsonl に端末ごとに残して同期する。
 //! 書き足すだけで、元に戻すときは取り消しの行を足す。
 
 use std::collections::HashMap;

@@ -116,7 +116,7 @@ const LABEL: Record<View['s'], string> = {
   tag: 'タグ',
   note: 'ノート',
   asset: '素材',
-  tidy: '整理',
+  tidy: '分類の確認',
 }
 
 const TAB_ICON: Record<View['s'], IconName> = {

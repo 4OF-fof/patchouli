@@ -94,14 +94,6 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-6);
 }
-.why {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-  font-size: var(--fs-meta);
-  line-height: 1.8;
-  color: var(--muted);
-}
 .dec {
   margin-top: auto;
   display: flex;

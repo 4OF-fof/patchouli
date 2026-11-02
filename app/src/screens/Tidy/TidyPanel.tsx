@@ -3,7 +3,7 @@ import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Kbd } from '../../components/base/Kbd/Kbd'
 import { Select } from '../../components/controls/Select/Select'
 import { Thumb } from '../../components/media/Thumb/Thumb'
-import { type Item, type Library, type TagCandidate, monthDay, thumbOf } from '../../model/library'
+import { type Item, type Library, type TagCandidate, thumbOf } from '../../model/library'
 import styles from './TidyPanel.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
 
@@ -16,7 +16,6 @@ export interface TidyPanelProps {
   pos: number
   total: number
   later?: boolean
-  batch?: { size: number; ok: number }
   onTag: (k: number, on: boolean) => void
   onProject: (name: string) => void
   onAddTag?: (tag: string) => void
@@ -34,7 +33,6 @@ export function TidyPanel(props: TidyPanelProps) {
       .items.filter((x) => !x.note && x.id !== props.it.id && x.tags.includes(firstTag()))
       .toSorted((a, b) => Math.abs(a.hue - props.it.hue) - Math.abs(b.hue - props.it.hue))
       .slice(0, 6)
-  const reason = () => (onTags().length ? onTags().map((t) => t.tag) : [firstTag()])
   return (
     <ScrollArea class={`${styles.root} ${props.class ?? ''}`} viewClass={styles.body} aria-label="分類の候補">
       <div class={styles.nmh}>
@@ -103,21 +101,6 @@ export function TidyPanel(props: TidyPanelProps) {
               {(x) => <Thumb {...thumbOf(x)} />}
             </For>
           </div>
-        </div>
-        <div class={styles.why}>
-          <span class={styles.sub}>提案の理由</span>
-          <Show when={props.batch?.ok}>
-            <span>
-              {monthDay(lib(), props.it.moved)} に同時追加した {props.batch?.size} 件のうち {props.batch?.ok} 件で #{' '}
-              {firstTag()} を承認済み
-            </span>
-          </Show>
-          <span>
-            {reason()
-              .map((t) => `# ${t}`)
-              .join('・')}
-            の項目と類似
-          </span>
         </div>
       </Show>
       <div class={styles.dec}>
