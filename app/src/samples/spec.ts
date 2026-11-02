@@ -1,7 +1,7 @@
 /*
  * 見本の中身の定義。画面の見本（library.ts）と、動作確認用のライブラリ（example/dev-library/）を書き出すスクリプト
- * （scripts/dev-library.ts）の両方がここから作る。スクリプトは Node が TS をそのまま読むので、
- * ここでは型のほかは何も import しない。
+ * （scripts/dev-library.ts）の両方がここから作る。負荷を調べるための大きなライブラリ（example/stress-library/）の
+ * 中身も、ここで決める。スクリプトは Node が TS をそのまま読むので、ここでは型のほかは何も import しない。
  */
 import type { CoverPart, Group, Item, Project, Suggestion, TagCoverPart } from '../model/library'
 
@@ -19,6 +19,8 @@ export type SpecItem = Item & {
   size?: [number, number]
   sec?: number
   jacket?: boolean
+  /** 詳細画面などの負荷を見るための、重い中身にする。動画はフレームレート、音声はサンプリング周波数を持つ */
+  heavy?: { fps?: number; rate?: number }
 }
 
 export interface Spec {
@@ -27,6 +29,8 @@ export interface Spec {
   groups: Group[]
   tagCovers: Map<string, TagCoverPart[]>
   pins: string[]
+  pinnedProjects: string[]
+  pinnedTags: string[]
 }
 
 const MEDIA_OF: Record<string, Media> = {
@@ -671,7 +675,16 @@ export function sampleSpec(): Spec {
       if (it && parent) it.group = parent.id
     }
   }
-  // 見本では [[名前]] で書き、ファイルの形の [名前](patchouli:ID) に直す。ない名前は、リンク切れの見本として使う
+  linkByName(items, byName)
+  const withId = cardIds()
+  const projects = PROJECTS.map((p) => projectOf(p, withId, byName))
+  const tagCovers = new Map(Object.entries(TAG_COVERS).map(([t, c]) => [t, c.map(withId) as TagCoverPart[]]))
+  const pins = [...PROJECTS.flatMap((p) => p.pinNames), ...PINNED_ITEMS].flatMap((n) => byName.get(n)?.id ?? [])
+  return { items, projects, groups, tagCovers, pins, pinnedProjects: PINNED_PROJECTS, pinnedTags: PINNED_TAGS }
+}
+
+/** 見本では [[名前]] で書き、ファイルの形の [名前](patchouli:ID) に直す。ない名前は、リンク切れの見本として使う */
+function linkByName(items: SpecItem[], byName: Map<string, SpecItem>) {
   let lost = 0
   const lostId = new Map<string, string>()
   for (const it of items)
@@ -680,14 +693,24 @@ export function sampleSpec(): Spec {
       if (!byName.has(name)) lostId.set(name, id)
       return `[${name}](patchouli:${id})`
     })
-  // 中身のあるカードには c1, c2… を、中身のないカードには種類をそのまま id に振る
+}
+
+/** 中身のあるカードには c1, c2… を、中身のないカードには種類をそのまま id に振る */
+function cardIds() {
   let card = 0
-  const withId = <C extends { type: string }>(c: C) => ({
+  return <C extends { type: string }>(c: C) => ({
     ...structuredClone(c),
     id: 'text' in c || 'items' in c ? `c${++card}` : c.type,
   })
-  // タスクの参照も名前で書き、素材の id に直す
-  const projects: Project[] = PROJECTS.map(({ name, hue, touched, cover }) => ({
+}
+
+/** タスクの参照も名前で書き、素材の id に直す */
+function projectOf(
+  { name, hue, touched, cover }: Omit<Project, 'cover'> & { cover: RawCard<CoverPart>[] },
+  withId: ReturnType<typeof cardIds>,
+  byName: Map<string, SpecItem>,
+): Project {
+  return {
     name,
     hue,
     touched,
@@ -696,8 +719,273 @@ export function sampleSpec(): Spec {
       .map((c) =>
         c.type === 'todo' ? { ...c, items: c.items.map((x) => (x.ref ? { ...x, ref: byName.get(x.ref)?.id } : x)) } : c,
       ),
+  }
+}
+
+/** 負荷を調べるためのライブラリの項目の数 */
+export const STRESS_ITEMS = 30000
+
+const STRESS_TOPICS = [
+  '写真',
+  'UI',
+  '参考',
+  '配色',
+  '音',
+  '動画',
+  '資料',
+  '人物',
+  '街',
+  '旅行',
+  '食べ物',
+  '建築',
+  '植物',
+  '空',
+  '夜景',
+  '文字',
+  'ロゴ',
+  '紙',
+  '布',
+  '光',
+  '動物',
+  '乗り物',
+  '道具',
+  '季節',
+  'イベント',
+  '仕事',
+  '趣味',
+  '家',
+  '海',
+  '山',
+]
+const STRESS_SUBTAGS = ['案', '完成', '没', '候補', '比較', '古い', '新しい', 'A', 'B', '部品']
+const STRESS_THEMES = ['ポスター', '告知', 'サイト改修', '撮影', '取材', '展示', '冊子', 'ロゴ', '資料集め', '動画編集']
+const STRESS_GROUP_NAMES = ['素材', '下書き', '書き出し', '没', '候補', '参考', '比較', '完成', '古い版', '撮影']
+
+/** [名前の頭, 拡張子, 大きさ]。絵は大きさと拡張子ごとに 1 枚ずつ作り、同じものを複製する */
+const STRESS_IMAGES: [prefix: string, ext: string, size: [number, number]][] = [
+  ['IMG_', 'jpg', [4032, 3024]],
+  ['IMG_', 'jpg', [3024, 4032]],
+  ['スクリーンショット ', 'png', [2880, 1800]],
+  ['ui-', 'png', [1920, 1200]],
+  ['icon-', 'png', [1024, 1024]],
+  ['poster-', 'jpg', [1600, 2263]],
+  ['photo_', 'jpg', [2400, 1600]],
+  ['download (', 'webp', [2000, 2000]],
+  ['web-capture-', 'webp', [1280, 4000]],
+  ['thumb-', 'jpg', [640, 480]],
+]
+const STRESS_VIDEOS: [prefix: string, ext: string, size: [number, number], sec: number][] = [
+  ['clip-', 'mp4', [1920, 1080], 10],
+  ['vertical-', 'mp4', [1080, 1920], 8],
+  ['loop-', 'webm', [1280, 720], 6],
+]
+const STRESS_AUDIOS: [prefix: string, ext: string, sec: number, jacket: boolean][] = [
+  ['voice-', 'mp3', 30, false],
+  ['take-', 'wav', 10, false],
+  ['master-', 'flac', 20, false],
+  ['track-', 'mp3', 30, true],
+]
+
+const STRESS_SENTENCES = [
+  '午前はリファレンスの整理をした。',
+  '色温度を揃えてから並べ直す。',
+  '打ち合わせで紙面の案を共有した。',
+  '余白の使い方を見直したい。',
+  '候補を 3 つに絞り、比較の表を作る。',
+  '撮影の段取りを確認する。',
+  '文字組みは本文を優先して決める。',
+  '差し色は一点だけにする。',
+  '素材の書き出しの大きさを揃える。',
+  '次の打ち合わせまでに下書きを用意する。',
+]
+
+/** 詳細画面などの負荷を見るための、大きい素材 */
+const STRESS_HEAVY: Omit<SpecItem, 'id' | 'note' | 'ratio' | 'memo' | 'project' | 'group' | 'moved' | 'hue' | 'sat'>[] =
+  [
+    {
+      name: 'heavy-4k60',
+      ext: 'mp4',
+      media: 'video',
+      tags: ['動画'],
+      size: [3840, 2160],
+      sec: 180,
+      heavy: { fps: 60 },
+    },
+    { name: 'heavy-1h', ext: 'mp4', media: 'video', tags: ['動画'], size: [1920, 1080], sec: 3600, heavy: { fps: 30 } },
+    {
+      name: 'heavy-vp9',
+      ext: 'webm',
+      media: 'video',
+      tags: ['動画'],
+      size: [2560, 1440],
+      sec: 300,
+      heavy: { fps: 30 },
+    },
+    { name: 'heavy-2h', ext: 'mp3', media: 'audio', tags: ['音'], sec: 7200, heavy: { rate: 44100 } },
+    { name: 'heavy-96k', ext: 'flac', media: 'audio', tags: ['音'], sec: 3600, heavy: { rate: 96000 } },
+    { name: 'heavy-wav', ext: 'wav', media: 'audio', tags: ['音'], sec: 1800, heavy: { rate: 48000 } },
+    { name: 'heavy-jacket', ext: 'mp3', media: 'audio', tags: ['音'], sec: 600, jacket: true, heavy: { rate: 44100 } },
+    { name: 'heavy-12k', ext: 'png', media: 'image', tags: ['写真'], size: [12000, 8000], heavy: {} },
+    { name: 'heavy-8k', ext: 'jpg', media: 'image', tags: ['写真'], size: [8000, 6000], heavy: {} },
+    { name: 'heavy-tall', ext: 'webp', media: 'image', tags: ['写真'], size: [2000, 16000], heavy: {} },
+  ]
+
+/**
+ * 負荷を調べるためのライブラリ。STRESS_ITEMS 件の項目を、プロジェクトとグループの深い階層と、多くのタグに散らす。
+ * 項目の多くは数種類の絵の複製で、大きい素材と重いノートは「重い素材」のプロジェクトにまとめる。
+ */
+export function stressSpec(): Spec {
+  let seed = 30000
+  const rnd = () => ((seed = (seed * 16807) % 2147483647), (seed - 1) / 2147483646)
+  const ri = (a: number, b: number) => a + Math.floor(rnd() * (b - a + 1))
+  const pick = <T>(a: readonly T[]) => a[Math.floor(rnd() * a.length)]
+  const recent = (max: number) => Math.floor(rnd() ** 2 * max)
+
+  const tags = STRESS_TOPICS.flatMap((t, i) => [t, ...STRESS_SUBTAGS.slice(0, i % 11).map((s) => `${t}/${s}`)])
+  const tagsOf = () => Array.from(new Set(Array.from({ length: Math.floor(rnd() ** 1.5 * 6) }, () => pick(tags))))
+
+  const HEAVY = '重い素材'
+  const DIARY = '日記'
+  const names = [
+    HEAVY,
+    DIARY,
+    ...Array.from(
+      { length: 38 },
+      (_, i) => `${STRESS_THEMES[i % STRESS_THEMES.length]} ${2023 + Math.floor(i / STRESS_THEMES.length)}`,
+    ),
+  ]
+  const raw = names.map((name, i) => ({
+    name,
+    hue: (i * 37) % 360,
+    touched: '今日',
+    cover: [
+      { type: 'desc' as const, text: `${name}の素材とメモ。` },
+      {
+        type: 'todo' as const,
+        items: Array.from({ length: i === 0 ? 200 : ri(0, 12) }, (_, j) => ({
+          t: `${pick(STRESS_SENTENCES)}（${j + 1}）`,
+          done: rnd() < 0.5,
+        })),
+      },
+      {
+        type: 'links' as const,
+        items: Array.from({ length: ri(0, 4) }, (_, j) => ({ t: `参考 ${j + 1}`, u: 'https://example.com/' })),
+      },
+    ],
   }))
+
+  // プロジェクトごとに 3 段までのグループを作る。ライブラリ直下にもいくつか置く
+  const groups: Group[] = []
+  const addGroup = (project: string | null, parent: string | null, depth: number) => {
+    const used = new Set(groups.filter((g) => g.project === project && g.parent === parent).map((g) => g.name))
+    let name = pick(STRESS_GROUP_NAMES)
+    for (let n = 2; used.has(name); n++) name = `${pick(STRESS_GROUP_NAMES)} ${n}`
+    const g: Group = { id: `g${groups.length + 1}`, name, project, parent, touched: '今日', mtime: TODAY.getTime() }
+    groups.push(g)
+    const kids = depth < 2 ? ri(0, 4 - depth * 2) : 0
+    for (let k = 0; k < kids; k++) addGroup(project, g.id, depth + 1)
+  }
+  for (const p of names.slice(2)) for (let k = ri(0, 6); k > 0; k--) addGroup(p, null, 0)
+  for (let k = 0; k < 5; k++) addGroup(null, null, 1)
+
+  // 前のほうのプロジェクトほど項目を多くし、ひとつのプロジェクトに数千件が集まるようにする
+  const place = (): Pick<Item, 'project' | 'group'> => {
+    const r = rnd()
+    if (r < 0.08) return { project: null, group: null }
+    if (r < 0.12) return { project: null, group: pick(groups.filter((g) => !g.project)).id }
+    const project = names[2 + Math.floor(rnd() ** 2.5 * (names.length - 2))] ?? null
+    const inside = groups.filter((g) => g.project === project)
+    return { project, group: inside.length && rnd() < 0.6 ? pick(inside).id : null }
+  }
+
+  const items: SpecItem[] = []
+  const add = (it: Omit<SpecItem, 'id' | 'note' | 'ratio' | 'memo'>) => {
+    const full: SpecItem = {
+      ...it,
+      id: `i${items.length + 1}`,
+      note: it.media === 'note',
+      ratio: ratioOf(it.media, it.size),
+      memo: '',
+    }
+    items.push(full)
+    return full
+  }
+  const hueOf = new Map(raw.map((p) => [p.name, p.hue]))
+  const colored = (where: Pick<Item, 'project' | 'group'>) => ({
+    ...where,
+    hue: ((where.project ? (hueOf.get(where.project) ?? 40) : 40) + ri(-20, 20) + 360) % 360,
+    sat: ri(10, 30),
+  })
+
+  for (const h of STRESS_HEAVY) add({ ...h, tags: [...h.tags], project: HEAVY, group: null, moved: 0, hue: 0, sat: 20 })
+
+  const daily = 730
+  const notes = 3000
+  const assets = STRESS_ITEMS - items.length - notes
+  for (let n = 0; n < assets; n++) {
+    const where = colored(place())
+    const base = { ...where, tags: tagsOf(), moved: recent(1500) }
+    const r = rnd()
+    if (r < 0.012) {
+      const [prefix, ext, size, sec] = pick(STRESS_VIDEOS)
+      add({ ...base, name: `${prefix}${n + 1}`, ext, media: 'video', size, sec })
+    } else if (r < 0.024) {
+      const [prefix, ext, sec, jacket] = pick(STRESS_AUDIOS)
+      add({ ...base, name: `${prefix}${n + 1}`, ext, media: 'audio', sec, ...(jacket && { jacket }) })
+    } else if (r < 0.028) {
+      add({ ...base, name: `layered-${n + 1}`, ext: 'psd', media: 'other' })
+    } else {
+      const [prefix, ext, size] = pick(STRESS_IMAGES)
+      add({ ...base, name: `${prefix}${n + 1}${prefix.endsWith('(') ? ')' : ''}`, ext, media: 'image', size })
+    }
+  }
+
+  const linkable = items.filter((i) => !i.note && !i.heavy)
+  const paragraph = (links: number) =>
+    [
+      ...Array.from({ length: ri(1, 3) }, () => pick(STRESS_SENTENCES)),
+      ...Array.from({ length: links }, () => `[[${pick(linkable).name}]]`),
+    ].join('')
+  const body = (blocks: number) =>
+    `${Array.from({ length: blocks }, (_, b) =>
+      b % 7 === 6 ? `## 見出し ${b}` : b % 5 === 4 ? `- ${paragraph(rnd() < 0.3 ? 1 : 0)}` : paragraph(ri(0, 2)),
+    ).join('\n\n')}\n`
+  const note = (name: string, where: Pick<Item, 'project' | 'group'>, moved: number, text: string) =>
+    add({ ...colored(where), name, ext: 'md', media: 'note', tags: tagsOf(), moved, body: text, aliases: [] })
+
+  for (let d = 0; d < daily; d++) {
+    const t = new Date(TODAY.getTime() - d * 864e5)
+    const name = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`
+    note(name, { project: DIARY, group: null }, d, body(ri(1, 6)))
+  }
+  note('長いノート', { project: HEAVY, group: null }, 0, body(20000))
+  note(
+    'リンクの多いノート',
+    { project: HEAVY, group: null },
+    0,
+    `${Array.from({ length: 3000 }, () => `- [[${pick(linkable).name}]]`).join('\n')}\n`,
+  )
+  note(
+    '埋め込みの多いノート',
+    { project: HEAVY, group: null },
+    0,
+    `${Array.from({ length: 300 }, (_, k) => `![[${pick(linkable).name}]]\n\n埋め込み ${k + 1}`).join('\n\n')}\n`,
+  )
+  while (items.length < STRESS_ITEMS)
+    note(`メモ ${items.length + 1}`, place(), recent(1500), body(rnd() < 0.1 ? ri(50, 200) : ri(1, 12)))
+
+  const byName = new Map(items.map((i) => [i.name, i]))
+  linkByName(items, byName)
+  const withId = cardIds()
   const tagCovers = new Map(Object.entries(TAG_COVERS).map(([t, c]) => [t, c.map(withId) as TagCoverPart[]]))
-  const pins = [...PROJECTS.flatMap((p) => p.pinNames), ...PINNED_ITEMS].flatMap((n) => byName.get(n)?.id ?? [])
-  return { items, projects, groups, tagCovers, pins }
+  const pins = Array.from({ length: 30 }, () => pick(items).id)
+  return {
+    items,
+    projects: raw.map((p) => projectOf(p, withId, byName)),
+    groups,
+    tagCovers,
+    pins: [...new Set(pins)],
+    pinnedProjects: names.slice(0, 5),
+    pinnedTags: STRESS_TOPICS.slice(0, 5),
+  }
 }

@@ -4,21 +4,16 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { zip as zipPlugin } from '../app/plugins/sdk/cli.ts'
-import {
-  EXAMPLE_PLUGINS,
-  PINNED_PROJECTS,
-  PINNED_TAGS,
-  type SpecItem,
-  TODAY,
-  sampleSpec,
-} from '../app/src/samples/spec.ts'
+import { EXAMPLE_PLUGINS, type SpecItem, TODAY, sampleSpec, stressSpec } from '../app/src/samples/spec.ts'
 
 const ID_KEY = 'patchouli-id'
 const TYPE_KEY = 'patchouli-type'
 const DAY = 864e5
 
+// --stress を付けると、負荷を調べるための大きなライブラリを作る
+const stress = process.argv.includes('--stress')
 const example = path.resolve(import.meta.dirname, '..', 'example')
-const root = path.join(example, 'dev-library')
+const root = path.join(example, stress ? 'stress-library' : 'dev-library')
 const pluginDir = path.join(example, 'dev-plugins')
 const zipDir = path.join(example, 'dev-zips')
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'patchouli-dev-library-'))
@@ -78,33 +73,49 @@ function ffmpegArgs(it: SpecItem, out: string): string[] {
       ...['-frames:v', '1', ...codec, out],
     ]
   }
-  // 波形で見分けられるよう、音の大きさを揺らす
-  const tone = /rain|noise/.test(it.name)
-    ? `anoisesrc=c=pink:a=0.15:d=${sec}`
-    : `aevalsrc=sin(2*PI*${220 + it.hue}*t)*(0.15+0.85*abs(sin(PI*t/${3 + (it.hue % 5)}))):d=${sec}`
+  // 波形で見分けられるよう、音の大きさを揺らす。重いものは、長くても場所ごとに形が変わるよう分単位でも揺らす
+  const tone = it.heavy
+    ? `aevalsrc=0.4*sin(2*PI*220*t)*abs(sin(PI*t/7))*(0.3+0.7*abs(sin(PI*t/97)))+0.2*sin(2*PI*(330+110*sin(t/30))*t)` +
+      `|0.4*sin(2*PI*277*t)*abs(cos(PI*t/5))*(0.3+0.7*abs(cos(PI*t/61))):s=${it.heavy.rate ?? 48000}:d=${sec}`
+    : /rain|noise/.test(it.name)
+      ? `anoisesrc=c=pink:a=0.15:d=${sec}`
+      : `aevalsrc=sin(2*PI*${220 + it.hue}*t)*(0.15+0.85*abs(sin(PI*t/${3 + (it.hue % 5)}))):d=${sec}`
   if (it.media === 'audio') {
-    const codec = it.ext === 'mp3' ? ['-c:a', 'libmp3lame'] : []
+    const codec =
+      it.ext === 'mp3'
+        ? ['-c:a', 'libmp3lame']
+        : it.ext === 'flac' && it.heavy
+          ? ['-sample_fmt', 's32', '-bits_per_raw_sample', '24']
+          : []
     if (!it.jacket) return [...base, '-f', 'lavfi', '-i', tone, ...codec, out]
-    const vf = label(it, 600)
+    const side = it.heavy ? 3000 : 600
+    const vf = label(it, side)
     return [
       ...base,
       ...['-f', 'lavfi', '-i', tone],
-      ...['-f', 'lavfi', '-i', `gradients=s=600x600:c0=${c0}:c1=${c1}:n=2:seed=${it.hue}`],
+      // -frames:v で絵を 1 枚にすると音声も切れるので、入力を 1 枚にする
+      ...['-f', 'lavfi', '-i', `gradients=s=${side}x${side}:c0=${c0}:c1=${c1}:n=2:seed=${it.hue}:r=1:d=1`],
       ...(vf.length ? ['-filter:v', vf.join(',')] : []),
-      ...['-map', '0:a', '-map', '1:v', '-frames:v', '1', ...codec, '-c:v', 'mjpeg', '-q:v', '3'],
+      ...['-map', '0:a', '-map', '1:v', ...codec, '-c:v', 'mjpeg', '-q:v', '3'],
       ...['-disposition:v', 'attached_pic', '-id3v2_version', '3', '-metadata:s:v', 'comment=Cover (front)', out],
     ]
   }
   // 再生できているか分かるよう、右上に経過時間を出す
   const clock = `drawtext=fontfile=FONT:text='%{pts\\:hms}':fontsize=${Math.round(h / 20)}:fontcolor=white@0.9:x=w-tw-${Math.round(h / 20)}:y=${Math.round(h / 20)}`
+  // 重いものは、長くてもファイルが大きくなりすぎないよう、ふつうの動画くらいのビットレートに抑える
+  const rate = it.heavy ? `${Math.ceil((w * h * (it.heavy.fps ?? 30)) / 4e7)}M` : undefined
   const codec =
     it.ext === 'webm'
-      ? ['-c:v', 'libvpx-vp9', '-b:v', '1M', '-deadline', 'realtime', '-cpu-used', '8', '-c:a', 'libopus']
-      : ['-c:v', 'libx264', '-preset', 'veryfast', '-c:a', 'aac', '-movflags', '+faststart']
+      ? ['-c:v', 'libvpx-vp9', '-b:v', rate ?? '1M', '-deadline', 'realtime', '-cpu-used', '8', '-c:a', 'libopus']
+      : ['-c:v', 'libx264', '-preset', 'veryfast', ...(rate ? ['-b:v', rate] : []), '-c:a', 'aac', '-movflags', '+faststart']
   const vf = label(it, h, font ? clock : '')
+  // 重いものは、動きの多い絵にする
+  const picture = it.heavy
+    ? `testsrc2=s=${w}x${h}:r=${it.heavy.fps ?? 30}:d=${sec}`
+    : `gradients=s=${w}x${h}:c0=${c0}:c1=${c1}:n=2:speed=0.02:r=30:d=${sec}:seed=${it.hue}`
   return [
     ...base,
-    ...['-f', 'lavfi', '-i', `gradients=s=${w}x${h}:c0=${c0}:c1=${c1}:n=2:speed=0.02:r=30:d=${sec}:seed=${it.hue}`],
+    ...['-f', 'lavfi', '-i', picture],
     ...['-f', 'lavfi', '-i', tone],
     ...(vf.length ? ['-vf', vf.join(',')] : []),
     ...['-pix_fmt', 'yuv420p', ...codec, '-shortest', out],
@@ -161,7 +172,7 @@ function writeCards(dir: string, cards: ({ id: string; type: string } & Record<s
   fs.writeFileSync(path.join(dir, 'layout.json'), json(cards.map((c) => c.id)))
 }
 
-const spec = sampleSpec()
+const spec = stress ? stressSpec() : sampleSpec()
 fs.rmSync(root, { recursive: true, force: true })
 fs.mkdirSync(root, { recursive: true })
 
@@ -193,14 +204,17 @@ fs.writeFileSync(
   path.join(state, 'library.json'),
   json({
     pins: spec.pins,
-    pinnedProjects: PINNED_PROJECTS,
-    pinnedTags: PINNED_TAGS,
+    pinnedProjects: spec.pinnedProjects,
+    pinnedTags: spec.pinnedTags,
     plugins: await installExamples(),
   }),
 )
 
 const jobs: (() => Promise<void>)[] = []
 const touched: { file: string; moved: number }[] = []
+// 負荷を調べるライブラリでは、形の同じ素材を 1 つだけ作り、ほかはそれを複製する
+const bases = new Map<string, string>()
+const copies: { from: string; to: string }[] = []
 for (const it of spec.items) {
   const dir = dirOf(it)
   if (it.media === 'note') {
@@ -214,7 +228,18 @@ for (const it of spec.items) {
   fs.writeFileSync(meta, json({ [ID_KEY]: it.id, tags: it.tags, memo: it.memo }))
   touched.push({ file, moved: it.moved }, { file: meta, moved: it.moved })
   if (it.media === 'other') fs.writeFileSync(file, '')
-  else jobs.push(() => run(ffmpegArgs(it, file)))
+  else if (stress && !it.heavy) {
+    const key = [it.ext, it.size, it.sec, it.jacket].join(' ')
+    let from = bases.get(key)
+    if (!from) {
+      const id = `base${bases.size + 1}`
+      const out = path.join(tmp, `${id}.${it.ext}`)
+      bases.set(key, out)
+      jobs.push(() => run(ffmpegArgs({ ...it, id, name: '複製した素材' }, out)))
+      from = out
+    }
+    copies.push({ from, to: file })
+  } else jobs.push(() => run(ffmpegArgs(it, file)))
 }
 
 const width = Math.max(2, Math.floor(os.availableParallelism() / 2))
@@ -229,6 +254,11 @@ await Promise.all(
   }),
 )
 process.stdout.write('\n')
+copies.forEach(({ from, to }, i) => {
+  fs.copyFileSync(from, to)
+  if (i % 500 === 499 || i === copies.length - 1) process.stdout.write(`\r複製 ${i + 1} / ${copies.length}`)
+})
+if (copies.length) process.stdout.write('\n')
 
 // 更新日時は「いま」から、見本で動いた日数だけ戻す
 const now = Date.now()
