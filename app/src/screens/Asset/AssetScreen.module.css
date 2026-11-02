@@ -251,7 +251,7 @@ details[open] > .sum > .sumIcon {
 }
 .fi {
   display: grid;
-  grid-template-columns: 64px 1fr;
+  grid-template-columns: max-content 1fr;
   gap: 3px var(--space-8);
   margin-top: var(--space-8);
   align-items: center;
