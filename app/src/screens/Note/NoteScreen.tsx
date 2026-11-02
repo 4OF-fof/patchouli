@@ -62,7 +62,6 @@ export function NoteScreen(props: NoteScreenProps) {
   // ライブラリはサムネイルが届くたびに作り直すので、本文が変わったときだけ数え直す
   const body = createMemo(() => note()?.body ?? '')
   const headings = createMemo(() => headingsOf(body()))
-  const [section, setSection] = createSignal(-1)
   const into = () => {
     const n = note()
     return n ? lib().backOf(n) : []
@@ -130,12 +129,7 @@ export function NoteScreen(props: NoteScreenProps) {
                 onBlur={(e) => rename(e.currentTarget)}
               />
               <button type="button" class={styles.props} onClick={() => setPropsOpen(!propsOpen())}>
-                <span>{lib().placeName(n()) ?? '所属なし'}</span>
-                <span>/</span>
-                <Show when={n().tags.length} fallback={<span>タグなし</span>}>
-                  <For each={n().tags}>{(t) => <span class={styles.tag}># {t}</span>}</For>
-                </Show>
-                <span class={styles.more}>{propsOpen() ? '閉じる ▾' : '詳細 ▸'}</span>
+                {propsOpen() ? '閉じる ▾' : '詳細 ▸'}
               </button>
               <Show when={propsOpen()}>
                 <dl class={styles.panel}>
@@ -202,7 +196,6 @@ export function NoteScreen(props: NoteScreenProps) {
                 onCreateNote={async (name) => props.onCreateNote?.(name, placeOf(n()))}
                 embedOf={props.embedOf}
                 onImport={props.onImport && ((files) => props.onImport?.(files, placeOf(n())) ?? Promise.resolve([]))}
-                onSection={setSection}
                 ref={(api) => {
                   editor = api
                   props.editorRef?.(api)
@@ -239,18 +232,13 @@ export function NoteScreen(props: NoteScreenProps) {
               <ScrollArea viewClass={styles.cardView}>
                 <FloatingCard
                   title={
-                    <button
-                      type="button"
-                      class={styles.headTitle}
-                      data-current={section() < 0}
-                      onClick={() => editor?.scrollToHeading(-1)}
-                    >
+                    <button type="button" class={styles.headTitle} onClick={() => editor?.scrollToHeading(-1)}>
                       {n().name}
                     </button>
                   }
                   onClose={() => setHeads(false)}
                 >
-                  <HeadingTree headings={headings()} current={section()} onSelect={(i) => editor?.scrollToHeading(i)} />
+                  <HeadingTree headings={headings()} onSelect={(i) => editor?.scrollToHeading(i)} />
                 </FloatingCard>
               </ScrollArea>
             </aside>

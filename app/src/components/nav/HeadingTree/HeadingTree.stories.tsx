@@ -13,7 +13,6 @@ const meta = {
       { level: 2, text: '差し色' },
       { level: 3, text: '比較' },
     ],
-    current: 3,
     onSelect: () => {},
   },
   decorators: [
@@ -28,4 +27,3 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
-export const Top: Story = { args: { current: -1 } }

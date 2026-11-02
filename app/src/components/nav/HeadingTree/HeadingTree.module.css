@@ -8,11 +8,9 @@
   display: flex;
   align-items: center;
   min-width: 0;
+  padding-left: calc(var(--step) * (var(--depth) + 1));
 }
-/* 線は、親の名前の左下から下りて、自分の名前の手前で曲がる */
-.row {
-  padding-left: calc(var(--step) * var(--depth));
-}
+/* 線は、親（いちばん上はノートの名前）の左下から下りて、自分の名前の手前で曲がる */
 .rail,
 .elbow {
   position: absolute;
@@ -21,11 +19,11 @@
   pointer-events: none;
 }
 .rail {
-  left: calc(var(--step) * var(--col) - 8px);
+  left: calc(var(--step) * var(--col) + 8px);
   border-left: 1px solid var(--line-2);
 }
 .elbow {
-  left: calc(var(--step) * var(--depth) - 8px);
+  left: calc(var(--step) * var(--depth) + 8px);
 }
 .elbow[data-last='false'] {
   border-left: 1px solid var(--line-2);
@@ -60,10 +58,6 @@
 }
 .label:hover,
 .label:focus-visible {
-  background: var(--card);
-  color: var(--ink);
-}
-.label[data-current='true'] {
   background: var(--card);
   color: var(--ink);
 }

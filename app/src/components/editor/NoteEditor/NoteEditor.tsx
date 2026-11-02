@@ -47,8 +47,6 @@ export interface NoteEditorProps {
   embedOf?: (it: Item) => Promise<Embed | undefined>
   /** 貼り付けたり落としたりしたファイルを素材として取り込む。 */
   onImport?: (files: File[]) => Promise<Item[]>
-  /** 読んでいる見出しの番号が変わった。見出しより前なら -1。 */
-  onSection?: (index: number) => void
   ref?: (api: NoteEditorApi) => void
   class?: string
 }
@@ -249,38 +247,6 @@ export function NoteEditor(props: NoteEditorProps) {
       const ev = u.view
       ev.requestMeasure({ read: () => place(ev, u.docChanged && typed), key: 'patchouli-place' })
     }
-    if (u.docChanged || u.geometryChanged) {
-      const ev = u.view
-      ev.requestMeasure({ read: () => findSection(ev), key: 'patchouli-section' })
-    }
-  }
-
-  /**
-   * 読んでいる見出しを、見えている範囲の上の端近く（SECTION_TOP まで）に頭が来た最後の見出しにする。
-   * 終わりまで送ったときは、それより下の見出しはそこまで上がってこないので、見えている最後の見出しにする。
-   */
-  let section: number | undefined
-  let pinned = false
-  const unpin = () => (pinned = false)
-  const findSection = (v: EditorView) => {
-    const el = scrollerOf(v)
-    if (!el || !props.onSection || pinned) return
-    const r = el.getBoundingClientRect()
-    const end = el.scrollTop > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 2
-    const line = end ? r.bottom : r.top + SECTION_TOP
-    // 見出しは上から並んでいるので、頭が line より上にある最後のものを二分探索で探す
-    const heads = headingLines(v.state)
-    let lo = 0
-    let hi = heads.length
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1
-      if (v.lineBlockAt(heads[mid] ?? 0).top + v.documentTop <= line) lo = mid + 1
-      else hi = mid
-    }
-    const at = lo - 1
-    if (at === section) return
-    section = at
-    props.onSection(at)
   }
 
   const takeFiles = (data: DataTransfer | null, at: number) => {
@@ -409,10 +375,6 @@ export function NoteEditor(props: NoteEditorProps) {
         const el = scrollerOf(v)
         if (!el) return
         const at = headingLines(v.state)[i]
-        // 送ったあとは、自分で送るか打つまで、選んだ見出しを読んでいる見出しにする
-        pinned = true
-        section = at === undefined ? -1 : i
-        props.onSection?.(section)
         if (at === undefined) {
           el.scrollTo({ top: 0 })
           return
@@ -489,17 +451,11 @@ export function NoteEditor(props: NoteEditorProps) {
       const v = view
       if (!v) return
       place(v, false)
-      findSection(v)
     })
   }
-  const UNPIN = ['wheel', 'keydown', 'touchmove', 'pointerdown'] as const
-  onMount(() => {
-    document.addEventListener('scroll', onScroll, true)
-    for (const t of UNPIN) document.addEventListener(t, unpin, { capture: true, passive: true })
-  })
+  onMount(() => document.addEventListener('scroll', onScroll, true))
   onCleanup(() => {
     document.removeEventListener('scroll', onScroll, true)
-    for (const t of UNPIN) document.removeEventListener(t, unpin, { capture: true })
     cancelAnimationFrame(frame)
   })
 

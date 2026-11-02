@@ -3,12 +3,10 @@ import styles from './HeadingTree.module.css'
 
 export interface HeadingTreeProps {
   headings: { level: number; text: string }[]
-  /** いま読んでいる見出しの番号。ノートの頭なら -1。 */
-  current: number
   onSelect: (index: number) => void
 }
 
-/** ノートの見出しを、階層ごとに木で並べる。 */
+/** ノートの見出しを、ノートの名前の下に階層ごとの木で並べる。 */
 export function HeadingTree(props: HeadingTreeProps) {
   const top = () => Math.min(...props.headings.map((h) => h.level))
   const rows = createMemo(() => {
@@ -29,14 +27,9 @@ export function HeadingTree(props: HeadingTreeProps) {
       <For each={rows()}>
         {(r) => (
           <div class={styles.row} style={{ '--depth': r.depth }}>
-            <For each={r.rails.filter((k) => k > 0)}>{(k) => <span class={styles.rail} style={{ '--col': k }} />}</For>
-            {r.depth > 0 && <span class={styles.elbow} data-last={r.last} />}
-            <button
-              type="button"
-              class={styles.label}
-              data-current={props.current === r.index}
-              onClick={() => props.onSelect(r.index)}
-            >
+            <For each={r.rails}>{(k) => <span class={styles.rail} style={{ '--col': k }} />}</For>
+            <span class={styles.elbow} data-last={r.last} />
+            <button type="button" class={styles.label} onClick={() => props.onSelect(r.index)}>
               {props.headings[r.index]?.text}
             </button>
           </div>
