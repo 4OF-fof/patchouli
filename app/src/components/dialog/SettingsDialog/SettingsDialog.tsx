@@ -1,4 +1,4 @@
-import { For, type JSX, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, type JSX, Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import type {
   AppSettings,
   AutoTag,
@@ -14,11 +14,12 @@ import type { CommandStatus } from '../../../plugins/types'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
+import { type Notices, NoticesView } from './Notices'
 import styles from './SettingsDialog.module.css'
 import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 
-export type SettingsPage = 'general' | 'view' | 'note' | 'library' | 'ai' | 'tools' | 'storage' | 'developer' | 'about'
+export type SettingsPage = 'general' | 'view' | 'note' | 'tools' | 'developer' | 'about'
 
 export interface SettingsDialogProps {
   version: string
@@ -50,7 +51,8 @@ export interface SettingsDialogProps {
   onDeveloperChange?: (d: Developer) => Promise<void>
   onPickDevPath?: (kind: 'dir' | 'repo') => Promise<string | undefined>
   onReload?: () => void
-  onOpenNotices?: () => void
+  /** 権利表示を読む。一覧が大きいので、開いたときに読む。 */
+  loadNotices?: () => Promise<Notices>
   onClose?: () => void
 }
 
@@ -109,6 +111,11 @@ export function SettingsDialog(props: SettingsDialogProps) {
   /** 変えられなかったときに増やし、スイッチを渡された値に描き直す。 */
   const [failed, setFailed] = createSignal(0)
   const [query, setQuery] = createSignal('')
+  const [noticesOpen, setNoticesOpen] = createSignal(false)
+  const [notices] = createResource(
+    () => (noticesOpen() && props.loadNotices) || undefined,
+    (load) => load(),
+  )
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && !(e.target instanceof HTMLInputElement)) props.onClose?.()
   }
@@ -272,7 +279,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     ...(props.library !== undefined || props.onOpenLibraries
       ? [
           {
-            page: 'library' as const,
+            page: 'general' as const,
             words: 'いまのライブラリ ライブラリを切り替え 場所',
             body: () => (
               <div class={styles.row}>
@@ -295,7 +302,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     ...(props.onAppChange
       ? [
           {
-            page: 'library' as const,
+            page: 'general' as const,
             words: 'ファイルを取り込むとき コピー 移動 取り込み',
             body: () => (
               <Show when={props.app} fallback={<p class={styles.loading}>読み込み中…</p>}>
@@ -333,7 +340,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     ...(props.onAutoTagChange
       ? [
           {
-            page: 'ai' as const,
+            page: 'general' as const,
             words: 'AI 機能を有効化 自動分類 AI 検索 タグ 候補 モデル llama.cpp 実行環境 GPU',
             body: () => aiSettings(props.onAutoTagChange!),
           },
@@ -351,8 +358,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
     ...(props.onClear
       ? [
           {
-            page: 'storage' as const,
-            words: 'キャッシュ インデックス サムネイル すべて 削除',
+            page: 'general' as const,
+            words: 'ストレージ キャッシュ インデックス サムネイル すべて 削除',
             body: () => caches(props.onClear!),
           },
         ]
@@ -360,8 +367,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
     ...(props.onRemoveUnused
       ? [
           {
-            page: 'storage' as const,
-            words: '未使用のプラグイン 削除',
+            page: 'general' as const,
+            words: 'ストレージ 未使用のプラグイン 削除',
             body: () => (
               <div class={styles.row}>
                 <b data-tip={props.unused?.map((p) => p.name).join('、')}>未使用のプラグイン</b>
@@ -384,8 +391,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
     ...(props.onAppChange
       ? [
           {
-            page: 'storage' as const,
-            words: 'サムネイルの大きさ 標準 高精細 作り直す',
+            page: 'general' as const,
+            words: 'ストレージ サムネイルの大きさ 標準 高精細 作り直す',
             body: () => (
               <Show when={props.app}>
                 {(a) => (
@@ -435,18 +442,24 @@ export function SettingsDialog(props: SettingsDialogProps) {
         </div>
       ),
     },
-    ...(props.onOpenNotices
+    ...(props.loadNotices
       ? [
           {
             page: 'about' as const,
             words: '権利表示 ライセンス',
             body: () => (
-              <div class={styles.row}>
-                <b>権利表示</b>
-                <Button size="sm" onClick={() => props.onOpenNotices?.()}>
-                  開く
-                </Button>
-              </div>
+              <details
+                class={styles.notices}
+                open={noticesOpen()}
+                onToggle={(e) => setNoticesOpen(e.currentTarget.open)}
+              >
+                <summary>
+                  <b>権利表示</b>
+                </summary>
+                <Show when={noticesOpen()}>
+                  <NoticesView notices={notices()} />
+                </Show>
+              </details>
             ),
           },
         ]
@@ -457,10 +470,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     { id: 'general', label: '一般' },
     { id: 'view', label: '表示' },
     { id: 'note', label: 'ノート' },
-    { id: 'library', label: 'ライブラリ' },
-    { id: 'ai', label: 'AI 機能' },
     { id: 'tools', label: '外部ツール' },
-    { id: 'storage', label: 'ストレージ' },
     { id: 'developer', label: '開発者モード' },
     { id: 'about', label: '情報' },
   ]
@@ -505,6 +515,16 @@ export function SettingsDialog(props: SettingsDialogProps) {
               />
             )}
           </For>
+          <Show when={a().gpus}>
+            {(g) => (
+              <div class={styles.row}>
+                <b>実行環境</b>
+                <span class={styles.mono}>
+                  {g().length ? `GPU: ${g().join('、')}` : 'CPU（GPU が見つからないため）'}
+                </span>
+              </div>
+            )}
+          </Show>
           <Show when={a().enabled && a().installed && !downloading()}>
             <div class={styles.sub}>
               <For each={[failed()]}>
@@ -561,16 +581,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 )}
               </Show>
             </div>
-          </Show>
-          <Show when={a().gpus}>
-            {(g) => (
-              <div class={styles.row}>
-                <b>実行環境</b>
-                <span class={styles.mono}>
-                  {g().length ? `GPU: ${g().join('、')}` : 'CPU（GPU が見つからないため）'}
-                </span>
-              </div>
-            )}
           </Show>
         </>
       )}

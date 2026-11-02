@@ -15,9 +15,8 @@ import { Spinner } from '../components/base/Spinner/Spinner'
 import { TitleBar } from '../components/nav/TitleBar/TitleBar'
 import { HelpDialog } from '../components/dialog/HelpDialog/HelpDialog'
 import { LibrariesDialog } from '../components/dialog/LibrariesDialog/LibrariesDialog'
-import { type Notices, NoticesDialog } from '../components/dialog/NoticesDialog/NoticesDialog'
 import { PluginsDialog } from '../components/dialog/PluginsDialog/PluginsDialog'
-import { SettingsDialog } from '../components/dialog/SettingsDialog/SettingsDialog'
+import { SettingsDialog, type SettingsPage } from '../components/dialog/SettingsDialog/SettingsDialog'
 import { type Activity, ActivityButton } from '../components/nav/ActivityButton/ActivityButton'
 import { NavMenu, type NavMenuEntry } from '../components/nav/NavMenu/NavMenu'
 import { GRACE, OPEN_DELAY, type Point, graceArea, inside } from '../components/nav/CascadeMenu/grace'
@@ -53,7 +52,6 @@ export type BarState =
   | 'prompt'
   | 'help'
   | 'plugins'
-  | 'notices'
   | 'libraries'
   | 'settings'
 
@@ -111,6 +109,11 @@ export function AppBar(props: AppBarProps) {
   const [query, setQuery] = createSignal(props.query ?? '', { equals: false })
   const [idx, setIdx] = createSignal(0)
   const [pick, setPick] = createSignal<BarRequest['plugin']>()
+  const [settingsPage, setSettingsPage] = createSignal<SettingsPage>()
+  const openSettings = (page?: SettingsPage) => {
+    setSettingsPage(page)
+    setState('settings')
+  }
   createEffect(() => {
     const r = props.request
     if (!r) return
@@ -148,10 +151,10 @@ export function AppBar(props: AppBarProps) {
         ]
       : []),
     { type: 'cmd', icon: 'plugin', label: 'プラグインを開く', key: '', run: () => setState('plugins') },
-    { type: 'cmd', icon: 'settings', label: '設定を開く', key: '', run: () => setState('settings') },
+    { type: 'cmd', icon: 'settings', label: '設定を開く', key: '', run: () => openSettings() },
     { type: 'cmd', icon: 'keyboard', label: 'ショートカット一覧', key: '?', run: () => setState('help') },
     { type: 'cmd', icon: 'theme', label: 'テーマを切り替え', key: '', run: toggleTheme },
-    { type: 'cmd', icon: 'notices', label: '権利表示', key: '', run: () => setState('notices') },
+    { type: 'cmd', icon: 'notices', label: '権利表示', key: '', run: () => openSettings('about') },
   ]
   const parsed = createMemo(() => parseQuery(query()))
   const filters = () => chips().map((c) => c.filter)
@@ -380,11 +383,6 @@ export function AppBar(props: AppBarProps) {
     const a = props.autoTag
     if (a) onCleanup(a.onProgress(setAutoTagProgress))
   })
-  // 一覧は大きいので、初めて開いたときに読む
-  const [notices] = createResource(
-    () => state() === 'notices' || undefined,
-    async () => (await import('../notices/third-party.json')).default as Notices,
-  )
 
   const placeItems = (): NavMenuEntry[] => [
     { id: 'home', icon: 'home', label: 'ホーム', current: props.here === 'home' },
@@ -496,11 +494,11 @@ export function AppBar(props: AppBarProps) {
     document.removeEventListener('pointermove', onMove)
   })
   const onMenu = (id: string) => {
-    if (id === 'settings') return setState('settings')
+    if (id === 'settings') return openSettings()
     if (id === 'theme') return toggleTheme()
     if (id === 'keys') return setState('help')
     if (id === 'plugins') return setState('plugins')
-    if (id === 'notices') return setState('notices')
+    if (id === 'notices') return openSettings('about')
     if (id === 'library' && props.libraries) return setState('libraries')
     if (id === 'library') {
       close()
@@ -711,9 +709,6 @@ export function AppBar(props: AppBarProps) {
           onClose={close}
         />
       </Show>
-      <Show when={state() === 'notices'}>
-        <NoticesDialog notices={notices()} onClose={close} />
-      </Show>
       <Show when={state() === 'libraries'}>
         <LibrariesDialog
           libraries={known.latest}
@@ -737,6 +732,7 @@ export function AppBar(props: AppBarProps) {
       </Show>
       <Show when={state() === 'settings'}>
         <SettingsDialog
+          page={settingsPage()}
           version={version}
           prefs={prefs()}
           onPrefsChange={setPrefs}
@@ -760,7 +756,7 @@ export function AppBar(props: AppBarProps) {
           }
           onPickCommand={props.appSettings && ((name) => props.appSettings!.pickCommand(name))}
           commands={toolReport.latest?.commands ?? (toolReport.latest ? [] : undefined)}
-          onOpenNotices={() => setState('notices')}
+          loadNotices={async () => (await import('../notices/third-party.json')).default}
           usage={usage.latest}
           unused={unused.latest}
           onClear={

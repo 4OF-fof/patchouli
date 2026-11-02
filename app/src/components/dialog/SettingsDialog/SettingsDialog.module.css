@@ -209,6 +209,32 @@
 .path[data-ok='false'] {
   color: var(--danger);
 }
+.notices > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) 0;
+  font-size: var(--fs-body);
+  cursor: pointer;
+  list-style: none;
+}
+.notices > summary::-webkit-details-marker {
+  display: none;
+}
+.notices > summary::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-block: 4px solid transparent;
+  border-left: 5px solid var(--muted);
+  transition: transform 0.15s;
+}
+.notices[open] > summary::before {
+  transform: rotate(90deg);
+}
+.notices > summary b {
+  font-weight: 600;
+}
 .reload {
   display: flex;
   justify-content: flex-end;

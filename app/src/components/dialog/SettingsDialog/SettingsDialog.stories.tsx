@@ -59,10 +59,10 @@ export const Default: Story = {
     )
   },
 }
-export const NoUnused: Story = { name: '使っていないものがない', args: { page: 'storage', unused: [] } }
+export const NoUnused: Story = { name: '使っていないものがない', args: { page: 'general', unused: [] } }
 export const Loading: Story = {
   name: '読み込み中',
-  args: { page: 'storage', usage: undefined, unused: undefined, developer: undefined },
+  args: { page: 'general', usage: undefined, unused: undefined, developer: undefined },
 }
 export const VersionOnly: Story = {
   name: '版だけ',
@@ -71,7 +71,7 @@ export const VersionOnly: Story = {
 export const Failed: Story = {
   name: '消せなかった',
   args: {
-    page: 'storage',
+    page: 'general',
     onClear: async () => {
       await wait()
       throw new Error('library: 別のプロセスが使用中です')
@@ -108,7 +108,7 @@ export const DeveloperFailed: Story = {
 export const AutoTagDownloading: Story = {
   name: 'AI 機能をダウンロード中',
   args: {
-    page: 'ai',
+    page: 'general',
     autoTag: {
       enabled: false,
       installed: false,
@@ -123,7 +123,7 @@ export const AutoTagDownloading: Story = {
 export const AutoTagGpu: Story = {
   name: 'AI 機能が有効（GPU）',
   args: {
-    page: 'ai',
+    page: 'general',
     autoTag: {
       enabled: true,
       installed: true,
@@ -138,7 +138,7 @@ export const AutoTagGpu: Story = {
 export const AutoTagCpu: Story = {
   name: 'AI 機能が有効（CPU）',
   args: {
-    page: 'ai',
+    page: 'general',
     autoTag: {
       enabled: true,
       installed: true,
@@ -148,5 +148,32 @@ export const AutoTagCpu: Story = {
       suggest: 'confirm',
       search: true,
     },
+  },
+}
+
+const MIT =
+  'Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction…'
+
+export const About: Story = {
+  name: '情報',
+  args: {
+    page: 'about',
+    loadNotices: async () => ({
+      self: { name: 'Patchouli', license: 'MIT', text: `MIT License\n\nCopyright (c) 2026 4OF\n\n${MIT}` },
+      texts: { MIT },
+      groups: [
+        {
+          license: 'MIT',
+          entries: [
+            { name: 'chrono', version: '0.4.45', copyright: [], url: 'https://github.com/chronotope/chrono' },
+            { name: 'solid-js', version: '1.9.10', copyright: ['Copyright (c) 2016-2025 Ryan Carniato'] },
+          ],
+        },
+        {
+          license: 'MPL-2.0',
+          entries: [{ name: 'selectors', version: '0.38.0', copyright: [], url: 'https://github.com/servo/stylo' }],
+        },
+      ],
+    }),
   },
 }
