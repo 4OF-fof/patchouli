@@ -6,7 +6,10 @@
   "elevated": "ui/frame.js",
   "optional": {
     "commands": {
-      "ffmpeg": { "version": { "args": ["-version"], "pattern": "ffmpeg version n?([0-9][^ ]*)" } }
+      "ffmpeg": {
+        "version": { "args": ["-version"], "pattern": "ffmpeg version n?([0-9][^ ]*)" },
+        "description": "コマの切り出しと、本体で読めない音声の、内容の読み取りに使います"
+      }
     }
   },
   "formats": {

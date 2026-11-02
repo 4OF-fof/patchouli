@@ -62,9 +62,23 @@ const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 const errors = (p: PluginStatus) => p.problems.filter((x) => x.level === 'error').length
 
-const needs = (p: PluginStatus, k: keyof Deps): { name: string; need: string; min?: string; from?: string }[] => [
-  ...Object.entries(p.required[k] ?? {}).map(([name, d]) => ({ name, need: '必須', min: d.min })),
-  ...Object.entries(p.optional[k] ?? {}).map(([name, d]) => ({ name, need: '任意', min: d.min })),
+const describe = (d: object) => ('description' in d && typeof d.description === 'string' ? d.description : undefined)
+
+type Need = { name: string; need: string; min?: string; from?: string; description?: string }
+
+const needs = (p: PluginStatus, k: keyof Deps): Need[] => [
+  ...Object.entries(p.required[k] ?? {}).map(([name, d]) => ({
+    name,
+    need: '必須',
+    min: d.min,
+    description: describe(d),
+  })),
+  ...Object.entries(p.optional[k] ?? {}).map(([name, d]) => ({
+    name,
+    need: '任意',
+    min: d.min,
+    description: describe(d),
+  })),
   ...(k === 'commands' ? p.via.map((v) => ({ name: v.name, need: v.required ? '必須' : '任意', from: v.plugin })) : []),
 ]
 
@@ -153,7 +167,9 @@ export function PluginsDialog(props: PluginsDialogProps) {
     return p ? keyOf(p) : pickedCommand() && CMD + pickedCommand()!.name
   })
   const users = (name: string) =>
-    plugins().flatMap((p) => needs(p, 'commands').flatMap((n) => (n.name === name ? [{ p, need: n.need }] : [])))
+    plugins().flatMap((p) =>
+      needs(p, 'commands').flatMap((n) => (n.name === name ? [{ p, need: n.need, description: n.description }] : [])),
+    )
 
   /** 設定を保存する。入力中の欄を止めないよう、ほかの操作は止めない。 */
   const save = async (id: string, name: string, v: SettingValue) => {
@@ -354,6 +370,9 @@ export function PluginsDialog(props: PluginsDialogProps) {
                             )}
                           </Show>
                         </Show>
+                        <Show when={d.description}>
+                          <p class={styles.use}>{d.description}</p>
+                        </Show>
                       </li>
                     )
                   }}
@@ -415,15 +434,18 @@ export function PluginsDialog(props: PluginsDialogProps) {
             <section>
               <h4>{g.label}</h4>
               <Show when={ps().length} fallback={<p class={styles.none}>なし</p>}>
-                <span class={styles.chips}>
+                <ul class={styles.users}>
                   <For each={ps()}>
                     {(u) => (
-                      <button type="button" class={styles.user} data-tip={u.p.id} onClick={() => setPicked(u.p.id)}>
-                        {u.p.name}
-                      </button>
+                      <li>
+                        <button type="button" class={styles.link} data-tip={u.p.id} onClick={() => setPicked(u.p.id)}>
+                          {u.p.name}
+                        </button>
+                        <span class={styles.need}>{u.description}</span>
+                      </li>
                     )}
                   </For>
-                </span>
+                </ul>
               </Show>
             </section>
           )

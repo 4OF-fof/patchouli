@@ -22,6 +22,8 @@ pub struct CommandDep {
     pub min: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<Probe>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 pub enum Unmet {

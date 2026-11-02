@@ -299,23 +299,30 @@
   display: grid;
   grid-template-columns: minmax(80px, 220px) 48px minmax(0, 1fr);
   align-items: baseline;
-  gap: var(--space-12);
+  gap: var(--space-2) var(--space-12);
   padding: var(--space-8) var(--space-2);
   border-bottom: 1px solid var(--line);
   font-size: var(--fs-list);
 }
-.user {
-  padding: var(--space-2) var(--space-12);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
-  background: var(--card);
-  color: var(--ink-2);
+.use {
+  grid-column: 1 / -1;
+  margin: 0;
   font-size: var(--fs-meta);
-  cursor: pointer;
+  color: var(--muted);
 }
-.user:hover {
-  border-color: var(--accent);
-  color: var(--ink);
+.users {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.users li {
+  display: grid;
+  grid-template-columns: minmax(80px, 220px) minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-12);
+  padding: var(--space-8) var(--space-2);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--fs-list);
 }
 .perms {
   display: grid;

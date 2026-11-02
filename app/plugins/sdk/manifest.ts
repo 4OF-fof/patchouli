@@ -30,6 +30,8 @@ export interface Probe {
 export interface CommandDep {
   min?: string
   version?: Probe
+  /** 何に使うか。プラグインの画面に出す。 */
+  description?: string
 }
 
 /** 求めるプラグイン 1 つ。 */
