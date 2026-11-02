@@ -682,9 +682,10 @@ async fn import_files(
     paths: Vec<PathBuf>,
     place: Place,
 ) -> Result<import::Imported, String> {
+    let mv = settings::app_settings(&app)?.import_mode == settings::ImportMode::Move;
     let (mut out, thumbs, plugins, cache) = with_session(&cur, |s| {
         Ok((
-            s.lib.import(&paths, &place)?,
+            s.lib.import(&paths, &place, mv)?,
             s.thumbs.clone(),
             Arc::clone(&s.plugins),
             s.lib.cache(),
@@ -839,6 +840,47 @@ async fn set_developer(
     developer: settings::Developer,
 ) -> Result<(), String> {
     settings::set_developer(&app, &developer)
+}
+
+fn apply_app_settings(s: &settings::AppSettings) {
+    thumb::set_large(s.thumb_size == settings::ThumbSize::Large);
+    plugin::commands::set_fixed(s.command_paths.clone());
+}
+
+#[tauri::command]
+async fn app_settings(app: tauri::AppHandle) -> Result<settings::AppSettings, String> {
+    settings::app_settings(&app)
+}
+
+/// サムネイルの大きさを変えたときは、作り直すためにサムネイルのキャッシュを消す。
+#[tauri::command]
+async fn set_app_settings(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    settings: settings::AppSettings,
+) -> Result<(), String> {
+    let before = settings::app_settings(&app)?;
+    settings::set_app_settings(&app, &settings)?;
+    apply_app_settings(&settings);
+    if before.thumb_size != settings.thumb_size {
+        let root = root_of(&cur)?;
+        drop(cur.0.lock().map_err(|e| e.to_string())?.take());
+        tidy::clear(&cache_dir(&app)?, &root, tidy::Kind::Thumbs)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn pick_command(app: tauri::AppHandle, name: String) -> Result<Option<PathBuf>, String> {
+    let Some(p) = app
+        .dialog()
+        .file()
+        .set_title(format!("{name} の場所を選択"))
+        .blocking_pick_file()
+    else {
+        return Ok(None);
+    };
+    p.into_path().map(Some).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -1923,6 +1965,9 @@ pub fn run() {
             set_plugin_enabled,
             developer,
             set_developer,
+            app_settings,
+            set_app_settings,
+            pick_command,
             pick_dev_path,
             reload_plugins,
             plugin_work,
@@ -1984,6 +2029,9 @@ pub fn run() {
             }
             if let Ok(d) = app.path().app_data_dir() {
                 embed::init(&d);
+            }
+            if let Ok(s) = settings::app_settings(app.handle()) {
+                apply_app_settings(&s);
             }
             if cfg!(debug_assertions) {
                 app.handle().plugin(

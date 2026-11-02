@@ -45,6 +45,7 @@ import type {
   CacheUsage,
   Changed,
   ContentHit,
+  AppSettings,
   Developer,
   Dropped,
   FileDrag,
@@ -483,6 +484,11 @@ export function tauriBackend(): Backend {
       get: () => invoke<Developer>('developer'),
       set: (developer) => invoke('set_developer', { developer }),
       pick: async (kind) => (await invoke<string | null>('pick_dev_path', { repo: kind === 'repo' })) ?? undefined,
+    },
+    appSettings: {
+      get: () => invoke<AppSettings>('app_settings'),
+      set: (settings) => invoke('set_app_settings', { settings }),
+      pickCommand: async (name) => (await invoke<string | null>('pick_command', { name })) ?? undefined,
     },
     contentSearch: {
       prepare: () => invoke('prepare_content_search'),

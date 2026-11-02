@@ -3,7 +3,7 @@ use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, OnceLock, RwLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -118,9 +118,25 @@ pub fn valid(name: &str) -> bool {
             .is_some_and(|b| b.is_ascii_alphanumeric())
 }
 
+/// 設定で場所を指定した外部ツール。名前 → 場所。
+fn fixed() -> &'static RwLock<HashMap<String, PathBuf>> {
+    static FIXED: OnceLock<RwLock<HashMap<String, PathBuf>>> = OnceLock::new();
+    FIXED.get_or_init(Default::default)
+}
+
+pub fn set_fixed(paths: HashMap<String, PathBuf>) {
+    if let Ok(mut f) = fixed().write() {
+        *f = paths;
+    }
+}
+
 pub fn find(name: &str) -> Option<PathBuf> {
     if !valid(name) {
         return None;
+    }
+    // 場所を指定したものは、そこになければ PATH から探さない
+    if let Some(p) = fixed().read().ok().and_then(|f| f.get(name).cloned()) {
+        return p.is_file().then_some(p);
     }
     // 見つからないときの動きを確かめるとき（「ffmpeg,magick」のように並べる）
     #[cfg(debug_assertions)]

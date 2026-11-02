@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -15,6 +16,7 @@ const AUTO_TAG: &str = "autoTag";
 const TAG_SUGGEST: &str = "tagSuggest";
 const CONTENT_SEARCH: &str = "contentSearch";
 const DEVICE: &str = "device";
+const APP: &str = "app";
 
 /// タグの候補の扱い。auto は選択済みの候補をそのまま付け、confirm は分類の確認に出す。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -186,6 +188,52 @@ pub fn set_developer(app: &AppHandle, d: &Developer) -> Result<(), String> {
     m.insert(
         DEVELOPER.into(),
         serde_json::to_value(d).map_err(|e| e.to_string())?,
+    );
+    write(app, &m)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ImportMode {
+    #[default]
+    Copy,
+    Move,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ThumbSize {
+    #[default]
+    Standard,
+    Large,
+}
+
+/// 本体の設定。
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppSettings {
+    #[serde(default)]
+    pub import_mode: ImportMode,
+    #[serde(default)]
+    pub thumb_size: ThumbSize,
+    /// 外部ツールの名前 → 指定した場所
+    #[serde(default)]
+    pub command_paths: HashMap<String, PathBuf>,
+}
+
+pub fn app_settings(app: &AppHandle) -> Result<AppSettings, String> {
+    Ok(read(app)?
+        .get(APP)
+        .cloned()
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default())
+}
+
+pub fn set_app_settings(app: &AppHandle, s: &AppSettings) -> Result<(), String> {
+    let mut m = read(app)?;
+    m.insert(
+        APP.into(),
+        serde_json::to_value(s).map_err(|e| e.to_string())?,
     );
     write(app, &m)
 }

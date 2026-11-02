@@ -138,6 +138,23 @@ export interface DeveloperActions {
   pick(kind: 'dir' | 'repo'): Promise<string | undefined>
 }
 
+/** 本体の設定。 */
+export interface AppSettings {
+  /** ライブラリの外から落としたファイルを、コピーするか移動するか */
+  importMode: 'copy' | 'move'
+  /** サムネイルの長いほうの辺。standard は 512px、large は 1024px */
+  thumbSize: 'standard' | 'large'
+  /** 外部ツールの名前 → 指定した場所。書いていないものは PATH から探す */
+  commandPaths: Record<string, string>
+}
+
+export interface AppSettingsActions {
+  get(): Promise<AppSettings>
+  /** サムネイルの大きさを変えたときは、サムネイルのキャッシュを消す。 */
+  set(s: AppSettings): Promise<void>
+  pickCommand(name: string): Promise<string | undefined>
+}
+
 /** タグの候補の扱い。auto は選択済みの候補をそのまま付け、confirm は分類の確認に出す。 */
 export type TagSuggest = 'auto' | 'confirm' | 'off'
 
@@ -242,6 +259,7 @@ export interface Backend {
   libraries?: LibraryActions
   tidy?: TidyActions
   developer?: DeveloperActions
+  appSettings?: AppSettingsActions
   autoTag?: AutoTagActions
   contentSearch?: ContentSearch
   tagDecisions?: TagDecisions

@@ -2,7 +2,7 @@ use std::collections::{HashSet, VecDeque};
 use std::fs;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::UNIX_EPOCH;
 
@@ -10,7 +10,16 @@ use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader};
 
 use crate::plugin::{Reads, Registry, Runner};
 
-const EDGE: u32 = 512;
+/// サムネイルの長いほうの辺。設定で変える。
+static EDGE: AtomicU32 = AtomicU32::new(512);
+
+pub fn set_large(large: bool) {
+    EDGE.store(if large { 1024 } else { 512 }, Ordering::Relaxed);
+}
+
+fn edge() -> u32 {
+    EDGE.load(Ordering::Relaxed)
+}
 
 pub struct Job {
     pub id: String,
@@ -254,9 +263,9 @@ pub fn draw_wave(wave: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
     }
     let ratio = ratio.clamp(0.25, 4.0);
     let (w, h) = if ratio >= 1.0 {
-        (EDGE, (f64::from(EDGE) / ratio).round() as u32)
+        (edge(), (f64::from(edge()) / ratio).round() as u32)
     } else {
-        ((f64::from(EDGE) * ratio).round() as u32, EDGE)
+        ((f64::from(edge()) * ratio).round() as u32, edge())
     };
     // 背景は透かし、暗い地にも明るい地にも見える中間の灰色（tokens.css の --muted）で描く
     let [r, g, b] = [0x8e, 0x92, 0x9a];
@@ -296,7 +305,7 @@ pub fn draw_wave(wave: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
             }
         }
     }
-    encode(DynamicImage::ImageRgba8(img), EDGE)
+    encode(DynamicImage::ImageRgba8(img), edge())
 }
 
 fn bar_levels(wave: &[u8], n: usize) -> Vec<f32> {
@@ -323,7 +332,7 @@ pub struct Placed {
 
 fn make(runner: &mut Runner, job: &Job) -> Result<Option<Placed>, String> {
     let err = |e: &dyn std::fmt::Display| format!("{}: {e}", job.src.display());
-    let Some((png, original, reads)) = runner.thumbnail(&job.ext, &job.src, EDGE)? else {
+    let Some((png, original, reads)) = runner.thumbnail(&job.ext, &job.src, edge())? else {
         return Ok(None);
     };
     let out = path_for(&job.dir, &job.id, &job.src, &reads)
@@ -336,8 +345,8 @@ pub fn place(png: &[u8], original: Option<(u32, u32)>, out: &Path) -> Result<(u3
     let size = imagesize::blob_size(png).map_err(|e| e.to_string())?;
     let (w, h) = (size.width as u32, size.height as u32);
     if imagesize::image_type(png).ok() != Some(imagesize::ImageType::Png)
-        || w > EDGE * 2
-        || h > EDGE * 2
+        || w > edge() * 2
+        || h > edge() * 2
     {
         return Err("プラグインが返したサムネイルが PNG ではないか、サイズが大きすぎます".into());
     }

@@ -105,8 +105,13 @@ fn touch(p: &Path) -> std::io::Result<()> {
 }
 
 impl Library {
-    /// フォルダは、中のフォルダも含めてグループとして取り込む。
-    pub fn import(&mut self, paths: &[PathBuf], place: &Place) -> Result<Imported, String> {
+    /// フォルダは、中のフォルダも含めてグループとして取り込む。mv なら、元の場所から移す。
+    pub fn import(
+        &mut self,
+        paths: &[PathBuf],
+        place: &Place,
+        mv: bool,
+    ) -> Result<Imported, String> {
         let root = self.root().to_owned();
         let (dest, project, group) = self.place_dir(place)?;
         let at = Place { project, group };
@@ -122,9 +127,9 @@ impl Library {
             if p.starts_with(&root) {
                 out.skipped += 1;
             } else if p.is_dir() {
-                self.copy_dir(&p, &at, &mut out);
+                self.copy_dir(&p, &at, mv, &mut out);
             } else if listed(&p) {
-                self.copy_in(&p, &dest, &at, &mut out);
+                self.copy_in(&p, &dest, &at, mv, &mut out);
             } else {
                 out.skipped += 1;
             }
@@ -133,7 +138,7 @@ impl Library {
         Ok(out)
     }
 
-    fn copy_dir(&mut self, src: &Path, place: &Place, out: &mut Imported) {
+    fn copy_dir(&mut self, src: &Path, place: &Place, mv: bool, out: &mut Imported) {
         let base = src
             .file_name()
             .and_then(|n| n.to_str())
@@ -160,17 +165,30 @@ impl Library {
         paths.sort();
         for p in paths {
             if p.is_dir() {
-                self.copy_dir(&p, &inner, out);
+                self.copy_dir(&p, &inner, mv, out);
             } else {
-                self.copy_in(&p, &dir, &inner, out);
+                self.copy_in(&p, &dir, &inner, mv, out);
             }
+        }
+        // 取り込まなかったファイルが残っていれば、フォルダは消えない
+        if mv {
+            let _ = fs::remove_dir(src);
         }
         self.reprint([dir]);
     }
 
-    fn copy_in(&mut self, src: &Path, dir: &Path, place: &Place, out: &mut Imported) {
+    fn copy_in(&mut self, src: &Path, dir: &Path, place: &Place, mv: bool, out: &mut Imported) {
         let name = src.file_name().and_then(|n| n.to_str()).unwrap_or_default();
-        let put = |to: &Path| fs::copy(src, to).and_then(|_| touch(to)).map(drop);
+        // 別のドライブへは rename できないので、コピーしてから消す
+        let put = |to: &Path| {
+            if mv {
+                fs::rename(src, to)
+                    .or_else(|_| fs::copy(src, to).and_then(|_| fs::remove_file(src)))?;
+            } else {
+                fs::copy(src, to)?;
+            }
+            touch(to)
+        };
         match self.put_in(name, dir, place, put) {
             Ok((item, problems)) => {
                 out.items.extend(item);
