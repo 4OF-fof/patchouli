@@ -44,6 +44,20 @@
 .remove > svg {
   translate: 0 0.1em;
 }
+.root[data-size='lg'] {
+  height: 30px;
+  padding: 0 var(--space-12);
+  font-size: var(--fs-body);
+}
+.root[data-size='lg'].split {
+  padding: 0;
+}
+.root[data-size='lg'] .main {
+  padding: 0 var(--space-4) 0 var(--space-12);
+}
+.root[data-size='lg'] .remove {
+  padding: 0 var(--space-10) 0 var(--space-4);
+}
 .root[aria-pressed='false'] {
   background: var(--side);
   color: var(--ink-2);

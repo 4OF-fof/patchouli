@@ -1,6 +1,14 @@
 .root {
   width: 420px;
   flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  min-height: 0;
+}
+.scroll {
+  flex: 1;
+  min-height: 0;
 }
 .body {
   display: flex;
@@ -49,14 +57,7 @@
   font-size: var(--fs-meta);
   color: var(--muted);
 }
-.near {
-  --thumb-h: 56px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-6);
-}
 .dec {
-  margin-top: auto;
   display: flex;
   gap: var(--space-10);
 }

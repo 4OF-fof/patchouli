@@ -4,23 +4,30 @@ import styles from './Chip.module.css'
 
 export interface ChipProps extends JSX.ButtonHTMLAttributes<HTMLButtonElement> {
   dashed?: boolean
+  size?: 'lg'
   removeLabel?: string
   onRemove?: () => void
 }
 
 export function Chip(props: ChipProps) {
-  const [local, rest] = splitProps(props, ['dashed', 'class', 'children', 'removeLabel', 'onRemove'])
+  const [local, rest] = splitProps(props, ['dashed', 'size', 'class', 'children', 'removeLabel', 'onRemove'])
   return (
     <Show
       when={local.onRemove}
       fallback={
-        <button type="button" class={`${styles.root} ${local.class ?? ''}`} data-dashed={local.dashed} {...rest}>
+        <button
+          type="button"
+          class={`${styles.root} ${local.class ?? ''}`}
+          data-dashed={local.dashed}
+          data-size={local.size}
+          {...rest}
+        >
           {local.children}
         </button>
       }
     >
       {(remove) => (
-        <span class={`${styles.root} ${styles.split} ${local.class ?? ''}`}>
+        <span class={`${styles.root} ${styles.split} ${local.class ?? ''}`} data-size={local.size}>
           <button type="button" class={styles.main} {...rest}>
             {local.children}
           </button>

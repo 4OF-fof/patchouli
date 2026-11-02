@@ -5,6 +5,7 @@ import { Kbd } from '../../components/base/Kbd/Kbd'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { Select } from '../../components/controls/Select/Select'
 import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
+import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { type Item, type Library, type TagCandidate, thumbOf } from '../../model/library'
 import styles from './TidyPanel.module.css'
@@ -32,11 +33,12 @@ const MIN_PICKER = 280
 export function TidyPanel(props: TidyPanelProps) {
   const lib = () => props.lib
   const onTags = () => props.tags.filter((t) => t.on)
-  const firstTag = () => (onTags()[0] ?? props.tags[0])?.tag ?? ''
   const nothing = () => !onTags().length && !props.project
-  const near = () =>
+  // 選んでいない候補も、付けるか決める手がかりとして出す
+  const nearTags = () => [...onTags(), ...props.tags.filter((t) => !t.on)].map((t) => t.tag)
+  const near = (tag: string) =>
     lib()
-      .items.filter((x) => !x.note && x.id !== props.it.id && x.tags.includes(firstTag()))
+      .items.filter((x) => !x.note && x.id !== props.it.id && x.tags.includes(tag))
       .toSorted((a, b) => Math.abs(a.hue - props.it.hue) - Math.abs(b.hue - props.it.hue))
       .slice(0, 6)
 
@@ -83,7 +85,7 @@ export function TidyPanel(props: TidyPanelProps) {
   const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
 
   return (
-    <ScrollArea class={styles.root} viewClass={styles.body} aria-label="分類の候補">
+    <div class={styles.root}>
       <div class={styles.nmh}>
         <b>{props.it.name}</b>
         <small>
@@ -94,61 +96,71 @@ export function TidyPanel(props: TidyPanelProps) {
           <span class={styles.aside}>{props.aside}</span>
         </Show>
       </div>
-      <div class={styles.fl}>
-        <span class={styles.sub}>タグ</span>
-        <div class={styles.tags}>
-          <For each={onTags()}>
-            {(t) => (
-              <Chip removeLabel={`# ${t.tag} を削除`} onRemove={() => props.onTag(t.tag, false)}>
-                # {t.tag}
-              </Chip>
-            )}
-          </For>
-          <Chip ref={addBtn} dashed aria-expanded={picking()} aria-haspopup="dialog" onClick={togglePicker}>
-            <Icon name="plus" size={12} withText />
-            追加
-          </Chip>
-        </div>
-      </div>
-      <Show when={picking()}>
-        <Portal>
-          <TagPicker
-            class={styles.picker}
-            style={at()}
-            tags={onTags().map((t) => t.tag)}
-            all={allTags()}
-            recent={recent()}
-            suggested={props.tags.filter((t) => !t.on).map((t) => t.tag)}
-            anchor={addBtn}
-            onToggle={(t, v) => props.onTag(t, v)}
-            onClose={closePicker}
-          />
-        </Portal>
-      </Show>
-      <div class={styles.fl}>
-        <span class={styles.sub}>プロジェクト</span>
-        <Select
-          aria-label="プロジェクトを選択"
-          value={props.project}
-          options={[
-            { value: '', label: '指定なし' },
-            ...lib()
-              .projects.filter((p) => p.name !== '日記')
-              .map((p) => ({ value: p.name, label: p.name })),
-          ]}
-          onChange={(v) => props.onProject(v)}
-        />
-      </div>
-      <Show when={firstTag()}>
+      <ScrollArea class={styles.scroll} viewClass={styles.body} aria-label="分類の候補">
         <div class={styles.fl}>
-          <span class={styles.sub}># {firstTag()} の類似項目</span>
-          <div class={styles.near}>
-            <For each={near()} fallback={<span class={styles.hint}>まだありません</span>}>
-              {(x) => <Thumb {...thumbOf(x)} />}
+          <span class={styles.sub}>プロジェクト</span>
+          <Select
+            aria-label="プロジェクトを選択"
+            value={props.project}
+            options={[
+              { value: '', label: '指定なし' },
+              ...lib()
+                .projects.filter((p) => p.name !== '日記')
+                .map((p) => ({ value: p.name, label: p.name })),
+            ]}
+            onChange={(v) => props.onProject(v)}
+          />
+        </div>
+        <div class={styles.fl}>
+          <span class={styles.sub}>タグ</span>
+          <div class={styles.tags}>
+            <For each={onTags()}>
+              {(t) => (
+                <Chip size="lg" removeLabel={`# ${t.tag} を削除`} onRemove={() => props.onTag(t.tag, false)}>
+                  # {t.tag}
+                </Chip>
+              )}
             </For>
+            <Chip ref={addBtn} size="lg" dashed aria-expanded={picking()} aria-haspopup="dialog" onClick={togglePicker}>
+              <Icon name="plus" size={14} withText />
+              追加
+            </Chip>
           </div>
         </div>
-      </Show>
+        <Show when={picking()}>
+          <Portal>
+            <TagPicker
+              class={styles.picker}
+              style={at()}
+              tags={onTags().map((t) => t.tag)}
+              all={allTags()}
+              recent={recent()}
+              suggested={props.tags.filter((t) => !t.on).map((t) => t.tag)}
+              anchor={addBtn}
+              onToggle={(t, v) => props.onTag(t, v)}
+              onClose={closePicker}
+            />
+          </Portal>
+        </Show>
+        <For each={nearTags()}>
+          {(tag) => (
+            <div class={styles.fl}>
+              <span class={styles.sub}># {tag} の類似項目</span>
+              <Show when={near(tag).length} fallback={<span class={styles.hint}>まだありません</span>}>
+                <JustifiedRow height={96} gap={6}>
+                  <For each={near(tag)}>
+                    {(x) => (
+                      <div style={{ '--ar': x.ratio }}>
+                        <Thumb {...thumbOf(x)} />
+                      </div>
+                    )}
+                  </For>
+                </JustifiedRow>
+              </Show>
+            </div>
+          )}
+        </For>
+      </ScrollArea>
       <div class={styles.dec}>
         <button type="button" onClick={() => props.onPutOff()}>
           保留 <Kbd>→</Kbd>
@@ -158,6 +170,6 @@ export function TidyPanel(props: TidyPanelProps) {
           承認 <Kbd>Enter</Kbd>
         </button>
       </div>
-    </ScrollArea>
+    </div>
   )
 }
