@@ -13,6 +13,7 @@ const SPAN: f64 = 90.0;
 pub struct Analysis {
     pub secs: f64,
     pub bpm: Option<f64>,
+    pub kbps: Option<f64>,
 }
 
 pub fn analyze(ext: &str, f: &File) -> Result<Analysis, String> {
@@ -49,7 +50,7 @@ pub fn analyze(ext: &str, f: &File) -> Result<Analysis, String> {
     };
     let (from, to) = ((skip * rate) as usize, ((skip + SPAN) * rate) as usize);
     let (mut at, mut mono, mut buf) = (0usize, Vec::new(), Vec::<f32>::new());
-    let mut dur = 0u64;
+    let (mut dur, mut bytes) = (0u64, 0u64);
     loop {
         let packet = match format.next_packet() {
             Ok(Some(p)) => p,
@@ -61,6 +62,7 @@ pub fn analyze(ext: &str, f: &File) -> Result<Analysis, String> {
             continue;
         }
         dur += packet.dur.get();
+        bytes += packet.data.len() as u64;
         if at >= to {
             // 長さがわからなければ、最後まで数える
             if known.is_some() {
@@ -83,8 +85,11 @@ pub fn analyze(ext: &str, f: &File) -> Result<Analysis, String> {
     let counted = base
         .and_then(|b| b.calc_duration(Duration::from(dur)))
         .map_or(dur as f64 / rate, |t| t.as_secs_f64());
+    // ジャケットなどを含めないよう、ファイルの大きさではなく読んだ音声の量から平均を出す
+    let kbps = (counted > 0.0).then(|| bytes as f64 * 8.0 / counted / 1000.0);
     Ok(Analysis {
         secs: known.unwrap_or(counted),
         bpm: bpm::estimate(&mono, rate),
+        kbps,
     })
 }

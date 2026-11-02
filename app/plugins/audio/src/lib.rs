@@ -40,7 +40,12 @@ impl Guest for Audio {
             value,
         };
         let bpm = a.bpm.map_or("—".into(), |b| format!("{b:.0}"));
-        Ok(vec![row("BPM", bpm), row("再生時間", clock::clock(a.secs))])
+        let kbps = a.kbps.map_or("—".into(), |k| format!("{k:.0} kbps"));
+        Ok(vec![
+            row("BPM", bpm),
+            row("再生時間", clock::clock(a.secs)),
+            row("ビットレート", kbps),
+        ])
     }
 
     fn menu(_targets: Vec<Target>) -> Result<Vec<MenuItem>, String> {
