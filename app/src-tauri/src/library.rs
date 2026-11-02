@@ -21,6 +21,7 @@ pub const PROJECT_TYPE: &str = "project";
 pub(crate) const STATE_DIR: &str = ".patchouli";
 const STATE_FILE: &str = "library.json";
 const TAG_HISTORY: &str = "tag-history.json";
+const OPEN_HISTORY: &str = "open-history.json";
 const TABS: &str = "tabs.json";
 pub(crate) const PROJECTS_DIR: &str = "projects";
 pub(crate) const TAGS_DIR: &str = "tags";
@@ -1147,6 +1148,20 @@ impl Library {
         fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let path = dir.join(TAG_HISTORY);
         write_json(&path, &Map::from_iter([("tags".to_owned(), json!(tags))]))?;
+        self.mark(&path);
+        Ok(())
+    }
+
+    pub fn open_history(&self) -> Result<Vec<String>, String> {
+        let m = read_json(&self.root.join(STATE_DIR).join(OPEN_HISTORY))?;
+        Ok(strings(m.as_ref().and_then(|m| m.get("items"))))
+    }
+
+    pub fn save_open_history(&mut self, ids: &[String]) -> Result<(), String> {
+        let dir = self.root.join(STATE_DIR);
+        fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let path = dir.join(OPEN_HISTORY);
+        write_json(&path, &Map::from_iter([("items".to_owned(), json!(ids))]))?;
         self.mark(&path);
         Ok(())
     }

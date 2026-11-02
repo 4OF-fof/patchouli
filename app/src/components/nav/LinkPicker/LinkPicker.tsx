@@ -1,6 +1,6 @@
 import { createMemo, createSignal } from 'solid-js'
 import { type Item, type Library, type Place, newerFirst, samePlace } from '../../../model/library'
-import { findItems, searchTerms } from '../../../model/search'
+import { findItems, markTerms, parseQuery } from '../../../model/search'
 import { SearchPalette } from '../SearchPalette/SearchPalette'
 import { type Row, SearchResults } from '../SearchResults/SearchResults'
 
@@ -18,13 +18,13 @@ export interface LinkPickerProps {
 export function LinkPicker(props: LinkPickerProps) {
   const [query, setQuery] = createSignal(props.query ?? '')
   const [idx, setIdx] = createSignal(0)
-  const terms = () => searchTerms(query())
+  const parsed = createMemo(() => parseQuery(query()))
+  const terms = () => markTerms(parsed())
   const near = (it: Item) => (props.place && samePlace(it, props.place) ? 0 : 1)
   const rows = createMemo<Row[]>(() => {
     const ok = (it: Item) => it.id !== props.exclude && (!props.embed || !it.note)
-    const ts = terms()
-    const found = ts.length
-      ? findItems(props.lib, ts).filter(({ it }) => ok(it))
+    const found = query().trim()
+      ? findItems(props.lib, parsed()).filter(({ it }) => ok(it))
       : props.lib.items
           .filter(ok)
           .toSorted(newerFirst)

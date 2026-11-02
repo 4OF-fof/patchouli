@@ -49,6 +49,10 @@
   background: var(--accent-soft);
   color: var(--accent);
 }
+.chip {
+  flex: none;
+  max-width: 40%;
+}
 .in input {
   flex: 1;
   min-width: 0;

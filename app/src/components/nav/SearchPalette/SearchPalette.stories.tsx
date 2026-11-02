@@ -5,13 +5,10 @@ import { type SearchMode, SearchPalette } from './SearchPalette'
 
 const recent = () => (
   <>
-    <ResultHeading>プロジェクト</ResultHeading>
-    <ResultRow kind="project" title="秋の企画" sub="32 件 | 最終更新 2 日前" selected />
-    <ResultRow kind="project" title="日記" sub="64 件 | 最終更新 今日" />
-    <ResultHeading>項目</ResultHeading>
-    <ResultRow kind="note" title="配色のメモ" sub="最近 | 秋の企画" />
-    <ResultRow kind="asset" title="夕方の港" sub="最近 | 秋の企画" thumb={{ hue: 205 }} />
-    <ResultRow kind="asset" title="路地の看板" sub="最近 | 日記" thumb={{ hue: 20 }} />
+    <ResultHeading>最近開いた項目</ResultHeading>
+    <ResultRow kind="note" title="配色のメモ" sub="秋の企画" selected />
+    <ResultRow kind="asset" title="夕方の港" sub="秋の企画" thumb={{ hue: 205 }} />
+    <ResultRow kind="asset" title="路地の看板" sub="日記" thumb={{ hue: 20 }} />
   </>
 )
 
@@ -60,6 +57,41 @@ export const Typed: Story = {
   name: '入力中',
   render: (args) => <SearchPalette {...args} query="配色" results={typed()} />,
 }
+const tags = () => (
+  <>
+    <ResultHeading>タグ</ResultHeading>
+    <ResultRow
+      kind="tag"
+      title={
+        <>
+          <mark>配</mark>色
+        </>
+      }
+      sub="12 件"
+      selected
+    />
+    <ResultHeading>項目</ResultHeading>
+    <ResultRow kind="asset" title="moodboard-01" sub="秋の企画" thumb={{ hue: 35 }} />
+  </>
+)
+
+export const Filtering: Story = {
+  name: '絞り込み',
+  render: (args) => (
+    <SearchPalette
+      {...args}
+      chips={['@ 秋の企画']}
+      query="#配"
+      hints={[
+        ['Enter / Tab', '絞り込む'],
+        ['Ctrl Enter', 'ページを開く'],
+        ['Esc', '閉じる'],
+      ]}
+      results={tags()}
+    />
+  ),
+}
+export const Command: Story = { name: '操作', args: { mode: 'command' } }
 export const Prompt: Story = { args: { mode: 'prompt' } }
 
 export const Interactive: Story = {
@@ -71,12 +103,14 @@ export const Interactive: Story = {
         mode={mode()}
         query={query()}
         results={mode() === 'prompt' ? undefined : query() ? typed() : recent()}
-        onQueryInput={setQuery}
+        onQueryInput={(q) => {
+          if (mode() === 'search' && q.startsWith('?')) {
+            setMode('prompt')
+            setQuery(q.slice(1))
+          } else setQuery(q)
+        }}
         onInputKeyDown={(e) => {
-          if (e.key === 'Tab') {
-            e.preventDefault()
-            setMode(mode() === 'prompt' ? 'search' : 'prompt')
-          }
+          if (e.key === 'Backspace' && !query()) setMode('search')
         }}
       />
     )

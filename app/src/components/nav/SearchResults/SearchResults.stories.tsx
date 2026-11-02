@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
-import { findItems } from '../../../model/search'
+import { findItems, parseQuery } from '../../../model/search'
 import { sampleLibrary } from '../../../samples/library'
 import { type Row, SearchResults } from './SearchResults'
 
@@ -20,17 +20,11 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-const recent: Row[] = [
-  ...lib.projects.slice(0, 2).map((p): Row => ({ type: 'proj', p })),
-  ...lib.items
-    .toSorted((a, b) => a.moved - b.moved)
-    .slice(0, 5)
-    .map((it): Row => ({ type: 'item', it })),
-]
+const recent: Row[] = lib.items.slice(0, 5).map((it): Row => ({ type: 'recent', it }))
 
 const typed: Row[] = [
   { type: 'cmd', label: '新しいノートを作成', key: 'Ctrl N', run: () => {} },
-  ...findItems(lib, ['配色'])
+  ...findItems(lib, parseQuery('配色'))
     .slice(0, 5)
     .map((f): Row => ({ type: 'item', ...f })),
   { type: 'create', q: '配色' },

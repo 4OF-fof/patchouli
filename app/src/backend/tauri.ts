@@ -449,6 +449,8 @@ export function tauriBackend(): Backend {
     saveState: (state) => invoke('save_state', { state }),
     tagHistory: () => invoke<string[]>('tag_history'),
     saveTagHistory: (tags) => invoke('save_tag_history', { tags }),
+    openHistory: () => invoke<string[]>('open_history'),
+    saveOpenHistory: (ids) => invoke('save_open_history', { ids }),
     tabs: async () => (await invoke<SavedTabs | null>('tabs')) ?? undefined,
     saveTabs: (tabs) => invoke('save_tabs', { tabs }),
     async createNote(name, place) {

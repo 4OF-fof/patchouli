@@ -7,7 +7,9 @@ import { IconButton } from '../../controls/IconButton/IconButton'
 export const SHORTCUTS: [string, string][] = [
   ['Ctrl P', '検索バーを開く'],
   ['Ctrl Enter', '検索バーの入力内容でノートを作成'],
-  ['Tab', '検索と AI モードを切り替え'],
+  ['# / @ / .', '検索でタグ・場所・種類で絞り込む'],
+  ['>', '検索で操作を探す（検索欄の先頭で）'],
+  ['?', '検索で AI モードに入る（検索欄の先頭で）'],
   ['Ctrl U', '分類の確認を開く'],
   ['Ctrl N', '新しいノートを作成'],
   ['Ctrl K / [[', 'ノートにリンクを挿入'],

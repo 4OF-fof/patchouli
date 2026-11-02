@@ -43,8 +43,13 @@ export const Places: Story = {
   render: () => bar({ crumbMenu: 0 }),
 }
 export const Menu: Story = { name: 'メニュー', render: () => bar({ initial: 'menu' }) }
-export const Search: Story = { name: '検索を開く', render: () => bar({ initial: 'search' }) }
+const recent = sampleLibrary()
+  .items.slice(0, 5)
+  .map((it) => it.id)
+export const Search: Story = { name: '検索を開く', render: () => bar({ initial: 'search', recent }) }
 export const Typing: Story = { name: '検索に入力中', render: () => bar({ initial: 'search', query: '配色' }) }
+export const TypingTag: Story = { name: '検索でタグを入力中', render: () => bar({ initial: 'search', query: '#配' }) }
+export const Command: Story = { name: '操作を検索', render: () => bar({ initial: 'command' }) }
 const contentSearch: AppBarProps['contentSearch'] = {
   prepare: () => new Promise((r) => setTimeout(r, 1200)),
   search: async () =>

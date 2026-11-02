@@ -216,6 +216,9 @@ export interface Backend {
   /** 最近付けたタグ。新しい順。 */
   tagHistory?: () => Promise<string[]>
   saveTagHistory?: (tags: string[]) => Promise<void>
+  /** 最近開いた項目の ID。新しい順。 */
+  openHistory?: () => Promise<string[]>
+  saveOpenHistory?: (ids: string[]) => Promise<void>
   /** 前に開いていたタブ。 */
   tabs?: () => Promise<SavedTabs | undefined>
   saveTabs?: (tabs: SavedTabs) => Promise<void>

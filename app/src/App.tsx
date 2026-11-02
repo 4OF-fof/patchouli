@@ -435,6 +435,25 @@ export function App(props: AppProps) {
   }
   const [recentTags, setRecentTags] = createSignal<string[]>([])
   onMount(() => void backend.tagHistory?.().then(setRecentTags, fail))
+  const OPENED = 20
+  const [opened, setOpened] = createSignal<string[]>([])
+  // 読み終える前に開いたものは、先頭に残す
+  onMount(
+    () =>
+      void backend.openHistory?.().then((ids) => setOpened([...new Set([...opened(), ...ids])].slice(0, OPENED)), fail),
+  )
+  let saveOpened: ReturnType<typeof setTimeout> | undefined
+  // 素材を送って見るたびに書かないよう、少し待ってから残す
+  createEffect(() => {
+    const v = stack().at(-1)
+    const id = v?.s === 'note' ? v.id : v?.s === 'asset' ? v.list[assetIndex(v)] : undefined
+    const list = untrack(opened)
+    if (!id || list[0] === id) return
+    const next = [id, ...list.filter((x) => x !== id)].slice(0, OPENED)
+    setOpened(next)
+    clearTimeout(saveOpened)
+    saveOpened = setTimeout(() => persist(async () => backend.saveOpenHistory?.(next)), 1000)
+  })
   const tagItem = (id: string, tag: string, on: boolean) => {
     const tags = lib().byId.get(id)?.tags ?? []
     if (on) {
@@ -1268,7 +1287,10 @@ export function App(props: AppProps) {
                       onSibling={toSibling}
                       onGo={onGo}
                       onOpenProject={(name) => go({ s: 'project', name })}
+                      onOpenGroup={openGroup}
+                      onOpenTag={(tag) => go({ s: 'tag', tag })}
                       onOpenItem={(id, at) => openItem(id, undefined, at)}
+                      recent={opened()}
                       onCreate={createNote}
                       library={props.location}
                       onChooseLibrary={chooseLibrary}

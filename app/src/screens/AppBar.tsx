@@ -22,10 +22,22 @@ import { NavMenu, type NavMenuEntry } from '../components/nav/NavMenu/NavMenu'
 import { GRACE, OPEN_DELAY, type Point, graceArea, inside } from '../components/nav/CascadeMenu/grace'
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
 import { TabStrip, type TabStripProps } from '../components/nav/TabStrip/TabStrip'
-import { type Library, newerFirst } from '../model/library'
+import type { Library } from '../model/library'
 import { builtinReport } from '../plugins/builtin'
 import type { PluginActions, PluginReport } from '../plugins/types'
-import { findItems, searchTerms } from '../model/search'
+import {
+  type Candidate,
+  type Chip,
+  candidates,
+  chipOf,
+  commandScore,
+  findItems,
+  fold,
+  markTerms,
+  parseQuery,
+  recentItems,
+} from '../model/search'
+import type { Hint } from '../components/nav/SearchPalette/SearchPalette'
 import styles from './AppBar.module.css'
 import { type Row, SearchResults } from '../components/nav/SearchResults/SearchResults'
 import { ResultHeading } from '../components/nav/ResultRow/ResultRow'
@@ -35,6 +47,7 @@ export type BarState =
   | 'closed'
   | 'menu'
   | 'search'
+  | 'command'
   | 'prompt'
   | 'help'
   | 'plugins'
@@ -63,8 +76,12 @@ export interface AppBarProps {
   activities?: Activity[]
   onGo?: (to: Place) => void
   onOpenProject?: (name: string) => void
+  onOpenGroup?: (id: string) => void
+  onOpenTag?: (tag: string) => void
   /** at は、内容での検索で当たった区間の始まり（秒） */
   onOpenItem?: (id: string, at?: number) => void
+  /** 最近開いた項目の ID。新しい順。検索欄が空のときに出す */
+  recent?: string[]
   onCreate?: (name?: string) => void
   library?: string
   onChooseLibrary?: () => void | Promise<void>
@@ -92,7 +109,8 @@ const toggleTheme = () => {
 export function AppBar(props: AppBarProps) {
   const init = props.initial ?? 'closed'
   const [state, setState] = createSignal<BarState>(init)
-  const [query, setQuery] = createSignal(props.query ?? '')
+  // 「>」などを取り除いて同じ値に戻したときも、入力欄を書き直す
+  const [query, setQuery] = createSignal(props.query ?? '', { equals: false })
   const [idx, setIdx] = createSignal(0)
   const [pick, setPick] = createSignal<BarRequest['plugin']>()
   createEffect(() => {
@@ -102,46 +120,115 @@ export function AppBar(props: AppBarProps) {
     setState(r.state)
   })
   const lib = () => props.lib
-  const searching = () => state() === 'search' || state() === 'prompt'
+  const [chips, setChips] = createSignal<Chip[]>([])
+  const searching = () => state() === 'search' || state() === 'command' || state() === 'prompt'
   const menuOpen = () => state() === 'menu'
   const close = () => {
     setState('closed')
     setQuery('')
+    setChips([])
     setIdx(0)
     setPick(undefined)
   }
-  const commands = (): Row[] => [
+  type Command = Extract<Row, { type: 'cmd' }>
+  const commands = (): Command[] => [
     { type: 'cmd', label: '分類の確認を開く', key: 'Ctrl U', run: () => props.onGo?.('tidy') },
     { type: 'cmd', label: 'すべての項目', key: '', run: () => props.onGo?.('all') },
     { type: 'cmd', label: 'プロジェクト一覧', key: '', run: () => props.onGo?.('projects') },
     { type: 'cmd', label: 'タグ一覧', key: '', run: () => props.onGo?.('tags') },
     { type: 'cmd', label: '新しいノートを作成', key: 'Ctrl N', run: () => props.onCreate?.() },
     { type: 'cmd', label: 'ホームに戻る', key: '', run: () => props.onGo?.('home') },
+    ...(props.onChooseLibrary
+      ? [{ type: 'cmd' as const, label: 'ライブラリを切り替え', key: '', run: () => void onMenu('library') }]
+      : []),
+    { type: 'cmd', label: 'プラグインを開く', key: '', run: () => setState('plugins') },
+    { type: 'cmd', label: '設定を開く', key: '', run: () => setState('settings') },
     { type: 'cmd', label: 'ショートカット一覧', key: '?', run: () => setState('help') },
     { type: 'cmd', label: 'テーマを切り替え', key: '', run: toggleTheme },
+    { type: 'cmd', label: '権利表示', key: '', run: () => setState('notices') },
   ]
-  const terms = () => searchTerms(query())
+  const parsed = createMemo(() => parseQuery(query()))
+  const filters = () => chips().map((c) => c.filter)
+  const terms = () => (state() === 'command' ? parsed().terms : markTerms(parsed()))
+  const RECENT = 8
   const rows = createMemo<Row[]>(() => {
+    if (state() === 'command')
+      return commands()
+        .map((c) => ({ c, sc: commandScore(c.label, query()) }))
+        .filter((x) => x.sc > 0)
+        .toSorted((a, b) => b.sc - a.sc)
+        .map((x) => x.c)
     if (state() !== 'search') return []
-    const ts = terms()
-    const has = (s: string) => ts.every((t) => s.toLowerCase().includes(t))
+    const q = parsed()
+    const fs = filters()
+    if (!query().trim() && !fs.length)
+      return recentItems(lib(), props.recent ?? [])
+        .slice(0, RECENT)
+        .map((it) => ({ type: 'recent', it }))
     const out: Row[] = []
-    if (ts.length)
+    if (q.typing) out.push(...candidates(lib(), q.typing, fs).map((c): Row => ({ type: 'filter', c })))
+    else if (!fs.length && !q.loose.length && q.terms.length) {
+      const has = (s: string) => q.terms.every((t) => fold(s).includes(t))
       out.push(
         ...commands()
-          .filter((c) => c.type === 'cmd' && has(c.label))
+          .filter((c) => has(c.label))
           .slice(0, 3),
       )
-    for (const p of lib()
-      .projects.filter((x) => !ts.length || has(x.name))
-      .slice(0, ts.length ? 3 : 2))
-      out.push({ type: 'proj', p })
-    if (!ts.length) {
-      for (const it of lib().items.toSorted(newerFirst).slice(0, 7)) out.push({ type: 'item', it })
-    } else for (const f of findItems(lib(), ts).slice(0, 8)) out.push({ type: 'item', ...f })
-    if (query().trim()) out.push({ type: 'create', q: query().trim() })
+      for (const p of lib()
+        .projects.filter((x) => has(x.name))
+        .slice(0, 3))
+        out.push({ type: 'proj', p })
+    }
+    for (const f of findItems(lib(), q, fs).slice(0, 8)) out.push({ type: 'item', ...f })
+    if (!fs.length && !q.loose.length && query().trim()) out.push({ type: 'create', q: query().trim() })
     return out
   })
+  /** 打っている途中の語を、絞り込みにする */
+  const commit = (c: Candidate) => {
+    setChips([...chips(), chipOf(c)])
+    setQuery(query().replace(/\S*$/, ''))
+    setIdx(0)
+  }
+  const openPage = (c: Candidate) => {
+    const f = c.filter
+    if (f.kind === 'ext') return commit(c)
+    close()
+    if (f.kind === 'tag') props.onOpenTag?.(f.tag)
+    else if (f.place.group) props.onOpenGroup?.(f.place.group)
+    else if (f.place.project) props.onOpenProject?.(f.place.project)
+  }
+  const hints = (): Hint[] | undefined => {
+    if (state() !== 'search') return undefined
+    if (parsed().typing)
+      return [
+        ['Enter / Tab', '絞り込む'],
+        ['Ctrl Enter', 'ページを開く'],
+        ['Esc', '閉じる'],
+      ]
+    if (chips().length)
+      return [
+        ['Enter', '開く'],
+        ['Backspace', '絞り込みを外す'],
+        ['Esc', '閉じる'],
+      ]
+    if (query().trim()) return undefined
+    return [
+      ['#', 'タグ'],
+      ['@', '場所'],
+      ['.', '種類'],
+      ['>', '操作'],
+      ...(aiOn.latest ? [['?', 'AI で検索'] satisfies Hint] : []),
+      ['Esc', '閉じる'],
+    ]
+  }
+  // 先頭の「>」で操作の検索に、「?」で AI での検索に入る。日本語入力の全角の記号も同じに扱う
+  const onQueryInput = (q: string, composing: boolean) => {
+    setIdx(0)
+    const head = composing || state() !== 'search' || chips().length ? undefined : fold(q.trimStart())[0]
+    const to = head === '>' ? 'command' : head === '?' && aiOn.latest ? 'prompt' : undefined
+    if (to) setState(to)
+    setQuery(to ? q.trimStart().slice(1) : q)
+  }
 
   // AI 検索が有効でなければ、Tab で内容での検索に入れない
   const [aiOn] = createResource(
@@ -201,10 +288,11 @@ export function AppBar(props: AppBarProps) {
 
   const run = (r: Row | undefined) => {
     if (!r) return
+    if (r.type === 'filter') return commit(r.c)
     close()
     if (r.type === 'cmd') r.run()
     else if (r.type === 'proj') props.onOpenProject?.(r.p.name)
-    else if (r.type === 'item') props.onOpenItem?.(r.it.id)
+    else if (r.type === 'item' || r.type === 'recent') props.onOpenItem?.(r.it.id)
     else if (r.type === 'hit') props.onOpenItem?.(r.it.id, r.at)
     else props.onCreate?.(r.q)
   }
@@ -517,43 +605,49 @@ export function AppBar(props: AppBarProps) {
       </Show>
       <Show when={searching()}>
         <SearchPalette
-          mode={state() === 'prompt' ? 'prompt' : 'search'}
-          ai={aiOn.latest === true}
-          query={query()}
-          results={
-            state() === 'search' ? (
-              <SearchResults lib={lib()} rows={rows()} selected={idx()} terms={terms()} onRun={run} />
-            ) : (
-              promptResults()
-            )
-          }
-          onClose={close}
-          onQueryInput={(q) => {
-            setQuery(q)
+          mode={state() === 'prompt' ? 'prompt' : state() === 'command' ? 'command' : 'search'}
+          chips={chips().map((c) => c.label)}
+          onRemoveChip={(i) => {
+            setChips(chips().filter((_, j) => j !== i))
             setIdx(0)
           }}
+          hints={hints()}
+          query={query()}
+          results={
+            state() === 'prompt' ? (
+              promptResults()
+            ) : rows().length || query().trim() || chips().length ? (
+              <SearchResults lib={lib()} rows={rows()} selected={idx()} terms={terms()} onRun={run} />
+            ) : undefined
+          }
+          onClose={close}
+          onQueryInput={onQueryInput}
           onInputKeyDown={(e) => {
+            if (e.isComposing) return
+            const sel = shownRows()[idx()]
             if (e.key === 'Escape') close()
-            else if (e.key === 'Tab') {
-              e.preventDefault()
-              if (state() === 'prompt') setState('search')
-              else if (aiOn.latest) setState('prompt')
+            else if (e.key === 'Backspace' && !query()) {
+              if (state() === 'search' && chips().length) setChips(chips().slice(0, -1))
+              else if (state() !== 'search') setState('search')
               else return
+              e.preventDefault()
               setIdx(0)
+            } else if (e.key === 'Tab') {
+              e.preventDefault()
+              const c = sel?.type === 'filter' ? sel : rows().find((r) => r.type === 'filter')
+              if (state() === 'search' && parsed().typing && c?.type === 'filter') commit(c.c)
             } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
               e.preventDefault()
               const n = shownRows().length
               setIdx(Math.max(0, Math.min(n - 1, idx() + (e.key === 'ArrowDown' ? 1 : -1))))
-            } else if (e.key === 'Enter' && state() === 'search') {
+            } else if (e.key === 'Enter') {
               e.preventDefault()
-              if (e.ctrlKey || e.metaKey) {
+              if (state() === 'search' && (e.ctrlKey || e.metaKey)) {
+                if (sel?.type === 'filter') return openPage(sel.c)
                 const q = query().trim()
                 close()
                 props.onCreate?.(q || undefined)
-              } else run(rows()[idx()])
-            } else if (e.key === 'Enter' && state() === 'prompt') {
-              e.preventDefault()
-              run(hitRows()[idx()])
+              } else run(sel)
             }
           }}
         />

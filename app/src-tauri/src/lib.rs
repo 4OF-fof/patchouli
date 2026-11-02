@@ -1704,6 +1704,16 @@ async fn save_tag_history(cur: State<'_, Current>, tags: Vec<String>) -> Result<
 }
 
 #[tauri::command]
+async fn open_history(cur: State<'_, Current>) -> Result<Vec<String>, String> {
+    with(&cur, |l| l.open_history())
+}
+
+#[tauri::command]
+async fn save_open_history(cur: State<'_, Current>, ids: Vec<String>) -> Result<(), String> {
+    with(&cur, |l| l.save_open_history(&ids))
+}
+
+#[tauri::command]
 async fn tabs(cur: State<'_, Current>) -> Result<Option<serde_json::Map<String, Value>>, String> {
     with(&cur, |l| l.tabs())
 }
@@ -1832,6 +1842,8 @@ pub fn run() {
             save_state,
             tag_history,
             save_tag_history,
+            open_history,
+            save_open_history,
             tabs,
             save_tabs,
             create_note,

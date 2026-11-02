@@ -5,7 +5,7 @@ import { Thumb, type ThumbProps } from '../../media/Thumb/Thumb'
 import { middleClick } from '../TabPane/newTab'
 import styles from './ResultRow.module.css'
 
-export type ResultKind = 'command' | 'project' | 'note' | 'asset' | 'create'
+export type ResultKind = 'command' | 'project' | 'group' | 'tag' | 'ext' | 'note' | 'asset' | 'create'
 
 export interface ResultRowProps {
   kind: ResultKind
@@ -21,6 +21,9 @@ export interface ResultRowProps {
 const ICON: Record<Exclude<ResultKind, 'asset'>, IconName> = {
   command: 'chevron',
   project: 'project',
+  group: 'group',
+  tag: 'hash',
+  ext: 'file',
   note: 'note',
   create: 'plus',
 }
@@ -42,7 +45,7 @@ export function ResultRow(props: ResultRowProps) {
       aria-selected={!!props.selected}
       onClick={() => props.onClick?.()}
       {...middleClick(() => {
-        if (props.kind !== 'command' && props.kind !== 'create') props.onClick?.()
+        if (props.kind === 'note' || props.kind === 'asset' || props.kind === 'project') props.onClick?.()
       })}
     >
       <span class={styles.ic}>

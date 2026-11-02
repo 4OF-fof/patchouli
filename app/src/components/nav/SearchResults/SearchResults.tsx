@@ -1,23 +1,30 @@
 import { For, type JSX, Show } from 'solid-js'
 import { ResultHeading, ResultRow } from '../ResultRow/ResultRow'
 import { type Item, type Library, type Project, thumbOf } from '../../../model/library'
+import { type Candidate, foldMap } from '../../../model/search'
 import { clock } from '../../media/PlayerBar/clock'
 import styles from './SearchResults.module.css'
 
 export type Row =
   | { type: 'cmd'; label: string; key: string; run: () => void }
   | { type: 'proj'; p: Project }
+  /** 打っている途中の「#」「@」「.」に合う、絞り込みの候補 */
+  | { type: 'filter'; c: Candidate }
   /** why は、所属とタグのあとに足す当たりの説明 */
   | { type: 'item'; it: Item; why?: string }
+  /** 何も入れていないときに出す、最近開いた項目 */
+  | { type: 'recent'; it: Item }
   /** 内容での検索で当たった項目。at は当たった区間の始まり（秒） */
   | { type: 'hit'; it: Item; at?: number }
   | { type: 'create'; q: string }
 
+/** terms は fold したもの。表記の違う元の文字列の、当たったところに印を付ける */
 function marked(text: string, terms: string[]): JSX.Element {
-  const low = text.toLowerCase()
+  const m = foldMap(text)
   const on = Array.from({ length: text.length }, () => false)
   for (const t of terms.filter(Boolean)) {
-    for (let i = low.indexOf(t); i >= 0; i = low.indexOf(t, i + t.length)) on.fill(true, i, i + t.length)
+    for (let i = m.text.indexOf(t); i >= 0; i = m.text.indexOf(t, i + t.length))
+      on.fill(true, m.from[i], m.to[i + t.length - 1])
   }
   const out: JSX.Element[] = []
   let i = 0
@@ -40,7 +47,19 @@ function Where(props: { lib: Library; it: Item; terms: string[]; why?: string })
   )
 }
 
-const SEC = { cmd: '操作', proj: 'プロジェクト', item: '項目', hit: '内容で一致', create: '' }
+const SEC = {
+  cmd: '操作',
+  proj: 'プロジェクト',
+  filter: '',
+  item: '項目',
+  recent: '最近開いた項目',
+  hit: '内容で一致',
+  create: '',
+}
+const FILTER = { tag: 'タグ', place: '場所', ext: '種類' }
+
+const kindOf = (c: Candidate) =>
+  c.filter.kind === 'place' ? (c.filter.place.group ? 'group' : 'project') : c.filter.kind
 
 export interface SearchResultsProps {
   lib: Library
@@ -59,8 +78,18 @@ export function SearchResults(props: SearchResultsProps) {
           const sel = () => i() === props.selected
           return (
             <>
-              {r.type !== 'create' && prev()?.type !== r.type && <ResultHeading>{SEC[r.type]}</ResultHeading>}
-              {r.type === 'cmd' ? (
+              {r.type !== 'create' && prev()?.type !== r.type && (
+                <ResultHeading>{r.type === 'filter' ? FILTER[r.c.filter.kind] : SEC[r.type]}</ResultHeading>
+              )}
+              {r.type === 'filter' ? (
+                <ResultRow
+                  kind={kindOf(r.c)}
+                  title={marked(r.c.label, props.terms)}
+                  sub={r.c.sub ? `${r.c.sub} | ${r.c.n} 件` : `${r.c.n} 件`}
+                  selected={sel()}
+                  onClick={() => props.onRun(r)}
+                />
+              ) : r.type === 'cmd' ? (
                 <ResultRow
                   kind="command"
                   title={marked(r.label, props.terms)}
@@ -76,7 +105,7 @@ export function SearchResults(props: SearchResultsProps) {
                   selected={sel()}
                   onClick={() => props.onRun(r)}
                 />
-              ) : r.type === 'item' || r.type === 'hit' ? (
+              ) : r.type === 'item' || r.type === 'recent' || r.type === 'hit' ? (
                 <ResultRow
                   kind={r.it.note ? 'note' : 'asset'}
                   title={marked(r.it.name, props.terms)}
