@@ -1,4 +1,4 @@
-import { For, Show, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, Match, Show, Switch, createSignal, onCleanup, onMount } from 'solid-js'
 import type {
   AutoTag,
   AutoTagProgress,
@@ -16,9 +16,12 @@ import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 
 export type TabsAt = 'top' | 'left'
+export type SettingsPage = 'app' | 'view' | 'ai' | 'cache' | 'developer'
 
 export interface SettingsDialogProps {
   version: string
+  /** 開いたときに出すページ。 */
+  page?: SettingsPage
   tabsAt?: TabsAt
   onTabsAtChange?: (at: TabsAt) => void
   autoTag?: AutoTag
@@ -136,6 +139,17 @@ export function SettingsDialog(props: SettingsDialogProps) {
     void run(`${noun}を削除しています`, () => props.onDeveloperChange!({ ...d, [key]: d[key].filter((x) => x !== p) }))
   }
 
+  const pages = () =>
+    [
+      { id: 'app' as const, label: 'アプリ', on: true },
+      { id: 'view' as const, label: '表示', on: !!props.onTabsAtChange },
+      { id: 'ai' as const, label: 'AI 機能', on: !!props.onAutoTagChange },
+      { id: 'cache' as const, label: 'キャッシュ', on: !!(props.onClear || props.onRemoveUnused) },
+      { id: 'developer' as const, label: '開発者モード', on: !!props.onDeveloperChange },
+    ].filter((p) => p.on)
+  const [picked, setPicked] = createSignal<SettingsPage>(props.page ?? 'app')
+  const current = () => pages().find((p) => p.id === picked()) ?? pages()[0]
+
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
       <div class={styles.root} role="dialog" aria-label="設定" tabIndex={-1} ref={el}>
@@ -144,144 +158,157 @@ export function SettingsDialog(props: SettingsDialogProps) {
             <Icon name="close" />
           </IconButton>
         </Show>
-        <h2>設定</h2>
+        <nav class={styles.side}>
+          <h2>設定</h2>
+          <ScrollArea class={styles.list} viewClass={styles.listView}>
+            <For each={pages()}>
+              {(p) => (
+                <button
+                  type="button"
+                  class={styles.item}
+                  aria-current={current().id === p.id}
+                  onClick={() => setPicked(p.id)}
+                >
+                  {p.label}
+                </button>
+              )}
+            </For>
+          </ScrollArea>
+        </nav>
         <ScrollArea class={styles.main} viewClass={styles.mainView}>
           <Show when={busy() || error()}>
             <p class={styles.status} data-error={!!error()} role="status">
               {error() ?? `${busy()}…`}
             </p>
           </Show>
-          <section>
-            <h4>アプリ</h4>
-            <div class={styles.row}>
-              <b>Patchouli</b>
-              <span class={styles.mono}>{props.version}</span>
-            </div>
-          </section>
-          <Show when={props.onTabsAtChange}>
-            {(change) => (
-              <section>
-                <h4>表示</h4>
-                <SettingField
-                  setting={{
-                    key: 'tabsAt',
-                    label: 'タブの位置',
-                    kind: 'choice',
-                    choices: [
-                      { value: 'top', label: '上' },
-                      { value: 'left', label: '左' },
-                    ],
-                    default: 'top',
-                    value: props.tabsAt ?? 'top',
-                    help: '左にすると、カーソルを窓の左端に寄せたときに出ます',
-                  }}
-                  onChange={(v) => change()(v === 'left' ? 'left' : 'top')}
-                />
-              </section>
-            )}
-          </Show>
-          <Show when={props.onAutoTagChange}>
-            {(change) => (
-              <section>
-                <h4>AI 機能</h4>
-                <Show when={props.autoTag} fallback={<p class={styles.loading}>読み込み中…</p>}>
-                  {(a) => (
-                    <>
-                      <For each={[failed()]}>
-                        {() => (
-                          <SettingField
-                            setting={{
-                              key: 'autoTag',
-                              label: 'AI 機能を有効化',
-                              kind: 'toggle',
-                              default: false,
-                              value: a().enabled || downloading(),
-                              help: a().installed
-                                ? '自動分類と AI 検索に使用します'
-                                : `自動分類と AI 検索に使用します。有効にすると、モデルと llama.cpp（${bytesLabel(a().need)}）をダウンロードします`,
-                            }}
-                            disabled={downloading()}
-                            onChange={(v) => void changeAutoTag(change(), v === true)}
-                          />
-                        )}
-                      </For>
-                      <Show when={a().enabled && a().installed && !downloading()}>
-                        <div class={styles.sub}>
-                          <For each={[failed()]}>
-                            {() => (
-                              <>
-                                <Show when={props.onSuggestChange}>
-                                  {(set) => (
-                                    <SettingField
-                                      setting={{
-                                        key: 'tagSuggest',
-                                        label: '自動分類',
-                                        kind: 'choice',
-                                        choices: SUGGEST.map(({ value, label }) => ({ value, label })),
-                                        default: 'confirm',
-                                        value: a().suggest,
-                                        help: SUGGEST.find((s) => s.value === a().suggest)?.help,
-                                      }}
-                                      onChange={(v) =>
-                                        void run('自動分類を切り替えています', () => set()(v as TagSuggest))
-                                      }
-                                    />
-                                  )}
-                                </Show>
-                                <Show when={props.onSearchChange}>
-                                  {(set) => (
-                                    <SettingField
-                                      setting={{
-                                        key: 'contentSearch',
-                                        label: 'AI 検索',
-                                        kind: 'toggle',
-                                        default: true,
-                                        value: a().search,
-                                        help: '検索バーで Tab を押すと、内容で検索できます',
-                                      }}
-                                      onChange={(v) => void run('AI 検索を切り替えています', () => set()(v === true))}
-                                    />
-                                  )}
-                                </Show>
-                              </>
-                            )}
-                          </For>
-                        </div>
-                      </Show>
-                      <Show when={downloading() && !a().installed}>
-                        <div class={styles.row}>
-                          <b>ダウンロード中</b>
-                          <span class={styles.mono}>
-                            {props.autoTagProgress ? progressLabel(props.autoTagProgress) : '…'}
-                          </span>
-                          <Show when={props.onCancelDownload}>
-                            {(cancel) => (
-                              <Button size="sm" onClick={() => void cancel()()}>
-                                キャンセル
-                              </Button>
-                            )}
-                          </Show>
-                        </div>
-                      </Show>
-                      <Show when={a().gpus}>
-                        {(g) => (
-                          <div class={styles.row}>
-                            <b>実行環境</b>
-                            <span class={styles.mono}>
-                              {g().length ? `GPU: ${g().join('、')}` : 'CPU（GPU が見つからないため）'}
-                            </span>
+          <h3 class={styles.head}>{current().label}</h3>
+          <Switch>
+            <Match when={current().id === 'app'}>
+              <div class={styles.row}>
+                <b>Patchouli</b>
+                <span class={styles.mono}>{props.version}</span>
+              </div>
+            </Match>
+            <Match when={current().id === 'view' && props.onTabsAtChange}>
+              {(change) => (
+                <>
+                  <SettingField
+                    setting={{
+                      key: 'tabsAt',
+                      label: 'タブの位置',
+                      kind: 'choice',
+                      choices: [
+                        { value: 'top', label: '上' },
+                        { value: 'left', label: '左' },
+                      ],
+                      default: 'top',
+                      value: props.tabsAt ?? 'top',
+                      help: '左にすると、カーソルを窓の左端に寄せたときに出ます',
+                    }}
+                    onChange={(v) => change()(v === 'left' ? 'left' : 'top')}
+                  />
+                </>
+              )}
+            </Match>
+            <Match when={current().id === 'ai' && props.onAutoTagChange}>
+              {(change) => (
+                <>
+                  <Show when={props.autoTag} fallback={<p class={styles.loading}>読み込み中…</p>}>
+                    {(a) => (
+                      <>
+                        <For each={[failed()]}>
+                          {() => (
+                            <SettingField
+                              setting={{
+                                key: 'autoTag',
+                                label: 'AI 機能を有効化',
+                                kind: 'toggle',
+                                default: false,
+                                value: a().enabled || downloading(),
+                                help: a().installed
+                                  ? '自動分類と AI 検索に使用します'
+                                  : `自動分類と AI 検索に使用します。有効にすると、モデルと llama.cpp（${bytesLabel(a().need)}）をダウンロードします`,
+                              }}
+                              disabled={downloading()}
+                              onChange={(v) => void changeAutoTag(change(), v === true)}
+                            />
+                          )}
+                        </For>
+                        <Show when={a().enabled && a().installed && !downloading()}>
+                          <div class={styles.sub}>
+                            <For each={[failed()]}>
+                              {() => (
+                                <>
+                                  <Show when={props.onSuggestChange}>
+                                    {(set) => (
+                                      <SettingField
+                                        setting={{
+                                          key: 'tagSuggest',
+                                          label: '自動分類',
+                                          kind: 'choice',
+                                          choices: SUGGEST.map(({ value, label }) => ({ value, label })),
+                                          default: 'confirm',
+                                          value: a().suggest,
+                                          help: SUGGEST.find((s) => s.value === a().suggest)?.help,
+                                        }}
+                                        onChange={(v) =>
+                                          void run('自動分類を切り替えています', () => set()(v as TagSuggest))
+                                        }
+                                      />
+                                    )}
+                                  </Show>
+                                  <Show when={props.onSearchChange}>
+                                    {(set) => (
+                                      <SettingField
+                                        setting={{
+                                          key: 'contentSearch',
+                                          label: 'AI 検索',
+                                          kind: 'toggle',
+                                          default: true,
+                                          value: a().search,
+                                          help: '検索バーで Tab を押すと、内容で検索できます',
+                                        }}
+                                        onChange={(v) => void run('AI 検索を切り替えています', () => set()(v === true))}
+                                      />
+                                    )}
+                                  </Show>
+                                </>
+                              )}
+                            </For>
                           </div>
-                        )}
-                      </Show>
-                    </>
-                  )}
-                </Show>
-              </section>
-            )}
-          </Show>
-          <Show when={props.onClear || props.onRemoveUnused}>
-            <section>
-              <h4>キャッシュ</h4>
+                        </Show>
+                        <Show when={downloading() && !a().installed}>
+                          <div class={styles.row}>
+                            <b>ダウンロード中</b>
+                            <span class={styles.mono}>
+                              {props.autoTagProgress ? progressLabel(props.autoTagProgress) : '…'}
+                            </span>
+                            <Show when={props.onCancelDownload}>
+                              {(cancel) => (
+                                <Button size="sm" onClick={() => void cancel()()}>
+                                  キャンセル
+                                </Button>
+                              )}
+                            </Show>
+                          </div>
+                        </Show>
+                        <Show when={a().gpus}>
+                          {(g) => (
+                            <div class={styles.row}>
+                              <b>実行環境</b>
+                              <span class={styles.mono}>
+                                {g().length ? `GPU: ${g().join('、')}` : 'CPU（GPU が見つからないため）'}
+                              </span>
+                            </div>
+                          )}
+                        </Show>
+                      </>
+                    )}
+                  </Show>
+                </>
+              )}
+            </Match>
+            <Match when={current().id === 'cache'}>
               <Show when={props.onClear}>
                 {(clear) => (
                   <For each={CACHES}>
@@ -320,85 +347,84 @@ export function SettingsDialog(props: SettingsDialogProps) {
                   </div>
                 )}
               </Show>
-            </section>
-          </Show>
-          <Show when={props.onDeveloperChange}>
-            {(change) => (
-              <section>
-                <h4>開発者モード</h4>
-                <Show when={props.developer} fallback={<p class={styles.loading}>読み込み中…</p>}>
-                  {(d) => (
-                    <>
-                      <For each={[failed()]}>
-                        {() => (
-                          <SettingField
-                            setting={{
-                              key: 'enabled',
-                              label: '開発者モードを有効化',
-                              kind: 'toggle',
-                              default: false,
-                              value: d().enabled,
-                            }}
-                            disabled={busy() !== undefined}
-                            onChange={(v) =>
-                              void run(v ? '開発者モードを有効にしています' : '開発者モードを無効にしています', () =>
-                                change()({ ...d(), enabled: v === true }),
-                              )
-                            }
-                          />
-                        )}
-                      </For>
-                      <For each={['dir', 'repo'] as const}>
-                        {(kind) => (
-                          <div class={styles.places}>
-                            <div class={styles.placesHead}>
-                              <span>{PLACES[kind].label}</span>
-                              <Show when={props.onPickDevPath}>
-                                <Button
-                                  size="sm"
-                                  disabled={busy() !== undefined}
-                                  onClick={() => void addPath(d(), kind)}
-                                >
-                                  {PLACES[kind].noun}を追加
-                                </Button>
-                              </Show>
-                            </div>
-                            <For
-                              each={d()[PLACES[kind].key]}
-                              fallback={<p class={styles.empty}>{PLACES[kind].noun}が登録されていません</p>}
-                            >
-                              {(p) => (
-                                <div class={styles.place}>
-                                  <span class={styles.path} data-tip={p}>
-                                    {p}
-                                  </span>
+            </Match>
+            <Match when={current().id === 'developer' && props.onDeveloperChange}>
+              {(change) => (
+                <>
+                  <Show when={props.developer} fallback={<p class={styles.loading}>読み込み中…</p>}>
+                    {(d) => (
+                      <>
+                        <For each={[failed()]}>
+                          {() => (
+                            <SettingField
+                              setting={{
+                                key: 'enabled',
+                                label: '開発者モードを有効化',
+                                kind: 'toggle',
+                                default: false,
+                                value: d().enabled,
+                              }}
+                              disabled={busy() !== undefined}
+                              onChange={(v) =>
+                                void run(v ? '開発者モードを有効にしています' : '開発者モードを無効にしています', () =>
+                                  change()({ ...d(), enabled: v === true }),
+                                )
+                              }
+                            />
+                          )}
+                        </For>
+                        <For each={['dir', 'repo'] as const}>
+                          {(kind) => (
+                            <div class={styles.places}>
+                              <div class={styles.placesHead}>
+                                <span>{PLACES[kind].label}</span>
+                                <Show when={props.onPickDevPath}>
                                   <Button
                                     size="sm"
-                                    variant="ghost"
                                     disabled={busy() !== undefined}
-                                    onClick={() => removePath(d(), kind, p)}
+                                    onClick={() => void addPath(d(), kind)}
                                   >
-                                    削除
+                                    {PLACES[kind].noun}を追加
                                   </Button>
-                                </div>
-                              )}
-                            </For>
+                                </Show>
+                              </div>
+                              <For
+                                each={d()[PLACES[kind].key]}
+                                fallback={<p class={styles.empty}>{PLACES[kind].noun}が登録されていません</p>}
+                              >
+                                {(p) => (
+                                  <div class={styles.place}>
+                                    <span class={styles.path} data-tip={p}>
+                                      {p}
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      disabled={busy() !== undefined}
+                                      onClick={() => removePath(d(), kind, p)}
+                                    >
+                                      削除
+                                    </Button>
+                                  </div>
+                                )}
+                              </For>
+                            </div>
+                          )}
+                        </For>
+                        <Show when={props.onReload && d().enabled}>
+                          <div class={styles.reload}>
+                            <Button size="sm" disabled={busy() !== undefined} onClick={() => props.onReload?.()}>
+                              プラグインを再読み込み
+                            </Button>
                           </div>
-                        )}
-                      </For>
-                      <Show when={props.onReload && d().enabled}>
-                        <div class={styles.reload}>
-                          <Button size="sm" disabled={busy() !== undefined} onClick={() => props.onReload?.()}>
-                            プラグインを再読み込み
-                          </Button>
-                        </div>
-                      </Show>
-                    </>
-                  )}
-                </Show>
-              </section>
-            )}
-          </Show>
+                        </Show>
+                      </>
+                    )}
+                  </Show>
+                </>
+              )}
+            </Match>
+          </Switch>
         </ScrollArea>
       </div>
     </div>

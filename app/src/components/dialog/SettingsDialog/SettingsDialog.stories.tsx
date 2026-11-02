@@ -50,6 +50,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {
+  args: { page: 'developer' },
   play: async ({ args, canvas, userEvent }) => {
     await expect(canvas.getByText('フォルダが登録されていません')).toBeInTheDocument()
     await userEvent.click(canvas.getByRole('button', { name: 'リポジトリを追加' }))
@@ -58,10 +59,10 @@ export const Default: Story = {
     )
   },
 }
-export const NoUnused: Story = { name: '使っていないものがない', args: { unused: [] } }
+export const NoUnused: Story = { name: '使っていないものがない', args: { page: 'cache', unused: [] } }
 export const Loading: Story = {
   name: '読み込み中',
-  args: { usage: undefined, unused: undefined, developer: undefined },
+  args: { page: 'cache', usage: undefined, unused: undefined, developer: undefined },
 }
 export const VersionOnly: Story = {
   name: '版だけ',
@@ -70,6 +71,7 @@ export const VersionOnly: Story = {
 export const Failed: Story = {
   name: '消せなかった',
   args: {
+    page: 'cache',
     onClear: async () => {
       await wait()
       throw new Error('library: 別のプロセスが使用中です')
@@ -80,6 +82,7 @@ export const Failed: Story = {
 export const Developer: Story = {
   name: '開発者モード',
   args: {
+    page: 'developer',
     developer: { enabled: true, pluginDirs: [DIR, 'E:\\work\\plugins'], repos: [REPO] },
   },
   play: async ({ args, canvas, userEvent }) => {
@@ -91,6 +94,7 @@ export const Developer: Story = {
 export const DeveloperFailed: Story = {
   name: '開発者モードの変更に失敗',
   args: {
+    page: 'developer',
     onDeveloperChange: fn(async () => {
       throw new Error('settings.json: アクセスが拒否されました')
     }),
@@ -104,6 +108,7 @@ export const DeveloperFailed: Story = {
 export const AutoTagDownloading: Story = {
   name: 'AI 機能をダウンロード中',
   args: {
+    page: 'ai',
     autoTag: {
       enabled: false,
       installed: false,
@@ -118,6 +123,7 @@ export const AutoTagDownloading: Story = {
 export const AutoTagGpu: Story = {
   name: 'AI 機能が有効（GPU）',
   args: {
+    page: 'ai',
     autoTag: {
       enabled: true,
       installed: true,
@@ -132,6 +138,7 @@ export const AutoTagGpu: Story = {
 export const AutoTagCpu: Story = {
   name: 'AI 機能が有効（CPU）',
   args: {
+    page: 'ai',
     autoTag: {
       enabled: true,
       installed: true,
