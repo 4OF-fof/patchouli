@@ -221,22 +221,32 @@ class Meter {
     this.count = 0
   }
 
+  // 長い音声では標本の数が億を超えるので、画面を止めないよう、よくあるモノラルとステレオは配列を直に読む
   push(channels: Float32Array[]) {
     const len = channels[0]?.length ?? 0
     const k = channels.length
+    const [a = new Float32Array(0), b = a] = channels
+    let { sum, count } = this
     for (let i = 0; i < len; i++) {
-      let v = 0
-      for (const c of channels) v += c[i] * c[i]
-      this.sum += v / k
-      if (++this.count < this.size) continue
-      this.sums.push(this.sum)
-      this.sum = 0
-      this.count = 0
+      let v: number
+      if (k === 1) v = a[i] * a[i]
+      else if (k === 2) v = a[i] * a[i] + b[i] * b[i]
+      else {
+        v = 0
+        for (let c = 0; c < k; c++) v += channels[c][i] * channels[c][i]
+      }
+      sum += v / k
+      if (++count < this.size) continue
+      this.sums.push(sum)
+      sum = 0
+      count = 0
       if (this.sums.length >= this.limit) {
         this.sums = Array.from({ length: this.sums.length / 2 }, (_, j) => this.sums[2 * j] + this.sums[2 * j + 1])
         this.size *= 2
       }
     }
+    this.sum = sum
+    this.count = count
   }
 
   finish(points: number) {
