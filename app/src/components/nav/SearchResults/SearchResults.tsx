@@ -57,7 +57,7 @@ const SEC = {
   hit: '内容で一致',
   create: '',
 }
-const FILTER = { tag: 'タグ', place: '場所', ext: '種類' }
+const FILTER = { tag: 'タグ', place: '場所', ext: '種類', not: '除外' }
 
 const kindOf = (c: Candidate) =>
   c.filter.kind === 'place' ? (c.filter.place.group ? 'group' : 'project') : c.filter.kind
@@ -85,7 +85,9 @@ export function SearchResults(props: SearchResultsProps) {
               {r.type === 'filter' ? (
                 <ResultRow
                   kind={kindOf(r.c)}
-                  title={marked(r.c.label, props.terms)}
+                  title={
+                    r.c.filter.kind === 'not' ? `「${r.c.label}」を含むものを除く` : marked(r.c.label, props.terms)
+                  }
                   sub={r.c.sub ? `${r.c.sub} | ${r.c.n} 件` : `${r.c.n} 件`}
                   selected={sel()}
                   onClick={() => props.onRun(r)}

@@ -66,6 +66,8 @@ export interface SearchPaletteProps {
   query?: string
   results?: JSX.Element
   onClose?: () => void
+  /** 結果の終わり近くまでスクロールしたときに呼ぶ */
+  onMore?: () => void
   /** composing は、日本語入力で変換を確定する前か。確定したときにも呼ぶ */
   onQueryInput?: (query: string, composing: boolean) => void
   onInputKeyDown?: (e: KeyboardEvent) => void
@@ -118,7 +120,18 @@ export function SearchPalette(props: SearchPaletteProps) {
           />
         </div>
         <Show when={props.results}>
-          <ScrollArea class={styles.res} viewClass={styles.resView} role="listbox">
+          <ScrollArea
+            class={styles.res}
+            viewClass={styles.resView}
+            role="listbox"
+            ref={(el) =>
+              el.addEventListener(
+                'scroll',
+                () => el.scrollHeight - el.scrollTop - el.clientHeight < 160 && props.onMore?.(),
+                { passive: true },
+              )
+            }
+          >
             {props.results}
           </ScrollArea>
         </Show>

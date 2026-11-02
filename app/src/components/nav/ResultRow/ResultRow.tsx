@@ -5,7 +5,7 @@ import { Thumb, type ThumbProps } from '../../media/Thumb/Thumb'
 import { middleClick } from '../TabPane/newTab'
 import styles from './ResultRow.module.css'
 
-export type ResultKind = 'command' | 'project' | 'group' | 'tag' | 'ext' | 'note' | 'asset' | 'create'
+export type ResultKind = 'command' | 'project' | 'group' | 'tag' | 'ext' | 'not' | 'note' | 'asset' | 'create'
 
 export interface ResultRowProps {
   kind: ResultKind
@@ -26,6 +26,7 @@ const ICON: Record<Exclude<ResultKind, 'asset'>, IconName> = {
   group: 'group',
   tag: 'hash',
   ext: 'file',
+  not: 'minus',
   note: 'note',
   create: 'plus',
 }

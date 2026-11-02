@@ -159,6 +159,21 @@ export function AppBar(props: AppBarProps) {
   const filters = () => chips().map((c) => c.filter)
   const terms = () => (state() === 'command' ? parsed().terms : markTerms(parsed()))
   const RECENT = 8
+  // 項目は、終わり近くまでスクロールするたびに PAGE 件ずつ足して出す
+  const PAGE = 30
+  const [shown, setShown] = createSignal(PAGE)
+  createEffect(() => {
+    void [state(), query(), chips()]
+    setShown(PAGE)
+  })
+  const found = createMemo(() =>
+    state() === 'search' && (query().trim() || chips().length)
+      ? findItems(lib(), parsed(), filters(), props.recent)
+      : [],
+  )
+  const more = () => {
+    if (shown() < found().length) setShown(shown() + PAGE)
+  }
   const rows = createMemo<Row[]>(() => {
     if (state() === 'command')
       return commands()
@@ -187,19 +202,22 @@ export function AppBar(props: AppBarProps) {
         .slice(0, 3))
         out.push({ type: 'proj', p })
     }
-    for (const f of findItems(lib(), q, fs).slice(0, 8)) out.push({ type: 'item', ...f })
-    if (!fs.length && !q.loose.length && query().trim()) out.push({ type: 'create', q: query().trim() })
+    const items = found()
+    for (const f of items.slice(0, shown())) out.push({ type: 'item', ...f })
+    if (!fs.length && !q.loose.length && query().trim() && shown() >= items.length)
+      out.push({ type: 'create', q: query().trim() })
     return out
   })
   /** 打っている途中の語を、絞り込みにする */
   const commit = (c: Candidate) => {
     setChips([...chips(), chipOf(c)])
-    setQuery(query().replace(/\S*$/, ''))
+    const at = parsed().typing?.at
+    setQuery(at === undefined ? query() : query().slice(0, at))
     setIdx(0)
   }
   const openPage = (c: Candidate) => {
     const f = c.filter
-    if (f.kind === 'ext') return commit(c)
+    if (f.kind === 'ext' || f.kind === 'not') return commit(c)
     close()
     if (f.kind === 'tag') props.onOpenTag?.(f.tag)
     else if (f.place.group) props.onOpenGroup?.(f.place.group)
@@ -207,10 +225,11 @@ export function AppBar(props: AppBarProps) {
   }
   const hints = (): Hint[] | undefined => {
     if (state() !== 'search') return undefined
-    if (parsed().typing)
+    const typing = parsed().typing
+    if (typing)
       return [
-        ['Enter / Tab', '絞り込む'],
-        ['Ctrl Enter', 'ページを開く'],
+        ['Enter / Tab', typing.kind === 'not' ? '除く' : '絞り込む'],
+        ...(typing.kind === 'tag' || typing.kind === 'place' ? [['Ctrl Enter', 'ページを開く'] satisfies Hint] : []),
         ['Esc', '閉じる'],
       ]
     if (chips().length)
@@ -224,6 +243,7 @@ export function AppBar(props: AppBarProps) {
       ['#', 'タグ'],
       ['@', '場所'],
       ['.', '種類'],
+      ['-', '除く'],
       ['>', '操作'],
       ...(aiOn.latest ? [['?', 'AI で検索'] satisfies Hint] : []),
       ['Esc', '閉じる'],
@@ -629,6 +649,7 @@ export function AppBar(props: AppBarProps) {
             ) : undefined
           }
           onClose={close}
+          onMore={more}
           onQueryInput={onQueryInput}
           onInputKeyDown={(e) => {
             if (e.isComposing) return
@@ -648,6 +669,7 @@ export function AppBar(props: AppBarProps) {
               e.preventDefault()
               const n = shownRows().length
               setIdx(Math.max(0, Math.min(n - 1, idx() + (e.key === 'ArrowDown' ? 1 : -1))))
+              if (idx() >= n - 5) more()
             } else if (e.key === 'Enter') {
               e.preventDefault()
               if (state() === 'search' && (e.ctrlKey || e.metaKey)) {

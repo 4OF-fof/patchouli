@@ -38,42 +38,75 @@ export function strength(f: string, t: string): number {
   return 1
 }
 
-export type FilterKind = 'tag' | 'place' | 'ext'
+export type FilterKind = 'tag' | 'place' | 'ext' | 'not'
 
-/** 確定した絞り込み。place は、プロジェクトかグループ */
-export type Filter = { kind: 'tag'; tag: string } | { kind: 'place'; place: Place } | { kind: 'ext'; ext: string }
+/** 確定した絞り込み。place は、プロジェクトかグループ。not の text は fold したもの */
+export type Filter =
+  | { kind: 'tag'; tag: string }
+  | { kind: 'place'; place: Place }
+  | { kind: 'ext'; ext: string }
+  | { kind: 'not'; text: string }
 
 export interface Chip {
   filter: Filter
   label: string
 }
 
-const KIND: Record<string, FilterKind> = { '#': 'tag', '@': 'place', '.': 'ext' }
-
-export interface Query {
-  /** fold した言葉 */
-  terms: string[]
-  /** 書いたままの「#」「@」「.」の語。fold して、部分一致で絞る */
-  loose: { kind: FilterKind; text: string }[]
-  /** 打っている途中の「#」「@」「.」の語。入力の最後にあって、後ろに空白がないもの */
-  typing?: { kind: FilterKind; text: string }
+// 日本語入力のままだと「.」は「。」に、「-」は「ー」になるので、語の頭ではどちらも記号として扱う
+const KIND: Record<string, FilterKind> = {
+  '#': 'tag',
+  '@': 'place',
+  '.': 'ext',
+  '。': 'ext',
+  '-': 'not',
+  ー: 'not',
+  '−': 'not',
 }
 
+/** 「#」「@」「.」「-」の語。text は fold したもの、raw は書いたまま、at は入力の中で記号のある位置 */
+export interface Loose {
+  kind: FilterKind
+  text: string
+  raw: string
+  at: number
+}
+
+export interface Query {
+  /** fold した言葉。「"…"」で囲んだものは、空白を含めて 1 つ */
+  terms: string[]
+  /** 書いたままの「#」「@」「.」「-」の語。部分一致で絞る（「-」は除く） */
+  loose: Loose[]
+  /** 打っている途中の「#」「@」「.」「-」の語。入力の最後にあって、後ろに空白がないもの */
+  typing?: Loose
+}
+
+const TOKEN = /(\S?)"([^"]*)("?)|\S+/g
+
 export function parseQuery(q: string): Query {
-  const words = fold(q).split(/\s+/).filter(Boolean)
+  const src = q.replace(/[“”„＂]/g, '"')
   const out: Query = { terms: [], loose: [] }
-  for (const w of words) {
-    const kind = KIND[w[0] ?? '']
-    if (kind) out.loose.push({ kind, text: w.slice(1) })
-    else out.terms.push(w)
+  let last: { loose?: Loose; end: number; open: boolean } | undefined
+  for (const m of src.matchAll(TOKEN)) {
+    const quoted = m[2] !== undefined
+    const head = quoted ? (m[1] ?? '') : m[0].slice(0, 1)
+    const kind = KIND[fold(head)]
+    if (quoted && head && !kind) {
+      out.terms.push(fold(head))
+      last = { end: m.index + m[0].length, open: false }
+    }
+    const raw = quoted ? (m[2] ?? '') : kind ? m[0].slice(1) : m[0]
+    const loose = kind ? { kind, text: fold(raw), raw, at: m.index } : undefined
+    if (loose) out.loose.push(loose)
+    else if (raw.trim()) out.terms.push(fold(raw))
+    last = { loose, end: m.index + m[0].length, open: quoted && !m[3] }
   }
-  const last = out.loose.at(-1)
-  if (last && words.length && KIND[words.at(-1)?.[0] ?? ''] && !/\s$/.test(q)) out.typing = last
+  if (last?.loose && (last.open || last.end === src.length)) out.typing = last.loose
   return out
 }
 
 /** 結果の中で印を付ける言葉 */
-export const markTerms = (q: Query) => [...q.terms, ...q.loose.map((l) => l.text)].filter(Boolean)
+export const markTerms = (q: Query) =>
+  [...q.terms, ...q.loose.filter((l) => l.kind !== 'not').map((l) => l.text)].filter(Boolean)
 
 interface Doc {
   name: string
@@ -124,32 +157,47 @@ function snippet(text: string, t: string) {
   return `…${text.slice(Math.max(0, p - 8), (m.to[i + t.length - 1] ?? p) + 16)}…`
 }
 
-function fits(d: Doc, l: Query['loose'][number]) {
+/** 探す欄のどこかに t があるか */
+const contains = (d: Doc, t: string) =>
+  [d.name, d.memo, d.place, d.body, d.ext, ...d.aliases, ...d.tags].some((f) => f.includes(t))
+
+function fits(d: Doc, l: Loose) {
   if (!l.text) return true
   if (l.kind === 'tag') return d.tags.some((t) => t.includes(l.text))
   if (l.kind === 'place') return d.place.includes(l.text)
+  if (l.kind === 'not') return !contains(d, l.text)
   return d.ext.startsWith(l.text) || d.label.includes(l.text)
 }
 
-/** why は、所属とタグからは分からない当たり（別名・メモ・本文） */
-export function findItems(lib: Library, q: Query, chips: Filter[] = []): { it: Item; why?: string }[] {
+/**
+ * why は、所属とタグからは分からない当たり（別名・メモ・本文）。
+ * 点数が同じなら、opened（最近開いた項目の ID、新しい順）にあるものを開いた順に、ほかは新しい順に並べる
+ */
+export function findItems(
+  lib: Library,
+  q: Query,
+  chips: Filter[] = [],
+  opened: string[] = [],
+): { it: Item; why?: string }[] {
   const inGroups = new Map(
     chips.flatMap((f) =>
       f.kind === 'place' && f.place.group ? [[f.place.group, new Set(lib.inGroup(f.place.group))]] : [],
     ),
   )
-  const matches = (it: Item, f: Filter) =>
+  const matches = (it: Item, d: Doc, f: Filter) =>
     f.kind === 'tag'
       ? hasTag(it, f.tag)
       : f.kind === 'ext'
         ? it.ext === f.ext
-        : f.place.group
-          ? !!inGroups.get(f.place.group)?.has(it)
-          : it.project === f.place.project
+        : f.kind === 'not'
+          ? !contains(d, f.text)
+          : f.place.group
+            ? !!inGroups.get(f.place.group)?.has(it)
+            : it.project === f.place.project
   const found: { it: Item; sc: number; why?: string }[] = []
   for (const it of lib.items) {
-    if (!chips.every((f) => matches(it, f))) continue
     const d = docOf(lib, it)
+    if (!chips.every((f) => matches(it, d, f))) continue
     if (!q.loose.every((l) => fits(d, l))) continue
     let sc = 0
     const why: string[] = []
@@ -175,7 +223,11 @@ export function findItems(lib: Library, q: Query, chips: Filter[] = []): { it: I
     })
     if (ok) found.push({ it, sc, why: why.join(' | ') || undefined })
   }
-  return found.toSorted((a, b) => b.sc - a.sc || newerFirst(a.it, b.it)).map(({ it, why }) => ({ it, why }))
+  const rank = new Map(opened.map((id, i) => [id, i]))
+  const rankOf = (it: Item) => rank.get(it.id) ?? rank.size
+  return found
+    .toSorted((a, b) => b.sc - a.sc || rankOf(a.it) - rankOf(b.it) || newerFirst(a.it, b.it))
+    .map(({ it, why }) => ({ it, why }))
 }
 
 export interface Candidate {
@@ -189,16 +241,27 @@ export interface Candidate {
 const CANDIDATES = 6
 
 const keyOf = (f: Filter) =>
-  f.kind === 'tag' ? `#${f.tag}` : f.kind === 'ext' ? `.${f.ext}` : `@${f.place.project}\n${f.place.group}`
+  f.kind === 'tag'
+    ? `#${f.tag}`
+    : f.kind === 'ext'
+      ? `.${f.ext}`
+      : f.kind === 'not'
+        ? `-${f.text}`
+        : `@${f.place.project}\n${f.place.group}`
+
+const MARK = { tag: '# ', place: '@ ', ext: '', not: '- ' }
 
 /** 候補を確定したときの絞り込み */
-export const chipOf = (c: Candidate): Chip => ({
-  filter: c.filter,
-  label: c.filter.kind === 'tag' ? `# ${c.label}` : c.filter.kind === 'place' ? `@ ${c.label}` : c.label,
-})
+export const chipOf = (c: Candidate): Chip => ({ filter: c.filter, label: MARK[c.filter.kind] + c.label })
 
-/** 打っている途中の「#」「@」「.」の語に合う、タグ・場所・種類 */
-export function candidates(lib: Library, typing: NonNullable<Query['typing']>, chips: Filter[]): Candidate[] {
+/** 打っている途中の「#」「@」「.」の語に合う、タグ・場所・種類。「-」なら、その語を除く候補 1 つ */
+export function candidates(lib: Library, typing: Loose, chips: Filter[]): Candidate[] {
+  if (typing.kind === 'not') {
+    const filter: Filter = { kind: 'not', text: typing.text }
+    if (!typing.text || chips.some((f) => keyOf(f) === keyOf(filter))) return []
+    const n = lib.items.filter((it) => contains(docOf(lib, it), typing.text)).length
+    return [{ filter, label: typing.raw, n }]
+  }
   const all: Candidate[] = []
   if (typing.kind === 'tag')
     for (const [tag, items] of lib.tagGroups()) all.push({ filter: { kind: 'tag', tag }, label: tag, n: items.length })
