@@ -35,7 +35,8 @@ export function TidyPanel(props: TidyPanelProps) {
   const onTags = () => props.tags.filter((t) => t.on)
   const nothing = () => !onTags().length && !props.project
   // 選んでいない候補も、付けるか決める手がかりとして出す
-  const nearTags = () => [...onTags(), ...props.tags.filter((t) => !t.on)].map((t) => t.tag)
+  const nearTags = () =>
+    [...onTags(), ...props.tags.filter((t) => !t.on)].map((t) => t.tag).filter((t) => near(t).length)
   const near = (tag: string) =>
     lib()
       .items.filter((x) => !x.note && x.id !== props.it.id && x.tags.includes(tag))
@@ -148,17 +149,15 @@ export function TidyPanel(props: TidyPanelProps) {
           {(tag) => (
             <div class={styles.fl}>
               <span class={styles.sub}># {tag} の類似項目</span>
-              <Show when={near(tag).length} fallback={<span class={styles.hint}>まだありません</span>}>
-                <JustifiedRow height={96} gap={6}>
-                  <For each={near(tag)}>
-                    {(x) => (
-                      <div style={{ '--ar': x.ratio }}>
-                        <Thumb {...thumbOf(x)} />
-                      </div>
-                    )}
-                  </For>
-                </JustifiedRow>
-              </Show>
+              <JustifiedRow height={96} gap={6}>
+                <For each={near(tag)}>
+                  {(x) => (
+                    <div style={{ '--ar': x.ratio }}>
+                      <Thumb {...thumbOf(x)} />
+                    </div>
+                  )}
+                </For>
+              </JustifiedRow>
             </div>
           )}
         </For>

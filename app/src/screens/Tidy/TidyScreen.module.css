@@ -34,15 +34,17 @@
 .big > * {
   border-radius: var(--radius-sm);
 }
+/* 重ねて出るスクロールバーがサムネイルにかからないよう、下の余白に出す */
 .stripBox {
   flex: none;
+  margin-bottom: -10px;
 }
 .strip {
   --thumb-h: 52px;
   display: flex;
   align-items: flex-end;
   gap: var(--space-6);
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-4) 14px;
 }
 .q {
   position: relative;
