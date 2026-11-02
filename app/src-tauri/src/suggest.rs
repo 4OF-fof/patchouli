@@ -3,7 +3,7 @@
 //! 取り分けで手の重みより当たるときだけ使う。
 
 use std::collections::{BTreeSet, HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
@@ -46,6 +46,7 @@ struct SavedWeights {
     bias: f32,
 }
 
+#[derive(PartialEq)]
 struct Entry {
     id: String,
     /// プロジェクトかグループに入っているか
@@ -57,14 +58,25 @@ struct Entry {
     words: Vec<(&'static str, String)>,
 }
 
+/// 1 件の、self.tags の順のタグごとの特徴と、中身・文章それぞれの近傍（近さ・id）。
+struct Feat {
+    rows: Vec<[f32; 6]>,
+    near: [Vec<(f32, String)>; 2],
+}
+
 struct Model {
+    root: PathBuf,
     entries: Vec<Entry>,
     tags: Vec<String>,
     tag_sim: Vec<Vec<f32>>,
     tag_cls: Vec<Vec<f32>>,
     words: HashMap<String, Vec<f32>>,
+    /// 語ごとの、いちばん近いタグとの近さ（word_z の最大）
+    best: HashMap<String, f32>,
     /// 語ごとの、その語が出る項目の数
     df: HashMap<String, usize>,
+    /// 候補を出す項目と判断のある項目の特徴。次に作るときに、変わっていなければ持ち越す
+    feats: HashMap<String, Arc<Feat>>,
     weights: Weights,
 }
 
@@ -182,8 +194,7 @@ impl Model {
             / total
     }
 
-    /// self.tags の順に、タグごとの特徴。
-    fn features(&self, i: usize) -> Vec<[f32; 6]> {
+    fn compute(&self, i: usize) -> Feat {
         let e = &self.entries[i];
         let zero = match e.content.as_ref().or(e.text.as_ref()) {
             Some(base) => standardize(self.tag_cls.iter().map(|t| dot(base, t)).collect()),
@@ -194,8 +205,10 @@ impl Model {
             .iter()
             .filter_map(|(_, w)| self.words.get(w).map(|v| self.word_z(v)))
             .collect();
-        let near_content = self.near(i, |o| o.content.as_deref());
-        let near_text = self.near(i, |o| o.text.as_deref());
+        let near = [
+            self.near(i, |o| o.content.as_deref()),
+            self.near(i, |o| o.text.as_deref()),
+        ];
         let peers: Vec<&Entry> = self
             .entries
             .iter()
@@ -205,7 +218,8 @@ impl Model {
             })
             .map(|(_, o)| o)
             .collect();
-        self.tags
+        let rows = self
+            .tags
             .iter()
             .enumerate()
             .map(|(k, t)| {
@@ -219,22 +233,87 @@ impl Model {
                 [
                     (word - 1.8).max(0.0),
                     if exact { 1.0 } else { 0.0 },
-                    self.vote(&near_content, t),
-                    self.vote(&near_text, t),
+                    self.vote(&near[0], t),
+                    self.vote(&near[1], t),
                     zero[k],
                     proj,
                 ]
             })
-            .collect()
+            .collect();
+        Feat {
+            rows,
+            near: near.map(|n| {
+                n.into_iter()
+                    .map(|(s, j)| (s, self.entries[j].id.clone()))
+                    .collect()
+            }),
+        }
+    }
+
+    /// prev から変わった項目の、前と今。消えたものと増えたものは、片方が None。
+    fn changed<'a>(&'a self, prev: &'a Model) -> Vec<(Option<&'a Entry>, Option<&'a Entry>)> {
+        let mut old: HashMap<&str, &Entry> =
+            prev.entries.iter().map(|e| (e.id.as_str(), e)).collect();
+        let mut out: Vec<(Option<&Entry>, Option<&Entry>)> = self
+            .entries
+            .iter()
+            .filter_map(|e| match old.remove(e.id.as_str()) {
+                Some(o) if o == e => None,
+                o => Some((o, Some(e))),
+            })
+            .collect();
+        out.extend(old.into_values().map(|o| (Some(o), None)));
+        out
+    }
+
+    /// prev で作った i の特徴を、そのまま使えるか。タグの一覧が同じなら、特徴が変わるのは
+    /// i 自身、近傍、同じプロジェクトのタグの付いた項目が変わったときと、近傍に入る項目が増えたときだけ。
+    fn keeps(&self, i: usize, f: &Feat, changed: &[(Option<&Entry>, Option<&Entry>)]) -> bool {
+        let e = &self.entries[i];
+        changed.iter().all(|(old, new)| {
+            let Some(id) = old.or(*new).map(|c| c.id.as_str()) else {
+                return true;
+            };
+            let tagged = |c: &Entry| !c.tags.is_empty();
+            if id == e.id
+                || f.near.iter().flatten().any(|(_, n)| n == id)
+                || (e.project.is_some()
+                    && old
+                        .iter()
+                        .chain(new)
+                        .any(|c| tagged(c) && c.project == e.project))
+            {
+                return false;
+            }
+            let Some(c) = new.filter(|c| tagged(c)) else {
+                return true;
+            };
+            [
+                (e.content.as_deref(), c.content.as_deref()),
+                (e.text.as_deref(), c.text.as_deref()),
+            ]
+            .into_iter()
+            .zip(&f.near)
+            .all(|(pair, near)| match pair {
+                (Some(v), Some(w)) => {
+                    near.len() == NEIGHBORS && near.last().is_some_and(|(s, _)| dot(v, w) <= *s)
+                }
+                _ => true,
+            })
+        })
     }
 
     fn scores(&self, i: usize) -> Vec<(String, f32)> {
         let (w, b) = self.weights;
+        let f = match self.feats.get(&self.entries[i].id) {
+            Some(f) => Arc::clone(f),
+            None => Arc::new(self.compute(i)),
+        };
         let mut out: Vec<(String, f32)> = self
             .tags
             .iter()
-            .zip(self.features(i))
-            .map(|(t, f)| (t.clone(), sigmoid(b + dot(&w, &f))))
+            .zip(&f.rows)
+            .map(|(t, f)| (t.clone(), sigmoid(b + dot(&w, f))))
             .collect();
         out.sort_by(|a, b| b.1.total_cmp(&a.1));
         out
@@ -246,10 +325,9 @@ impl Model {
             .words
             .iter()
             .filter(|(src, w)| {
-                let Some(v) = self.words.get(w) else {
+                let Some(&best) = self.best.get(w) else {
                     return false;
                 };
-                let best = self.word_z(v).into_iter().fold(f32::MIN, f32::max);
                 let latin = w.chars().filter(|c| c.is_ascii_alphabetic()).count() >= 4;
                 best < 2.0 && self.df.get(w).is_some_and(|&n| n >= 2) && (*src != "名前" || latin)
             })
@@ -330,24 +408,16 @@ impl Model {
 
     /// 判断が LEARN_MIN 件あれば学習し、5 件に 1 件の取り分けで手の重みより当たるときだけ使う。
     fn learn(&self, ds: &[Decision]) -> Option<Weights> {
-        let at: HashMap<&str, usize> = self
-            .entries
-            .iter()
-            .enumerate()
-            .map(|(i, e)| (e.id.as_str(), i))
-            .collect();
-        let mut features: HashMap<usize, Vec<[f32; 6]>> = HashMap::new();
         let mut rows: Vec<([f32; 6], bool, bool)> = Vec::new();
         for d in ds {
-            let (Some(&i), Some(k)) = (
-                at.get(d.item.as_str()),
+            let (Some(f), Some(k)) = (
+                self.feats.get(&d.item),
                 self.tags.iter().position(|t| *t == d.tag),
             ) else {
                 continue;
             };
-            let f = features.entry(i).or_insert_with(|| self.features(i))[k];
             let held = crate::thumb::fnv(&[d.item.as_bytes()]).is_multiple_of(5);
-            rows.push((f, d.ok, held));
+            rows.push((f.rows[k], d.ok, held));
         }
         if rows.len() < LEARN_MIN {
             return None;
@@ -400,6 +470,11 @@ fn build(
     let ix = vectors::index(&path)?;
     let store = vectors::Store::open(&path)?;
     let stale = || RUN.load(Ordering::Relaxed) != run;
+    let prev = last()
+        .lock()
+        .ok()
+        .and_then(|g| g.clone())
+        .filter(|p| p.root == root);
     let mut entries = Vec::new();
     let mut words: HashMap<String, Vec<f32>> = HashMap::new();
     for it in items {
@@ -410,8 +485,12 @@ fn build(
         let ws = words_of(it);
         for (_, w) in &ws {
             if !words.contains_key(w) {
-                let vec =
-                    store.word(&format!("w:{w}"), || embed::text("sentence similarity", w))?;
+                let vec = match prev.as_ref().and_then(|p| p.words.get(w)) {
+                    Some(v) => v.clone(),
+                    None => {
+                        store.word(&format!("w:{w}"), || embed::text("sentence similarity", w))?
+                    }
+                };
                 words.insert(w.clone(), vec);
             }
         }
@@ -431,33 +510,81 @@ fn build(
         .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
-    let mut tag_sim = Vec::with_capacity(tags.len());
-    let mut tag_cls = Vec::with_capacity(tags.len());
-    for t in &tags {
-        if stale() {
-            return Ok(None);
+    // タグの一覧が前と同じなら、タグとの近さで決まるものは前のものを使える
+    let same = prev.as_deref().filter(|p| p.tags == tags);
+    let (tag_sim, tag_cls) = match same {
+        Some(p) => (p.tag_sim.clone(), p.tag_cls.clone()),
+        None => {
+            let mut tag_sim = Vec::with_capacity(tags.len());
+            let mut tag_cls = Vec::with_capacity(tags.len());
+            for t in &tags {
+                if stale() {
+                    return Ok(None);
+                }
+                tag_sim.push(store.word(&format!("ts:{t}"), || {
+                    embed::text("sentence similarity", leaf(t))
+                })?);
+                tag_cls.push(store.word(&format!("tc:{t}"), || {
+                    embed::text("classification", leaf(t))
+                })?);
+            }
+            (tag_sim, tag_cls)
         }
-        tag_sim.push(store.word(&format!("ts:{t}"), || {
-            embed::text("sentence similarity", leaf(t))
-        })?);
-        tag_cls.push(store.word(&format!("tc:{t}"), || {
-            embed::text("classification", leaf(t))
-        })?);
-    }
+    };
     let mut df: HashMap<String, usize> = HashMap::new();
     for (_, w) in entries.iter().flat_map(|e| &e.words) {
         *df.entry(w.clone()).or_default() += 1;
     }
     let mut m = Model {
+        root: root.to_owned(),
         entries,
         tags,
         tag_sim,
         tag_cls,
         words,
+        best: HashMap::new(),
         df,
+        feats: HashMap::new(),
         weights: (WEIGHTS, BIAS),
     };
-    if let Some(w) = m.learn(&decisions::load(root)) {
+    m.best = m
+        .words
+        .iter()
+        .map(|(w, v)| {
+            let best = same
+                .and_then(|p| p.best.get(w).copied())
+                .unwrap_or_else(|| m.word_z(v).into_iter().fold(f32::MIN, f32::max));
+            (w.clone(), best)
+        })
+        .collect();
+    let ds = decisions::load(root);
+    let decided: HashSet<&str> = ds.iter().map(|d| d.item.as_str()).collect();
+    let changed = same.map(|p| m.changed(p)).unwrap_or_default();
+    let mut feats = HashMap::new();
+    let mut made = 0;
+    for (i, e) in m.entries.iter().enumerate() {
+        let open = e.tags.is_empty() && (e.content.is_some() || e.text.is_some());
+        if !open && !decided.contains(e.id.as_str()) {
+            continue;
+        }
+        if stale() {
+            return Ok(None);
+        }
+        let kept = same
+            .and_then(|p| p.feats.get(&e.id))
+            .filter(|f| m.keeps(i, f, &changed));
+        let f = match kept {
+            Some(f) => Arc::clone(f),
+            None => {
+                made += 1;
+                Arc::new(m.compute(i))
+            }
+        };
+        feats.insert(e.id.clone(), f);
+    }
+    log::info!("候補の特徴を作り直した: {made} / {} 件", feats.len());
+    m.feats = feats;
+    if let Some(w) = m.learn(&ds) {
         m.weights = w;
     }
     let saved = SavedWeights {
