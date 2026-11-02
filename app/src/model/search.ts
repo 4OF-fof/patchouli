@@ -52,16 +52,7 @@ export interface Chip {
   label: string
 }
 
-// 日本語入力のままだと「.」は「。」に、「-」は「ー」になるので、語の頭ではどちらも記号として扱う
-const KIND: Record<string, FilterKind> = {
-  '#': 'tag',
-  '@': 'place',
-  '.': 'ext',
-  '。': 'ext',
-  '-': 'not',
-  ー: 'not',
-  '−': 'not',
-}
+const KIND: Record<string, FilterKind> = { '#': 'tag', '@': 'place', '.': 'ext', '-': 'not' }
 
 /** 「#」「@」「.」「-」の語。text は fold したもの、raw は書いたまま、at は入力の中で記号のある位置 */
 export interface Loose {
