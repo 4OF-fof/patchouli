@@ -1,11 +1,10 @@
-import { Match, Switch, createSignal, onMount } from 'solid-js'
+import { Match, Switch, onMount } from 'solid-js'
 import { type Item, type Library, type Place, placeOf, samePlace } from '../../../model/library'
 import { TagPicker } from '../../controls/TagPicker/TagPicker'
 import { CascadeMenu } from '../../nav/CascadeMenu/CascadeMenu'
 import type { NavMenuEntry } from '../../nav/NavMenu/NavMenu'
 import { PlaceMenu } from '../../nav/PlaceMenu/PlaceMenu'
 import { ContextMenu } from '../ContextMenu/ContextMenu'
-import styles from './ItemMenu.module.css'
 
 /** プラグインが足す項目。 */
 export interface ItemMenuEntry {
@@ -29,7 +28,6 @@ export interface ItemMenuProps {
   onOpenInTab?: () => void
   onOpenDefault?: () => void
   onReveal?: () => void
-  onRename: (name: string) => void
   onMove: (place: Place) => void
   onTag: (tag: string, on: boolean) => void
   onPin: (on: boolean) => void
@@ -63,7 +61,6 @@ export function ItemMenu(props: ItemMenuProps) {
               props.onReveal && { id: 'reveal', icon: 'folder', label: props.revealLabel ?? 'フォルダを開く' },
             ]),
             'separator' as const,
-            { id: 'rename', icon: 'rename' as const, label: '名前を変更', sub: true },
           ]
         : []),
       { id: 'move', icon: 'move', label: '移動', sub: true },
@@ -119,12 +116,6 @@ export function ItemMenu(props: ItemMenuProps) {
     name: props.onCopyName,
     delete: props.onDelete,
   })
-  const [name, setName] = createSignal(one()?.name ?? '')
-  const rename = (e: SubmitEvent) => {
-    e.preventDefault()
-    const to = name().trim()
-    done(to && to !== one()?.name ? () => props.onRename(to) : undefined)
-  }
   const submenu = (id: string) => (
     <Switch>
       <Match when={id === 'move'}>
@@ -146,17 +137,6 @@ export function ItemMenu(props: ItemMenuProps) {
           onClose={props.onClose}
           anchor={box}
         />
-      </Match>
-      <Match when={id === 'rename'}>
-        <form class={styles.rename} onSubmit={rename}>
-          <span>名前を変更</span>
-          <input
-            aria-label="名前"
-            value={name()}
-            onInput={(e) => setName(e.currentTarget.value)}
-            onFocus={(e) => e.currentTarget.select()}
-          />
-        </form>
       </Match>
     </Switch>
   )

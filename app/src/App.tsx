@@ -1419,7 +1419,6 @@ export function App(props: AppProps) {
                             onOpenInTab={() => one() && asNewTab(() => openItem(one()!))}
                             onOpenDefault={openDefault && (() => one() && void openDefault(one()!).catch(fail))}
                             onReveal={reveal && (() => one() && void reveal(one()!).catch(fail))}
-                            onRename={(name) => one() && renameItem(one()!, name)}
                             onMove={(to) => moveItems(ids(), to)}
                             onTag={(tag, on) => tagItems(ids(), tag, on)}
                             onPin={(on) => pinItems(ids(), on)}
