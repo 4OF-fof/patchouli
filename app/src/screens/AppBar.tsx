@@ -142,12 +142,12 @@ export function AppBar(props: AppBarProps) {
     return out
   })
 
-  // 自動分類が有効でなければ、Tab で内容での検索に入れない
+  // AI 検索が有効でなければ、Tab で内容での検索に入れない
   const [aiOn] = createResource(
     () => (searching() && props.contentSearch && props.autoTag) || undefined,
     async (a) => {
       const s = await a.get()
-      return s.enabled && s.installed
+      return s.enabled && s.installed && s.search
     },
   )
   const [prepared, setPrepared] = createSignal<'preparing' | 'ready' | { error: string }>()
@@ -566,6 +566,20 @@ export function AppBar(props: AppBarProps) {
             })
           }
           onCancelDownload={props.autoTag && (() => props.autoTag!.cancelDownload())}
+          onSuggestChange={
+            props.autoTag &&
+            (async (mode) => {
+              await props.autoTag!.setSuggest(mode)
+              await reloadAutoTag()
+            })
+          }
+          onSearchChange={
+            props.autoTag &&
+            (async (on) => {
+              await props.autoTag!.setSearch(on)
+              await reloadAutoTag()
+            })
+          }
           developer={dev.latest}
           onDeveloperChange={
             props.developer &&

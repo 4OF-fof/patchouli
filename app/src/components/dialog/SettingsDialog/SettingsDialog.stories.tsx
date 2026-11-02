@@ -18,9 +18,18 @@ const meta = {
       { id: 'example.psd', name: 'Photoshop', version: '1.2.0', bytes: 2_310_000 },
       { id: 'example.heic', name: 'HEIC', version: '0.3.1', bytes: 845_000 },
     ],
-    autoTag: { enabled: false, installed: false, downloading: false, need: 864_676_512 },
+    autoTag: {
+      enabled: false,
+      installed: false,
+      downloading: false,
+      need: 864_676_512,
+      suggest: 'confirm',
+      search: true,
+    },
     onAutoTagChange: wait,
     onCancelDownload: wait,
+    onSuggestChange: wait,
+    onSearchChange: wait,
     onClear: wait,
     onRemoveUnused: wait,
     developer: { enabled: false, pluginDirs: [], repos: [] },
@@ -93,17 +102,44 @@ export const DeveloperFailed: Story = {
   },
 }
 export const AutoTagDownloading: Story = {
-  name: '自動分類をダウンロード中',
+  name: 'AI 機能をダウンロード中',
   args: {
-    autoTag: { enabled: false, installed: false, downloading: true, need: 864_676_512 },
+    autoTag: {
+      enabled: false,
+      installed: false,
+      downloading: true,
+      need: 864_676_512,
+      suggest: 'confirm',
+      search: true,
+    },
     autoTagProgress: { file: 'embeddinggemma-2-Q8_0.gguf', done: 312_000_000, total: 829_000_000 },
   },
 }
 export const AutoTagGpu: Story = {
-  name: '自動分類が有効（GPU）',
-  args: { autoTag: { enabled: true, installed: true, downloading: false, need: 0, gpus: ['NVIDIA GeForce RTX 4070'] } },
+  name: 'AI 機能が有効（GPU）',
+  args: {
+    autoTag: {
+      enabled: true,
+      installed: true,
+      downloading: false,
+      need: 0,
+      gpus: ['NVIDIA GeForce RTX 4070'],
+      suggest: 'confirm',
+      search: true,
+    },
+  },
 }
 export const AutoTagCpu: Story = {
-  name: '自動分類が有効（CPU）',
-  args: { autoTag: { enabled: true, installed: true, downloading: false, need: 0, gpus: [] } },
+  name: 'AI 機能が有効（CPU）',
+  args: {
+    autoTag: {
+      enabled: true,
+      installed: true,
+      downloading: false,
+      need: 0,
+      gpus: [],
+      suggest: 'confirm',
+      search: true,
+    },
+  },
 }

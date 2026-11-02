@@ -14,7 +14,7 @@ import {
   toOpened,
   toProject,
 } from './stored'
-import type { Suggestion, Thumbnail } from '../model/library'
+import type { Thumbnail } from '../model/library'
 import type {
   FormatInfo,
   ItemDetails,
@@ -50,6 +50,7 @@ import type {
   FileDrag,
   KnownLibrary,
   SavedTabs,
+  Suggestions,
   UnusedPlugin,
 } from './types'
 
@@ -369,11 +370,11 @@ export function tauriBackend(): Backend {
     }
   }
   let listeningContent: Promise<unknown> | undefined
-  let suggestions: Record<string, Suggestion> | undefined
-  const suggestionSubs = new Set<(s: Record<string, Suggestion>) => void>()
+  let suggestions: Suggestions | undefined
+  const suggestionSubs = new Set<(s: Suggestions) => void>()
   let listeningSuggestions: Promise<unknown> | undefined
   const listenSuggestions = () =>
-    (listeningSuggestions ??= listen<Record<string, Suggestion>>('suggestions-changed', (e) => {
+    (listeningSuggestions ??= listen<Suggestions>('suggestions-changed', (e) => {
       suggestions = e.payload
       for (const cb of suggestionSubs) cb(e.payload)
     }))
@@ -499,6 +500,8 @@ export function tauriBackend(): Backend {
       get: () => invoke<AutoTag>('auto_tag'),
       set: (on) => invoke('set_auto_tag', { on }),
       cancelDownload: () => invoke('cancel_auto_tag_download'),
+      setSuggest: (mode) => invoke('set_tag_suggest', { mode }),
+      setSearch: (on) => invoke('set_content_search', { on }),
       onProgress(cb) {
         const off = listen<AutoTagProgress>('auto-tag-progress', (e) => cb(e.payload))
         return () => void off.then((f) => f())

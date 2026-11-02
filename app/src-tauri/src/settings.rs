@@ -12,7 +12,19 @@ const LIBRARY: &str = "library";
 const RECENT: &str = "recent";
 const DEVELOPER: &str = "developer";
 const AUTO_TAG: &str = "autoTag";
+const TAG_SUGGEST: &str = "tagSuggest";
+const CONTENT_SEARCH: &str = "contentSearch";
 const DEVICE: &str = "device";
+
+/// タグの候補の扱い。auto は選択済みの候補をそのまま付け、confirm は分類の確認に出す。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum TagSuggest {
+    Auto,
+    #[default]
+    Confirm,
+    Off,
+}
 
 fn path(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
@@ -128,6 +140,36 @@ pub fn device(app: &AppHandle) -> Result<String, String> {
 pub fn set_auto_tag(app: &AppHandle, on: bool) -> Result<(), String> {
     let mut m = read(app)?;
     m.insert(AUTO_TAG.into(), json!(on));
+    write(app, &m)
+}
+
+pub fn tag_suggest(app: &AppHandle) -> Result<TagSuggest, String> {
+    Ok(read(app)?
+        .get(TAG_SUGGEST)
+        .cloned()
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default())
+}
+
+pub fn set_tag_suggest(app: &AppHandle, s: TagSuggest) -> Result<(), String> {
+    let mut m = read(app)?;
+    m.insert(
+        TAG_SUGGEST.into(),
+        serde_json::to_value(s).map_err(|e| e.to_string())?,
+    );
+    write(app, &m)
+}
+
+pub fn content_search(app: &AppHandle) -> Result<bool, String> {
+    Ok(read(app)?
+        .get(CONTENT_SEARCH)
+        .and_then(Value::as_bool)
+        .unwrap_or(true))
+}
+
+pub fn set_content_search(app: &AppHandle, on: bool) -> Result<(), String> {
+    let mut m = read(app)?;
+    m.insert(CONTENT_SEARCH.into(), json!(on));
     write(app, &m)
 }
 

@@ -897,8 +897,20 @@ export function App(props: AppProps) {
 
   let suggestions: Record<string, Suggestion> | undefined
   const stopSuggestions = backend.tagDecisions?.onSuggestions((s) => {
-    suggestions = s
-    setLib(withSuggestions(lib(), s))
+    suggestions = s.items
+    setLib(withSuggestions(lib(), s.items))
+    // 選択済みの候補がないものは、分類の確認に残す
+    if (s.apply)
+      for (const it of lib().pending()) {
+        const tags = it.suggestion?.tags ?? []
+        const chosen = tags.filter((t) => t.on).map((t) => t.tag)
+        if (chosen.length)
+          approveTags(it.id, {
+            tags: chosen,
+            rejected: tags.filter((t) => !t.on).map((t) => t.tag),
+            project: it.project,
+          })
+      }
   })
   onCleanup(() => stopSuggestions?.())
 
@@ -1222,6 +1234,7 @@ export function App(props: AppProps) {
               <TidyScreen
                 lib={lib()}
                 currentId={v.id}
+                recentTags={recentTags()}
                 onOpenItem={(id) => openItem(id)}
                 onApprove={(it, d) => approveTags(it.id, d)}
                 onUndo={undoTags}

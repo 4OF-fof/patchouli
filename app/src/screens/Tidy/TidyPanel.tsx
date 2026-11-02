@@ -1,14 +1,16 @@
-import { For, Show } from 'solid-js'
+import { For, type JSX, Show, createEffect, createSignal, on } from 'solid-js'
+import { Portal } from 'solid-js/web'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Kbd } from '../../components/base/Kbd/Kbd'
+import { Chip } from '../../components/controls/Chip/Chip'
 import { Select } from '../../components/controls/Select/Select'
+import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { type Item, type Library, type TagCandidate, thumbOf } from '../../model/library'
 import styles from './TidyPanel.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
 
 export interface TidyPanelProps {
-  class?: string
   lib: Library
   it: Item
   tags: TagCandidate[]
@@ -16,12 +18,16 @@ export interface TidyPanelProps {
   pos: number
   total: number
   later?: boolean
-  onTag: (k: number, on: boolean) => void
+  recentTags?: string[]
+  /** 名前の行の右端に置くもの */
+  aside?: JSX.Element
+  onTag: (tag: string, on: boolean) => void
   onProject: (name: string) => void
-  onAddTag?: (tag: string) => void
   onPutOff: () => void
   onApprove: () => void
 }
+
+const MIN_PICKER = 280
 
 export function TidyPanel(props: TidyPanelProps) {
   const lib = () => props.lib
@@ -33,52 +39,92 @@ export function TidyPanel(props: TidyPanelProps) {
       .items.filter((x) => !x.note && x.id !== props.it.id && x.tags.includes(firstTag()))
       .toSorted((a, b) => Math.abs(a.hue - props.it.hue) - Math.abs(b.hue - props.it.hue))
       .slice(0, 6)
+
+  let addBtn: HTMLButtonElement | undefined
+  const [picking, setPicking] = createSignal(false)
+  // 付けるたびに並びが変わらないよう、開いたときのものを使う
+  const [recent, setRecent] = createSignal<string[]>([])
+  const [at, setAt] = createSignal<JSX.CSSProperties>({})
+  /** 素材画面と同じく、押したボタンの左に、検索欄がボタンの横に来るように出す。 */
+  const place = () => {
+    const picker = document.querySelector<HTMLElement>(`.${styles.picker}`)
+    const input = picker?.querySelector('input')
+    if (!addBtn || !picker || !input) return
+    const b = addBtn.getBoundingClientRect()
+    const field = input.getBoundingClientRect()
+    const offset = field.top + field.height / 2 - picker.getBoundingClientRect().top
+    const top = Math.max(8, Math.min(b.top + b.height / 2 - offset, window.innerHeight - 8 - MIN_PICKER))
+    setAt({
+      right: `${window.innerWidth - b.left + 8}px`,
+      top: `${top}px`,
+      'max-height': `${window.innerHeight - top - 8}px`,
+    })
+  }
+  const togglePicker = () => {
+    if (picking()) {
+      setPicking(false)
+      return
+    }
+    setRecent(props.recentTags ?? [])
+    setPicking(true)
+    place()
+  }
+  const closePicker = () => {
+    setPicking(false)
+    addBtn?.focus()
+  }
+  createEffect(
+    on(
+      () => props.it.id,
+      () => setPicking(false),
+      { defer: true },
+    ),
+  )
+  const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
+
   return (
-    <ScrollArea class={`${styles.root} ${props.class ?? ''}`} viewClass={styles.body} aria-label="分類の候補">
+    <ScrollArea class={styles.root} viewClass={styles.body} aria-label="分類の候補">
       <div class={styles.nmh}>
         <b>{props.it.name}</b>
         <small>
           {props.pos} / {props.total}
           {props.later && ' | 保留中'}
         </small>
+        <Show when={props.aside}>
+          <span class={styles.aside}>{props.aside}</span>
+        </Show>
       </div>
       <div class={styles.fl}>
         <span class={styles.sub}>タグ</span>
-        <div class={styles.cands}>
-          <For each={props.tags}>
-            {(t, k) => (
-              <label class={styles.cand} data-on={t.on}>
-                <input type="checkbox" checked={t.on} onChange={(e) => props.onTag(k(), e.currentTarget.checked)} />
-                <span>
-                  <i class={styles.mark}>
-                    <Icon name={t.on ? 'check' : 'hash'} size={12} />
-                  </i>
-                  {t.tag}
-                </span>
-                <Show when={t.conf}>
-                  <small>{t.conf}</small>
-                </Show>
-              </label>
+        <div class={styles.tags}>
+          <For each={onTags()}>
+            {(t) => (
+              <Chip removeLabel={`# ${t.tag} を削除`} onRemove={() => props.onTag(t.tag, false)}>
+                # {t.tag}
+              </Chip>
             )}
           </For>
-          <Show when={!props.tags.length}>
-            <span class={styles.hint}>候補はありません</span>
-          </Show>
-          <input
-            class={styles.tagin}
-            type="text"
-            placeholder="＋ タグを追加"
-            aria-label="タグを追加"
-            onKeyDown={(e) => {
-              const tag = e.currentTarget.value.trim()
-              if (e.key !== 'Enter' || e.isComposing || !tag) return
-              e.preventDefault()
-              props.onAddTag?.(tag)
-              e.currentTarget.value = ''
-            }}
-          />
+          <Chip ref={addBtn} dashed aria-expanded={picking()} aria-haspopup="dialog" onClick={togglePicker}>
+            <Icon name="plus" size={12} withText />
+            追加
+          </Chip>
         </div>
       </div>
+      <Show when={picking()}>
+        <Portal>
+          <TagPicker
+            class={styles.picker}
+            style={at()}
+            tags={onTags().map((t) => t.tag)}
+            all={allTags()}
+            recent={recent()}
+            suggested={props.tags.filter((t) => !t.on).map((t) => t.tag)}
+            anchor={addBtn}
+            onToggle={(t, v) => props.onTag(t, v)}
+            onClose={closePicker}
+          />
+        </Portal>
+      </Show>
       <div class={styles.fl}>
         <span class={styles.sub}>プロジェクト</span>
         <Select

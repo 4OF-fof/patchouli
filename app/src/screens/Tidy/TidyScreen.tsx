@@ -1,7 +1,4 @@
 import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js'
-import { Button } from '../../components/controls/Button/Button'
-import { Kbd } from '../../components/base/Kbd/Kbd'
-import { ConfirmDialog } from '../../components/dialog/ConfirmDialog/ConfirmDialog'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { createStore } from 'solid-js/store'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
@@ -24,6 +21,7 @@ export interface TidyScreenProps {
   lib: Library
   currentId?: string
   approved?: string[]
+  recentTags?: string[]
   onOpenItem?: (id: string) => void
   onApprove?: (it: Item, d: TidyDecision) => void
   /** before は承認する前の項目 */
@@ -32,8 +30,6 @@ export interface TidyScreenProps {
 
 // 保留にしたものは、アプリを閉じるまで覚えておき、次に分類の確認を開いたときに先頭に出す
 let heldOver: string[] = []
-
-const HIGH = '類似度：高'
 
 const fresh = (i: Item) => ({ tags: structuredClone(i.suggestion?.tags ?? []), project: i.project ?? '' })
 
@@ -74,7 +70,6 @@ export function TidyScreen(props: TidyScreenProps) {
   )
   const later = createMemo(() => steps().flatMap((s) => (s.later ? [s.id] : [])))
   const [cur, setCur] = createSignal<string | undefined>(props.currentId)
-  const [bulk, setBulk] = createSignal(false)
   const pending = () => queue().filter((i) => !decidedIds().has(i.id))
   const current = createMemo(() => {
     const c = pending().find((i) => i.id === cur())
@@ -87,11 +82,6 @@ export function TidyScreen(props: TidyScreenProps) {
   }
   const onTags = (it: Item) => draft[it.id]?.tags.filter((t) => t.on) ?? []
   const nothing = (it: Item) => !onTags(it).length && (draft[it.id]?.project ?? '') === (it.project ?? '')
-  const sure = () =>
-    pending().filter((it) => {
-      const chosen = onTags(it)
-      return chosen.length > 0 && chosen.every((t) => t.conf === HIGH)
-    })
 
   const decide = (it: Item) => {
     const d = draft[it.id]
@@ -109,12 +99,6 @@ export function TidyScreen(props: TidyScreenProps) {
     setCur(next)
     decide(it)
   }
-  const approveSure = () => {
-    const its = sure()
-    setBulk(false)
-    setSteps([...steps(), ...its.map((it) => ({ id: it.id, before: it, held: heldOver.includes(it.id) }))])
-    for (const it of its) decide(it)
-  }
   const putOff = (it: Item) => {
     const next = nextAfter(it.id)
     const held = heldOver.includes(it.id)
@@ -130,21 +114,21 @@ export function TidyScreen(props: TidyScreenProps) {
     if (last.held != null) heldOver = [...heldOver.filter((id) => id !== last.id), ...(last.held ? [last.id] : [])]
     if (last.before) props.onUndo?.(last.before)
   }
-  const addTag = (it: Item, tag: string) => {
+  // 候補にないタグは、外したら候補にも残さない
+  const toggleTag = (it: Item, tag: string, on: boolean) => {
     const k = draft[it.id]?.tags.findIndex((t) => t.tag === tag) ?? -1
-    if (k >= 0) setDraft(it.id, 'tags', k, 'on', true)
-    else setDraft(it.id, 'tags', (ts) => [...ts, { tag, conf: '', on: true }])
+    if (k < 0) {
+      if (on) setDraft(it.id, 'tags', (ts) => [...ts, { tag, conf: '', on: true }])
+    } else if (on || draft[it.id]?.tags[k]?.conf) setDraft(it.id, 'tags', k, 'on', on)
+    else setDraft(it.id, 'tags', (ts) => ts.filter((_, i) => i !== k))
   }
 
   const active = useTabActive()
   const onKey = (e: KeyboardEvent) => {
     const it = current()
-    if (!active() || bulk()) return
+    if (!active()) return
     if (!it || (e.target instanceof HTMLElement && e.target.closest('input, select, textarea, [role="dialog"]'))) return
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault()
-      if (sure().length) setBulk(true)
-    } else if (e.key === 'Enter') {
+    if (e.key === 'Enter') {
       e.preventDefault()
       approve(it)
     } else if (e.key === 'ArrowRight') putOff(it)
@@ -199,21 +183,20 @@ export function TidyScreen(props: TidyScreenProps) {
     </ScrollArea>
   )
 
+  const back = () => (
+    <FloatingPill kbd="←" onClick={undo}>
+      戻る
+    </FloatingPill>
+  )
+
   return (
     <section class={shared.screen} aria-label="分類の確認">
-      <div class={styles.head}>
-        <FloatingPill kbd="Ctrl Enter" disabled={!sure().length} onClick={() => setBulk(true)}>
-          まとめて承認
-        </FloatingPill>
-        <FloatingPill kbd="←" onClick={undo}>
-          元に戻す
-        </FloatingPill>
-      </div>
       <div class={styles.body}>
         <Show
           when={current()}
           fallback={
             <div class={styles.view}>
+              <div class={styles.head}>{back()}</div>
               <div class={styles.done}>
                 <Show
                   when={later().length}
@@ -241,7 +224,6 @@ export function TidyScreen(props: TidyScreenProps) {
                 {strip()}
               </div>
               <TidyPanel
-                class={styles.panel}
                 lib={lib()}
                 it={it()}
                 tags={draft[it().id]?.tags ?? []}
@@ -249,9 +231,10 @@ export function TidyScreen(props: TidyScreenProps) {
                 pos={pending().indexOf(it()) + 1}
                 total={pending().length}
                 later={later().includes(it().id)}
-                onTag={(k, v) => setDraft(it().id, 'tags', k, 'on', v)}
+                recentTags={props.recentTags}
+                aside={back()}
+                onTag={(tag, on) => toggleTag(it(), tag, on)}
                 onProject={(name) => setDraft(it().id, 'project', name)}
-                onAddTag={(tag) => addTag(it(), tag)}
                 onPutOff={() => putOff(it())}
                 onApprove={() => approve(it())}
               />
@@ -259,26 +242,6 @@ export function TidyScreen(props: TidyScreenProps) {
           )}
         </Show>
       </div>
-      <Show when={bulk()}>
-        <ConfirmDialog
-          label="まとめて承認"
-          title={`${sure().length} 件をまとめて承認します`}
-          onClose={() => setBulk(false)}
-          onEnter={approveSure}
-          footer={
-            <>
-              <Button variant="ghost" onClick={() => setBulk(false)}>
-                キャンセル <Kbd>Esc</Kbd>
-              </Button>
-              <Button variant="primary" onClick={approveSure}>
-                承認 <Kbd>Enter</Kbd>
-              </Button>
-            </>
-          }
-        >
-          <p>選択中の候補がすべて「{HIGH}」の項目を、そのタグで承認しますか？</p>
-        </ConfirmDialog>
-      </Show>
     </section>
   )
 }

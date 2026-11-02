@@ -1374,6 +1374,8 @@ struct AutoTag {
     need: u64,
     /// llama-server が使える GPU。空なら CPU で動かす。入れる前は None
     gpus: Option<Vec<String>>,
+    suggest: settings::TagSuggest,
+    search: bool,
 }
 
 #[tauri::command]
@@ -1392,6 +1394,8 @@ async fn auto_tag(app: tauri::AppHandle) -> Result<AutoTag, String> {
             downloading: embed::install::downloading(),
             need: embed::install::need(),
             gpus,
+            suggest: settings::tag_suggest(&app)?,
+            search: settings::content_search(&app)?,
         })
     })
     .await
@@ -1450,12 +1454,27 @@ fn cancel_auto_tag_download() {
     embed::install::cancel();
 }
 
+#[tauri::command]
+fn set_tag_suggest(app: tauri::AppHandle, mode: settings::TagSuggest) -> Result<(), String> {
+    settings::set_tag_suggest(&app, mode)?;
+    refresh_suggestions(&app);
+    Ok(())
+}
+
+#[tauri::command]
+fn set_content_search(app: tauri::AppHandle, on: bool) -> Result<(), String> {
+    settings::set_content_search(&app, on)
+}
+
 /// 内容での検索に入ったときに呼ぶ。llama-server が起動し終えるまで待つ。
 #[tauri::command]
 async fn prepare_content_search(app: tauri::AppHandle) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         if !settings::auto_tag(&app)? {
-            return Err("自動分類が無効になっています".into());
+            return Err("AI 機能が無効になっています".into());
+        }
+        if !settings::content_search(&app)? {
+            return Err("AI 検索が無効になっています".into());
         }
         embed::warm()
     })
@@ -1474,9 +1493,29 @@ async fn search_content(
         .map_err(|e| e.to_string())?
 }
 
+#[derive(Clone, Serialize)]
+struct Suggestions {
+    /// 画面で、選択済みの候補をそのまま付ける
+    apply: bool,
+    items: HashMap<String, suggest::Suggestion>,
+}
+
 /// いまのライブラリのタグ候補を作り直し、できたら画面に渡す。
 fn refresh_suggestions(app: &tauri::AppHandle) {
     if !settings::auto_tag(app).unwrap_or(false) || !embed::installed() {
+        return;
+    }
+    let off = |app: &tauri::AppHandle| {
+        let _ = app.emit(
+            "suggestions-changed",
+            Suggestions {
+                apply: false,
+                items: HashMap::new(),
+            },
+        );
+    };
+    if settings::tag_suggest(app).unwrap_or_default() == settings::TagSuggest::Off {
+        off(app);
         return;
     }
     let cur = app.state::<Current>();
@@ -1490,9 +1529,24 @@ fn refresh_suggestions(app: &tauri::AppHandle) {
         return;
     };
     let app = app.clone();
-    suggest::refresh(&root, &thumbs, items, move |s| {
-        let _ = app.emit("suggestions-changed", s);
-    });
+    // 作っている間に設定が変わることがあるので、渡すときに読み直す
+    suggest::refresh(
+        &root,
+        &thumbs,
+        items,
+        move |s| match settings::tag_suggest(&app).unwrap_or_default() {
+            settings::TagSuggest::Off => off(&app),
+            mode => {
+                let _ = app.emit(
+                    "suggestions-changed",
+                    Suggestions {
+                        apply: mode == settings::TagSuggest::Auto,
+                        items: s,
+                    },
+                );
+            }
+        },
+    );
 }
 
 /// 分類の確認で承認した item の判断を残す。chosen は付けたタグ、rejected は外した候補。
@@ -1836,6 +1890,8 @@ pub fn run() {
             auto_tag,
             set_auto_tag,
             cancel_auto_tag_download,
+            set_tag_suggest,
+            set_content_search,
             prepare_content_search,
             search_content,
             record_tags,

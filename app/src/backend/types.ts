@@ -138,6 +138,9 @@ export interface DeveloperActions {
   pick(kind: 'dir' | 'repo'): Promise<string | undefined>
 }
 
+/** タグの候補の扱い。auto は選択済みの候補をそのまま付け、confirm は分類の確認に出す。 */
+export type TagSuggest = 'auto' | 'confirm' | 'off'
+
 export interface AutoTag {
   enabled: boolean
   installed: boolean
@@ -146,6 +149,9 @@ export interface AutoTag {
   need: number
   /** llama-server が使える GPU。空なら CPU で動かす。インストールする前は undefined */
   gpus?: string[]
+  suggest: TagSuggest
+  /** AI 検索を使うか */
+  search: boolean
 }
 
 export interface AutoTagProgress {
@@ -159,6 +165,8 @@ export interface AutoTagActions {
   /** 有効にするときは、ダウンロードし終えるまで待つ。 */
   set(on: boolean): Promise<void>
   cancelDownload(): Promise<void>
+  setSuggest(mode: TagSuggest): Promise<void>
+  setSearch(on: boolean): Promise<void>
   onProgress(cb: (p: AutoTagProgress) => void): () => void
 }
 
@@ -175,6 +183,12 @@ export interface ContentSearch {
   search(query: string): Promise<ContentHit[]>
 }
 
+export interface Suggestions {
+  /** 選択済みの候補を、確認せずにそのまま付ける */
+  apply: boolean
+  items: Record<string, Suggestion>
+}
+
 export interface TagDecisions {
   /** 分類の確認で承認した item の判断を残す。chosen は付けたタグ、rejected は外した候補。 */
   record(item: string, chosen: string[], rejected: string[]): Promise<void>
@@ -183,7 +197,7 @@ export interface TagDecisions {
   /** タグを付ける欄に出す候補。 */
   suggestTags: (id: string) => Promise<string[]>
   /** タグのない項目の候補を作り直すたびに呼ぶ。 */
-  onSuggestions(cb: (s: Record<string, Suggestion>) => void): () => void
+  onSuggestions(cb: (s: Suggestions) => void): () => void
 }
 
 export interface PluginWork {

@@ -58,13 +58,23 @@ export const Prompt: Story = {
   render: () => bar({ initial: 'prompt', query: '夕焼けの海', contentSearch }),
 }
 const autoTag: AppBarProps['autoTag'] = {
-  get: async () => ({ enabled: true, installed: true, downloading: false, need: 0, gpus: [] }),
+  get: async () => ({
+    enabled: true,
+    installed: true,
+    downloading: false,
+    need: 0,
+    gpus: [],
+    suggest: 'confirm',
+    search: true,
+  }),
   set: async () => {},
   cancelDownload: async () => {},
+  setSuggest: async () => {},
+  setSearch: async () => {},
   onProgress: () => () => {},
 }
 export const SearchAi: Story = {
-  name: '検索を開く（自動分類が有効）',
+  name: '検索を開く（AI 機能が有効）',
   render: () => bar({ initial: 'search', contentSearch, autoTag }),
 }
 export const PromptPreparing: Story = {

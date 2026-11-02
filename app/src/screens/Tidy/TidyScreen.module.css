@@ -16,9 +16,6 @@
   gap: var(--space-28);
   padding: var(--space-16) var(--space-28);
 }
-.panel {
-  margin-top: 50px;
-}
 
 .view {
   flex: 1;

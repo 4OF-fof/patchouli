@@ -1,5 +1,13 @@
 import { For, Show, createSignal, onCleanup, onMount } from 'solid-js'
-import type { AutoTag, AutoTagProgress, CacheKind, CacheUsage, Developer, UnusedPlugin } from '../../../backend/types'
+import type {
+  AutoTag,
+  AutoTagProgress,
+  CacheKind,
+  CacheUsage,
+  Developer,
+  TagSuggest,
+  UnusedPlugin,
+} from '../../../backend/types'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
@@ -18,6 +26,8 @@ export interface SettingsDialogProps {
   /** 有効にするときは、ダウンロードし終えるまで待つ。 */
   onAutoTagChange?: (on: boolean) => Promise<void>
   onCancelDownload?: () => Promise<void>
+  onSuggestChange?: (mode: TagSuggest) => Promise<void>
+  onSearchChange?: (on: boolean) => Promise<void>
   usage?: CacheUsage
   unused?: UnusedPlugin[]
   onClear?: (kind: CacheKind) => Promise<void>
@@ -45,6 +55,16 @@ const CACHES: { kind: CacheKind; label: string }[] = [
   { kind: 'library', label: 'インデックス' },
   { kind: 'thumbs', label: 'サムネイル' },
   { kind: 'all', label: 'すべて' },
+]
+
+const SUGGEST: { value: TagSuggest; label: string; help: string }[] = [
+  {
+    value: 'auto',
+    label: '自動で適用',
+    help: '選択済みの候補をそのまま付けます。候補を選択できなかった項目は、分類の確認に表示します',
+  },
+  { value: 'confirm', label: '確認してから適用', help: '候補を分類の確認に表示し、承認したタグを付けます' },
+  { value: 'off', label: '無効', help: 'タグの候補を作成しません' },
 ]
 
 const progressLabel = (p: AutoTagProgress) => `${p.file}: ${Math.floor((p.done / p.total) * 100)}%`
@@ -163,7 +183,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
           <Show when={props.onAutoTagChange}>
             {(change) => (
               <section>
-                <h4>自動分類</h4>
+                <h4>AI 機能</h4>
                 <Show when={props.autoTag} fallback={<p class={styles.loading}>読み込み中…</p>}>
                   {(a) => (
                     <>
@@ -172,19 +192,62 @@ export function SettingsDialog(props: SettingsDialogProps) {
                           <SettingField
                             setting={{
                               key: 'autoTag',
-                              label: '自動分類を有効化',
+                              label: 'AI 機能を有効化',
                               kind: 'toggle',
                               default: false,
                               value: a().enabled || downloading(),
                               help: a().installed
-                                ? 'タグの候補と、内容での検索に使用します'
-                                : `タグの候補と、内容での検索に使用します。有効にすると、モデルと llama.cpp（${bytesLabel(a().need)}）をダウンロードします`,
+                                ? '自動分類と AI 検索に使用します'
+                                : `自動分類と AI 検索に使用します。有効にすると、モデルと llama.cpp（${bytesLabel(a().need)}）をダウンロードします`,
                             }}
                             disabled={downloading()}
                             onChange={(v) => void changeAutoTag(change(), v === true)}
                           />
                         )}
                       </For>
+                      <Show when={a().enabled && a().installed && !downloading()}>
+                        <div class={styles.sub}>
+                          <For each={[failed()]}>
+                            {() => (
+                              <>
+                                <Show when={props.onSuggestChange}>
+                                  {(set) => (
+                                    <SettingField
+                                      setting={{
+                                        key: 'tagSuggest',
+                                        label: '自動分類',
+                                        kind: 'choice',
+                                        choices: SUGGEST.map(({ value, label }) => ({ value, label })),
+                                        default: 'confirm',
+                                        value: a().suggest,
+                                        help: SUGGEST.find((s) => s.value === a().suggest)?.help,
+                                      }}
+                                      onChange={(v) =>
+                                        void run('自動分類を切り替えています', () => set()(v as TagSuggest))
+                                      }
+                                    />
+                                  )}
+                                </Show>
+                                <Show when={props.onSearchChange}>
+                                  {(set) => (
+                                    <SettingField
+                                      setting={{
+                                        key: 'contentSearch',
+                                        label: 'AI 検索',
+                                        kind: 'toggle',
+                                        default: true,
+                                        value: a().search,
+                                        help: '検索バーで Tab を押すと、内容で検索できます',
+                                      }}
+                                      onChange={(v) => void run('AI 検索を切り替えています', () => set()(v === true))}
+                                    />
+                                  )}
+                                </Show>
+                              </>
+                            )}
+                          </For>
+                        </div>
+                      </Show>
                       <Show when={downloading() && !a().installed}>
                         <div class={styles.row}>
                           <b>ダウンロード中</b>
