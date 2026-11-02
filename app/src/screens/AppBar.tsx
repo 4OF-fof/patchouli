@@ -132,20 +132,28 @@ export function AppBar(props: AppBarProps) {
   }
   type Command = Extract<Row, { type: 'cmd' }>
   const commands = (): Command[] => [
-    { type: 'cmd', label: '分類の確認を開く', key: 'Ctrl U', run: () => props.onGo?.('tidy') },
-    { type: 'cmd', label: 'すべての項目', key: '', run: () => props.onGo?.('all') },
-    { type: 'cmd', label: 'プロジェクト一覧', key: '', run: () => props.onGo?.('projects') },
-    { type: 'cmd', label: 'タグ一覧', key: '', run: () => props.onGo?.('tags') },
-    { type: 'cmd', label: '新しいノートを作成', key: 'Ctrl N', run: () => props.onCreate?.() },
-    { type: 'cmd', label: 'ホームに戻る', key: '', run: () => props.onGo?.('home') },
+    { type: 'cmd', icon: 'tag', label: '分類の確認を開く', key: 'Ctrl U', run: () => props.onGo?.('tidy') },
+    { type: 'cmd', icon: 'grid', label: 'すべての項目', key: '', run: () => props.onGo?.('all') },
+    { type: 'cmd', icon: 'project', label: 'プロジェクト一覧', key: '', run: () => props.onGo?.('projects') },
+    { type: 'cmd', icon: 'hash', label: 'タグ一覧', key: '', run: () => props.onGo?.('tags') },
+    { type: 'cmd', icon: 'newNote', label: '新しいノートを作成', key: 'Ctrl N', run: () => props.onCreate?.() },
+    { type: 'cmd', icon: 'home', label: 'ホームに戻る', key: '', run: () => props.onGo?.('home') },
     ...(props.onChooseLibrary
-      ? [{ type: 'cmd' as const, label: 'ライブラリを切り替え', key: '', run: () => void onMenu('library') }]
+      ? [
+          {
+            type: 'cmd' as const,
+            icon: 'library' as const,
+            label: 'ライブラリを切り替え',
+            key: '',
+            run: () => void onMenu('library'),
+          },
+        ]
       : []),
-    { type: 'cmd', label: 'プラグインを開く', key: '', run: () => setState('plugins') },
-    { type: 'cmd', label: '設定を開く', key: '', run: () => setState('settings') },
-    { type: 'cmd', label: 'ショートカット一覧', key: '?', run: () => setState('help') },
-    { type: 'cmd', label: 'テーマを切り替え', key: '', run: toggleTheme },
-    { type: 'cmd', label: '権利表示', key: '', run: () => setState('notices') },
+    { type: 'cmd', icon: 'plugin', label: 'プラグインを開く', key: '', run: () => setState('plugins') },
+    { type: 'cmd', icon: 'settings', label: '設定を開く', key: '', run: () => setState('settings') },
+    { type: 'cmd', icon: 'keyboard', label: 'ショートカット一覧', key: '?', run: () => setState('help') },
+    { type: 'cmd', icon: 'theme', label: 'テーマを切り替え', key: '', run: toggleTheme },
+    { type: 'cmd', icon: 'notices', label: '権利表示', key: '', run: () => setState('notices') },
   ]
   const parsed = createMemo(() => parseQuery(query()))
   const filters = () => chips().map((c) => c.filter)

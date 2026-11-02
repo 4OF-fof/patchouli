@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>
 const recent: Row[] = lib.items.slice(0, 5).map((it): Row => ({ type: 'recent', it }))
 
 const typed: Row[] = [
-  { type: 'cmd', label: '新しいノートを作成', key: 'Ctrl N', run: () => {} },
+  { type: 'cmd', icon: 'newNote', label: '新しいノートを作成', key: 'Ctrl N', run: () => {} },
   ...findItems(lib, parseQuery('配色'))
     .slice(0, 5)
     .map((f): Row => ({ type: 'item', ...f })),

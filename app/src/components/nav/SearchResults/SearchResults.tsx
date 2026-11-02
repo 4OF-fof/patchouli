@@ -1,4 +1,5 @@
 import { For, type JSX, Show } from 'solid-js'
+import type { IconName } from '../../base/Icon/Icon'
 import { ResultHeading, ResultRow } from '../ResultRow/ResultRow'
 import { type Item, type Library, type Project, thumbOf } from '../../../model/library'
 import { type Candidate, foldMap } from '../../../model/search'
@@ -6,7 +7,7 @@ import { clock } from '../../media/PlayerBar/clock'
 import styles from './SearchResults.module.css'
 
 export type Row =
-  | { type: 'cmd'; label: string; key: string; run: () => void }
+  | { type: 'cmd'; icon: IconName; label: string; key: string; run: () => void }
   | { type: 'proj'; p: Project }
   /** 打っている途中の「#」「@」「.」に合う、絞り込みの候補 */
   | { type: 'filter'; c: Candidate }
@@ -92,6 +93,7 @@ export function SearchResults(props: SearchResultsProps) {
               ) : r.type === 'cmd' ? (
                 <ResultRow
                   kind="command"
+                  icon={r.icon}
                   title={marked(r.label, props.terms)}
                   kbd={r.key}
                   selected={sel()}

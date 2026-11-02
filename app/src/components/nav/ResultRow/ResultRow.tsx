@@ -9,6 +9,8 @@ export type ResultKind = 'command' | 'project' | 'group' | 'tag' | 'ext' | 'note
 
 export interface ResultRowProps {
   kind: ResultKind
+  /** あれば、種類ごとのアイコンの代わりに出す */
+  icon?: IconName
   title: JSX.Element
   sub?: JSX.Element
   kbd?: string
@@ -49,7 +51,11 @@ export function ResultRow(props: ResultRowProps) {
       })}
     >
       <span class={styles.ic}>
-        {props.kind === 'asset' ? <Thumb {...props.thumb} class={styles.thumb} /> : <Icon name={ICON[props.kind]} />}
+        {props.kind === 'asset' ? (
+          <Thumb {...props.thumb} class={styles.thumb} />
+        ) : (
+          <Icon name={props.icon ?? ICON[props.kind]} />
+        )}
       </span>
       <span class={styles.tx}>
         <b>{props.title}</b>
