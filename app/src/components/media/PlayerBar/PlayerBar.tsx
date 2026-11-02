@@ -2,6 +2,7 @@ import { type JSX, Show, createEffect, createSignal, onCleanup, onMount } from '
 import { Icon } from '../../base/Icon/Icon'
 import { useTabActive } from '../../nav/TabPane/TabPane'
 import { clock } from './clock'
+import { useFullscreen } from './fullscreen'
 import styles from './PlayerBar.module.css'
 
 export interface PlayerBarProps {
@@ -40,7 +41,7 @@ export function PlayerBar(props: PlayerBarProps) {
   const [muted, setMuted] = createSignal(false)
   const [volume, setVolume] = createSignal(1)
   const [rate, setRate] = createSignal(1)
-  const [full, setFull] = createSignal(false)
+  const { full, toggle: toggleFull } = useFullscreen(() => props.fullscreen?.())
   createEffect(() => {
     const m = props.media()
     if (!m) return
@@ -86,13 +87,6 @@ export function PlayerBar(props: PlayerBarProps) {
     const m = props.media()
     if (m) m.playbackRate = RATES[(RATES.indexOf(m.playbackRate) + 1) % RATES.length] ?? 1
   }
-  const toggleFull = () => {
-    const el = props.fullscreen?.()
-    if (!el) return
-    if (document.fullscreenElement) void document.exitFullscreen()
-    else void el.requestFullscreen().catch(() => undefined)
-  }
-  const onFull = () => setFull(!!document.fullscreenElement)
   const active = useTabActive()
   const onKey = (e: KeyboardEvent) => {
     if (!active()) return
@@ -112,12 +106,10 @@ export function PlayerBar(props: PlayerBarProps) {
   onMount(() => {
     window.addEventListener('keydown', onKey)
     window.addEventListener('keyup', onKey)
-    document.addEventListener('fullscreenchange', onFull)
   })
   onCleanup(() => {
     window.removeEventListener('keydown', onKey)
     window.removeEventListener('keyup', onKey)
-    document.removeEventListener('fullscreenchange', onFull)
   })
   const playButton = (
     <button

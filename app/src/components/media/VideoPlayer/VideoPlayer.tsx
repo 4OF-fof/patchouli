@@ -13,6 +13,8 @@ export interface VideoPlayerProps {
   local?: boolean
   /** 再生速度のボタンを出すか。既定は出す */
   rate?: boolean
+  /** 全画面にする要素。既定はこの部品 */
+  fullscreen?: () => HTMLElement | undefined
   class?: string
   /** あれば、読み込めたときにこの秒から再生する */
   start?: number
@@ -72,7 +74,7 @@ export function VideoPlayer(props: VideoPlayerProps) {
         />
         <PlayerBar
           media={video}
-          fullscreen={root}
+          fullscreen={props.fullscreen ?? root}
           scope={props.local ? root : undefined}
           rate={props.rate}
           class={styles.bar}

@@ -1,10 +1,13 @@
-import { createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
 import styles from './ImageZoom.module.css'
 import { Icon } from '../../base/Icon/Icon'
+import { useFullscreen } from '../PlayerBar/fullscreen'
 
 export interface ImageZoomProps {
   src: string
   name: string
+  /** 全画面にする要素。なければ全画面のボタンを出さない */
+  fullscreen?: () => HTMLElement | undefined
   class?: string
   /** 読み込めたとき。読めなかったときも呼ぶ */
   onReady?: () => void
@@ -52,6 +55,7 @@ export function ImageZoom(props: ImageZoomProps) {
     setPos({ x: 0, y: 0 })
   }
   createEffect(on(() => props.src, reset, { defer: true }))
+  const { full, toggle: toggleFull } = useFullscreen(() => props.fullscreen?.())
   const onWheel = (e: WheelEvent) => {
     e.preventDefault()
     const r = view.getBoundingClientRect()
@@ -130,6 +134,17 @@ export function ImageZoom(props: ImageZoomProps) {
         <button type="button" class={styles.btn} aria-label="拡大" onClick={() => zoomCenter(scale() * STEP)}>
           <Icon name="plus" size={14} />
         </button>
+        <Show when={props.fullscreen}>
+          <button
+            type="button"
+            class={styles.btn}
+            aria-label={full() ? '全画面を終了' : '全画面'}
+            data-tip={full() ? '全画面を終了' : '全画面'}
+            onClick={toggleFull}
+          >
+            <Icon name={full() ? 'unfullscreen' : 'fullscreen'} size={14} />
+          </button>
+        </Show>
       </div>
     </div>
   )

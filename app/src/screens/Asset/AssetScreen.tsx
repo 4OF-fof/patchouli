@@ -236,7 +236,14 @@ export function AssetScreen(props: AssetScreenProps) {
     if (l.kind === 'ui') return <PluginView url={l.src} api={l.api()} class={styles.page} onReady={onReady} />
     if (l.kind === 'image')
       return (
-        <ImageZoom src={l.src} name={a().name} class={styles.player} onReady={onReady} onUnsupported={onUnsupported} />
+        <ImageZoom
+          src={l.src}
+          name={a().name}
+          class={styles.player}
+          fullscreen={() => root}
+          onReady={onReady}
+          onUnsupported={onUnsupported}
+        />
       )
     if (l.kind === 'video')
       return (
@@ -246,6 +253,7 @@ export function AssetScreen(props: AssetScreenProps) {
           name={a().name}
           class={styles.player}
           start={start}
+          fullscreen={() => root}
           onReady={onReady}
           onUnsupported={onUnsupported}
         />
@@ -259,6 +267,7 @@ export function AssetScreen(props: AssetScreenProps) {
         jacket={jacketOf(a())}
         class={styles.audio}
         start={start}
+        fullscreen={() => root}
         onReady={onReady}
         onUnsupported={onUnsupported}
       >

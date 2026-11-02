@@ -17,6 +17,8 @@ export interface AudioPlayerProps {
   children?: JSX.Element
   /** キーを、この中にフォーカスがあるときだけ受ける */
   local?: boolean
+  /** stage で、全画面にする要素。なければ全画面のボタンを出さない */
+  fullscreen?: () => HTMLElement | undefined
   class?: string
   /** あれば、読み込めたときにこの秒から再生する */
   start?: number
@@ -248,7 +250,12 @@ export function AudioPlayer(props: AudioPlayerProps) {
           <div class={styles.body}>
             <div class={styles.box}>{wave}</div>
             {media}
-            <PlayerBar media={audio} scope={props.local ? root : undefined} class={styles.bar} />
+            <PlayerBar
+              media={audio}
+              fullscreen={props.fullscreen}
+              scope={props.local ? root : undefined}
+              class={styles.bar}
+            />
           </div>
         </div>
       }
