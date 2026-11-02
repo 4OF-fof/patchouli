@@ -5,7 +5,6 @@ const meta = {
   title: '部品/nav/HeadingTree',
   component: HeadingTree,
   args: {
-    title: '配色メモ：秋の企画',
     headings: [
       { level: 2, text: '紙の質感' },
       { level: 3, text: '候補' },

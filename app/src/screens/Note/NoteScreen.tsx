@@ -237,13 +237,20 @@ export function NoteScreen(props: NoteScreenProps) {
           >
             <aside class={`${styles.card} ${styles.l}`} aria-label="見出し">
               <ScrollArea viewClass={styles.cardView}>
-                <FloatingCard title={`見出し ${headings().length}`} onClose={() => setHeads(false)}>
-                  <HeadingTree
-                    title={n().name}
-                    headings={headings()}
-                    current={section()}
-                    onSelect={(i) => editor?.scrollToHeading(i)}
-                  />
+                <FloatingCard
+                  title={
+                    <button
+                      type="button"
+                      class={styles.headTitle}
+                      data-current={section() < 0}
+                      onClick={() => editor?.scrollToHeading(-1)}
+                    >
+                      {n().name}
+                    </button>
+                  }
+                  onClose={() => setHeads(false)}
+                >
+                  <HeadingTree headings={headings()} current={section()} onSelect={(i) => editor?.scrollToHeading(i)} />
                 </FloatingCard>
               </ScrollArea>
             </aside>

@@ -3,7 +3,7 @@ import styles from './FloatingCard.module.css'
 import { Icon } from '../../base/Icon/Icon'
 
 export interface FloatingCardProps {
-  title?: string
+  title?: JSX.Element
   onClose?: () => void
   children?: JSX.Element
 }
