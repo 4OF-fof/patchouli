@@ -14,10 +14,11 @@
 .search {
   display: flex;
   align-items: center;
-  gap: var(--space-6);
-  padding: 0 var(--space-8);
-  border: 1px solid var(--line-2);
-  border-radius: var(--radius-sm);
+  gap: var(--space-8);
+  height: 32px;
+  padding: 0 var(--space-12);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
   background: var(--card);
   color: var(--muted);
 }
@@ -27,7 +28,7 @@
 .search input {
   flex: 1;
   min-width: 0;
-  height: 28px;
+  padding: 0;
   border: 0;
   outline: 0;
   background: none;
