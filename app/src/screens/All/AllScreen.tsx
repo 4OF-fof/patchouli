@@ -8,7 +8,7 @@ import { useHoverPreview } from '../../components/media/HoverPreview/HoverPrevie
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
-import { type Library, facesOf, newerFirst, thumbOf } from '../../model/library'
+import { type Item, type Library, facesOf, newerFirst, thumbOf } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './AllScreen.module.css'
 
@@ -41,8 +41,28 @@ export function AllScreen(props: AllScreenProps) {
       : lib()
           .groups.filter((g) => g.parent === null)
           .toSorted((a, b) => a.name.localeCompare(b.name, 'ja'))
+  const pinCount = createMemo(() => {
+    const pins = new Set(lib().pins)
+    return all().filter((it) => pins.has(it.id)).length
+  })
   const [shown, setShown] = createSignal(FIRST)
   const visible = () => all().slice(0, shown())
+  const itemCard = (it: Item) => (
+    <ItemCard
+      {...thumbOf(it, 'M')}
+      name={it.name}
+      ratio={it.ratio}
+      pinned={lib().pins.includes(it.id)}
+      onPin={() => props.onTogglePin?.(it.id)}
+      preview={preview(it, { clock: true })}
+      onClick={() =>
+        props.onOpenItem?.(
+          it.id,
+          all().map((x) => x.id),
+        )
+      }
+    />
+  )
 
   const fill = () => {
     const end = more
@@ -86,6 +106,7 @@ export function AllScreen(props: AllScreenProps) {
           >
             <div class={styles.body}>
               <JustifiedRow height={140}>
+                <For each={visible().slice(0, pinCount())}>{itemCard}</For>
                 <For each={groups()}>
                   {(g) => (
                     <GroupCard
@@ -96,24 +117,7 @@ export function AllScreen(props: AllScreenProps) {
                     />
                   )}
                 </For>
-                <For each={visible()}>
-                  {(it) => (
-                    <ItemCard
-                      {...thumbOf(it, 'M')}
-                      name={it.name}
-                      ratio={it.ratio}
-                      pinned={lib().pins.includes(it.id)}
-                      onPin={() => props.onTogglePin?.(it.id)}
-                      preview={preview(it, { clock: true })}
-                      onClick={() =>
-                        props.onOpenItem?.(
-                          it.id,
-                          all().map((x) => x.id),
-                        )
-                      }
-                    />
-                  )}
-                </For>
+                <For each={visible().slice(pinCount())}>{itemCard}</For>
               </JustifiedRow>
             </div>
           </Show>
