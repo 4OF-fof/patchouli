@@ -5,6 +5,7 @@ import styles from './Peek.module.css'
 export interface PeekProps {
   label: string
   onExpand?: () => void
+  onOpenInTab?: () => void
   onClose: () => void
   children?: JSX.Element
 }
@@ -28,6 +29,16 @@ export function Peek(props: PeekProps) {
         {props.children}
       </div>
       <div class={styles.tools}>
+        {props.onOpenInTab && (
+          <button
+            type="button"
+            data-tip="新しいタブで開く"
+            aria-label="新しいタブで開く"
+            onClick={() => props.onOpenInTab?.()}
+          >
+            <Icon name="newTab" size={16} />
+          </button>
+        )}
         {props.onExpand && (
           <button type="button" data-tip="全画面表示" aria-label="全画面表示" onClick={() => props.onExpand?.()}>
             <Icon name="fullscreen" size={16} />
