@@ -1,5 +1,6 @@
-import { For, type JSX, Show, children, createMemo, createSignal } from 'solid-js'
+import { For, type JSX, Show, children, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
+import { Spinner } from '../../components/base/Spinner/Spinner'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { Button } from '../../components/controls/Button/Button'
 import { GroupCard } from '../../components/media/GroupCard/GroupCard'
@@ -23,6 +24,9 @@ import shared from '../screen.module.css'
 import styles from './DetailScreen.module.css'
 
 type Sort = 'moved' | 'name' | 'kind'
+
+const FIRST = 60
+const MORE = 60
 
 export interface DetailScreenProps {
   label: string
@@ -73,6 +77,29 @@ export function DetailScreen(props: DetailScreenProps) {
           : newerFirst,
     ),
   )
+  let scroll!: HTMLDivElement
+  let more: HTMLDivElement | undefined
+  const [shown, setShown] = createSignal(FIRST)
+  const visible = () => all().slice(0, shown())
+  const fill = () => {
+    const end = more
+    if (!end) return
+    const limit = scroll.getBoundingClientRect().bottom + scroll.clientHeight
+    while (shown() < all().length && end.getBoundingClientRect().top < limit) setShown(shown() + MORE)
+  }
+  createEffect(() => {
+    void all()
+    queueMicrotask(fill)
+  })
+  onMount(() => {
+    const ro = new ResizeObserver(fill)
+    ro.observe(scroll)
+    scroll.addEventListener('scroll', fill, { passive: true })
+    onCleanup(() => {
+      ro.disconnect()
+      scroll.removeEventListener('scroll', fill)
+    })
+  })
   const card = (it: Item, size: CardSize, list: () => Item[], clock: boolean) => (
     <ItemCard
       {...thumbOf(it, size)}
@@ -100,7 +127,7 @@ export function DetailScreen(props: DetailScreenProps) {
   )
   return (
     <section class={shared.screen} aria-label={props.label}>
-      <ScrollArea class={shared.scroll}>
+      <ScrollArea class={shared.scroll} ref={scroll}>
         <div class={shared.page}>
           <header class={shared.mast}>
             {props.title}
@@ -150,9 +177,15 @@ export function DetailScreen(props: DetailScreenProps) {
               <Show when={all().length || groups().length} fallback={<div class={shared.empty}>{props.empty}</div>}>
                 <JustifiedRow height={104}>
                   <For each={groups()}>{(g) => groupCard(g)}</For>
-                  <For each={all()}>{(it) => card(it, 'S', all, false)}</For>
+                  <For each={visible()}>{(it) => card(it, 'S', all, false)}</For>
                 </JustifiedRow>
               </Show>
+              <div class={styles.more} ref={more}>
+                <Show when={shown() < all().length}>
+                  <Spinner />
+                  続きを読み込み中
+                </Show>
+              </div>
             </SelectArea>
           </div>
         </div>
