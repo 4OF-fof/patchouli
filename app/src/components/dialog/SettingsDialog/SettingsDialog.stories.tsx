@@ -59,10 +59,10 @@ export const Default: Story = {
     )
   },
 }
-export const NoUnused: Story = { name: '使っていないものがない', args: { page: 'cache', unused: [] } }
+export const NoUnused: Story = { name: '使っていないものがない', args: { page: 'storage', unused: [] } }
 export const Loading: Story = {
   name: '読み込み中',
-  args: { page: 'cache', usage: undefined, unused: undefined, developer: undefined },
+  args: { page: 'storage', usage: undefined, unused: undefined, developer: undefined },
 }
 export const VersionOnly: Story = {
   name: '版だけ',
@@ -71,7 +71,7 @@ export const VersionOnly: Story = {
 export const Failed: Story = {
   name: '消せなかった',
   args: {
-    page: 'cache',
+    page: 'storage',
     onClear: async () => {
       await wait()
       throw new Error('library: 別のプロセスが使用中です')

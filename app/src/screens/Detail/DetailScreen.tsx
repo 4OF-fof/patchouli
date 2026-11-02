@@ -21,9 +21,8 @@ import {
 } from '../../model/library'
 import { useFormats } from '../../plugins/formats'
 import shared from '../screen.module.css'
+import { type Sort, prefs } from '../../model/prefs'
 import styles from './DetailScreen.module.css'
-
-type Sort = 'moved' | 'name' | 'kind'
 
 const FIRST = 60
 const MORE = 60
@@ -52,7 +51,7 @@ export interface DetailScreenProps {
 }
 
 export function DetailScreen(props: DetailScreenProps) {
-  const [sort, setSort] = createSignal<Sort>('moved')
+  const [sort, setSort] = createSignal<Sort>(prefs().sort)
   const formats = useFormats()
   const sel = useSelection()
   const preview = useHoverPreview()

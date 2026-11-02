@@ -13,7 +13,7 @@ export function JustifiedRow(props: JustifiedRowProps) {
     <div
       class={styles.root}
       data-one={props.singleLine}
-      style={{ '--hh': `${props.height}px`, '--gap': `${props.gap ?? 8}px` }}
+      style={{ '--hh': `calc(${props.height}px * var(--card-scale, 1))`, '--gap': `${props.gap ?? 8}px` }}
     >
       {props.children}
     </div>

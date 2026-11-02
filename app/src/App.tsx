@@ -74,7 +74,7 @@ import { asNewTab, inNewTab } from './components/nav/TabPane/newTab'
 import { TabPane } from './components/nav/TabPane/TabPane'
 import { TabList } from './components/nav/TabList/TabList'
 import type { TabEntry, TabStripProps } from './components/nav/TabStrip/TabStrip'
-import type { TabsAt } from './components/dialog/SettingsDialog/SettingsDialog'
+import { applyPrefs, prefs } from './model/prefs'
 import type { IconName } from './components/base/Icon/Icon'
 import { SelectionProvider, createSelection } from './components/media/Selection/Selection'
 import { ItemMenuProvider, ThumbMakingProvider, ThumbSeenProvider, watchSeen } from './components/media/Thumb/Thumb'
@@ -138,15 +138,6 @@ interface Tab {
   setStack: (s: View[]) => void
   /** 裏に開いたタブの、開いたもとのタブ。 */
   from?: Tab
-}
-
-const TABS_AT = 'patchouli.tabsAt'
-const readTabsAt = (): TabsAt => {
-  try {
-    return localStorage.getItem(TABS_AT) === 'left' ? 'left' : 'top'
-  } catch {
-    return 'top'
-  }
 }
 
 const str = (x: unknown) => (typeof x === 'string' ? x : undefined)
@@ -288,13 +279,15 @@ export function App(props: AppProps) {
     onClose: closeTab,
     onNew: addTab,
   })
-  const [tabsAt, setTabsAt] = createSignal<TabsAt>(readTabsAt())
-  const changeTabsAt = (next: TabsAt) => {
-    setTabsAt(next)
-    try {
-      localStorage.setItem(TABS_AT, next)
-    } catch {}
-  }
+  const tabsAt = () => prefs().tabsAt
+  createEffect(() => applyPrefs(prefs()))
+  onMount(() => {
+    if (typeof matchMedia !== 'function') return
+    const mq = matchMedia('(prefers-color-scheme: dark)')
+    const follow = () => applyPrefs(prefs())
+    mq.addEventListener('change', follow)
+    onCleanup(() => mq.removeEventListener('change', follow))
+  })
   const tabEntry = (t: Tab): TabEntry => {
     const v = t.stack().at(-1) ?? { s: 'edition' }
     return { id: t.id, label: labelOf(v), icon: TAB_ICON[v.s] }
@@ -389,7 +382,9 @@ export function App(props: AppProps) {
   }
   const [peek, setPeek] = createSignal<string>()
   const openRef = (id: string) => {
-    if (inNewTab()) openItem(id)
+    const how = prefs().openLink
+    if (inNewTab() || how === 'here') openItem(id)
+    else if (how === 'tab') asNewTab(() => openItem(id))
     else if (lib().byId.has(id)) setPeek(id)
   }
   createEffect(() => {
@@ -793,7 +788,7 @@ export function App(props: AppProps) {
       .map((vs) => makeTab(vs))
     const at = typeof s?.current === 'number' ? s.current : 0
     const shown = list[Math.min(Math.max(0, at), list.length - 1)]
-    if (!shown) return
+    if (!shown || prefs().start === 'home') return
     setTabs(list)
     setCurrentTab(shown)
   }
@@ -1299,6 +1294,7 @@ export function App(props: AppProps) {
                       libraries={backend.libraries}
                       tidy={backend.tidy}
                       developer={backend.developer}
+                      appSettings={backend.appSettings}
                       autoTag={backend.autoTag}
                       contentSearch={backend.contentSearch}
                       onReopen={() => window.location.reload()}
@@ -1308,8 +1304,6 @@ export function App(props: AppProps) {
                       request={barRequest()}
                       activities={activities()}
                       tabs={tabsAt() === 'top' ? tabStrip() : undefined}
-                      tabsAt={tabsAt()}
-                      onTabsAtChange={changeTabsAt}
                     />
                   }
                   side={tabsAt() === 'left' ? <TabList {...tabStrip()} /> : undefined}

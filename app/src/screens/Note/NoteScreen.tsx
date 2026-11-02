@@ -13,6 +13,7 @@ import { middleClick } from '../../components/nav/TabPane/newTab'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { type Embed, NoteEditor, type NoteEditorApi } from '../../components/editor/NoteEditor/NoteEditor'
 import { type Item, type Library, type Place, headingsOf, placeOf, refsOf, relDay } from '../../model/library'
+import { prefs } from '../../model/prefs'
 import shared from '../screen.module.css'
 import styles from './NoteScreen.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
@@ -55,7 +56,7 @@ export const fileSafe = (name: string) =>
 export function NoteScreen(props: NoteScreenProps) {
   const lib = () => props.lib
   const note = () => lib().byId.get(props.noteId)
-  const [heads, setHeads] = createSignal(props.headsOpen ?? !narrow())
+  const [heads, setHeads] = createSignal(props.headsOpen ?? (prefs().headsOpen && !narrow()))
   const [links, setLinks] = createSignal(!!props.linksOpen)
   const [propsOpen, setPropsOpen] = createSignal(!!props.propsOpen)
   let editor: NoteEditorApi | undefined

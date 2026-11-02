@@ -68,10 +68,70 @@
 .mainView {
   padding: var(--space-28) var(--space-32) var(--space-32);
 }
+.page + .page {
+  margin-top: var(--space-32);
+}
 .head {
   margin: 0 var(--space-20) var(--space-16) 0;
   font-size: var(--fs-heading);
   font-weight: 600;
+}
+.entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  height: 32px;
+  margin: 0 var(--space-12) var(--space-8);
+  padding: 0 var(--space-12);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  color: var(--muted);
+  font-size: var(--fs-list);
+}
+.search:focus-within {
+  border-color: var(--accent);
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+.listView > .empty {
+  padding: var(--space-6) var(--space-10);
+}
+.what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.what b {
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.tool {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-8) 0;
+  border-bottom: 1px solid var(--line);
+}
+.note {
+  margin: var(--space-4) 0 0;
+  font-size: var(--fs-meta);
+  color: var(--muted);
 }
 .status {
   margin: 0 0 var(--space-16);
@@ -145,6 +205,9 @@
   white-space: nowrap;
   font: 400 var(--fs-meta) var(--f-mono);
   color: var(--ink-2);
+}
+.path[data-ok='false'] {
+  color: var(--danger);
 }
 .reload {
   display: flex;

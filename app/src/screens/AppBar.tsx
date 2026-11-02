@@ -2,6 +2,7 @@ import { For, Show, createEffect, createMemo, createResource, createSignal, onCl
 import { version } from '../../package.json'
 import appIcon from '../../src-tauri/icons/32x32.png'
 import type {
+  AppSettingsActions,
   AutoTagActions,
   AutoTagProgress,
   ContentSearch,
@@ -16,13 +17,14 @@ import { HelpDialog } from '../components/dialog/HelpDialog/HelpDialog'
 import { LibrariesDialog } from '../components/dialog/LibrariesDialog/LibrariesDialog'
 import { type Notices, NoticesDialog } from '../components/dialog/NoticesDialog/NoticesDialog'
 import { PluginsDialog } from '../components/dialog/PluginsDialog/PluginsDialog'
-import { SettingsDialog, type TabsAt } from '../components/dialog/SettingsDialog/SettingsDialog'
+import { SettingsDialog } from '../components/dialog/SettingsDialog/SettingsDialog'
 import { type Activity, ActivityButton } from '../components/nav/ActivityButton/ActivityButton'
 import { NavMenu, type NavMenuEntry } from '../components/nav/NavMenu/NavMenu'
 import { GRACE, OPEN_DELAY, type Point, graceArea, inside } from '../components/nav/CascadeMenu/grace'
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
 import { TabStrip, type TabStripProps } from '../components/nav/TabStrip/TabStrip'
 import type { Library } from '../model/library'
+import { prefs, setPrefs, themeOf } from '../model/prefs'
 import { builtinReport } from '../plugins/builtin'
 import type { PluginActions, PluginReport } from '../plugins/types'
 import {
@@ -97,14 +99,10 @@ export interface AppBarProps {
   request?: BarRequest
   /** あれば、タイトルバーにタブを並べ、いまの場所はその下の段に出す。 */
   tabs?: TabStripProps
-  tabsAt?: TabsAt
-  onTabsAtChange?: (at: TabsAt) => void
+  appSettings?: AppSettingsActions
 }
 
-const toggleTheme = () => {
-  const d = document.documentElement.dataset
-  d.theme = d.theme === 'light' ? 'dark' : 'light'
-}
+const toggleTheme = () => setPrefs({ theme: themeOf(prefs()) === 'light' ? 'dark' : 'light' })
 
 export function AppBar(props: AppBarProps) {
   const init = props.initial ?? 'closed'
@@ -364,6 +362,14 @@ export function AppBar(props: AppBarProps) {
   const [dev, { mutate: setDev }] = createResource(
     () => (state() === 'settings' && props.developer) || undefined,
     (d) => d.get(),
+  )
+  const [app, { refetch: reloadApp }] = createResource(
+    () => (state() === 'settings' && props.appSettings) || undefined,
+    (a) => a.get(),
+  )
+  const [toolReport, { refetch: reloadTools }] = createResource(
+    () => (state() === 'settings' && props.appSettings && props.loadPlugins) || undefined,
+    (load) => load(),
   )
   const [autoTag, { refetch: reloadAutoTag }] = createResource(
     () => (state() === 'settings' && props.autoTag) || undefined,
@@ -732,8 +738,29 @@ export function AppBar(props: AppBarProps) {
       <Show when={state() === 'settings'}>
         <SettingsDialog
           version={version}
-          tabsAt={props.tabsAt}
-          onTabsAtChange={props.onTabsAtChange}
+          prefs={prefs()}
+          onPrefsChange={setPrefs}
+          library={props.library}
+          onOpenLibraries={
+            props.libraries ? () => setState('libraries') : props.onChooseLibrary && (() => void onMenu('library'))
+          }
+          app={app.latest}
+          onAppChange={
+            props.appSettings &&
+            (async (next) => {
+              const before = app.latest
+              await props.appSettings!.set(next)
+              await reloadApp()
+              if (before && before.thumbSize !== next.thumbSize) props.onReopen?.()
+              else if (JSON.stringify(before?.commandPaths) !== JSON.stringify(next.commandPaths)) {
+                await props.onPluginsChanged?.()
+                await reloadTools()
+              }
+            })
+          }
+          onPickCommand={props.appSettings && ((name) => props.appSettings!.pickCommand(name))}
+          commands={toolReport.latest?.commands ?? (toolReport.latest ? [] : undefined)}
+          onOpenNotices={() => setState('notices')}
           usage={usage.latest}
           unused={unused.latest}
           onClear={

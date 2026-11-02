@@ -1,5 +1,6 @@
 import { type JSX, Show, createContext, createSignal, onCleanup, onMount, useContext } from 'solid-js'
 import type { Item } from '../../../model/library'
+import { prefs } from '../../../model/prefs'
 import { useFormats } from '../../../plugins/formats'
 import type { Fit, UiRef } from '../../../plugins/types'
 import { type UiApi, loadUi } from '../../../plugins/ui'
@@ -22,6 +23,7 @@ export function useHoverPreview() {
   const formats = useFormats()
   const host = useContext(Host)
   return (it: Item, opts?: HoverOptions): (() => JSX.Element) | undefined => {
+    if (!prefs().hoverPreview) return undefined
     const f = it.note ? undefined : formats().get(it.ext)
     const make = host.ui
     const ui = f?.uiHover

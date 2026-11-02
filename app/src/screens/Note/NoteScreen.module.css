@@ -3,7 +3,7 @@
   min-height: 0;
 }
 .doc {
-  max-width: 760px;
+  max-width: var(--note-width, 760px);
   margin: 0 auto;
   padding: 96px var(--space-40) 140px;
   display: flex;
