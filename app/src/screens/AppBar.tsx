@@ -510,7 +510,11 @@ export function AppBar(props: AppBarProps) {
         <For each={props.crumbs ?? []}>
           {(c, i) => {
             const last = () => i() === (props.crumbs?.length ?? 0) - 1
-            const listOf = () => (i() === 0 ? placeItems() : props.siblingsOf?.(i()))
+            const listOf = () => {
+              const list = i() === 0 ? placeItems() : props.siblingsOf?.(i())
+              const entries = list?.filter((e) => e !== 'separator')
+              return entries?.length === 1 && entries[0].current ? undefined : list
+            }
             const items = () => (drop() === i() ? listOf() : undefined)
             // 最後の段は戻る先がないので、押すと仲間の一覧を開く
             const menu = () => last() && !!listOf()?.length
