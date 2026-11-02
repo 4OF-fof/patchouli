@@ -46,6 +46,7 @@ export function TidyPanel(props: TidyPanelProps) {
   const [picking, setPicking] = createSignal(false)
   // 付けるたびに並びが変わらないよう、開いたときのものを使う
   const [recent, setRecent] = createSignal<string[]>([])
+  const [suggested, setSuggested] = createSignal<string[]>([])
   const [at, setAt] = createSignal<JSX.CSSProperties>({})
   /** 素材画面と同じく、押したボタンの左に、検索欄がボタンの横に来るように出す。 */
   const place = () => {
@@ -68,6 +69,7 @@ export function TidyPanel(props: TidyPanelProps) {
       return
     }
     setRecent(props.recentTags ?? [])
+    setSuggested(props.tags.filter((t) => t.conf).map((t) => t.tag))
     setPicking(true)
     place()
   }
@@ -135,7 +137,7 @@ export function TidyPanel(props: TidyPanelProps) {
               tags={onTags().map((t) => t.tag)}
               all={allTags()}
               recent={recent()}
-              suggested={props.tags.filter((t) => !t.on).map((t) => t.tag)}
+              suggested={suggested()}
               anchor={addBtn}
               onToggle={(t, v) => props.onTag(t, v)}
               onClose={closePicker}
