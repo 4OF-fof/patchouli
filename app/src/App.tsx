@@ -338,51 +338,54 @@ export function App(props: AppProps) {
     const v = itemView(id, list, at)
     if (v) go(v)
   }
+  /** パンくずの段から切り替えられる、同じ種類の仲間。来た道によらず、その段の画面だけで決める */
   const siblingItems = (v: View): Item[] | undefined => {
-    if (v.s === 'project') return lib().inProject(v.name)
-    if (v.s === 'group') return lib().inGroup(v.id)
-    if (v.s === 'tag') return lib().items.filter((i) => hasTag(i, v.tag))
+    if (v.s === 'asset') {
+      const list = v.list.flatMap((id) => lib().byId.get(id) ?? [])
+      return list.length > 1 ? list : undefined
+    }
     const n = v.s === 'note' ? lib().byId.get(v.id) : undefined
-    return n && lib().linksOf(n)
+    return n && lib().items.filter((it) => samePlace(it, n))
   }
   const siblingsOf = (i: number): NavMenuItem[] | undefined => {
-    const p = stack()[i - 1]
     const v = stack()[i]
-    if (!p || !v) return undefined
+    if (!v) return undefined
     const here = v.s === 'note' ? v.id : v.s === 'asset' ? v.list[assetIndex(v)] : undefined
+    const group = v.s === 'group' ? lib().groupBy.get(v.id) : undefined
     const list: NavMenuItem[] | undefined =
-      p.s === 'plist'
-        ? lib().projects.map((pr) => ({
-            id: pr.name,
-            icon: 'project',
-            label: pr.name,
-            current: v.s === 'project' && v.name === pr.name,
-          }))
-        : p.s === 'tlist'
+      v.s === 'project'
+        ? lib().projects.map((pr) => ({ id: pr.name, icon: 'project', label: pr.name, current: v.name === pr.name }))
+        : v.s === 'tag'
           ? [...lib().tagGroups().keys()]
               .toSorted((a, b) => a.localeCompare(b, 'ja'))
-              .map((t) => ({ id: t, icon: 'hash', label: t, current: v.s === 'tag' && v.tag === t }))
-          : siblingItems(p)?.map((it) => ({
-              id: it.id,
-              icon: it.note ? 'note' : 'file',
-              label: it.name,
-              current: it.id === here,
-            }))
+              .map((t) => ({ id: t, icon: 'hash', label: t, current: v.tag === t }))
+          : group
+            ? lib()
+                .groupsIn({ project: group.project, group: group.parent })
+                .map((g) => ({ id: g.id, icon: 'group', label: g.name, current: g.id === group.id }))
+            : siblingItems(v)?.map((it) => ({
+                id: it.id,
+                icon: it.note ? 'note' : 'file',
+                label: it.name,
+                current: it.id === here,
+              }))
     return list?.toSorted((a, b) => Number(!!b.current) - Number(!!a.current))
   }
   const toSibling = (i: number, id: string) => {
-    const p = stack()[i - 1]
-    if (!p) return
-    const v: View | undefined =
-      p.s === 'plist'
+    const v = stack()[i]
+    if (!v) return
+    const to: View | undefined =
+      v.s === 'project'
         ? { s: 'project', name: id }
-        : p.s === 'tlist'
+        : v.s === 'tag'
           ? { s: 'tag', tag: id }
-          : itemView(
-              id,
-              siblingItems(p)?.map((it) => it.id),
-            )
-    if (v) setStack([...stack().slice(0, i), v])
+          : v.s === 'group'
+            ? { s: 'group', id }
+            : itemView(
+                id,
+                siblingItems(v)?.map((it) => it.id),
+              )
+    if (to) setStack([...stack().slice(0, i), to])
   }
   const [peek, setPeek] = createSignal<string>()
   const openRef = (id: string) => {

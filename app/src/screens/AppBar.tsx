@@ -394,8 +394,10 @@ export function AppBar(props: AppBarProps) {
         <For each={props.crumbs ?? []}>
           {(c, i) => {
             const last = () => i() === (props.crumbs?.length ?? 0) - 1
-            const places = () => i() === 0 && last()
-            const items = () => (drop() === i() ? (i() === 0 ? placeItems() : props.siblingsOf?.(i())) : undefined)
+            const listOf = () => (i() === 0 ? placeItems() : props.siblingsOf?.(i()))
+            const items = () => (drop() === i() ? listOf() : undefined)
+            // 最後の段は戻る先がないので、押すと仲間の一覧を開く
+            const menu = () => last() && !!listOf()?.length
             return (
               <>
                 <Show when={i() > 0}>
@@ -409,17 +411,17 @@ export function AppBar(props: AppBarProps) {
                     type="button"
                     class={styles.crumb}
                     aria-current={last() ? 'page' : undefined}
-                    aria-haspopup={places() ? 'menu' : undefined}
-                    aria-expanded={places() ? drop() === 0 : undefined}
+                    aria-haspopup={menu() ? 'menu' : undefined}
+                    aria-expanded={menu() ? drop() === i() : undefined}
                     data-open={!!items()?.length}
                     onClick={() => {
-                      if (places()) {
+                      if (menu()) {
                         clearTimeout(timer)
                         pending = undefined
                         endGrace()
-                        if (drop() !== 0) {
+                        if (drop() !== i()) {
                           setClicked(true)
-                          setDrop(0)
+                          setDrop(i())
                         }
                         return
                       }
