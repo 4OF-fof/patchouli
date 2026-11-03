@@ -154,7 +154,6 @@ export function AppBar(props: AppBarProps) {
     { type: 'cmd', icon: 'settings', label: '設定を開く', key: '', run: () => openSettings() },
     { type: 'cmd', icon: 'keyboard', label: 'ショートカット一覧', key: '?', run: () => setState('help') },
     { type: 'cmd', icon: 'theme', label: 'テーマを切り替え', key: '', run: toggleTheme },
-    { type: 'cmd', icon: 'notices', label: '権利表示', key: '', run: () => openSettings('about') },
   ]
   const parsed = createMemo(() => parseQuery(query()))
   const filters = () => chips().map((c) => c.filter)
