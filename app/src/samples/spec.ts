@@ -10,13 +10,14 @@ export const TODAY = new Date(2026, 9, 22, 12)
 export const PINNED_PROJECTS = ['秋の企画', '日記']
 export const PINNED_TAGS = ['写真', 'UI', '参考']
 
-export type Media = 'image' | 'video' | 'audio' | 'note' | 'link' | 'other'
+export type Media = 'image' | 'video' | 'audio' | 'note' | 'link' | 'archive' | 'other'
 
 export const EXAMPLE_PLUGINS: string[] = [
   'example_page-plugin',
   'example_collect-plugin',
   'example_graph-plugin',
   'example_autolink-plugin',
+  'example_zip-plugin',
 ]
 
 export type SpecItem = Item & {
@@ -28,6 +29,8 @@ export type SpecItem = Item & {
   heavy?: { fps?: number; rate?: number }
   /** ショートカットが指す URL */
   link?: string
+  /** zip に入れるもの。パス → 中身の文字列か、入れる素材の名前 */
+  archive?: Record<string, string | { item: string }>
 }
 
 export interface Spec {
@@ -50,6 +53,7 @@ const MEDIA_OF: Record<string, Media> = {
   wav: 'audio',
   flac: 'audio',
   url: 'link',
+  zip: 'archive',
   // アプリもプラグインも読めない（開くと、対応するプラグインがないことを出す）
   psd: 'other',
 }
@@ -302,6 +306,7 @@ const CONTENTS: Record<string, { a: RawAsset[]; n: RawNote[] }> = {
       ['palette-autumn', 'webp', ['配色'], 9],
       ['IMG_2045', 'jpg', ['写真'], 12],
       ['IMG_2046', 'jpg', [], 12],
+      ['入稿データ', 'zip', ['参考'], 13],
       ['ambient-rain', 'wav', ['音'], 14],
       ['秋_poster', 'png', ['配色'], 20],
     ],
@@ -533,11 +538,27 @@ const TAG_POOL: Record<string, string[]> = {
 
 const JACKETS = ['theme-demo']
 
-/** ショートカット（.url）の名前 → 指す URL。YouTube のものは例のプラグイン（example/youtube-plugin）が受け持つ */
+/** ショートカット（.url）の名前 → 指す URL。YouTube のものは組み込みの YouTube のプラグインが受け持つ */
 const LINKS: Record<string, string> = {
   印刷所の入稿ルール: 'https://example.com/',
   'Tauri のリポジトリ': 'https://github.com/tauri-apps/tauri',
   'Big Buck Bunny': 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
+}
+
+/** zip の名前 → 中に入れるもの。 */
+const ARCHIVES: Record<string, Record<string, string | { item: string }>> = {
+  入稿データ: {
+    '入稿データ/はじめに読む.txt':
+      '秋の企画のポスター一式です。\n画像は「画像」、配色の見本は「配色」に入れています。\n',
+    '入稿データ/画像/moodboard-01.jpg': { item: 'moodboard-01' },
+    '入稿データ/画像/IMG_2041.jpg': { item: 'IMG_2041' },
+    '入稿データ/画像/IMG_2042.jpg': { item: 'IMG_2042' },
+    '入稿データ/画像/背景/texture_paper.jpg': { item: 'texture_paper' },
+    '入稿データ/配色/sage-swatch.png': { item: 'sage-swatch' },
+    '入稿データ/配色/vermilion-dot.png': { item: 'vermilion-dot' },
+    '入稿データ/配色/palette-autumn.webp': { item: 'palette-autumn' },
+    '入稿データ/音/ambient-rain.wav': { item: 'ambient-rain' },
+  },
 }
 
 const PINNED_ITEMS = ['ref-a', 'IMG_3316']
@@ -565,7 +586,17 @@ const secOf = (media: Media, name: string) =>
   media === 'video' || media === 'audio' ? 3 + (charSum(name) % 6) : undefined
 
 const ratioOf = (media: Media, size?: [number, number]) =>
-  size ? size[0] / size[1] : media === 'note' ? 0.8 : media === 'video' ? 16 / 9 : media === 'link' ? 1.91 : 1.6
+  size
+    ? size[0] / size[1]
+    : media === 'note'
+      ? 0.8
+      : media === 'video'
+        ? 16 / 9
+        : media === 'link'
+          ? 1.91
+          : media === 'archive'
+            ? 1
+            : 1.6
 
 function markdown(raw: RawBlock[]) {
   let body = ''
@@ -603,6 +634,7 @@ export function sampleSpec(): Spec {
       ...(sec && { sec }),
       ...(media === 'audio' && JACKETS.includes(it.name) && { jacket: true }),
       ...(media === 'link' && { link: LINKS[it.name] }),
+      ...(media === 'archive' && { archive: ARCHIVES[it.name] }),
     }
     items.push(full)
     return full

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { zip as zipPlugin } from '../app/plugins/sdk/cli.ts'
+import { zipDir as zipFiles, zip as zipPlugin } from '../app/plugins/sdk/cli.ts'
 import { EXAMPLE_PLUGINS, type SpecItem, TODAY, sampleSpec, stressSpec } from '../app/src/samples/spec.ts'
 
 const ID_KEY = 'patchouli-id'
@@ -212,6 +212,7 @@ fs.writeFileSync(
 
 const jobs: (() => Promise<void>)[] = []
 const touched: { file: string; moved: number }[] = []
+const archives: { it: SpecItem; file: string }[] = []
 // 負荷を調べるライブラリでは、形の同じ素材を 1 つだけ作り、ほかはそれを複製する
 const bases = new Map<string, string>()
 const copies: { from: string; to: string }[] = []
@@ -228,6 +229,7 @@ for (const it of spec.items) {
   fs.writeFileSync(meta, json({ [ID_KEY]: it.id, tags: it.tags, memo: it.memo }))
   touched.push({ file, moved: it.moved }, { file: meta, moved: it.moved })
   if (it.media === 'other') fs.writeFileSync(file, '')
+  else if (it.media === 'archive') archives.push({ it, file })
   else if (it.media === 'link') fs.writeFileSync(file, `[InternetShortcut]\r\nURL=${it.link ?? ''}\r\n`)
   else if (stress && !it.heavy) {
     const key = [it.ext, it.size, it.sec, it.jacket].join(' ')
@@ -261,6 +263,22 @@ copies.forEach(({ from, to }, i) => {
 })
 if (copies.length) process.stdout.write('\n')
 
+// zip は、中に入れる素材ができてから作る
+for (const { it, file } of archives) {
+  const stage = path.join(tmp, `archive-${it.id}`)
+  for (const [at, from] of Object.entries(it.archive ?? {})) {
+    const to = path.join(stage, at)
+    fs.mkdirSync(path.dirname(to), { recursive: true })
+    if (typeof from === 'string') fs.writeFileSync(to, from)
+    else {
+      const src = spec.items.find((i) => i.name === from.item)
+      if (!src) throw new Error(`${it.name}.zip に入れる「${from.item}」が見本にない`)
+      fs.copyFileSync(path.join(dirOf(src), `${src.name}.${src.ext}`), to)
+    }
+  }
+  zipFiles(stage, file)
+}
+
 // 更新日時は「いま」から、見本で動いた日数だけ戻す
 const now = Date.now()
 for (const { file, moved } of touched) {
@@ -272,6 +290,6 @@ fs.rmSync(tmp, { recursive: true, force: true })
 const count = (k: string) => spec.items.filter((i) => i.media === k).length
 console.log(
   `${path.relative(process.cwd(), root) || root} を作った（見本の今日 ${TODAY.toLocaleDateString('ja-JP')}）: ` +
-    `プロジェクト ${spec.projects.length}、グループ ${spec.groups.length}、ノート ${count('note')}、画像 ${count('image')}、動画 ${count('video')}、音声 ${count('audio')}、ショートカット ${count('link')}、` +
+    `プロジェクト ${spec.projects.length}、グループ ${spec.groups.length}、ノート ${count('note')}、画像 ${count('image')}、動画 ${count('video')}、音声 ${count('audio')}、ショートカット ${count('link')}、zip ${count('archive')}、` +
     `未対応 ${count('other')}、例のプラグイン ${EXAMPLE_PLUGINS.length}（${path.relative(process.cwd(), pluginDir)}）`,
 )

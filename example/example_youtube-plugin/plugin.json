@@ -1,0 +1,12 @@
+{
+  "id": "example_youtube",
+  "name": "example_youtube",
+  "version": "0.1.0",
+  "description": "YouTube の動画の URL を、サムネイルとプレーヤーで見せる",
+  "elevated": "ui/youtube.js",
+  "fetch": ["youtube.com", "ytimg.com"],
+  "links": {
+    "youtube.com": { "elevated": ["thumbnail", "view", "embed", "details"] },
+    "youtu.be": { "elevated": ["thumbnail", "view", "embed", "details"] }
+  }
+}

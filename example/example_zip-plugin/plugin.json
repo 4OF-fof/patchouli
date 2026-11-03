@@ -1,0 +1,10 @@
+{
+  "id": "example_zip",
+  "name": "example_zip",
+  "version": "0.1.0",
+  "description": "拡張子のプラグインの例。zip のサムネイルにアイコンを描き、詳細では中身をフォルダの木で見せる",
+  "elevated": "ui.js",
+  "formats": {
+    "zip": { "label": "zip", "ratio": 1, "fit": "contain", "sandbox": true, "elevated": ["view"] }
+  }
+}
