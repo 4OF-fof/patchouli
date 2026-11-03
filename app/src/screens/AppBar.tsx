@@ -412,7 +412,6 @@ export function AppBar(props: AppBarProps) {
     'separator',
     { id: 'theme', icon: 'theme', label: 'テーマを切り替え' },
     { id: 'keys', icon: 'keyboard', label: 'ショートカット一覧', kbd: '?' },
-    { id: 'notices', icon: 'notices', label: '権利表示' },
     { id: 'settings', icon: 'settings', label: '設定' },
   ]
   const [drop, setDrop] = createSignal(props.crumbMenu)
@@ -498,7 +497,6 @@ export function AppBar(props: AppBarProps) {
     if (id === 'theme') return toggleTheme()
     if (id === 'keys') return setState('help')
     if (id === 'plugins') return setState('plugins')
-    if (id === 'notices') return openSettings('about')
     if (id === 'library' && props.libraries) return setState('libraries')
     if (id === 'library') {
       close()
