@@ -207,6 +207,7 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
     .map((f) => f.ext)
     .toSorted(),
   links: Object.keys(m.links ?? {}).toSorted(),
+  screens: Object.values(m.screens ?? {}).map((d) => d.label),
   settings: [],
   problems: r.problems.get(m.id) ?? [],
 })

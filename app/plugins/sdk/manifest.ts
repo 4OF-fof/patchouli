@@ -80,6 +80,14 @@ export interface LinkDecl {
   elevated?: LinkPart[]
 }
 
+/** 本体に足す画面。ホームやすべてと並べて、場所のメニューやコマンドから開ける。描くのは elevated の screens。 */
+export interface ScreenDecl {
+  /** 場所のメニューやタブに出す名前。 */
+  label: string
+  /** 本体のアイコンの名前（home・grid・note など）。書かないときや、本体にないものは、プラグインのアイコンにする。 */
+  icon?: string
+}
+
 /** plugin.json。 */
 export interface Manifest {
   id: string
@@ -91,7 +99,7 @@ export interface Manifest {
   /** あれば使うもの。 */
   optional?: Deps
   /**
-   * formats の elevated を受け持つ ES モジュール（plugin.json からの相対パス、.js）。中身は PluginModule。
+   * formats と links の elevated、screens を受け持つ ES モジュール（plugin.json からの相対パス、.js）。中身は PluginModule。
    * ビルドでは、拡張子を .ts にしたものから作る。
    */
   elevated?: string
@@ -101,6 +109,8 @@ export interface Manifest {
    * 当てはまるものが複数あるときは、いちばん長いホスト名のものを使う。同じホスト名を複数のプラグインが書いたら、どれも使わない。
    */
   links?: Record<string, LinkDecl>
+  /** 画面の id → 画面。id は英数字・ハイフン・下線で書く。 */
+  screens?: Record<string, ScreenDecl>
   /** api.fetch で取りに行けるホスト名。サブドメインも含む。 */
   fetch?: string[]
 }

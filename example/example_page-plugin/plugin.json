@@ -1,0 +1,10 @@
+{
+  "id": "example_page",
+  "name": "example_page",
+  "version": "0.1.0",
+  "description": "プラグインで足す画面の例。すべてのノートをカードにして並べる",
+  "elevated": "ui.js",
+  "screens": {
+    "cards": { "label": "ノートのカード", "icon": "note" }
+  }
+}

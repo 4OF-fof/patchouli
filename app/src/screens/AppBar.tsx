@@ -24,7 +24,7 @@ import type {
   LibraryActions,
   TidyActions,
 } from '../backend/types'
-import { Icon } from '../components/base/Icon/Icon'
+import { Icon, type IconName } from '../components/base/Icon/Icon'
 import { Spinner } from '../components/base/Spinner/Spinner'
 import { TitleBar } from '../components/nav/TitleBar/TitleBar'
 import { HelpDialog } from '../components/dialog/HelpDialog/HelpDialog'
@@ -37,7 +37,7 @@ import { GRACE, OPEN_DELAY, type Point, graceArea, inside } from '../components/
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
 import { TabStrip, type TabStripProps } from '../components/nav/TabStrip/TabStrip'
 import type { Library } from '../model/library'
-import { prefs, setPrefs, themeOf } from '../model/prefs'
+import { type ScreenStart, prefs, setPrefs, themeOf } from '../model/prefs'
 import { builtinReport } from '../plugins/builtin'
 import type { PluginActions, PluginReport } from '../plugins/types'
 import {
@@ -57,7 +57,14 @@ import styles from './AppBar.module.css'
 import { type Row, SearchResults } from '../components/nav/SearchResults/SearchResults'
 import { ResultHeading } from '../components/nav/ResultRow/ResultRow'
 
-export type Place = 'home' | 'all' | 'tags' | 'projects' | 'tidy'
+export type Place = 'home' | 'all' | 'tags' | 'projects' | 'tidy' | ScreenStart
+
+/** プラグインが足す画面。 */
+export interface ScreenPlace {
+  place: ScreenStart
+  label: string
+  icon: IconName
+}
 export type BarState =
   | 'closed'
   | 'menu'
@@ -114,6 +121,7 @@ export interface AppBarProps {
   appSettings?: AppSettingsActions
   /** いまの場所の行の右端に、画面ごとのボタンを置く所。 */
   toolsRef?: (el: HTMLElement) => void
+  screens?: ScreenPlace[]
 }
 
 const BarToolsContext = createContext<Accessor<HTMLElement | undefined>>(() => undefined)
@@ -168,6 +176,13 @@ export function AppBar(props: AppBarProps) {
     { type: 'cmd', icon: 'grid', label: 'すべての項目', key: '', run: () => props.onGo?.('all') },
     { type: 'cmd', icon: 'project', label: 'プロジェクト一覧', key: '', run: () => props.onGo?.('projects') },
     { type: 'cmd', icon: 'hash', label: 'タグ一覧', key: '', run: () => props.onGo?.('tags') },
+    ...(props.screens ?? []).map((s): Command => ({
+      type: 'cmd',
+      icon: s.icon,
+      label: `${s.label}を開く`,
+      key: '',
+      run: () => props.onGo?.(s.place),
+    })),
     { type: 'cmd', icon: 'newNote', label: '新しいノートを作成', key: 'Ctrl N', run: () => props.onCreate?.() },
     { type: 'cmd', icon: 'home', label: 'ホームに戻る', key: '', run: () => props.onGo?.('home') },
     ...(props.onChooseLibrary
@@ -421,6 +436,13 @@ export function AppBar(props: AppBarProps) {
       current: props.here === 'projects',
     },
     { id: 'tags', icon: 'hash', label: 'タグ', count: lib().tagGroups().size, current: props.here === 'tags' },
+    ...(props.screens?.length ? ['separator' as const] : []),
+    ...(props.screens ?? []).map((s) => ({
+      id: s.place,
+      icon: s.icon,
+      label: s.label,
+      current: props.here === s.place,
+    })),
   ]
   const menuItems = (): NavMenuEntry[] => [
     ...(props.onChooseLibrary
@@ -530,6 +552,8 @@ export function AppBar(props: AppBarProps) {
     }
     close()
     if (id === 'home' || id === 'all' || id === 'tags' || id === 'projects') props.onGo?.(id)
+    const s = props.screens?.find((x) => x.place === id)
+    if (s) props.onGo?.(s.place)
   }
 
   const place = () => (
@@ -777,6 +801,7 @@ export function AppBar(props: AppBarProps) {
           version={version}
           prefs={prefs()}
           onPrefsChange={setPrefs}
+          screens={props.screens?.map((s) => ({ value: s.place, label: s.label }))}
           library={props.library}
           onOpenLibraries={
             props.libraries ? () => setState('libraries') : props.onChooseLibrary && (() => void onMenu('library'))

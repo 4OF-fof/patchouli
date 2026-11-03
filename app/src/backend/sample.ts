@@ -1,7 +1,8 @@
 import { emptyNote, emptyProject } from '../model/library'
 import type { ItemView } from '../plugins/types'
 import { PINNED_PROJECTS, PINNED_TAGS, sampleLibrary } from '../samples/library'
-import { sampleReport } from '../samples/plugins'
+import { SAMPLE_SCREENS, sampleReport, sampleUiUrl } from '../samples/plugins'
+import type { SettingValue } from '../../plugins/sdk'
 import type { Backend } from './types'
 
 const VIEW: Record<string, ItemView> = {
@@ -14,9 +15,11 @@ export function sampleBackend(): Backend {
   let n = 0
   const lib = sampleLibrary()
   const imported = new Map<string, string>()
+  const data = new Map<string, string>()
+  const settings = new Map<string, Record<string, SettingValue>>()
   return {
     async open() {
-      return { lib, pinnedProjects: PINNED_PROJECTS, pinnedTags: PINNED_TAGS, problems: [] }
+      return { lib, pinnedProjects: PINNED_PROJECTS, pinnedTags: PINNED_TAGS, screens: SAMPLE_SCREENS, problems: [] }
     },
     async saveItem() {
       return undefined
@@ -59,6 +62,25 @@ export function sampleBackend(): Backend {
     async deleteTagCover() {},
     onThumbnail: () => () => {},
     plugins: async () => sampleReport(),
+    uiUrl: sampleUiUrl,
+    ownApi: (plugin) => ({
+      settings: async () => ({ ...settings.get(plugin) }),
+      setSetting: async (key, value) => void settings.set(plugin, { ...settings.get(plugin), [key]: value }),
+      getData: async (key) =>
+        data.get(`${plugin}
+${key}`),
+      setData: async (key, value) => {
+        if (value === undefined)
+          data.delete(`${plugin}
+${key}`)
+        else
+          data.set(
+            `${plugin}
+${key}`,
+            value,
+          )
+      },
+    }),
     async itemView(id) {
       const ext = lib.byId.get(id)?.ext ?? imported.get(id)
       const plugin = ext && lib.formats.get(ext)?.plugin

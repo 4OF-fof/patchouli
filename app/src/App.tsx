@@ -67,7 +67,8 @@ import {
   withToggledPin,
 } from './model/library'
 import { FormatsProvider } from './plugins/formats'
-import type { MenuEntry } from './plugins/types'
+import type { MenuEntry, ScreenInfo } from './plugins/types'
+import type { NewNote, OpenOptions, OwnApi } from '../plugins/sdk'
 import { type HoverHost, HoverHostProvider } from './components/media/HoverPreview/HoverPreview'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import type { Activity } from './components/nav/ActivityButton/ActivityButton'
@@ -92,8 +93,8 @@ import {
 } from './components/nav/SplitView/split'
 import { TabList } from './components/nav/TabList/TabList'
 import type { TabEntry, TabStripProps } from './components/nav/TabStrip/TabStrip'
-import { applyPrefs, prefs } from './model/prefs'
-import type { IconName } from './components/base/Icon/Icon'
+import { applyPrefs, prefs, screenStart } from './model/prefs'
+import { ICON_NAMES, type IconName } from './components/base/Icon/Icon'
 import { SelectionProvider, createSelection } from './components/media/Selection/Selection'
 import {
   ItemMenuProvider,
@@ -103,7 +104,7 @@ import {
   watchSeen,
 } from './components/media/Thumb/Thumb'
 import { AllScreen } from './screens/All/AllScreen'
-import { AppBar, type BarRequest, BarToolsProvider, type Place } from './screens/AppBar'
+import { AppBar, type BarRequest, BarToolsProvider, type Place, type ScreenPlace } from './screens/AppBar'
 import type { Blocker } from './components/media/Unsupported/Unsupported'
 import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
@@ -116,6 +117,7 @@ import { hostOf } from './plugins/links'
 import { ProjectScreen } from './screens/Project/ProjectScreen'
 import { ProjectListScreen } from './screens/ProjectList/ProjectListScreen'
 import { ScreenFrame } from './screens/ScreenFrame'
+import { PluginScreen } from './screens/Plugin/PluginScreen'
 import { TagScreen } from './screens/Tag/TagScreen'
 import { TagListScreen } from './screens/TagList/TagListScreen'
 import { type TidyDecision, TidyScreen } from './screens/Tidy/TidyScreen'
@@ -132,6 +134,7 @@ type View =
   | { s: 'asset'; list: string[]; index: number; at?: number }
   | { s: 'tidy'; id?: string }
   | { s: 'web'; url: string }
+  | { s: 'screen'; plugin: string; id: string }
 
 const LABEL: Record<View['s'], string> = {
   edition: 'ホーム',
@@ -145,6 +148,7 @@ const LABEL: Record<View['s'], string> = {
   asset: '素材',
   tidy: '分類の確認',
   web: 'ウェブページ',
+  screen: '画面',
 }
 
 const TAB_ICON: Record<View['s'], IconName> = {
@@ -159,6 +163,7 @@ const TAB_ICON: Record<View['s'], IconName> = {
   asset: 'file',
   tidy: 'tag',
   web: 'link',
+  screen: 'plugin',
 }
 
 interface Tab {
@@ -176,8 +181,18 @@ const NOT_EMPTY =
 
 const str = (x: unknown) => (typeof x === 'string' ? x : undefined)
 
-/** ファイルから読んだ画面を、いまのライブラリで開けるものだけにする。 */
-function viewOf(lib: Library, v: unknown): View | undefined {
+/** 設定と残した値を持てないときに、プラグインの画面に渡す窓口。 */
+const NO_OWN: OwnApi = {
+  settings: async () => ({}),
+  setSetting: async () => {},
+  getData: async () => undefined,
+  setData: async () => {},
+}
+
+const screenIcon = (s: ScreenInfo): IconName => ICON_NAMES.find((n) => n === s.icon) ?? 'plugin'
+
+/** ファイルから読んだ画面を、いまのライブラリとプラグインで開けるものだけにする。 */
+function viewOf(lib: Library, screens: ScreenInfo[], v: unknown): View | undefined {
   if (typeof v !== 'object' || v === null) return undefined
   const x: Record<string, unknown> = Object.fromEntries(Object.entries(v))
   switch (x.s) {
@@ -214,6 +229,12 @@ function viewOf(lib: Library, v: unknown): View | undefined {
       const url = str(x.url)
       return url && /^https?:\/\//i.test(url) ? { s: 'web', url } : undefined
     }
+    case 'screen': {
+      const [plugin, id] = [str(x.plugin), str(x.id)]
+      return screens.some((s) => s.plugin === plugin && s.id === id) && plugin && id
+        ? { s: 'screen', plugin, id }
+        : undefined
+    }
   }
   return undefined
 }
@@ -226,6 +247,7 @@ export interface AppProps {
   orphans?: Orphan[]
   location?: string
   notice?: string
+  screens?: ScreenInfo[]
 }
 
 const importedNotice = (r: Imported) => {
@@ -272,12 +294,18 @@ type Progress = ReturnType<typeof progress>
 export function App(props: AppProps) {
   const backend = props.backend ?? sampleBackend()
   const [lib, setLib] = createSignal(props.lib)
+  const [screens, setScreens] = createSignal(props.screens ?? [])
+  const screenOfView = (v: View & { s: 'screen' }) => screens().find((s) => s.plugin === v.plugin && s.id === v.id)
   let tabSeq = 0
   const makeTab = (views: View[] = [{ s: 'edition' }], from?: Tab): Tab => {
     const [stack, setStack] = createSignal(views)
     return { id: tabSeq++, stack, setStack: (s) => setStack(s), from }
   }
-  const [tabs, setTabs] = createSignal<Tab[]>([makeTab()])
+  const startView = (): View => {
+    const s = untrack(screens).find((x) => screenStart(x.plugin, x.id) === prefs().start)
+    return s ? { s: 'screen', plugin: s.plugin, id: s.id } : { s: 'edition' }
+  }
+  const [tabs, setTabs] = createSignal<Tab[]>([makeTab([startView()])])
   const [currentTab, setCurrentTab] = createSignal(tabs()[0])
   // 分割して並べるタブのまとまり。currentTab は、いま操作しているペインのタブ
   const [splits, setSplits] = createSignal<SplitNode[]>([])
@@ -447,7 +475,7 @@ export function App(props: AppProps) {
     return {
       id: t.id,
       label: labelOf(v),
-      icon: TAB_ICON[v.s],
+      icon: iconOf(v),
       shown: !!g && g === shownSplit(),
       group: g && splits().indexOf(g),
       face: face === t.id,
@@ -479,7 +507,13 @@ export function App(props: AppProps) {
               ? (lib().byId.get(v.list[assetIndex(v)] ?? '')?.name ?? LABEL.asset)
               : v.s === 'web'
                 ? (hostOf(v.url) ?? LABEL.web)
-                : LABEL[v.s]
+                : v.s === 'screen'
+                  ? (screenOfView(v)?.label ?? LABEL.screen)
+                  : LABEL[v.s]
+  const iconOf = (v: View): IconName => {
+    const s = v.s === 'screen' && screenOfView(v)
+    return s ? screenIcon(s) : TAB_ICON[v.s]
+  }
   const crumbs = () => stack().map(labelOf)
   const go = (v: View) => (inNewTab() ? openTab([...stack(), v]) : setStack([...stack(), v]))
   const itemView = (id: string, list?: string[], at?: number): View | undefined => {
@@ -579,7 +613,9 @@ export function App(props: AppProps) {
     selection.clear()
   })
   const onGo = (to: Place) => {
-    if (to === 'tidy') go({ s: 'tidy' })
+    const screen = screens().find((s) => screenStart(s.plugin, s.id) === to)
+    if (screen) setStack([{ s: 'screen', plugin: screen.plugin, id: screen.id }])
+    else if (to === 'tidy') go({ s: 'tidy' })
     else setStack([{ s: to === 'all' ? 'all' : to === 'tags' ? 'tlist' : to === 'projects' ? 'plist' : 'edition' }])
   }
 
@@ -841,6 +877,37 @@ export function App(props: AppProps) {
     const it = await addNote(name, ROOT)
     if (it) go({ s: 'note', id: it.id })
   }
+  const addNoteWith = async (n: NewNote) => {
+    const it = await addNote(n.name, { project: n.project ?? null, group: null })
+    if (it && n.body) editItem(it.id, { body: n.body }, { body: n.body })
+    return it
+  }
+  const setTags = (id: string, tags: string[]) => {
+    const old = lib().byId.get(id)?.tags ?? []
+    const add = tags.filter((t) => !old.includes(t))
+    const remove = old.filter((t) => !tags.includes(t))
+    if (add.length || remove.length) editItem(id, { tags }, { tags: { add, remove } })
+  }
+  const openWith = (opts: OpenOptions | undefined, open: () => void) => (opts?.newTab ? asNewTab(open) : open())
+  const pluginScreen = (v: View & { s: 'screen' }) => {
+    const s = screenOfView(v)
+    return (
+      <PluginScreen
+        lib={lib()}
+        url={s && backend.uiUrl?.(s)}
+        screen={v.id}
+        label={s?.label ?? LABEL.screen}
+        own={backend.ownApi?.(v.plugin) ?? NO_OWN}
+        onOpen={(id, o) => openWith(o, () => openItem(id))}
+        onOpenTag={(tag, o) => openWith(o, () => go({ s: 'tag', tag }))}
+        onOpenProject={(name, o) => openWith(o, () => go({ s: 'project', name }))}
+        onCreateNote={addNoteWith}
+        onBody={(id, body) => editItem(id, { body }, { body })}
+        onTags={setTags}
+        onRename={renameItem}
+      />
+    )
+  }
   const embedHost = () => ({
     format: (ext: string) => lib().formats.get(ext),
     view: backend.itemView,
@@ -987,6 +1054,7 @@ export function App(props: AppProps) {
     try {
       const o = await backend.reloadPlugins(wait)
       setLib(suggestions ? withSuggestions(o.lib, suggestions) : o.lib)
+      setScreens(o.screens ?? [])
       setPinnedProjects(o.pinnedProjects)
       setPinnedTags(o.pinnedTags)
       setPlugged(plugged() + 1)
@@ -1005,12 +1073,12 @@ export function App(props: AppProps) {
   const [tabsRead, setTabsRead] = createSignal(!backend.tabs)
   const restoreTabs = (s: SavedTabs | undefined) => {
     const made = (Array.isArray(s?.tabs) ? s.tabs : [])
-      .map((vs) => (Array.isArray(vs) ? vs.flatMap((v) => viewOf(lib(), v) ?? []) : []))
+      .map((vs) => (Array.isArray(vs) ? vs.flatMap((v) => viewOf(lib(), screens(), v) ?? []) : []))
       .map((vs) => (vs.length ? makeTab(vs) : undefined))
     const list = made.flatMap((t) => t ?? [])
     const at = typeof s?.current === 'number' ? s.current : 0
     const shown = made[at] ?? list[Math.min(Math.max(0, at), list.length - 1)]
-    if (!shown || prefs().start === 'home') return
+    if (!shown || prefs().start !== 'last') return
     const used = new Set<number>()
     const groups = (Array.isArray(s?.splits) ? s.splits : []).flatMap((v) => {
       const n = parseSplit(v, (i) => made[i]?.id)
@@ -1106,6 +1174,9 @@ export function App(props: AppProps) {
     setPinnedTags(toggled(pinnedTags(), tag))
     saveState()
   }
+  const screenPlace = (v: View) => (v.s === 'screen' ? screenStart(v.plugin, v.id) : undefined)
+  const screenPlaces = (): ScreenPlace[] =>
+    screens().map((s) => ({ place: screenStart(s.plugin, s.id), label: s.label, icon: screenIcon(s) }))
   const here = (): Place | undefined =>
     view().s === 'edition'
       ? 'home'
@@ -1115,7 +1186,9 @@ export function App(props: AppProps) {
           ? 'tags'
           : view().s === 'plist'
             ? 'projects'
-            : undefined
+            : view().s === 'screen'
+              ? screenPlace(view())
+              : undefined
 
   const onKey = (e: KeyboardEvent) => {
     if (e.defaultPrevented) return
@@ -1490,6 +1563,9 @@ export function App(props: AppProps) {
         <Match when={shown().s === 'web' && shown()} keyed>
           {(v) => v.s === 'web' && webScreen(v.url)}
         </Match>
+        <Match when={shown().s === 'screen' && shown()} keyed>
+          {(v) => v.s === 'screen' && pluginScreen(v)}
+        </Match>
         <Match when={shown().s === 'tidy' && shown()} keyed>
           {(v) =>
             v.s === 'tidy' && (
@@ -1548,6 +1624,7 @@ export function App(props: AppProps) {
                       activities={activities()}
                       tabs={tabsAt() === 'top' ? tabStrip() : undefined}
                       toolsRef={setBarTools}
+                      screens={screenPlaces()}
                     />
                   }
                   side={tabsAt() === 'left' ? <TabList {...tabStrip()} /> : undefined}

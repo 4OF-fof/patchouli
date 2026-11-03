@@ -1,7 +1,7 @@
 /*
  * 組み込み UI。plugin.json の elevated の ES モジュールを、隔離せずに本体の画面で動かす。中身は default で書き出した PluginModule。
  * 本体の画面と同じ文書で動くので、色や字体の CSS 変数（src/styles/tokens.css）はそのまま使え、
- * 詳細の表示の中では、ボタンや入力欄などの素の要素に本体と同じ見た目が付く（PluginView）。
+ * 描く場所の中では、ボタンや入力欄などの素の要素に本体と同じ見た目が付き、select は本体の一覧で開く（PluginView）。
  */
 import type {
   Api,
@@ -61,11 +61,17 @@ const LINK_FNS = ['thumbnail', 'mount', 'embed', 'details']
 const isFn = (v: unknown) => v === undefined || typeof v === 'function'
 const isLinks = (v: unknown) =>
   v === undefined || (typeof v === 'object' && v !== null && LINK_FNS.every((k) => isFn(Reflect.get(v, k))))
+const isScreens = (v: unknown) =>
+  v === undefined ||
+  (typeof v === 'object' &&
+    v !== null &&
+    Object.values(v).every((s: unknown) => typeof s === 'object' && s !== null && isFn(Reflect.get(s, 'mount'))))
 const isModule = (m: unknown): m is UiModule =>
   typeof m === 'object' &&
   m !== null &&
   MODULE_FNS.every((k) => isFn(Reflect.get(m, k))) &&
-  isLinks(Reflect.get(m, 'links'))
+  isLinks(Reflect.get(m, 'links')) &&
+  isScreens(Reflect.get(m, 'screens'))
 
 export const loadUi = (url: string): Promise<UiModule> => {
   let m = loaded.get(url)
@@ -74,7 +80,7 @@ export const loadUi = (url: string): Promise<UiModule> => {
       const mod: unknown = typeof ns === 'object' && ns !== null ? Reflect.get(ns, 'default') : undefined
       if (!isModule(mod))
         throw new Error(
-          `default で書き出したものの ${MODULE_FNS.join('・')}、links の ${LINK_FNS.join('・')} のいずれかが関数ではありません`,
+          `default で書き出したものの ${MODULE_FNS.join('・')}、links の ${LINK_FNS.join('・')}、screens の mount のいずれかが関数ではありません`,
         )
       return mod
     })

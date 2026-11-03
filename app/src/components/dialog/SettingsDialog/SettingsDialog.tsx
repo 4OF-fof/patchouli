@@ -9,7 +9,7 @@ import type {
   TagSuggest,
   UnusedPlugin,
 } from '../../../backend/types'
-import { DEFAULT_PREFS, type Prefs } from '../../../model/prefs'
+import { DEFAULT_PREFS, type Prefs, type ScreenStart } from '../../../model/prefs'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
@@ -26,6 +26,8 @@ export interface SettingsDialogProps {
   page?: SettingsPage
   prefs?: Prefs
   onPrefsChange?: (patch: Partial<Prefs>) => void
+  /** 起動時に開く画面に選べる、プラグインの画面。 */
+  screens?: { value: ScreenStart; label: string }[]
   /** いま開いているライブラリの場所。 */
   library?: string
   onOpenLibraries?: () => void
@@ -213,6 +215,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
       pref('general', 'start', '起動時に開く画面', [
         { value: 'last', label: '前回のタブ' },
         { value: 'home', label: 'ホーム' },
+        ...(props.screens ?? []),
       ]),
       pref(
         'general',

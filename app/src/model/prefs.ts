@@ -2,11 +2,13 @@ import { createSignal } from 'solid-js'
 
 export type TabsAt = 'top' | 'left'
 export type Sort = 'moved' | 'name' | 'kind'
+/** プラグインが足す画面。プラグインの id と画面の id を / でつなぐ。 */
+export type ScreenStart = `screen:${string}`
 
 /** この端末の画面まわりの設定。 */
 export interface Prefs {
-  /** 起動したときに、前に開いていたタブを戻すか、ホームだけを開くか */
-  start: 'last' | 'home'
+  /** 起動したときに、前に開いていたタブを戻すか、ホームかプラグインの画面だけを開くか */
+  start: 'last' | 'home' | ScreenStart
   /** ノートのリンクを押したときの開き方 */
   openLink: 'peek' | 'here' | 'tab'
   theme: 'system' | 'light' | 'dark'
@@ -54,6 +56,10 @@ const CHOICES: { [K in keyof Prefs]: readonly Prefs[K][] } = {
   headsOpen: [true, false],
 }
 
+export const screenStart = (plugin: string, id: string): ScreenStart => `screen:${plugin}/${id}`
+
+const isScreenStart = (v: unknown): v is ScreenStart => typeof v === 'string' && v.startsWith('screen:')
+
 /** 保存してあったものから、いまの選択肢にある値だけを拾う。 */
 const pick = <K extends keyof Prefs>(saved: Record<string, unknown>, key: K): Prefs[K] =>
   CHOICES[key].find((c) => c === saved[key]) ?? DEFAULT_PREFS[key]
@@ -64,7 +70,7 @@ const read = (): Prefs => {
     const saved: Record<string, unknown> = typeof raw === 'object' && raw ? { ...raw } : {}
     if (!('tabsAt' in saved) && localStorage.getItem(OLD_TABS_AT) === 'left') saved.tabsAt = 'left'
     return {
-      start: pick(saved, 'start'),
+      start: isScreenStart(saved.start) ? saved.start : pick(saved, 'start'),
       openLink: pick(saved, 'openLink'),
       theme: pick(saved, 'theme'),
       tabsAt: pick(saved, 'tabsAt'),

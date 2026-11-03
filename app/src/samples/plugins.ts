@@ -1,8 +1,14 @@
 import { BUILTIN_MANIFESTS, type RawManifest, readManifest, resolveFormats, statusOf } from '../plugins/builtin'
-import type { FormatInfo, PluginReport } from '../plugins/types'
+import type { FormatInfo, PluginReport, ScreenInfo, UiRef } from '../plugins/types'
 import { EXAMPLE_PLUGINS } from './spec'
 
 const FOUND = import.meta.glob<RawManifest>('../../../example/*/plugin.json', { eager: true, import: 'default' })
+/** 例のプラグインの elevated。scripts/dev-library.ts が dist にビルドしたもの。 */
+const BUILT = import.meta.glob<string>('../../../example/*/dist/**/*.js', {
+  eager: true,
+  query: '?url',
+  import: 'default',
+})
 
 const EXAMPLES = EXAMPLE_PLUGINS.flatMap((dir) => {
   const raw = FOUND[`../../../example/${dir}/plugin.json`]
@@ -12,6 +18,18 @@ const EXAMPLES = EXAMPLE_PLUGINS.flatMap((dir) => {
 const resolved = resolveFormats([...BUILTIN_MANIFESTS, ...EXAMPLES.map((e) => e.manifest)])
 
 export const SAMPLE_FORMATS: ReadonlyMap<string, FormatInfo> = resolved.formats
+
+export const SAMPLE_SCREENS: ScreenInfo[] = EXAMPLES.flatMap(({ manifest: m }) => {
+  const module = m.elevated
+  if (!module) return []
+  return Object.entries(m.screens ?? {}).map(([id, d]) => ({ id, label: d.label, icon: d.icon, plugin: m.id, module }))
+})
+
+/** 例のプラグインの elevated の URL。ビルドしていなければ空。 */
+export const sampleUiUrl = (ui: UiRef) => {
+  const dir = EXAMPLES.find((e) => e.manifest.id === ui.plugin)?.dir
+  return (dir && BUILT[`../../../example/${dir}/dist/${ui.module}`]) || ''
+}
 
 export const sampleReport = (): PluginReport => ({
   plugins: [

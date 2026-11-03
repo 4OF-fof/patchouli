@@ -15,6 +15,7 @@ export type {
   Part,
   PluginDep,
   Probe,
+  ScreenDecl,
   SettingValue,
 } from '../../plugins/sdk'
 
@@ -51,6 +52,13 @@ export interface FormatInfo {
 export interface LinkInfo extends UiRef {
   host: string
   parts: LinkPart[]
+}
+
+/** プラグインが足す画面。 */
+export interface ScreenInfo extends UiRef {
+  id: string
+  label: string
+  icon?: string
 }
 
 export interface Problem {
@@ -93,6 +101,8 @@ export interface PluginStatus {
   formats: string[]
   /** 受け持つ URL のホスト名。 */
   links?: string[]
+  /** 足す画面の名前。 */
+  screens?: string[]
   settings: Setting[]
   problems: Problem[]
 }

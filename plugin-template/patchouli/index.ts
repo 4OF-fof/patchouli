@@ -2,6 +2,12 @@
  * プラグインを作るための型と補助。plugin.json の形と、elevated に渡す窓口を決める。
  * 正本は app/plugins/sdk/。plugin-template/patchouli/ は scripts/plugin-template.ts が写したもの。
  * elevated からは `@patchouli/plugin` として読む（ビルドでは cli.ts が、型の確認では tsconfig の paths がここを指す）。
+ *
+ * elevated は本体の画面と同じ文書で描くので、本体の CSS 変数（--ink・--card・--accent・--space-* など）を使える。
+ * mount・embed・screens で描く場所の中では、素の要素が本体の部品と同じに見える。
+ * - button・input・select・textarea などに、本体と同じ見た目が付く（プラグインの CSS で上書きできる）
+ * - select は、押すと本体と同じ一覧を出す。選んだあとは素の select と同じく value が変わり、input と change が届く
+ * - data-tip を付けた要素には、その文言で本体のツールチップが出る
  */
 
 export type SettingValue = boolean | number | string
@@ -198,6 +204,70 @@ export interface LinkModule<T extends PluginTypes = PluginTypes> {
   details?(api: LinkApi<T>): Promise<Detail[]>
 }
 
+/** 画面に渡す、ライブラリの項目。 */
+export interface LibraryItem {
+  id: string
+  /** ノートか。ノートでなければ素材。 */
+  note: boolean
+  name: string
+  /** 拡張子（小文字）。 */
+  ext: string
+  /** 入っているプロジェクト。 */
+  project: string | null
+  tags: string[]
+  /** ノートの本文（Markdown）。ほかの項目へのリンクは [名前](patchouli:<id>)、埋め込みは ![名前](patchouli:<id>)。 */
+  body?: string
+  /** 素材のメモ。 */
+  memo: string
+  /** 更新した時刻（ミリ秒）。 */
+  mtime?: number
+  pinned: boolean
+  /** 縦横比（幅 / 高さ）。 */
+  ratio: number
+  /** サムネイルの URL。まだできていないときはない。 */
+  thumb?: string
+  /** 中身の URL。ノートにはない。 */
+  url?: string
+}
+
+/** 項目などを開くときの指定。 */
+export interface OpenOptions {
+  /** 新しいタブに開く。 */
+  newTab?: boolean
+}
+
+/** 作るノート。name が同じノートがあれば、後ろに番号を付ける。project を書かなければ、どのプロジェクトにも入れない。 */
+export interface NewNote {
+  name?: string
+  body?: string
+  project?: string
+}
+
+/**
+ * 画面の窓口。書き換えは、先に items に写してから保存する。保存できなかったときは、本体が通知を出して読み込み直す。
+ */
+export interface ScreenApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
+  /** いまのライブラリの項目すべて。 */
+  items(): LibraryItem[]
+  item(id: string): LibraryItem | undefined
+  /** 項目が増えたり、変わったり、なくなったりしたら呼ぶ。返した関数で知らせをやめる。 */
+  onChange(fn: () => void): () => void
+  open(id: string, opts?: OpenOptions): void
+  openTag(tag: string, opts?: OpenOptions): void
+  openProject(name: string, opts?: OpenOptions): void
+  createNote(note?: NewNote): Promise<LibraryItem>
+  /** ノートの本文を書き換える。 */
+  setBody(id: string, body: string): void
+  setTags(id: string, tags: string[]): void
+  rename(id: string, name: string): void
+}
+
+/** plugin.json の screens の 1 つ。 */
+export interface ScreenModule<T extends PluginTypes = PluginTypes> {
+  /** el の中に描く。el は画面いっぱいの大きさで、はみ出す分は送れる。返した関数は、閉じるときに呼ぶ。 */
+  mount(el: HTMLElement, api: ScreenApi<T>): void | (() => void)
+}
+
 /** elevated の ES モジュールが default で書き出すもの。受け持つもの（plugin.json の formats の elevated）の分だけあればよい。 */
 export interface PluginModule<T extends PluginTypes = PluginTypes> {
   /** 詳細の表示。el の中に描く。返した関数は、閉じるときに呼ぶ。 */
@@ -233,6 +303,8 @@ export interface PluginModule<T extends PluginTypes = PluginTypes> {
   link?(api: Api<T>): Promise<string | undefined>
   /** plugin.json の links で受け持つもの。 */
   links?: LinkModule<T>
+  /** plugin.json の screens の id → 画面。 */
+  screens?: Record<string, ScreenModule<T>>
 }
 
 /**

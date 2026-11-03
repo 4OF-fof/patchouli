@@ -11,7 +11,7 @@ import {
   daysBefore,
   touchedLabel,
 } from '../model/library'
-import type { FormatInfo, LinkInfo } from '../plugins/types'
+import type { FormatInfo, LinkInfo, ScreenInfo } from '../plugins/types'
 import type { Changed, LibraryState, Opened, Orphan } from './types'
 
 export interface StoredItem {
@@ -56,6 +56,7 @@ export interface StoredLibrary<I extends StoredItem = StoredItem> {
   orphans: Orphan[]
   formats: FormatInfo[]
   links?: LinkInfo[]
+  screens?: ScreenInfo[]
   problems: string[]
 }
 
@@ -161,6 +162,7 @@ export function toOpened<I extends StoredItem>(s: StoredLibrary<I>, today: Date,
     pinnedTags: s.state.pinnedTags ?? [],
     orphans: s.orphans,
     location: s.root,
+    screens: s.screens ?? [],
     problems: s.problems,
   }
 }

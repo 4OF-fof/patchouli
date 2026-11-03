@@ -17,9 +17,10 @@ import type {
   Part,
   PluginActions,
   PluginReport,
+  ScreenInfo,
   UiRef,
 } from '../plugins/types'
-import type { LinkApi } from '../../plugins/sdk'
+import type { LinkApi, OwnApi } from '../../plugins/sdk'
 import type { Page } from '../plugins/links'
 import type { UiApi, UiItem } from '../plugins/ui'
 
@@ -66,6 +67,8 @@ export interface Opened {
   pinnedProjects: string[]
   pinnedTags: string[]
   orphans?: Orphan[]
+  /** プラグインが足す画面。 */
+  screens?: ScreenInfo[]
   problems: string[]
 }
 
@@ -305,6 +308,8 @@ export interface Backend {
   runItemMenu?: (ids: string[], entry: string) => Promise<string | undefined>
   waveform?: (id: string) => Promise<Uint8Array | null>
   uiApi?: (item: UiItem, part: Part, plugin: string) => UiApi
+  /** プラグインの、自分の設定と残した値の窓口。 */
+  ownApi?: (plugin: string) => OwnApi
   uiUrl?: (ui: UiRef) => string
   /** url の part を受け持つもの。 */
   linkOf?: (url: string, part: LinkPart) => LinkShown

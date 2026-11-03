@@ -13,7 +13,7 @@ use crate::cache::{Cache, Row, Sig};
 use crate::cover;
 use crate::note;
 use crate::orphan::{self, Orphan};
-use crate::plugin::{FormatInfo, LinkInfo, Registry};
+use crate::plugin::{FormatInfo, LinkInfo, Registry, ScreenInfo};
 
 pub const ID_KEY: &str = "patchouli-id";
 pub const TYPE_KEY: &str = "patchouli-type";
@@ -129,6 +129,7 @@ pub struct Opened {
     pub orphans: Vec<Orphan>,
     pub formats: Vec<FormatInfo>,
     pub links: Vec<LinkInfo>,
+    pub screens: Vec<ScreenInfo>,
     pub problems: Vec<String>,
 }
 
@@ -329,6 +330,7 @@ impl Library {
             orphans: self.orphans.clone(),
             formats: self.plugins.formats(),
             links: self.plugins.links(),
+            screens: self.plugins.screens(),
             problems: vec![],
         }
     }
@@ -408,6 +410,7 @@ impl Library {
         lib.touched = Some(HashSet::new());
         let formats = lib.plugins.formats();
         let links = lib.plugins.links();
+        let screens = lib.plugins.screens();
         Some((
             lib,
             Opened {
@@ -420,6 +423,7 @@ impl Library {
                 orphans: vec![],
                 formats,
                 links,
+                screens,
                 problems: vec![],
             },
         ))
@@ -546,6 +550,7 @@ impl Library {
             orphans: scan.orphans,
             formats: self.plugins.formats(),
             links: self.plugins.links(),
+            screens: self.plugins.screens(),
             problems: scan.problems,
         }
     }

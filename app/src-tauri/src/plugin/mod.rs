@@ -121,6 +121,12 @@ pub struct LinkDecl {
     pub elevated: Vec<Part>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ScreenDecl {
+    pub label: String,
+    pub icon: Option<String>,
+}
+
 /// ホスト名をそろえる。大文字と末尾の点は区別しない。
 pub fn host_key(h: &str) -> String {
     h.trim_end_matches('.').to_ascii_lowercase()
@@ -188,6 +194,8 @@ pub struct Manifest {
     #[serde(default)]
     pub links: BTreeMap<String, LinkDecl>,
     #[serde(default)]
+    pub screens: BTreeMap<String, ScreenDecl>,
+    #[serde(default)]
     pub fetch: Vec<String>,
 }
 
@@ -215,6 +223,7 @@ impl Manifest {
     fn wants_elevated(&self) -> bool {
         self.formats.values().any(|d| !d.elevated.is_empty())
             || self.links.values().any(|d| !d.elevated.is_empty())
+            || !self.screens.is_empty()
     }
 
     fn caps(&self) -> Vec<Cap> {
@@ -412,6 +421,17 @@ pub struct LinkInfo {
     pub parts: Vec<Part>,
 }
 
+/// プラグインが足す画面。画面に渡す。
+#[derive(Debug, Clone, Serialize)]
+pub struct ScreenInfo {
+    pub id: String,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    #[serde(flatten)]
+    pub ui: UiRef,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct UiRef {
     pub plugin: String,
@@ -480,6 +500,7 @@ pub struct PluginStatus {
     pub caps: Vec<Cap>,
     pub formats: Vec<String>,
     pub links: Vec<String>,
+    pub screens: Vec<String>,
     pub settings: Vec<SettingStatus>,
     pub problems: Vec<Problem>,
 }
@@ -648,6 +669,7 @@ impl Registry {
                     caps: Vec::new(),
                     formats: Vec::new(),
                     links: Vec::new(),
+                    screens: Vec::new(),
                     settings: Vec::new(),
                     problems: vec![error("この端末にインストールされていません".into())],
                 }),
@@ -805,6 +827,11 @@ impl Registry {
                     "plugin.wasm が見つからないため、サムネイルと詳細表示を処理できません".into(),
                 ));
             }
+            for id in p.manifest.screens.keys().filter(|id| !screen_id_ok(id)) {
+                p.problems.push(error(format!(
+                    "画面の ID「{id}」には、英数字・ハイフン・下線しか使えません"
+                )));
+            }
             if p.manifest.wants_elevated() && p.elevated.is_none() && p.problems.is_empty() {
                 p.problems.push(error(
                     "plugin.json の elevated のファイルが見つからないため、elevated の処理を使えません"
@@ -906,6 +933,29 @@ impl Registry {
             .collect();
         out.sort_by(|a, b| a.host.cmp(&b.host));
         out
+    }
+
+    pub fn screens(&self) -> Vec<ScreenInfo> {
+        self.plugins
+            .iter()
+            .filter(|p| !p.blocked)
+            .filter_map(|p| Some((p, p.elevated.clone()?)))
+            .flat_map(|(p, module)| {
+                p.manifest
+                    .screens
+                    .iter()
+                    .filter(|(id, _)| screen_id_ok(id))
+                    .map(move |(id, d)| ScreenInfo {
+                        id: id.clone(),
+                        label: d.label.clone(),
+                        icon: d.icon.clone(),
+                        ui: UiRef {
+                            plugin: p.manifest.id.clone(),
+                            module: module.clone(),
+                        },
+                    })
+            })
+            .collect()
     }
 
     /// plugin が host へ取りに行けるか。plugin が None のときは本体（どのホストにも行ける）。
@@ -1292,6 +1342,7 @@ impl Registry {
                         .collect()
                 };
                 links.sort();
+                let screens = screen_labels(m);
                 let settings = p
                     .settings
                     .iter()
@@ -1321,6 +1372,7 @@ impl Registry {
                     caps: m.caps(),
                     formats,
                     links,
+                    screens,
                     settings,
                     problems,
                 }
@@ -1460,9 +1512,21 @@ fn idle(
         caps: m.caps(),
         formats: m.formats.keys().cloned().collect(),
         links: m.links.keys().map(|h| host_key(h)).collect(),
+        screens: screen_labels(m),
         settings: Vec::new(),
         problems,
     }
+}
+
+fn screen_id_ok(id: &str) -> bool {
+    !id.is_empty()
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+fn screen_labels(m: &Manifest) -> Vec<String> {
+    m.screens.values().map(|d| d.label.clone()).collect()
 }
 
 fn settings_of(

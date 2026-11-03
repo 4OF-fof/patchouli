@@ -310,6 +310,14 @@ export function PluginsDialog(props: PluginsDialogProps) {
               </span>
             </section>
           </Show>
+          <Show when={p().screens?.length}>
+            <section>
+              <h4>画面</h4>
+              <span class={styles.chips}>
+                <For each={p().screens}>{(s) => <span class={styles.cap}>{s}</span>}</For>
+              </span>
+            </section>
+          </Show>
           <Show when={needs(p(), 'plugins').length}>
             <section>
               <h4>依存プラグイン</h4>

@@ -694,6 +694,7 @@ export function tauriBackend(): Backend {
       return wave.length > 0 ? wave : null
     },
     uiApi,
+    ownApi,
     uiUrl: (ui) => pluginUrl(ui.plugin, ui.module),
     linkOf(url, part) {
       const h = handlerOf(links, url)
