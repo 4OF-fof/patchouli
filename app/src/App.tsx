@@ -1330,11 +1330,6 @@ export function App(props: AppProps) {
                         onExpand={() => {
                           const to = id()
                           setPeek(undefined)
-                          openItem(to)
-                        }}
-                        onOpenInTab={() => {
-                          const to = id()
-                          setPeek(undefined)
                           asNewTab(() => openItem(to))
                         }}
                         onClose={() => setPeek(undefined)}
