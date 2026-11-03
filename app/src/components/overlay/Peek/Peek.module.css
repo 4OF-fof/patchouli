@@ -9,9 +9,8 @@
   position: absolute;
   top: 24px;
   bottom: 24px;
-  left: 50%;
+  left: calc(50% - var(--w) / 2);
   width: var(--w);
-  transform: translateX(-50%);
   overflow: hidden;
   border: 1px solid var(--line-2);
   border-radius: var(--radius-lg);

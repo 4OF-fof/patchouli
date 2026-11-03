@@ -1330,7 +1330,10 @@ export function App(props: AppProps) {
                         onExpand={() => {
                           const to = id()
                           setPeek(undefined)
+                          const before = new Set(tabs())
                           asNewTab(() => openItem(to))
+                          const t = tabs().find((x) => !before.has(x))
+                          if (t) setCurrentTab(t)
                         }}
                         onClose={() => setPeek(undefined)}
                       >

@@ -32,7 +32,12 @@ export function Peek(props: PeekProps) {
           <Icon name="close" size={16} />
         </button>
         {props.onExpand && (
-          <button type="button" data-tip="全画面表示" aria-label="全画面表示" onClick={() => props.onExpand?.()}>
+          <button
+            type="button"
+            data-tip="新しいタブで開く"
+            aria-label="新しいタブで開く"
+            onClick={() => props.onExpand?.()}
+          >
             <Icon name="fullscreen" size={16} />
           </button>
         )}

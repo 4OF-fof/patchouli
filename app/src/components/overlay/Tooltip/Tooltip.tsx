@@ -3,6 +3,7 @@ import { Portal } from 'solid-js/web'
 import styles from './Tooltip.module.css'
 
 const DELAY = 500
+const MODIFIERS = new Set(['Control', 'Shift', 'Alt', 'Meta'])
 
 /**
  * data-tip を持つ要素の上でしばらく止まると、その文言をカーソルの下に出す。
@@ -46,13 +47,17 @@ export function TooltipHost() {
     hide()
     muted = over
   }
+  // Ctrl などを押しただけでは消さない
+  const onKey = (e: KeyboardEvent) => {
+    if (!MODIFIERS.has(e.key)) mute()
+  }
 
   onMount(() => {
     document.addEventListener('pointerover', onOver)
     document.addEventListener('pointermove', onMove, { passive: true })
     document.addEventListener('pointerout', onOut)
     document.addEventListener('pointerdown', mute, true)
-    document.addEventListener('keydown', mute, true)
+    document.addEventListener('keydown', onKey, true)
     document.addEventListener('wheel', mute, { capture: true, passive: true })
     window.addEventListener('blur', mute)
     onCleanup(() => {
@@ -61,7 +66,7 @@ export function TooltipHost() {
       document.removeEventListener('pointermove', onMove)
       document.removeEventListener('pointerout', onOut)
       document.removeEventListener('pointerdown', mute, true)
-      document.removeEventListener('keydown', mute, true)
+      document.removeEventListener('keydown', onKey, true)
       document.removeEventListener('wheel', mute, true)
       window.removeEventListener('blur', mute)
     })
