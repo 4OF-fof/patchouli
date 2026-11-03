@@ -347,6 +347,63 @@
   font-size: var(--fs-meta);
   color: var(--danger);
 }
+.page {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--card);
+  border-radius: var(--radius-md);
+  background: var(--side);
+  line-height: 1.5;
+  white-space: normal;
+}
+.pageCover {
+  position: relative;
+  display: block;
+}
+.pageCover[data-image] {
+  aspect-ratio: 1.91;
+  background: var(--card);
+}
+.pageCover > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pageCover:not([data-image]) {
+  padding: var(--space-10) var(--space-10) 0;
+}
+.pageTitle {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  padding: var(--space-4) var(--space-10);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--float);
+  box-shadow: var(--shadow-pill);
+  font-size: var(--fs-list);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink);
+}
+.pageCover[data-image] > .pageTitle {
+  position: absolute;
+  left: var(--space-10);
+  bottom: var(--space-10);
+  max-width: calc(100% - var(--space-10) * 2);
+}
+.pageSite {
+  display: block;
+  padding: var(--space-6) var(--space-12) var(--space-8);
+  overflow: hidden;
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
 
 .table {
   position: relative;

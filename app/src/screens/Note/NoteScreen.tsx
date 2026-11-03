@@ -37,6 +37,9 @@ export interface NoteScreenProps {
   suggestTags?: (id: string) => Promise<string[]>
   onCreateNote?: (name: string, place: Place) => Promise<Item | undefined>
   embedOf?: (it: Item) => Promise<Embed | undefined>
+  urlEmbedOf?: (url: string, image: boolean) => Promise<Embed | undefined>
+  onOpenUrl?: (url: string) => void
+  onOpenPage?: (url: string) => void
   onImport?: (files: File[], place: Place) => Promise<Item[]>
   editorRef?: (api: NoteEditorApi | undefined) => void
 }
@@ -196,6 +199,9 @@ export function NoteScreen(props: NoteScreenProps) {
                 onOpenRef={props.onOpenRef}
                 onCreateNote={async (name) => props.onCreateNote?.(name, placeOf(n()))}
                 embedOf={props.embedOf}
+                urlEmbedOf={props.urlEmbedOf}
+                onOpenUrl={props.onOpenUrl}
+                onOpenPage={props.onOpenPage}
                 onImport={props.onImport && ((files) => props.onImport?.(files, placeOf(n())) ?? Promise.resolve([]))}
                 ref={(api) => {
                   editor = api

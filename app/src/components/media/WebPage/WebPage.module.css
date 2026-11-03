@@ -1,0 +1,42 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+/* 両端の幅をそろえ、URL を真ん中に置く */
+.bar {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
+  align-items: center;
+  gap: var(--space-8);
+  height: 36px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font: var(--fs-meta) var(--f-sans);
+}
+.side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.end {
+  justify-content: flex-end;
+}
+.url {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.url b {
+  font-weight: 400;
+  color: var(--ink);
+}
+.frame {
+  flex: 1;
+  min-height: 0;
+  border: 0;
+  background: var(--paper);
+}

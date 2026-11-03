@@ -376,6 +376,8 @@ pub enum ViewOut {
     Audio,
     Decoded,
     Ui(UiRef),
+    /// ファイルが指す URL を画面に読んでもらい、URL ごとに受け持つものが描く。中は link を受け持つもの。
+    Link(UiRef),
 }
 
 pub struct Runner {
@@ -509,6 +511,9 @@ impl Runner {
     }
 
     pub fn view(&mut self, ext: &str, path: &Path) -> Option<ViewOut> {
+        if self.reg.by_link(ext, Part::View) {
+            return self.reg.link_of(ext).map(ViewOut::Link);
+        }
         if let Some(ui) = self.reg.ui_of(ext, Part::View) {
             return Some(ViewOut::Ui(ui));
         }

@@ -17,19 +17,21 @@ type Esbuild = typeof import('esbuild')
 
 const SDK = path.join(import.meta.dirname, 'index.ts')
 
+const isMap = (v: unknown) => !!v && typeof v === 'object'
+
 /** plugin.json を読み、入れるときに確かめられることを先に確かめる。 */
 function readManifest(dir: string): Manifest {
   const file = path.join(dir, 'plugin.json')
   const m: Partial<Manifest> = JSON.parse(fs.readFileSync(file, 'utf8'))
-  const { id, name, version, formats, elevated } = m
+  const { id, name, version, formats, links, elevated } = m
   const missing = (k: string) => new Error(`${file}: 「${k}」が指定されていません`)
   if (!id) throw missing('id')
   if (!name) throw missing('name')
   if (!version) throw missing('version')
-  if (!formats || typeof formats !== 'object') throw missing('formats')
+  if (!isMap(formats) && !isMap(links)) throw missing('formats か links')
   if (elevated !== undefined && !elevated.endsWith('.js'))
     throw new Error(`${file}: 「elevated」には .js のパスを指定してください（${elevated}）`)
-  return { ...m, id, name, version, formats }
+  return { ...m, id, name, version }
 }
 
 /** esbuild を、プラグインのフォルダから、なければこのファイルの場所から探す。 */

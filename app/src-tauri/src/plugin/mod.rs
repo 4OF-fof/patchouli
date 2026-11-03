@@ -46,15 +46,22 @@ pub enum Part {
     Embed,
     Menu,
     Content,
+    Link,
     #[serde(other)]
     Unknown,
 }
 
 impl Part {
     fn elevated_only(self) -> bool {
-        matches!(self, Part::Waveform | Part::Hover | Part::Embed)
+        matches!(
+            self,
+            Part::Waveform | Part::Hover | Part::Embed | Part::Link
+        )
     }
 }
+
+/// link を受け持つ形式で、ほかに受け持つものがなければ、URL ごとに links のプラグインか本体が受け持つもの。
+const LINK_PARTS: [Part; 4] = [Part::Thumbnail, Part::View, Part::Embed, Part::Details];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -107,6 +114,25 @@ pub struct FormatDecl {
     pub keep_decoded: bool,
 }
 
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct LinkDecl {
+    #[serde(default)]
+    pub elevated: Vec<Part>,
+}
+
+/// ホスト名をそろえる。大文字と末尾の点は区別しない。
+pub fn host_key(h: &str) -> String {
+    h.trim_end_matches('.').to_ascii_lowercase()
+}
+
+/// pattern がホスト名 host か、その上のドメインか。
+pub fn host_matches(pattern: &str, host: &str) -> bool {
+    host == pattern
+        || host
+            .strip_suffix(pattern)
+            .is_some_and(|rest| rest.ends_with('.'))
+}
+
 pub fn keep_decoded_key(format: &str) -> String {
     format!("@keepDecoded:{format}")
 }
@@ -156,7 +182,12 @@ pub struct Manifest {
     #[serde(default)]
     pub optional: Deps,
     pub elevated: Option<String>,
+    #[serde(default)]
     pub formats: BTreeMap<String, FormatDecl>,
+    #[serde(default)]
+    pub links: BTreeMap<String, LinkDecl>,
+    #[serde(default)]
+    pub fetch: Vec<String>,
 }
 
 pub const MANIFEST: &str = "plugin.json";
@@ -182,6 +213,7 @@ impl Manifest {
 
     fn wants_elevated(&self) -> bool {
         self.formats.values().any(|d| !d.elevated.is_empty())
+            || self.links.values().any(|d| !d.elevated.is_empty())
     }
 
     fn caps(&self) -> Vec<Cap> {
@@ -358,6 +390,21 @@ struct Handler {
     format: String,
 }
 
+#[derive(Debug, Clone)]
+struct LinkResolved {
+    plugin: usize,
+    parts: Vec<Part>,
+}
+
+/// URL のホスト名ごとに受け持つプラグイン。画面に渡す。
+#[derive(Debug, Clone, Serialize)]
+pub struct LinkInfo {
+    pub host: String,
+    #[serde(flatten)]
+    pub ui: UiRef,
+    pub parts: Vec<Part>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct UiRef {
     pub plugin: String,
@@ -391,6 +438,8 @@ pub struct FormatInfo {
     pub embed: Option<Embed>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_embed: Option<UiRef>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ui_link: Option<UiRef>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -423,6 +472,7 @@ pub struct PluginStatus {
     pub via: Vec<Via>,
     pub caps: Vec<Cap>,
     pub formats: Vec<String>,
+    pub links: Vec<String>,
     pub settings: Vec<SettingStatus>,
     pub problems: Vec<Problem>,
 }
@@ -450,17 +500,26 @@ pub struct Conflict {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct LinkConflict {
+    pub host: String,
+    pub plugins: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginReport {
     pub plugins: Vec<PluginStatus>,
     pub commands: Vec<CommandStatus>,
     pub conflicts: Vec<Conflict>,
+    pub link_conflicts: Vec<LinkConflict>,
 }
 
 pub struct Registry {
     plugins: Vec<Loaded>,
     formats: HashMap<String, Resolved>,
     conflicts: Vec<Conflict>,
+    links: HashMap<String, LinkResolved>,
+    link_conflicts: Vec<LinkConflict>,
     others: Vec<PluginStatus>,
     record: Record,
     stored: RwLock<HashMap<String, Stored>>,
@@ -480,6 +539,8 @@ impl Registry {
             plugins: builtin::load(),
             formats: HashMap::new(),
             conflicts: Vec::new(),
+            links: HashMap::new(),
+            link_conflicts: Vec::new(),
             others: Vec::new(),
             record: Record::default(),
             stored: RwLock::new(HashMap::new()),
@@ -579,6 +640,7 @@ impl Registry {
                     via: Vec::new(),
                     caps: Vec::new(),
                     formats: Vec::new(),
+                    links: Vec::new(),
                     settings: Vec::new(),
                     problems: vec![error("この端末にインストールされていません".into())],
                 }),
@@ -600,6 +662,8 @@ impl Registry {
             plugins,
             formats: HashMap::new(),
             conflicts: Vec::new(),
+            links: HashMap::new(),
+            link_conflicts: Vec::new(),
             others,
             record,
             stored: RwLock::new(stored),
@@ -652,6 +716,7 @@ impl Registry {
             });
         }
         self.conflicts = conflicts;
+        self.resolve_links();
 
         let mut formats = HashMap::new();
         let mut problems: Vec<(usize, Problem)> = Vec::new();
@@ -749,6 +814,116 @@ impl Registry {
         self.formats = formats;
     }
 
+    fn resolve_links(&mut self) {
+        let mut claims: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for (i, p) in self.plugins.iter().enumerate().filter(|(_, p)| !p.blocked) {
+            for host in p.manifest.links.keys() {
+                claims.entry(host_key(host)).or_default().push(i);
+            }
+        }
+        let mut links = HashMap::new();
+        let mut conflicts = Vec::new();
+        for (host, by) in claims {
+            if let [only] = by[..] {
+                let p = &self.plugins[only];
+                let decl = p
+                    .manifest
+                    .links
+                    .iter()
+                    .find(|(h, _)| host_key(h) == host)
+                    .map(|(_, d)| d.clone())
+                    .unwrap_or_default();
+                let mut parts = Vec::new();
+                let mut bad = Vec::new();
+                for part in decl.elevated {
+                    if LINK_PARTS.contains(&part) {
+                        parts.push(part);
+                    } else {
+                        bad.push(error(format!(
+                            "「{host}」の links では {} を受け持てません",
+                            format!("{part:?}").to_lowercase()
+                        )));
+                    }
+                }
+                let p = &mut self.plugins[only];
+                p.problems.extend(bad);
+                if p.elevated.is_some() {
+                    links.insert(
+                        host,
+                        LinkResolved {
+                            plugin: only,
+                            parts,
+                        },
+                    );
+                }
+                continue;
+            }
+            for &i in &by {
+                let others: Vec<String> = by
+                    .iter()
+                    .filter(|&&j| j != i)
+                    .map(|&j| format!("「{}」", self.name(j)))
+                    .collect();
+                self.plugins[i].problems.push(error(format!(
+                    "「{host}」は{}も対応しているため、使用していません",
+                    others.join("")
+                )));
+            }
+            conflicts.push(LinkConflict {
+                host,
+                plugins: by
+                    .iter()
+                    .map(|&i| self.plugins[i].manifest.id.clone())
+                    .collect(),
+            });
+        }
+        self.links = links;
+        self.link_conflicts = conflicts;
+    }
+
+    pub fn links(&self) -> Vec<LinkInfo> {
+        let mut out: Vec<LinkInfo> = self
+            .links
+            .iter()
+            .filter_map(|(host, l)| {
+                let p = &self.plugins[l.plugin];
+                Some(LinkInfo {
+                    host: host.clone(),
+                    ui: UiRef {
+                        plugin: p.manifest.id.clone(),
+                        module: p.elevated.clone()?,
+                    },
+                    parts: l.parts.clone(),
+                })
+            })
+            .collect();
+        out.sort_by(|a, b| a.host.cmp(&b.host));
+        out
+    }
+
+    /// plugin が host へ取りに行けるか。plugin が None のときは本体（どのホストにも行ける）。
+    pub fn may_fetch(&self, plugin: Option<&str>, host: &str) -> Result<(), String> {
+        let Some(id) = plugin else { return Ok(()) };
+        let p = &self.plugins[self.index_of(id)?];
+        let host = host_key(host);
+        if p.manifest
+            .fetch
+            .iter()
+            .any(|h| host_matches(&host_key(h), &host))
+        {
+            Ok(())
+        } else {
+            Err(format!(
+                "プラグイン「{}」は「{host}」に接続できません（plugin.json の fetch に書いていません）",
+                p.manifest.name
+            ))
+        }
+    }
+
+    pub fn link_of(&self, ext: &str) -> Option<UiRef> {
+        self.ui_of(ext, Part::Link)
+    }
+
     fn name(&self, i: usize) -> &str {
         &self.plugins[i].manifest.name
     }
@@ -758,6 +933,18 @@ impl Registry {
         [By::Elevated, By::Sandbox]
             .into_iter()
             .find(|&by| parts.contains_key(&(part, by)))
+            .or_else(|| {
+                let linked =
+                    LINK_PARTS.contains(&part) && parts.contains_key(&(Part::Link, By::Elevated));
+                linked.then_some(By::Elevated)
+            })
+    }
+
+    /// URL ごとに受け持つもの（links のプラグインか本体）に回すか。
+    pub fn by_link(&self, ext: &str, part: Part) -> bool {
+        self.handles(ext, part) == Some(By::Elevated)
+            && self.slot(ext, part, By::Elevated).is_none()
+            && self.link_of(ext).is_some()
     }
 
     /// by が実際に使う担当のときだけ返す。
@@ -934,6 +1121,7 @@ impl Registry {
                 ui_hover: self.ui_of(ext, Part::Hover),
                 embed: f.embed,
                 ui_embed: self.ui_of(ext, Part::Embed),
+                ui_link: self.link_of(ext),
             })
             .collect();
         out.sort_by(|a, b| a.ext.cmp(&b.ext));
@@ -1087,6 +1275,16 @@ impl Registry {
                         .collect()
                 };
                 formats.sort();
+                let mut links: Vec<String> = if p.blocked {
+                    m.links.keys().map(|h| host_key(h)).collect()
+                } else {
+                    self.links
+                        .iter()
+                        .filter(|(_, l)| l.plugin == i)
+                        .map(|(h, _)| h.clone())
+                        .collect()
+                };
+                links.sort();
                 let settings = p
                     .settings
                     .iter()
@@ -1115,6 +1313,7 @@ impl Registry {
                     via,
                     caps: m.caps(),
                     formats,
+                    links,
                     settings,
                     problems,
                 }
@@ -1125,6 +1324,7 @@ impl Registry {
             plugins,
             commands,
             conflicts: self.conflicts.clone(),
+            link_conflicts: self.link_conflicts.clone(),
         }
     }
 }
@@ -1252,6 +1452,7 @@ fn idle(
         via: Vec::new(),
         caps: m.caps(),
         formats: m.formats.keys().cloned().collect(),
+        links: m.links.keys().map(|h| host_key(h)).collect(),
         settings: Vec::new(),
         problems,
     }

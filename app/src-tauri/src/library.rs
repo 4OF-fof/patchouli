@@ -13,7 +13,7 @@ use crate::cache::{Cache, Row, Sig};
 use crate::cover;
 use crate::note;
 use crate::orphan::{self, Orphan};
-use crate::plugin::{FormatInfo, Registry};
+use crate::plugin::{FormatInfo, LinkInfo, Registry};
 
 pub const ID_KEY: &str = "patchouli-id";
 pub const TYPE_KEY: &str = "patchouli-type";
@@ -128,6 +128,7 @@ pub struct Opened {
     pub tag_covers: Map<String, Value>,
     pub orphans: Vec<Orphan>,
     pub formats: Vec<FormatInfo>,
+    pub links: Vec<LinkInfo>,
     pub problems: Vec<String>,
 }
 
@@ -327,6 +328,7 @@ impl Library {
             tag_covers: snap.tag_covers,
             orphans: self.orphans.clone(),
             formats: self.plugins.formats(),
+            links: self.plugins.links(),
             problems: vec![],
         }
     }
@@ -405,6 +407,7 @@ impl Library {
             .collect();
         lib.touched = Some(HashSet::new());
         let formats = lib.plugins.formats();
+        let links = lib.plugins.links();
         Some((
             lib,
             Opened {
@@ -416,6 +419,7 @@ impl Library {
                 tag_covers: snap.tag_covers,
                 orphans: vec![],
                 formats,
+                links,
                 problems: vec![],
             },
         ))
@@ -541,6 +545,7 @@ impl Library {
             tag_covers: scan.tag_covers,
             orphans: scan.orphans,
             formats: self.plugins.formats(),
+            links: self.plugins.links(),
             problems: scan.problems,
         }
     }

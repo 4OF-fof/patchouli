@@ -10,9 +10,9 @@ export const TODAY = new Date(2026, 9, 22, 12)
 export const PINNED_PROJECTS = ['秋の企画', '日記']
 export const PINNED_TAGS = ['写真', 'UI', '参考']
 
-export type Media = 'image' | 'video' | 'audio' | 'note' | 'other'
+export type Media = 'image' | 'video' | 'audio' | 'note' | 'link' | 'other'
 
-export const EXAMPLE_PLUGINS: string[] = []
+export const EXAMPLE_PLUGINS: string[] = ['youtube-plugin']
 
 export type SpecItem = Item & {
   media: Media
@@ -21,6 +21,8 @@ export type SpecItem = Item & {
   jacket?: boolean
   /** 詳細画面などの負荷を見るための、重い中身にする。動画はフレームレート、音声はサンプリング周波数を持つ */
   heavy?: { fps?: number; rate?: number }
+  /** ショートカットが指す URL */
+  link?: string
 }
 
 export interface Spec {
@@ -42,6 +44,7 @@ const MEDIA_OF: Record<string, Media> = {
   mp3: 'audio',
   wav: 'audio',
   flac: 'audio',
+  url: 'link',
   // アプリもプラグインも読めない（開くと、対応するプラグインがないことを出す）
   psd: 'other',
 }
@@ -179,6 +182,14 @@ const SHOWCASE = [
   '![[prototype-walk]]',
   '',
   '![[ambient-rain]]',
+  '',
+  'ショートカットも埋め込める。',
+  '',
+  '![[Big Buck Bunny]]',
+  '',
+  'URL をそのまま埋め込むと、ページの OGP をカードにする。',
+  '',
+  '![](https://github.com/tauri-apps/tauri)',
   '',
   '## 箇条書き',
   '',
@@ -435,6 +446,9 @@ const CONTENTS: Record<string, { a: RawAsset[]; n: RawNote[] }> = {
       ['grid-system', 'png', ['参考'], 31],
       ['magazine-spread', 'jpg', ['参考'], 90],
       ['signage-photo', 'jpg', ['参考', '写真/街'], 120],
+      ['印刷所の入稿ルール', 'url', ['参考'], 9],
+      ['Tauri のリポジトリ', 'url', ['参考'], 31],
+      ['Big Buck Bunny', 'url', ['参考', '動画'], 31],
     ],
     n: [
       [
@@ -514,6 +528,13 @@ const TAG_POOL: Record<string, string[]> = {
 
 const JACKETS = ['theme-demo']
 
+/** ショートカット（.url）の名前 → 指す URL。YouTube のものは例のプラグイン（example/youtube-plugin）が受け持つ */
+const LINKS: Record<string, string> = {
+  印刷所の入稿ルール: 'https://example.com/',
+  'Tauri のリポジトリ': 'https://github.com/tauri-apps/tauri',
+  'Big Buck Bunny': 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
+}
+
 const PINNED_ITEMS = ['ref-a', 'IMG_3316']
 
 const charSum = (s: string) => {
@@ -539,7 +560,7 @@ const secOf = (media: Media, name: string) =>
   media === 'video' || media === 'audio' ? 3 + (charSum(name) % 6) : undefined
 
 const ratioOf = (media: Media, size?: [number, number]) =>
-  size ? size[0] / size[1] : media === 'note' ? 0.8 : media === 'video' ? 16 / 9 : 1.6
+  size ? size[0] / size[1] : media === 'note' ? 0.8 : media === 'video' ? 16 / 9 : media === 'link' ? 1.91 : 1.6
 
 function markdown(raw: RawBlock[]) {
   let body = ''
@@ -576,6 +597,7 @@ export function sampleSpec(): Spec {
       ...(size && { size }),
       ...(sec && { sec }),
       ...(media === 'audio' && JACKETS.includes(it.name) && { jacket: true }),
+      ...(media === 'link' && { link: LINKS[it.name] }),
     }
     items.push(full)
     return full

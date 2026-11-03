@@ -11,6 +11,8 @@ import type {
   Detail,
   DetailsApi,
   Item,
+  LinkApi,
+  LinkThumbnailApi,
   MenuApi,
   MenuItem,
   PluginModule,
@@ -53,11 +55,17 @@ export class WaveformTimeout extends Error {
 
 const loaded = new Map<string, Promise<UiModule>>()
 
-const MODULE_FNS = ['mount', 'thumbnail', 'waveform', 'hover', 'embed', 'details', 'menu', 'runMenu', 'content']
+const MODULE_FNS = ['mount', 'thumbnail', 'waveform', 'hover', 'embed', 'details', 'menu', 'runMenu', 'content', 'link']
+const LINK_FNS = ['thumbnail', 'mount', 'embed', 'details']
 
 const isFn = (v: unknown) => v === undefined || typeof v === 'function'
+const isLinks = (v: unknown) =>
+  v === undefined || (typeof v === 'object' && v !== null && LINK_FNS.every((k) => isFn(Reflect.get(v, k))))
 const isModule = (m: unknown): m is UiModule =>
-  typeof m === 'object' && m !== null && MODULE_FNS.every((k) => isFn(Reflect.get(m, k)))
+  typeof m === 'object' &&
+  m !== null &&
+  MODULE_FNS.every((k) => isFn(Reflect.get(m, k))) &&
+  isLinks(Reflect.get(m, 'links'))
 
 export const loadUi = (url: string): Promise<UiModule> => {
   let m = loaded.get(url)
@@ -65,7 +73,9 @@ export const loadUi = (url: string): Promise<UiModule> => {
     m = import(/* @vite-ignore */ url).then((ns: unknown) => {
       const mod: unknown = typeof ns === 'object' && ns !== null ? Reflect.get(ns, 'default') : undefined
       if (!isModule(mod))
-        throw new Error(`default で書き出したものの ${MODULE_FNS.join('・')} のいずれかが関数ではありません`)
+        throw new Error(
+          `default で書き出したものの ${MODULE_FNS.join('・')}、links の ${LINK_FNS.join('・')} のいずれかが関数ではありません`,
+        )
       return mod
     })
     loaded.set(url, m)
@@ -141,6 +151,40 @@ export async function uiRunMenu(url: string, api: RunMenuApi): Promise<string | 
   if (!mod.runMenu) throw new Error('右クリックメニューの項目を実行する関数（runMenu）が見つかりません')
   const r = await mod.runMenu(api)
   return typeof r === 'string' ? r : undefined
+}
+
+/** ファイルが指す URL。http か https でなければ undefined。 */
+export async function uiLink(url: string, api: Api): Promise<string | undefined> {
+  const mod = await loadUi(url)
+  if (!mod.link) throw new Error('URL を読む関数（link）が見つかりません')
+  const u = await mod.link(api)
+  return typeof u === 'string' && /^https?:\/\//i.test(u) ? u : undefined
+}
+
+export async function uiLinkThumbnail(
+  url: string,
+  api: Omit<LinkThumbnailApi, 'edge'>,
+): Promise<{ png: Uint8Array; width?: number; height?: number } | null> {
+  const mod = await loadUi(url)
+  const links = mod.links
+  if (!links?.thumbnail) throw new Error('URL のサムネイルを作る関数（links.thumbnail）が見つかりません')
+  const limit = limitOf(mod)
+  let timer = 0
+  const late = new Promise<never>((_, reject) => {
+    timer = window.setTimeout(() => reject(new ThumbnailTimeout(limit)), limit)
+  })
+  const t = await Promise.race([links.thumbnail({ ...api, edge: EDGE }), late]).finally(() => clearTimeout(timer))
+  if (!t) return null
+  const png =
+    t.png instanceof Uint8Array ? t.png : new Uint8Array(t.png instanceof Blob ? await t.png.arrayBuffer() : t.png)
+  return { png, width: t.width, height: t.height }
+}
+
+export async function uiLinkDetails(url: string, api: LinkApi): Promise<Detail[]> {
+  const mod = await loadUi(url)
+  const links = mod.links
+  if (!links?.details) throw new Error('URL の詳細を作る関数（links.details）が見つかりません')
+  return pairs(await links.details(api), ['label', 'value'])
 }
 
 /** 区間を作るのを待つ長さ。長い動画では数百回シークする。 */

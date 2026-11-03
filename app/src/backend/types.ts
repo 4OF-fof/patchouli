@@ -9,7 +9,18 @@ import type {
   TagCoverPart,
   Thumbnail,
 } from '../model/library'
-import type { ItemDetails, ItemView, MenuEntry, Part, PluginActions, PluginReport, UiRef } from '../plugins/types'
+import type {
+  ItemDetails,
+  ItemView,
+  LinkPart,
+  MenuEntry,
+  Part,
+  PluginActions,
+  PluginReport,
+  UiRef,
+} from '../plugins/types'
+import type { LinkApi } from '../../plugins/sdk'
+import type { Page } from '../plugins/links'
 import type { UiApi, UiItem } from '../plugins/ui'
 
 export interface LibraryState {
@@ -146,6 +157,8 @@ export interface AppSettings {
   thumbSize: 'standard' | 'large'
   /** 外部ツールの名前 → 指定した場所。書いていないものは PATH から探す */
   commandPaths: Record<string, string>
+  /** ノートのリンクの URL を、内蔵ブラウザ（タブ）で開くか、既定のアプリで開くか */
+  linkOpen: 'builtin' | 'default'
 }
 
 export interface AppSettingsActions {
@@ -289,4 +302,41 @@ export interface Backend {
   waveform?: (id: string) => Promise<Uint8Array | null>
   uiApi?: (item: UiItem, part: Part, plugin: string) => UiApi
   uiUrl?: (ui: UiRef) => string
+  /** url の part を受け持つもの。 */
+  linkOf?: (url: string, part: LinkPart) => LinkShown
+  /** URL を既定のアプリで開く。 */
+  openUrl?: (url: string) => Promise<void>
+  /** タブの中に出す外のページ。ないときは iframe で出す。 */
+  browser?: BrowserActions
+}
+
+/** URL の表示。ui があれば links のプラグインが描き、なければ本体が page（OGP）から作る。 */
+export interface LinkShown {
+  url: string
+  ui?: { url: string; api: LinkApi }
+  page: () => Promise<Page>
+}
+
+/** 外のページの位置と大きさ（CSS の px）。 */
+export interface Bounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface BrowserActions {
+  /** key の外のページを bounds に出す。url が前と違えば開き直す。 */
+  show(key: string, url: string, bounds: Bounds): Promise<void>
+  go(key: string, to: 'back' | 'forward' | 'reload'): Promise<void>
+  hide(key: string): Promise<void>
+  close(key: string): Promise<void>
+  /** 外のページの中で別のページを開いたら、その URL と戻れるか・進めるかを知らせる。戻り値で知らせをやめる。 */
+  onMoved(fn: (key: string, at: PageAt) => void): () => void
+}
+
+export interface PageAt {
+  url: string
+  back: boolean
+  forward: boolean
 }

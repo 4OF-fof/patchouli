@@ -15,6 +15,7 @@ mod suggest;
 pub mod thumb;
 mod tidy;
 mod vectors;
+mod web;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -1007,6 +1008,9 @@ struct Details {
     rows: Vec<Detail>,
     #[serde(skip_serializing_if = "Option::is_none")]
     elevated: Option<Elevated>,
+    /// URL ごとに受け持つものが行を作るときの、link を受け持つもの。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    link: Option<Elevated>,
 }
 
 fn rows_of(rows: Vec<(String, String)>) -> Vec<Detail> {
@@ -1029,6 +1033,19 @@ async fn item_details(cur: State<'_, Current>, id: String) -> Result<Details, St
     let size = std::fs::metadata(&t.path)
         .map_err(|e| format!("{}: {e}", t.path.display()))?
         .len();
+    if t.plugins.by_link(&t.ext, Part::Details)
+        && let Some(ui) = t.plugins.link_of(&t.ext)
+    {
+        return Ok(Details {
+            size,
+            rows: Vec::new(),
+            elevated: None,
+            link: Some(Elevated {
+                ui,
+                items: vec![t.item()],
+            }),
+        });
+    }
     if let Some(ui) = t.plugins.ui_of(&t.ext, Part::Details) {
         return Ok(Details {
             size,
@@ -1037,6 +1054,7 @@ async fn item_details(cur: State<'_, Current>, id: String) -> Result<Details, St
                 ui,
                 items: vec![t.item()],
             }),
+            link: None,
         });
     }
     let rows = t
@@ -1049,6 +1067,7 @@ async fn item_details(cur: State<'_, Current>, id: String) -> Result<Details, St
         size,
         rows: rows_of(rows),
         elevated: None,
+        link: None,
     })
 }
 
@@ -1087,6 +1106,65 @@ async fn open_item_default(cur: State<'_, Current>, id: String) -> Result<(), St
 #[tauri::command]
 async fn item_path(cur: State<'_, Current>, id: String) -> Result<PathBuf, String> {
     with(&cur, |l| Ok(l.path(&id)?.to_owned()))
+}
+
+#[tauri::command]
+async fn open_url(url: String) -> Result<(), String> {
+    shell::open_url(&web::parse(&url)?)
+}
+
+/// plugin が None のときは、本体（どの links にも当てはまらない URL の OGP など）が取りに行く。
+#[tauri::command]
+async fn plugin_fetch(
+    cur: State<'_, Current>,
+    plugin: Option<String>,
+    url: String,
+) -> Result<tauri::ipc::Response, String> {
+    let url = web::parse(&url)?;
+    let host = url.host_str().unwrap_or_default();
+    with_session(&cur, |s| s.plugins.may_fetch(plugin.as_deref(), host))?;
+    let out = tauri::async_runtime::spawn_blocking(move || web::fetch(&url))
+        .await
+        .map_err(|e| e.to_string())??;
+    Ok(tauri::ipc::Response::new(out))
+}
+
+#[tauri::command]
+async fn browser_show(
+    app: tauri::AppHandle,
+    pages: State<'_, web::Pages>,
+    key: String,
+    url: String,
+    bounds: web::Bounds,
+) -> Result<(), String> {
+    web::show(&app, &pages, &key, &url, bounds)
+}
+
+#[tauri::command]
+async fn browser_go(app: tauri::AppHandle, key: String, to: web::Go) -> Result<(), String> {
+    web::go(&app, &key, to)
+}
+
+#[tauri::command]
+async fn browser_hide(app: tauri::AppHandle, key: String) -> Result<(), String> {
+    web::hide(&app, &key)
+}
+
+#[tauri::command]
+async fn browser_close(
+    app: tauri::AppHandle,
+    pages: State<'_, web::Pages>,
+    key: String,
+) -> Result<(), String> {
+    web::close(&app, &pages, &key)
+}
+
+#[tauri::command]
+async fn browser_close_all(
+    app: tauri::AppHandle,
+    pages: State<'_, web::Pages>,
+) -> Result<(), String> {
+    web::close_all(&app, &pages)
 }
 
 #[derive(Serialize)]
@@ -1930,11 +2008,8 @@ async fn discard_meta(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        .manage(Current::default())
-        .register_uri_scheme_protocol("plugin", |ctx, req| plugin_file(ctx.app_handle(), &req))
-        .invoke_handler(tauri::generate_handler![
+    let commands: Box<dyn Fn(tauri::ipc::Invoke) -> bool + Send + Sync> =
+        Box::new(tauri::generate_handler![
             open_library,
             choose_library,
             inspect_drop,
@@ -2017,8 +2092,32 @@ pub fn run() {
             cache_usage,
             clear_cache,
             unused_plugins,
-            remove_unused_plugins
-        ])
+            remove_unused_plugins,
+            open_url,
+            plugin_fetch,
+            browser_show,
+            browser_go,
+            browser_hide,
+            browser_close,
+            browser_close_all
+        ]);
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .manage(Current::default())
+        .manage(web::Pages::default())
+        .register_uri_scheme_protocol("plugin", |ctx, req| {
+            if ctx.webview_label() != web::MAIN {
+                return plugin::files::serve("", None);
+            }
+            plugin_file(ctx.app_handle(), &req)
+        })
+        .invoke_handler(move |invoke| {
+            if invoke.message.webview_ref().label() != web::MAIN {
+                invoke.resolver.reject("外のページからは使えません");
+                return true;
+            }
+            commands(invoke)
+        })
         .setup(|app| {
             // 前に起動したときに広げた開発版は、もう使っていない
             if let Some(d) = dev_unpack_dir(app.handle()) {

@@ -163,6 +163,41 @@ export interface Thumbnail {
   height?: number
 }
 
+/** api.fetch で取ってきたもの。url はリダイレクトをたどった先。 */
+export interface Fetched {
+  status: number
+  url: string
+  /** Content-Type。 */
+  type?: string
+  body: Uint8Array<ArrayBuffer>
+}
+
+/**
+ * URL 1 つの窓口。fetch は本体が代わりに取りに行くので、CORS に縛られない。
+ * 取りに行けるのは、plugin.json の fetch に書いたホスト名だけ（一度に 16 MB まで）。
+ */
+export interface LinkApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
+  url: string
+  fetch(url: string): Promise<Fetched>
+}
+
+/** URL のサムネイルを作るときの窓口。 */
+export interface LinkThumbnailApi<T extends PluginTypes = PluginTypes> extends LinkApi<T> {
+  edge: number
+}
+
+/** plugin.json の links で受け持つもの。 */
+export interface LinkModule<T extends PluginTypes = PluginTypes> {
+  /** サムネイル。作らないときは null。 */
+  thumbnail?(api: LinkThumbnailApi<T>): Promise<Thumbnail | null>
+  /** 詳細の表示。返した関数は、閉じるときに呼ぶ。 */
+  mount?(el: HTMLElement, api: LinkApi<T>): void | (() => void)
+  /** ノートに埋め込んだときの表示。ショートカットを埋め込んだときと、ノートに URL を埋め込んだときの両方に使う。 */
+  embed?(el: HTMLElement, api: LinkApi<T>): void | (() => void)
+  /** ファイルの詳細に足す行。 */
+  details?(api: LinkApi<T>): Promise<Detail[]>
+}
+
 /** elevated の ES モジュールが default で書き出すもの。受け持つもの（plugin.json の formats の elevated）の分だけあればよい。 */
 export interface PluginModule<T extends PluginTypes = PluginTypes> {
   /** 詳細の表示。el の中に描く。返した関数は、閉じるときに呼ぶ。 */
@@ -194,6 +229,10 @@ export interface PluginModule<T extends PluginTypes = PluginTypes> {
   runMenu?(api: RunMenuApi<T>): Promise<string | undefined | void>
   /** 内容で探したり分けたりするときに読む区間。区間の分け方はプラグインが決め、budget を超えない。 */
   content?(api: ContentApi<T>): Promise<ContentPart[]>
+  /** ファイルが指す URL。指していなければ undefined。 */
+  link?(api: Api<T>): Promise<string | undefined>
+  /** plugin.json の links で受け持つもの。 */
+  links?: LinkModule<T>
 }
 
 /**

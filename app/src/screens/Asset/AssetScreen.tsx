@@ -12,6 +12,7 @@ import {
   onMount,
   untrack,
 } from 'solid-js'
+import { Portal } from 'solid-js/web'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { PlaceSelect } from '../../components/controls/PlaceSelect/PlaceSelect'
@@ -19,6 +20,7 @@ import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
 import { middleClick } from '../../components/nav/TabPane/newTab'
 import { useTabActive } from '../../components/nav/TabPane/TabPane'
+import { useBarTools } from '../AppBar'
 import { AudioPlayer } from '../../components/media/AudioPlayer/AudioPlayer'
 import { ImageZoom } from '../../components/media/ImageZoom/ImageZoom'
 import { PluginView } from '../../components/media/PluginView/PluginView'
@@ -26,7 +28,9 @@ import { Thumb } from '../../components/media/Thumb/Thumb'
 import { type Blocker, Unsupported } from '../../components/media/Unsupported/Unsupported'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
 import { type Item, type Library, type Place, jacketOf, relDay, thumbOf } from '../../model/library'
-import type { ItemDetails, ItemView, Part } from '../../plugins/types'
+import { WebPage } from '../../components/media/WebPage/WebPage'
+import type { BrowserActions, LinkShown } from '../../backend/types'
+import type { ItemDetails, ItemView, LinkPart, Part } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
 import shared from '../screen.module.css'
 import styles from './AssetScreen.module.css'
@@ -38,6 +42,9 @@ export interface AssetViewHost {
   ui?: (item: UiItem, part: Part, plugin: string) => UiApi
   waveform?: (id: string) => Promise<Uint8Array | null>
   details?: (id: string) => Promise<ItemDetails>
+  linkOf?: (url: string, part: LinkPart) => LinkShown
+  browser?: BrowserActions
+  openUrl?: (url: string) => void
 }
 
 export interface AssetScreenProps {
@@ -139,6 +146,7 @@ const MIN_PICKER = 280
 type Look =
   | { id: string; kind: 'image' | 'video' | 'audio'; src: string }
   | { id: string; kind: 'ui'; src: string; item: UiItem; api: () => UiApi }
+  | { id: string; kind: 'link'; src: string; shown?: LinkShown }
 
 const sameLook = (x: Look | undefined, y: Look | undefined) =>
   x === y ||
@@ -207,6 +215,7 @@ export function AssetScreen(props: AssetScreenProps) {
         const item = { id: a.id, name: a.name, ext: a.ext, url: a.src }
         return make && { id: a.id, kind: 'ui', src: v.url, item, api: () => make(item, 'view', v.plugin) }
       }
+      if (v.kind === 'link') return { id: a.id, kind: 'link', src: v.url, shown: props.host?.linkOf?.(v.url, 'view') }
       const src = (v.kind === 'image' && v.url) || a.src
       return src ? { id: a.id, kind: v.kind, src } : undefined
     },
@@ -234,6 +243,14 @@ export function AssetScreen(props: AssetScreenProps) {
     const onReady = () => ready(l)
     const onUnsupported = () => setBroken(l.src)
     if (l.kind === 'ui') return <PluginView url={l.src} api={l.api()} class={styles.page} onReady={onReady} />
+    if (l.kind === 'link') {
+      const ui = l.shown?.ui
+      if (ui) return <PluginView url={ui.url} api={ui.api} link class={styles.page} onReady={onReady} />
+      queueMicrotask(onReady)
+      return (
+        <WebPage url={l.src} browser={props.host?.browser} onOpenDefault={props.host?.openUrl} class={styles.page} />
+      )
+    }
     if (l.kind === 'image')
       return (
         <ImageZoom
@@ -355,12 +372,40 @@ export function AssetScreen(props: AssetScreenProps) {
   onMount(() => wake())
   onCleanup(() => clearTimeout(stillTimer))
   const idle = () => !!props.idle || still()
+  const barTools = useBarTools()
+  const inBar = () => (active() ? barTools() : undefined)
+  const tools = (a: () => Item, bar: boolean) => (
+    <>
+      <button
+        type="button"
+        class={bar ? styles.barBtn : `${styles.btn} ${styles.pin} ${styles.fade}`}
+        aria-pressed={lib().pins.includes(a().id)}
+        aria-label={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
+        data-tip={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
+        onClick={() => props.onTogglePin?.(a().id)}
+      >
+        <Icon name="pin" size={15} class={styles.pinGlyph} />
+      </button>
+      <button
+        type="button"
+        class={bar ? styles.barBtn : `${styles.btn} ${styles.infoBtn} ${styles.fade}`}
+        aria-expanded={info()}
+        aria-label={info() ? '情報を閉じる' : '情報'}
+        data-tip={info() ? '情報を閉じる（I）' : '情報（I）'}
+        onClick={() => setInfo(!info())}
+      >
+        <Icon name="info" size={15} />
+      </button>
+    </>
+  )
   return (
     <section
       ref={root}
       class={`${shared.screen} ${styles.root}`}
       data-idle={idle()}
       data-info={info()}
+      data-bar={!!inBar() || undefined}
+      data-steps={props.list.length > 1 || undefined}
       aria-label="素材"
       onPointerMove={() => wake()}
       onPointerDown={() => wake()}
@@ -417,8 +462,8 @@ export function AssetScreen(props: AssetScreenProps) {
                 </Match>
               </Switch>
             </div>
-            <div class={`${styles.strip} ${styles.fade}`}>
-              <Show when={props.list.length > 1}>
+            <Show when={props.list.length > 1}>
+              <div class={`${styles.strip} ${styles.fade}`}>
                 <button
                   type="button"
                   class={styles.btn}
@@ -440,28 +485,15 @@ export function AssetScreen(props: AssetScreenProps) {
                 <span class={styles.count}>
                   {i() + 1} / {props.list.length}
                 </span>
-              </Show>
-            </div>
-            <button
-              type="button"
-              class={`${styles.btn} ${styles.pin} ${styles.fade}`}
-              aria-pressed={lib().pins.includes(a().id)}
-              aria-label={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
-              data-tip={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
-              onClick={() => props.onTogglePin?.(a().id)}
-            >
-              <Icon name="pin" size={15} class={styles.pinGlyph} />
-            </button>
-            <button
-              type="button"
-              class={`${styles.btn} ${styles.infoBtn} ${styles.fade}`}
-              aria-expanded={info()}
-              aria-label={info() ? '情報を閉じる' : '情報'}
-              data-tip={info() ? '情報を閉じる（I）' : '情報（I）'}
-              onClick={() => setInfo(!info())}
-            >
-              <Icon name="info" size={15} />
-            </button>
+              </div>
+            </Show>
+            <Show when={inBar()} keyed fallback={tools(a, false)}>
+              {(el) => (
+                <Portal mount={el}>
+                  <span class={styles.barTools}>{tools(a, true)}</span>
+                </Portal>
+              )}
+            </Show>
             <Show when={info()}>
               <aside class={styles.info} aria-label="情報">
                 <div class={styles.infoHead}>情報</div>

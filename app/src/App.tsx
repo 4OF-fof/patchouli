@@ -79,14 +79,17 @@ import type { IconName } from './components/base/Icon/Icon'
 import { SelectionProvider, createSelection } from './components/media/Selection/Selection'
 import { ItemMenuProvider, ThumbMakingProvider, ThumbSeenProvider, watchSeen } from './components/media/Thumb/Thumb'
 import { AllScreen } from './screens/All/AllScreen'
-import { AppBar, type BarRequest, type Place } from './screens/AppBar'
+import { AppBar, type BarRequest, BarToolsProvider, type Place } from './screens/AppBar'
 import type { Blocker } from './components/media/Unsupported/Unsupported'
 import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
 import { GroupScreen } from './screens/Group/GroupScreen'
 import { NoteScreen } from './screens/Note/NoteScreen'
 import type { NoteEditorApi } from './components/editor/NoteEditor/NoteEditor'
-import { embedOf as embedFor } from './screens/Note/embed'
+import { embedOf as embedFor, urlEmbedOf as urlEmbedFor } from './screens/Note/embed'
+import { WebScreen } from './screens/Web/WebScreen'
+import { pageOnTop } from './components/media/WebPage/WebPage'
+import { hostOf } from './plugins/links'
 import { ProjectScreen } from './screens/Project/ProjectScreen'
 import { ProjectListScreen } from './screens/ProjectList/ProjectListScreen'
 import { ScreenFrame } from './screens/ScreenFrame'
@@ -105,6 +108,7 @@ type View =
   | { s: 'note'; id: string }
   | { s: 'asset'; list: string[]; index: number; at?: number }
   | { s: 'tidy'; id?: string }
+  | { s: 'web'; url: string }
 
 const LABEL: Record<View['s'], string> = {
   edition: 'ホーム',
@@ -117,6 +121,7 @@ const LABEL: Record<View['s'], string> = {
   note: 'ノート',
   asset: '素材',
   tidy: '分類の確認',
+  web: 'ウェブページ',
 }
 
 const TAB_ICON: Record<View['s'], IconName> = {
@@ -130,6 +135,7 @@ const TAB_ICON: Record<View['s'], IconName> = {
   note: 'note',
   asset: 'file',
   tidy: 'tag',
+  web: 'link',
 }
 
 interface Tab {
@@ -175,6 +181,10 @@ function viewOf(lib: Library, v: unknown): View | undefined {
       )
       const index = typeof x.index === 'number' ? x.index : 0
       return list.length ? { s: 'asset', list, index: Math.min(Math.max(0, index), list.length - 1) } : undefined
+    }
+    case 'web': {
+      const url = str(x.url)
+      return url && /^https?:\/\//i.test(url) ? { s: 'web', url } : undefined
     }
   }
   return undefined
@@ -316,7 +326,9 @@ export function App(props: AppProps) {
             ? (lib().byId.get(v.id)?.name ?? LABEL.note)
             : v.s === 'asset'
               ? (lib().byId.get(v.list[assetIndex(v)] ?? '')?.name ?? LABEL.asset)
-              : LABEL[v.s]
+              : v.s === 'web'
+                ? (hostOf(v.url) ?? LABEL.web)
+                : LABEL[v.s]
   const crumbs = () => stack().map(labelOf)
   const go = (v: View) => (inNewTab() ? openTab([...stack(), v]) : setStack([...stack(), v]))
   const itemView = (id: string, list?: string[], at?: number): View | undefined => {
@@ -381,15 +393,38 @@ export function App(props: AppProps) {
     if (to) setStack([...stack().slice(0, i), to])
   }
   const [peek, setPeek] = createSignal<string>()
+  const [peekUrl, setPeekUrl] = createSignal<string>()
+  const [barTools, setBarTools] = createSignal<HTMLElement>()
   const openRef = (id: string) => {
     const how = prefs().openLink
     if (inNewTab() || how === 'here') openItem(id)
     else if (how === 'tab') asNewTab(() => openItem(id))
-    else if (lib().byId.has(id)) setPeek(id)
+    else if (lib().byId.has(id)) {
+      setPeekUrl(undefined)
+      setPeek(id)
+    }
   }
+  /** URL の埋め込み。素材のリンクと同じく、開き方の設定に合わせる。 */
+  const openPage = (url: string) => {
+    const how = prefs().openLink
+    if (inNewTab() || how === 'here') go({ s: 'web', url })
+    else if (how === 'tab') asNewTab(() => go({ s: 'web', url }))
+    else {
+      setPeek(undefined)
+      setPeekUrl(url)
+    }
+  }
+  const webScreen = (url: string) => (
+    <WebScreen
+      url={url}
+      browser={backend.browser}
+      onOpenDefault={backend.openUrl && ((u) => void backend.openUrl?.(u).catch(fail))}
+    />
+  )
   createEffect(() => {
     stack()
     setPeek(undefined)
+    setPeekUrl(undefined)
     selection.clear()
   })
   const onGo = (to: Place) => {
@@ -651,14 +686,21 @@ export function App(props: AppProps) {
     const it = await addNote(name, ROOT)
     if (it) go({ s: 'note', id: it.id })
   }
-  const embedOf = (it: Item) =>
-    embedFor(it, {
-      format: (ext) => lib().formats.get(ext),
-      view: backend.itemView,
-      waveform: backend.waveform,
-      ui: backend.uiApi,
-      uiUrl: backend.uiUrl,
-    })
+  const embedHost = () => ({
+    format: (ext: string) => lib().formats.get(ext),
+    view: backend.itemView,
+    waveform: backend.waveform,
+    ui: backend.uiApi,
+    uiUrl: backend.uiUrl,
+    linkOf: backend.linkOf,
+  })
+  const embedOf = (it: Item) => embedFor(it, embedHost())
+  /** 設定に合わせて、内蔵ブラウザ（新しい画面）か既定のアプリで開く。 */
+  const openUrl = async (url: string) => {
+    const s = await backend.appSettings?.get().catch(() => undefined)
+    if (s?.linkOpen === 'builtin' || !backend.openUrl) go({ s: 'web', url })
+    else await backend.openUrl(url).catch(fail)
+  }
   const renameTag = (from: string, to: string, keepFrom = false) => {
     const re = retag(from, to)
     const before = lib()
@@ -841,6 +883,9 @@ export function App(props: AppProps) {
     ui: backend.uiApi,
     waveform: backend.waveform,
     details: backend.itemDetails,
+    linkOf: backend.linkOf,
+    browser: backend.browser,
+    openUrl: backend.openUrl && ((url: string) => void backend.openUrl?.(url).catch(fail)),
   }
   const { uiApi, uiUrl } = backend
   const hoverHost: HoverHost = {
@@ -1059,6 +1104,9 @@ export function App(props: AppProps) {
       suggestTags={backend.tagDecisions?.suggestTags}
       onCreateNote={addNote}
       embedOf={embedOf}
+      urlEmbedOf={(url, image) => urlEmbedFor(url, embedHost(), image)}
+      onOpenUrl={openUrl}
+      onOpenPage={openPage}
       onImport={backend.importData && importFiles}
       editorRef={tab ? (api) => (api ? editors.set(tab.id, api) : editors.delete(tab.id)) : undefined}
     />
@@ -1247,6 +1295,9 @@ export function App(props: AppProps) {
             )
           }
         </Match>
+        <Match when={shown().s === 'web' && shown()} keyed>
+          {(v) => v.s === 'web' && webScreen(v.url)}
+        </Match>
         <Match when={shown().s === 'tidy' && shown()} keyed>
           {(v) =>
             v.s === 'tidy' && (
@@ -1304,10 +1355,12 @@ export function App(props: AppProps) {
                       request={barRequest()}
                       activities={activities()}
                       tabs={tabsAt() === 'top' ? tabStrip() : undefined}
+                      toolsRef={setBarTools}
                     />
                   }
                   side={tabsAt() === 'left' ? <TabList {...tabStrip()} /> : undefined}
                   toast={
+                    !pageOnTop() &&
                     (notice() || broken().length > 0 || clashes().length > 0) && (
                       <>
                         {notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}
@@ -1320,7 +1373,13 @@ export function App(props: AppProps) {
                   {/* プラグインを読み直したら、組み込み UI を描き直すため、いまの画面を作り直す */}
                   <For each={[plugged()]}>
                     {() => (
-                      <For each={tabs()}>{(t) => <TabPane active={t === currentTab()}>{screenOf(t)}</TabPane>}</For>
+                      <For each={tabs()}>
+                        {(t) => (
+                          <TabPane active={t === currentTab()}>
+                            <BarToolsProvider value={barTools}>{screenOf(t)}</BarToolsProvider>
+                          </TabPane>
+                        )}
+                      </For>
                     )}
                   </For>
                   <Show when={peek()}>
@@ -1340,6 +1399,23 @@ export function App(props: AppProps) {
                         <Show when={id()} keyed>
                           {(to) => (lib().byId.get(to)?.note ? noteScreen(to) : assetScreen([to], 0))}
                         </Show>
+                      </Peek>
+                    )}
+                  </Show>
+                  <Show when={peekUrl()} keyed>
+                    {(url) => (
+                      <Peek
+                        label={hostOf(url) ?? url}
+                        onExpand={() => {
+                          setPeekUrl(undefined)
+                          const before = new Set(tabs())
+                          asNewTab(() => go({ s: 'web', url }))
+                          const t = tabs().find((x) => !before.has(x))
+                          if (t) setCurrentTab(t)
+                        }}
+                        onClose={() => setPeekUrl(undefined)}
+                      >
+                        {webScreen(url)}
                       </Peek>
                     )}
                   </Show>

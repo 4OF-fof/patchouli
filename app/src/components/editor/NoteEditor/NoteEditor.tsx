@@ -14,7 +14,18 @@ import { type SlashAction, slashMatches } from './commands'
 import { asNewTab } from '../../nav/TabPane/newTab'
 import { runSlash, toggleWrap, unlinkAt } from './edit'
 import { codeHighlight } from './highlight'
-import { type Embed, type LiveHooks, type Ref, escapeLabel, live, marksAt, refAt, refresh } from './live'
+import {
+  type Embed,
+  type LiveHooks,
+  type Ref,
+  WEB,
+  editEmbed,
+  escapeLabel,
+  live,
+  marksAt,
+  refAt,
+  refresh,
+} from './live'
 import { MathSyntax } from './math'
 import styles from './NoteEditor.module.css'
 import { selectionLayer } from './selection'
@@ -45,6 +56,12 @@ export interface NoteEditorProps {
   onOpenRef?: (id: string) => void
   onCreateNote?: (name: string) => Promise<Item | undefined>
   embedOf?: (it: Item) => Promise<Embed | undefined>
+  /** URL を埋め込んだときの表示。image は、まだ画像として読んでいないか。undefined なら画像として出す */
+  urlEmbedOf?: (url: string, image: boolean) => Promise<Embed | undefined>
+  /** 外の URL のリンクを Ctrl+クリックしたとき。 */
+  onOpenUrl?: (url: string) => void
+  /** URL の埋め込みを Ctrl+クリックしたとき。 */
+  onOpenPage?: (url: string) => void
   /** 貼り付けたり落としたりしたファイルを素材として取り込む。 */
   onImport?: (files: File[]) => Promise<Item[]>
   ref?: (api: NoteEditorApi) => void
@@ -176,6 +193,7 @@ export function NoteEditor(props: NoteEditorProps) {
       const it = props.lib.byId.get(id)
       return it && props.embedOf ? props.embedOf(it) : undefined
     },
+    urlEmbedOf: async (url, image) => props.urlEmbedOf?.(url, image),
     onOpenRef: (id) => props.onOpenRef?.(id),
     classes: styles,
   }
@@ -329,13 +347,20 @@ export function NoteEditor(props: NoteEditorProps) {
             mousedown: (e) => {
               const middle = e.button === 1
               if (!middle && (!(e.ctrlKey || e.metaKey) || e.button !== 0)) return false
-              const el = e.target instanceof Element ? e.target.closest<HTMLElement>('[data-ref]') : null
+              const el =
+                e.target instanceof Element
+                  ? e.target.closest<HTMLElement>('[data-ref], [data-href], [data-page]')
+                  : null
               const id = el?.dataset.ref
-              if (!id) return false
+              const href = el?.dataset.href
+              const page = el?.dataset.page
+              if (!id && !href && !page) return false
               e.preventDefault()
               setHover(undefined)
-              if (middle) asNewTab(() => props.onOpenRef?.(id))
-              else props.onOpenRef?.(id)
+              const open = () =>
+                id ? props.onOpenRef?.(id) : href ? props.onOpenUrl?.(href) : page && props.onOpenPage?.(page)
+              if (middle) asNewTab(open)
+              else open()
               return true
             },
             mouseover: (e) => {
@@ -569,9 +594,10 @@ export function NoteEditor(props: NoteEditorProps) {
           </div>
         )}
       </Show>
-      <Show when={!picking() && !selected() && active()?.id ? active() : undefined}>
+      <Show when={!picking() && !selected() && (active()?.id || active()?.kind === 'embed') ? active() : undefined}>
         {(r) => {
           const embed = () => r().kind === 'embed'
+          const page = () => !r().id && WEB.test(r().href)
           // 埋め込みは中身を隠さないよう上に出す。上が狭いときだけ下に出す
           const above = () => embed() && r().top > 80
           return (
@@ -587,15 +613,40 @@ export function NoteEditor(props: NoteEditorProps) {
               }}
               onMouseDown={(e) => e.preventDefault()}
             >
-              <button type="button" onClick={() => props.onOpenRef?.(r().id ?? '')}>
-                開く
-              </button>
-              <button
-                type="button"
-                onClick={() => setPicking({ embed: embed(), from: r().from, to: r().to, scale: r().scale })}
-              >
-                アセットを選択
-              </button>
+              <Show when={r().id || page()}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const { id, href } = r()
+                    if (id) props.onOpenRef?.(id)
+                    else props.onOpenPage?.(href)
+                  }}
+                >
+                  開く
+                </button>
+              </Show>
+              <Show when={!page()}>
+                <button
+                  type="button"
+                  onClick={() => setPicking({ embed: embed(), from: r().from, to: r().to, scale: r().scale })}
+                >
+                  アセットを選択
+                </button>
+              </Show>
+              <Show when={!r().id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const v = view
+                    if (!v) return
+                    const { from, to, url } = r()
+                    v.dispatch({ effects: editEmbed.of({ from, to }), selection: { anchor: url.to } })
+                    v.focus()
+                  }}
+                >
+                  URL を編集
+                </button>
+              </Show>
               <Show when={embed() && scales(r()).length > 1}>
                 <button type="button" aria-expanded={sizing()} onClick={() => setSizing(!sizing())}>
                   サイズを変更

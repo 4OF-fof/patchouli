@@ -323,6 +323,45 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 </Show>
               ),
             },
+            {
+              page: 'general' as const,
+              words: 'URL リンクを開くとき 内蔵ブラウザ 既定のアプリ ブラウザ',
+              body: () => (
+                <Show when={props.app}>
+                  {(a) => (
+                    <For each={[failed()]}>
+                      {() => (
+                        <div class={styles.field}>
+                          <SettingField
+                            setting={{
+                              key: 'linkOpen',
+                              label: 'URL を開くとき',
+                              kind: 'choice',
+                              choices: [
+                                { value: 'default', label: '既定のアプリ' },
+                                { value: 'builtin', label: '内蔵ブラウザ' },
+                              ],
+                              default: 'default',
+                              value: a().linkOpen,
+                              help:
+                                a().linkOpen === 'builtin'
+                                  ? 'ノートのリンクを Ctrl+クリックしたとき、新しい画面としてアプリの中に開きます'
+                                  : 'ノートのリンクを Ctrl+クリックしたとき、既定のブラウザなどで開きます',
+                            }}
+                            onChange={(v) =>
+                              setApp(
+                                { linkOpen: v === 'builtin' ? 'builtin' : 'default' },
+                                'URL の開き方を変更しています',
+                              )
+                            }
+                          />
+                        </div>
+                      )}
+                    </For>
+                  )}
+                </Show>
+              ),
+            },
           ]
         : []),
     ]),

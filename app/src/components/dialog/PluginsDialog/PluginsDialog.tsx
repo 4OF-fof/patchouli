@@ -40,6 +40,7 @@ const PART: Record<Part, string> = {
   embed: '埋め込み表示',
   menu: '右クリックメニュー',
   content: '内容の読み取り',
+  link: 'URL の読み取り',
 }
 
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [

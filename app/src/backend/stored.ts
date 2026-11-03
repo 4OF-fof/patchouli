@@ -11,7 +11,7 @@ import {
   daysBefore,
   touchedLabel,
 } from '../model/library'
-import type { FormatInfo } from '../plugins/types'
+import type { FormatInfo, LinkInfo } from '../plugins/types'
 import type { Changed, LibraryState, Opened, Orphan } from './types'
 
 export interface StoredItem {
@@ -55,6 +55,7 @@ export interface StoredLibrary<I extends StoredItem = StoredItem> {
   tagCovers: Record<string, TagCoverPart[]>
   orphans: Orphan[]
   formats: FormatInfo[]
+  links?: LinkInfo[]
   problems: string[]
 }
 

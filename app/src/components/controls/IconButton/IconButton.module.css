@@ -22,6 +22,11 @@
 .root[aria-pressed='true'] {
   color: var(--accent);
 }
+.root:disabled {
+  color: var(--muted);
+  opacity: 0.4;
+  cursor: default;
+}
 .root[data-look='float'] {
   width: 26px;
   height: 26px;

@@ -4,6 +4,7 @@
  */
 import audio from '../../plugins/audio/plugin.json'
 import image from '../../plugins/image/plugin.json'
+import shortcut from '../../plugins/shortcut/plugin.json'
 import video from '../../plugins/video/plugin.json'
 import type {
   Cap,
@@ -13,6 +14,7 @@ import type {
   Fit,
   FormatInfo,
   Hover,
+  LinkPart,
   Manifest,
   Part,
   PluginReport,
@@ -20,8 +22,9 @@ import type {
   Problem,
 } from './types'
 
-export interface RawManifest extends Omit<Manifest, 'formats'> {
-  formats: Record<
+export interface RawManifest extends Omit<Manifest, 'formats' | 'links'> {
+  links?: Record<string, { elevated?: string[] }>
+  formats?: Record<
     string,
     {
       extends?: string
@@ -37,8 +40,9 @@ export interface RawManifest extends Omit<Manifest, 'formats'> {
   >
 }
 
-const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover', 'details', 'embed', 'menu', 'content']
-const ELEVATED_ONLY: readonly Part[] = ['waveform', 'hover', 'embed']
+const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover', 'details', 'embed', 'menu', 'content', 'link']
+const ELEVATED_ONLY: readonly Part[] = ['waveform', 'hover', 'embed', 'link']
+const LINK_PARTS: readonly LinkPart[] = ['thumbnail', 'view', 'embed', 'details']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
 const HOVERS: readonly Hover[] = ['video']
 const EMBEDS: readonly Embed[] = ['view', 'card']
@@ -47,8 +51,14 @@ const partsOf = (raw?: string[]) => (raw ?? []).flatMap((p) => PARTS.find((x) =>
 
 export const readManifest = (raw: RawManifest): Manifest => ({
   ...raw,
+  links: Object.fromEntries(
+    Object.entries(raw.links ?? {}).map(([host, d]) => [
+      host,
+      { elevated: (d.elevated ?? []).flatMap((p) => LINK_PARTS.find((x) => x === p) ?? []) },
+    ]),
+  ),
   formats: Object.fromEntries(
-    Object.entries(raw.formats).map(([ext, d]) => [
+    Object.entries(raw.formats ?? {}).map(([ext, d]) => [
       ext,
       {
         ...d,
@@ -62,7 +72,7 @@ export const readManifest = (raw: RawManifest): Manifest => ({
   ),
 })
 
-export const BUILTIN_MANIFESTS = [image, video, audio].map(readManifest)
+export const BUILTIN_MANIFESTS = [image, video, audio, shortcut].map(readManifest)
 
 const DEFAULT_RATIO = 1.6
 
@@ -80,7 +90,8 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
   const problems = new Map<string, Problem[]>(manifests.map((m) => [m.id, []]))
   const add = (id: string, text: string) => problems.get(id)?.push({ level: 'error', text })
   const claims = new Map<string, Manifest[]>()
-  for (const m of manifests) for (const ext of Object.keys(m.formats)) claims.set(ext, [...(claims.get(ext) ?? []), m])
+  for (const m of manifests)
+    for (const ext of Object.keys(m.formats ?? {})) claims.set(ext, [...(claims.get(ext) ?? []), m])
   const claim = new Map<string, Manifest>()
   const conflicts: Conflict[] = []
   for (const [ext, by] of [...claims].toSorted(([a], [b]) => (a < b ? -1 : 1))) {
@@ -112,7 +123,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
         break
       }
       seen.add(fmt)
-      const d = at.formats[fmt]
+      const d = at.formats?.[fmt]
       if (!d) break
       label ??= d.label
       ratio ??= d.ratio
@@ -137,13 +148,17 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
     const wave = parts.get('waveform')
     const hoverUi = parts.get('hover')
     const embedUi = parts.get('embed')
+    const linkUi = parts.get('link')
     formats.set(ext, {
       ext,
       label: label ?? ext.toUpperCase(),
       ratio: ratio ?? DEFAULT_RATIO,
       fit: fit ?? 'center',
       plugin: owner.id,
-      thumbnail: parts.has('thumbnail'),
+      thumbnail: parts.has('thumbnail') || parts.has('link'),
+      ...(linkUi &&
+        linkUi !== 'sandbox' &&
+        linkUi.elevated && { uiLink: { plugin: linkUi.id, module: linkUi.elevated } }),
       ...(ui && ui !== 'sandbox' && ui.elevated && { uiThumbnail: { plugin: ui.id, module: ui.elevated } }),
       ...(wave && wave !== 'sandbox' && wave.elevated && { uiWaveform: { plugin: wave.id, module: wave.elevated } }),
       ...(hover && { hover }),
@@ -162,7 +177,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
 const resolvedBuiltin = resolveFormats(BUILTIN_MANIFESTS)
 
 const capsOf = (m: Manifest): Cap[] => {
-  const has = (p: Part, k: 'sandbox' | 'elevated') => Object.values(m.formats).some((d) => d[k]?.includes(p))
+  const has = (p: Part, k: 'sandbox' | 'elevated') => Object.values(m.formats ?? {}).some((d) => d[k]?.includes(p))
   return [
     ...PARTS.filter((p) => has(p, 'sandbox')).map((part): Cap => ({ part, by: 'sandbox' })),
     ...PARTS.filter((p) => has(p, 'elevated')).map((part): Cap => ({ part, by: 'elevated' })),

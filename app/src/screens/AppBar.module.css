@@ -108,6 +108,11 @@
     display: none;
   }
 }
+.tools {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
 .end {
   flex: none;
   display: flex;

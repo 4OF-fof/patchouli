@@ -208,6 +208,15 @@ pub enum ThumbSize {
     Large,
 }
 
+/// URL の開き方。builtin は内蔵ブラウザ（タブ）、default は既定のアプリ。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LinkOpen {
+    Builtin,
+    #[default]
+    Default,
+}
+
 /// 本体の設定。
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -219,6 +228,8 @@ pub struct AppSettings {
     /// 外部ツールの名前 → 指定した場所
     #[serde(default)]
     pub command_paths: HashMap<String, PathBuf>,
+    #[serde(default)]
+    pub link_open: LinkOpen,
 }
 
 pub fn app_settings(app: &AppHandle) -> Result<AppSettings, String> {

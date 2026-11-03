@@ -20,20 +20,27 @@ export const idOfHref = (href: unknown) => (typeof href === 'string' ? targetOf(
 
 export const escapeLabel = (s: string) => s.replace(/[\\[\]]/g, '\\$&')
 
+/** Ctrl+クリックで開ける外の URL。 */
+export const WEB = /^https?:\/\//i
+
 /** 渡された要素に描き、消すときに呼ぶ関数を返す */
 type Draw = (el: HTMLElement) => () => void
 
 export type Embed =
   /** caption があれば、下に名前などを添える */
   | { kind: 'image'; src: string; caption?: Draw }
-  /** error があれば、埋め込めないことを知らせるカードにする。label は名前の後ろに添える */
-  | { kind: 'card'; thumb?: string; label?: string; error?: string }
+  /** error があれば、埋め込めないことを知らせるカードにする。label は名前の後ろに添える。name があれば、素材の名前の代わりに出す */
+  | { kind: 'card'; thumb?: string; name?: string; label?: string; error?: string }
+  /** 外のページ。画像に名前を重ね、下に site を添える */
+  | { kind: 'page'; image?: string; title: string; site: string }
   /** 中身を mount で描く。key が同じあいだは描き直さない */
   | { kind: 'mount'; key: string; mount: Draw; caption?: Draw }
 
 export interface LiveHooks {
   nameOf: (id: string) => string | undefined
   embedOf: (id: string) => Promise<Embed | undefined>
+  /** URL を埋め込んだときの表示。image は、まだ画像として読んでいないか。undefined なら画像として出す */
+  urlEmbedOf?: (url: string, image: boolean) => Promise<Embed | undefined>
   onOpenRef: (id: string) => void
   classes: Record<string, string | undefined>
 }
@@ -110,6 +117,21 @@ const focusField = StateField.define<boolean>({
 
 /** 名前や素材が変わったときに、リンクと埋め込みの見た目を作り直す。 */
 export const refresh = StateEffect.define()
+
+/** 埋め込みを Markdown の書き方のまま見せて直す。カーソルが範囲を出たら戻す。 */
+export const editEmbed = StateEffect.define<{ from: number; to: number }>()
+const rawField = StateField.define<{ from: number; to: number } | undefined>({
+  create: () => undefined,
+  update(v, tr) {
+    const set = tr.effects.find((e) => e.is(editEmbed))
+    if (set) return set.value
+    if (!v) return v
+    const from = tr.changes.mapPos(v.from, -1)
+    const to = tr.changes.mapPos(v.to, 1)
+    const { head } = tr.state.selection.main
+    return head < from || head > to ? undefined : { from, to }
+  },
+})
 
 class Text extends WidgetType {
   readonly text: string
@@ -288,7 +310,11 @@ class EmbedView extends WidgetType {
     dom.dataset.selected = String(this.selected)
     scaleTo(dom, this.scale)
     if (!id) {
-      dom.append(imageOf(this.src, this.alt))
+      if (WEB.test(this.src)) dom.dataset.page = this.src
+      const img = imageOf(this.src, this.alt)
+      img.addEventListener('error', () => this.loadUrl(dom, false), { once: true })
+      dom.append(img)
+      this.loadUrl(dom, true)
       return dom
     }
     dom.dataset.ref = id
@@ -302,7 +328,7 @@ class EmbedView extends WidgetType {
   }
 
   private load(dom: HTMLElement) {
-    const { classes, embedOf } = this.hooks
+    const { embedOf } = this.hooks
     const { id, name } = this
     if (!id || name === undefined) return
     const key = `${this.version}:${id}`
@@ -311,45 +337,80 @@ class EmbedView extends WidgetType {
       p = embedOf(id)
       embeds.set(key, p)
     }
-    void p.then((e) => {
-      if (!e) return
-      const sig = e.kind === 'mount' ? `mount:${e.key}` : JSON.stringify(e)
-      if (drawn.get(dom)?.sig === sig) return
-      unmount(dom)
-      delete dom.dataset.wide
-      const off: (() => void)[] = []
-      drawn.set(dom, { sig, off })
-      const caption = (put: Draw | undefined) => {
-        if (!put) return
-        const el = spanOf(classes.caption, '')
-        dom.append(el)
-        off.push(put(el))
-      }
-      if (e.kind === 'mount') {
-        const box = document.createElement('span')
-        box.className = classes.mounted ?? ''
-        dom.dataset.wide = 'true'
-        dom.replaceChildren(box)
-        off.push(e.mount(box))
-        caption(e.caption)
-        return
-      }
-      if (e.kind === 'card') {
-        const card = spanOf(e.error ? `${classes.card} ${classes.cardError}` : classes.card, name)
-        if (e.thumb) {
-          const img = document.createElement('img')
-          img.src = e.thumb
-          img.alt = ''
-          card.prepend(img)
-        }
-        if (e.label) card.append(spanOf(classes.cardLabel, e.label))
-        if (e.error) card.append(spanOf(classes.cardNote, e.error))
-        dom.replaceChildren(card)
-        return
-      }
-      dom.replaceChildren(imageOf(e.src, name))
+    void p.then((e) => e && this.show(dom, e, name))
+  }
+
+  /** URL の埋め込み。画像として読む前に links のプラグインが受け持つか確かめ、読めなかったらカードにする。 */
+  private loadUrl(dom: HTMLElement, image: boolean) {
+    const of = this.hooks.urlEmbedOf
+    if (!of) return
+    const key = `url:${image}:${this.src}`
+    let p = embeds.get(key)
+    if (!p) {
+      p = of(this.src, image)
+      embeds.set(key, p)
+    }
+    void p.then((e) => e && this.show(dom, e, this.alt || this.src))
+  }
+
+  private show(dom: HTMLElement, e: Embed, name: string) {
+    const { classes } = this.hooks
+    const sig = e.kind === 'mount' ? `mount:${e.key}` : JSON.stringify(e)
+    if (drawn.get(dom)?.sig === sig) return
+    unmount(dom)
+    delete dom.dataset.wide
+    const off: (() => void)[] = []
+    drawn.set(dom, { sig, off })
+    const caption = (put: Draw | undefined) => {
+      if (!put) return
+      const el = spanOf(classes.caption, '')
+      dom.append(el)
+      off.push(put(el))
+    }
+    if (e.kind === 'mount') {
+      const box = document.createElement('span')
+      box.className = classes.mounted ?? ''
+      dom.dataset.wide = 'true'
+      dom.replaceChildren(box)
+      off.push(e.mount(box))
       caption(e.caption)
-    })
+      return
+    }
+    if (e.kind === 'card') {
+      const card = spanOf(e.error ? `${classes.card} ${classes.cardError}` : classes.card, e.name ?? name)
+      if (e.thumb) {
+        const img = document.createElement('img')
+        img.src = e.thumb
+        img.alt = ''
+        card.prepend(img)
+      }
+      if (e.label) card.append(spanOf(classes.cardLabel, e.label))
+      if (e.error) card.append(spanOf(classes.cardNote, e.error))
+      dom.replaceChildren(card)
+      return
+    }
+    if (e.kind === 'page') {
+      const cover = spanOf(classes.pageCover, '')
+      cover.append(spanOf(classes.pageTitle, e.title))
+      if (e.image) {
+        const img = document.createElement('img')
+        img.src = e.image
+        img.alt = ''
+        img.addEventListener('error', () => {
+          img.remove()
+          delete cover.dataset.image
+        })
+        cover.dataset.image = 'true'
+        cover.prepend(img)
+      }
+      const card = spanOf(classes.page, '')
+      card.append(cover, spanOf(classes.pageSite, e.site))
+      dom.dataset.wide = 'true'
+      dom.replaceChildren(card)
+      return
+    }
+    dom.replaceChildren(imageOf(e.src, name))
+    caption(e.caption)
   }
 
   destroy(dom: HTMLElement) {
@@ -487,6 +548,7 @@ function inline(src: string, h: LiveHooks): Node {
       el.className = (id ? (h.nameOf(id) === undefined ? c.missing : c.link) : c.extLink) ?? ''
       el.textContent = all.startsWith('!') ? text || (id && h.nameOf(id)) || href : text
       if (id) el.dataset.ref = id
+      else if (WEB.test(href)) el.dataset.href = href
       frag.append(el)
     } else if (s1 !== undefined || s2 !== undefined) frag.append(wrap('strong', c.strong, s1 ?? s2 ?? ''))
     else if (del !== undefined) frag.append(wrap('del', c.del, del))
@@ -657,7 +719,11 @@ function build(state: EditorState, h: LiveHooks, version: number): Built {
         case 'Link': {
           const r = refOf(state, n)
           if (!r) return undefined
-          const attrs: Record<string, string> = r.id ? { 'data-ref': r.id } : {}
+          const attrs: Record<string, string> = r.id
+            ? { 'data-ref': r.id }
+            : WEB.test(r.href)
+              ? { 'data-href': r.href }
+              : {}
           if (near(n.from, n.to)) {
             mark('raw', n.from, n.to, attrs)
             return undefined
@@ -679,6 +745,11 @@ function build(state: EditorState, h: LiveHooks, version: number): Built {
           const alt = state.sliceDoc(r.label.from, r.label.to)
           const name = r.id ? h.nameOf(r.id) : undefined
           const selected = near(n.from, n.to)
+          const raw = state.field(rawField, false)
+          if (selected && raw && raw.from <= n.from && raw.to >= n.to) {
+            mark('raw', n.from, n.to)
+            return undefined
+          }
           const widget = new EmbedView({ id: r.id, src: r.href, alt, name, scale: r.scale, version, selected }, h)
           out.push(Decoration.replace({ widget }).range(n.from, n.to))
           atoms.push(Decoration.mark({}).range(n.from, n.to))
@@ -696,7 +767,10 @@ function build(state: EditorState, h: LiveHooks, version: number): Built {
           return undefined
         }
         case 'URL':
-          if (n.parent?.name !== 'Link' && n.parent?.name !== 'Image') mark('extLink', n.from, n.to)
+          if (n.parent?.name !== 'Link' && n.parent?.name !== 'Image') {
+            const href = state.sliceDoc(n.from, n.to)
+            mark('extLink', n.from, n.to, WEB.test(href) ? { 'data-href': href } : undefined)
+          }
           return undefined
         case 'ListItem': {
           let d = 0
@@ -938,6 +1012,7 @@ export function live(hooks: () => LiveHooks): Extension {
     EditorView.focusChangeEffect.of((_, focusing) => setFocus.of(focusing)),
     spanField,
     followViewport,
+    rawField,
     field,
     skipLead,
     Prec.high(

@@ -5,8 +5,13 @@
  * content は内容で探したり分けたりするときに読む区間。
  * waveform は音の波形、hover はカーソルを合わせたときにサムネイルの上に重ねる表示、
  * embed はノートに埋め込んだときの表示で、この 3 つは elevated だけが受け持てる。
+ * link はファイルが指す URL（ショートカットなど）で、elevated だけが受け持てる。link を受け持つ形式のサムネイル・詳細の表示・
+ * 埋め込み・ファイルの詳細は、ほかに受け持つものがなければ、URL に当てはまる links のプラグインか本体が受け持つ。
  */
-export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details' | 'embed' | 'menu' | 'content'
+export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details' | 'embed' | 'menu' | 'content' | 'link'
+
+/** links で受け持てるもの。 */
+export type LinkPart = 'thumbnail' | 'view' | 'embed' | 'details'
 
 /** カーソルを合わせたときに、本体がサムネイルの上で見せるもの。video は元のファイルを音を消して再生する。 */
 export type Hover = 'video'
@@ -70,6 +75,11 @@ export interface FormatDecl {
   keepDecoded?: boolean
 }
 
+/** URL ごとに受け持つもの。ネットワークを使うことが多いので、elevated だけが受け持てる。 */
+export interface LinkDecl {
+  elevated?: LinkPart[]
+}
+
 /** plugin.json。 */
 export interface Manifest {
   id: string
@@ -85,5 +95,12 @@ export interface Manifest {
    * ビルドでは、拡張子を .ts にしたものから作る。
    */
   elevated?: string
-  formats: Record<string, FormatDecl>
+  formats?: Record<string, FormatDecl>
+  /**
+   * URL のホスト名 → 受け持つもの。ホスト名はサブドメインも含む（youtube.com は www.youtube.com にも当てはまる）。
+   * 当てはまるものが複数あるときは、いちばん長いホスト名のものを使う。同じホスト名を複数のプラグインが書いたら、どれも使わない。
+   */
+  links?: Record<string, LinkDecl>
+  /** api.fetch で取りに行けるホスト名。サブドメインも含む。 */
+  fetch?: string[]
 }

@@ -1,6 +1,6 @@
 /* プラグインの形。plugin.json と、Rust 側（src-tauri/src/plugin/）から届くもの。Rust 側と合わせる。 */
 
-import type { Deps, Embed, Fit, Hover, Part, SettingValue } from '../../plugins/sdk'
+import type { Deps, Embed, Fit, Hover, LinkPart, Part, SettingValue } from '../../plugins/sdk'
 
 export type {
   CommandDep,
@@ -9,6 +9,8 @@ export type {
   Fit,
   FormatDecl,
   Hover,
+  LinkDecl,
+  LinkPart,
   Manifest,
   Part,
   PluginDep,
@@ -41,6 +43,14 @@ export interface FormatInfo {
   uiHover?: UiRef
   embed?: Embed
   uiEmbed?: UiRef
+  /** ファイルが指す URL を読むもの。あれば、ほかに受け持つもののない部分は URL ごとに受け持つものが描く。 */
+  uiLink?: UiRef
+}
+
+/** URL のホスト名ごとに受け持つプラグイン。 */
+export interface LinkInfo extends UiRef {
+  host: string
+  parts: LinkPart[]
 }
 
 export interface Problem {
@@ -81,6 +91,8 @@ export interface PluginStatus {
   via: Via[]
   caps: Cap[]
   formats: string[]
+  /** 受け持つ URL のホスト名。 */
+  links?: string[]
   settings: Setting[]
   problems: Problem[]
 }
@@ -90,10 +102,17 @@ export interface PluginReport {
   commands?: CommandStatus[]
   /** 複数のプラグインが受け持っているため、どれも使っていない形式。plugins はプラグインの id。 */
   conflicts?: Conflict[]
+  /** 複数のプラグインが受け持っているため、どれも使っていないホスト名。 */
+  linkConflicts?: LinkConflict[]
 }
 
 export interface Conflict {
   ext: string
+  plugins: string[]
+}
+
+export interface LinkConflict {
+  host: string
   plugins: string[]
 }
 
@@ -126,6 +145,8 @@ export type ItemView =
   | { kind: 'video' }
   | { kind: 'audio' }
   | { kind: 'ui'; plugin: string; url: string }
+  /** ファイルが指す URL。ui があれば links のプラグインが描き、なければページをそのまま出す。 */
+  | { kind: 'link'; url: string; ui?: { plugin: string; url: string } }
 
 export interface PluginActions {
   install?: () => Promise<boolean>

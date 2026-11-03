@@ -1,4 +1,16 @@
-import { For, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
+import {
+  type Accessor,
+  For,
+  Show,
+  createContext,
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  onCleanup,
+  onMount,
+  useContext,
+} from 'solid-js'
 import { version } from '../../package.json'
 import appIcon from '../../src-tauri/icons/32x32.png'
 import type {
@@ -98,7 +110,14 @@ export interface AppBarProps {
   /** あれば、タイトルバーにタブを並べ、いまの場所はその下の段に出す。 */
   tabs?: TabStripProps
   appSettings?: AppSettingsActions
+  /** いまの場所の行の右端に、画面ごとのボタンを置く所。 */
+  toolsRef?: (el: HTMLElement) => void
 }
+
+const BarToolsContext = createContext<Accessor<HTMLElement | undefined>>(() => undefined)
+export const BarToolsProvider = BarToolsContext.Provider
+/** 画面のボタンを、いまの場所の行に出すときの置き場。タブの外（Peek など）では undefined。 */
+export const useBarTools = () => useContext(BarToolsContext)
 
 const toggleTheme = () => setPrefs({ theme: themeOf(prefs()) === 'light' ? 'dark' : 'light' })
 
@@ -580,6 +599,9 @@ export function AppBar(props: AppBarProps) {
       <TitleBar
         end={
           <span class={styles.end}>
+            <Show when={!props.tabs}>
+              <span class={styles.tools} ref={(el) => props.toolsRef?.(el)} />
+            </Show>
             <Show when={props.readOnly}>
               <span class={styles.ro} role="status" data-tip="保存先に書き込めないため、読み取り専用になっています">
                 <b>読み取り専用</b>
@@ -630,7 +652,10 @@ export function AppBar(props: AppBarProps) {
         {props.tabs ? <TabStrip {...props.tabs} /> : place()}
       </TitleBar>
       <Show when={props.tabs}>
-        <div class={styles.placeBar}>{place()}</div>
+        <div class={styles.placeBar}>
+          {place()}
+          <span class={styles.tools} ref={(el) => props.toolsRef?.(el)} />
+        </div>
       </Show>
       <Show when={searching()}>
         <SearchPalette

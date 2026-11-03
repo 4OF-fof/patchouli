@@ -18,6 +18,7 @@ import type { Thumbnail } from '../model/library'
 import type {
   FormatInfo,
   ItemDetails,
+  LinkInfo,
   MenuEntry,
   Part,
   PluginReport,
@@ -25,7 +26,8 @@ import type {
   SettingValue,
   UiRef,
 } from '../plugins/types'
-import type { Caller, ContentBudget, ContentPart, OwnApi } from '../../plugins/sdk'
+import type { Caller, ContentBudget, ContentPart, Fetched, LinkApi, OwnApi } from '../../plugins/sdk'
+import { handlerOf, imageThumbnail, pageOf, pageRows } from '../plugins/links'
 import {
   EDGE,
   ThumbnailTimeout,
@@ -33,6 +35,9 @@ import {
   type UiItem,
   uiContent,
   uiDetails,
+  uiLink,
+  uiLinkDetails,
+  uiLinkThumbnail,
   uiMenu,
   uiRunMenu,
   uiThumbnail,
@@ -50,6 +55,7 @@ import type {
   Dropped,
   FileDrag,
   KnownLibrary,
+  PageAt,
   SavedTabs,
   Suggestions,
   UnusedPlugin,
@@ -62,7 +68,9 @@ const urlsOf = (it: TauriItem): ItemUrls => ({
   thumb: it.thumb && convertFileSrc(it.thumb),
 })
 
-type TauriView = { kind: 'image' | 'video' | 'audio' | 'decoded' } | { kind: 'ui'; plugin: string; module: string }
+type TauriView =
+  | { kind: 'image' | 'video' | 'audio' | 'decoded' }
+  | { kind: 'ui' | 'link'; plugin: string; module: string }
 
 /** プラグインを読み直した回数。組み込み UI の ES モジュールは URL ごとに使い回すので、URL に付けて読み直させる。 */
 let uiVersion = 0
@@ -161,6 +169,19 @@ const putContent = async (job: number, body: Uint8Array, headers: Record<string,
   )
 }
 
+/** 頭の 4 バイトが見出しの JSON の長さで、JSON、中身と続く。src-tauri/src/web.rs の fetch と合わせる。 */
+const fetchVia = async (plugin: string | undefined, url: string): Promise<Fetched> => {
+  const b = new Uint8Array(await invoke<ArrayBuffer>('plugin_fetch', { plugin: plugin ?? null, url }))
+  const n = new DataView(b.buffer, b.byteOffset, 4).getUint32(0, true)
+  const head: { status: number; url: string; type?: string } = JSON.parse(
+    new TextDecoder().decode(b.subarray(4, 4 + n)),
+  )
+  return { ...head, body: b.slice(4 + n) }
+}
+
+/** 本体が取りに行く（どの links にも当てはまらない URL の OGP など）。 */
+const hostFetch = (u: string) => fetchVia(undefined, u)
+
 const idsOf = (xs: (TauriItem | undefined)[]) => xs.flatMap((it) => (it ? [it.id] : []))
 
 export function tauriBackend(): Backend {
@@ -196,6 +217,9 @@ export function tauriBackend(): Backend {
       else changes.push(c)
     }))
   let formats = new Map<string, FormatInfo>()
+  let links = new Map<string, LinkInfo>()
+  // 前に開いていた画面が出した外のページは、読み直すと持ち主がいなくなる
+  void invoke('browser_close_all').catch((e: unknown) => console.warn('外のページを閉じられない', e))
 
   let decoded: string | undefined
 
@@ -222,6 +246,38 @@ export function tauriBackend(): Backend {
     ...ownApi(plugin),
   })
 
+  const linkApi = (url: string, plugin: string): LinkApi => ({
+    url,
+    fetch: (u) => fetchVia(plugin, u),
+    ...ownApi(plugin),
+  })
+
+  /** 素材が指す URL。ui は link を受け持つもの。 */
+  const readLink = (item: UiItem, ui: UiRef) => uiLink(pluginUrl(ui.plugin, ui.module), uiApi(item, 'link', ui.plugin))
+
+  const linkThumbnail = async (url: string) => {
+    const h = handlerOf(links, url)
+    if (h?.parts.includes('thumbnail')) return uiLinkThumbnail(pluginUrl(h.plugin, h.module), linkApi(url, h.plugin))
+    const p = await pageOf(url, hostFetch)
+    return p.image ? imageThumbnail(p.image, hostFetch, EDGE) : null
+  }
+
+  const linkDetails = async (d: ItemDetails, e: Elevated): Promise<ItemDetails> => {
+    const [it] = e.items
+    const url = it && (await readLink(uiItemOf(it), e).catch(() => undefined))
+    if (!url) return d
+    const h = handlerOf(links, url)
+    const rows = await (
+      h?.parts.includes('details')
+        ? uiLinkDetails(pluginUrl(h.plugin, h.module), linkApi(url, h.plugin))
+        : pageOf(url, hostFetch).then(pageRows)
+    ).catch((err: unknown) => {
+      console.warn(`URL の詳細を足せない: ${url}`, err)
+      return []
+    })
+    return { size: d.size, rows: [{ label: 'URL', value: url }, ...rows] }
+  }
+
   const menuApi = (e: Elevated) => ({
     ...ownApi(e.plugin),
     targets: e.items.map((it) => uiApi(uiItemOf(it), 'menu', e.plugin)),
@@ -246,6 +302,23 @@ export function tauriBackend(): Backend {
     return { size: d.size, rows }
   }
 
+  const lateThumb = (it: TauriItem) => (e: unknown) => {
+    if (!(e instanceof ThumbnailTimeout)) throw e
+    console.warn(`サムネイルが ${e.ms / 1000} 秒で作り終わらない: ${it.name}.${it.ext}`)
+    sendThumb(it.id, { failed: true })
+    return null
+  }
+
+  const makeLinkThumb = async (it: TauriItem, ui: UiRef) => {
+    const url = await readLink(uiItemOf(it), ui)
+    const t = url && (await linkThumbnail(url).catch(lateThumb(it)))
+    if (!t) return
+    const headers: Record<string, string> = { id: it.id }
+    if (t.width && t.height) Object.assign(headers, { width: `${t.width}`, height: `${t.height}` })
+    const png = t.png instanceof Uint8Array ? t.png : new Uint8Array(await new Response(t.png).arrayBuffer())
+    await invoke('put_thumbnail', png, { headers })
+  }
+
   const makeUiThumb = async (it: TauriItem, ui: UiRef) => {
     const read = new Set<string>()
     const api = uiApi(uiItemOf(it), 'thumbnail', ui.plugin)
@@ -253,12 +326,7 @@ export function tauriBackend(): Backend {
       ...api,
       settings: async () => watched(await api.settings(), read),
       sandbox: () => sandboxThumbnail(it.id),
-    }).catch((e: unknown) => {
-      if (!(e instanceof ThumbnailTimeout)) throw e
-      console.warn(`サムネイルが ${e.ms / 1000} 秒で作り終わらない: ${it.name}.${it.ext}`)
-      sendThumb(it.id, { failed: true })
-      return null
-    })
+    }).catch(lateThumb(it))
     if (!t) return
     const headers: Record<string, string> = { id: it.id, settings: asciiJson([...read]) }
     if (t.width && t.height) Object.assign(headers, { width: `${t.width}`, height: `${t.height}` })
@@ -274,15 +342,19 @@ export function tauriBackend(): Backend {
     return uiQueue.splice(Math.max(i, 0), 1)[0]
   }
   const makeUiThumbs = async (items: TauriItem[]) => {
-    uiQueue.push(...items.filter((it) => !it.note && !it.thumb && formats.get(it.ext)?.uiThumbnail))
+    const byUi = (it: TauriItem) => {
+      const f = formats.get(it.ext)
+      return f?.uiThumbnail ?? f?.uiLink
+    }
+    uiQueue.push(...items.filter((it) => !it.note && !it.thumb && byUi(it)))
     if (making) return
     try {
       for (let it = nextUi(); it; it = nextUi()) {
         making = it
-        const ui = formats.get(it.ext)?.uiThumbnail
-        if (!ui) continue
+        const f = formats.get(it.ext)
         try {
-          await makeUiThumb(it, ui)
+          if (f?.uiThumbnail) await makeUiThumb(it, f.uiThumbnail)
+          else if (f?.uiLink) await makeLinkThumb(it, f.uiLink)
         } catch (e) {
           console.warn(`サムネイルを作れない: ${it.name}.${it.ext}`, e)
         }
@@ -391,6 +463,7 @@ export function tauriBackend(): Backend {
 
   const openedOf = (s: StoredLibrary<TauriItem>) => {
     formats = new Map(s.formats.map((f) => [f.ext, f]))
+    links = new Map((s.links ?? []).map((l) => [l.host, l]))
     const items = s.items.toSorted((a, b) => b.mtime - a.mtime)
     void makeUiThumbs(items)
     void makeWaves(items)
@@ -583,13 +656,18 @@ export function tauriBackend(): Backend {
       const v = await invoke<TauriView | null>('item_view', { id })
       if (!v) return null
       if (v.kind === 'ui') return { kind: 'ui', plugin: v.plugin, url: pluginUrl(v.plugin, v.module) }
+      if (v.kind === 'link') {
+        const url = await readLink({ id, name: '', ext: '' }, v)
+        return url ? { kind: 'link', url } : null
+      }
       if (v.kind !== 'decoded') return { kind: v.kind }
       const png = await invoke<ArrayBuffer>('item_decoded', { id })
       decoded = URL.createObjectURL(new Blob([png], { type: 'image/png' }))
       return { kind: 'image', url: decoded }
     },
     async itemDetails(id) {
-      const d = await invoke<ItemDetails & { elevated?: Elevated }>('item_details', { id })
+      const d = await invoke<ItemDetails & { elevated?: Elevated; link?: Elevated }>('item_details', { id })
+      if (d.link) return linkDetails(d, d.link)
       return d.elevated ? elevatedDetails(d, d.elevated) : d
     },
     revealItem: (id) => invoke('reveal_item', { id }),
@@ -615,5 +693,24 @@ export function tauriBackend(): Backend {
     },
     uiApi,
     uiUrl: (ui) => pluginUrl(ui.plugin, ui.module),
+    linkOf(url, part) {
+      const h = handlerOf(links, url)
+      return {
+        url,
+        ui: h?.parts.includes(part) ? { url: pluginUrl(h.plugin, h.module), api: linkApi(url, h.plugin) } : undefined,
+        page: () => pageOf(url, hostFetch),
+      }
+    },
+    openUrl: (url) => invoke('open_url', { url }),
+    browser: {
+      show: (key, url, bounds) => invoke('browser_show', { key, url, bounds }),
+      go: (key, to) => invoke('browser_go', { key, to }),
+      hide: (key) => invoke('browser_hide', { key }),
+      close: (key) => invoke('browser_close', { key }),
+      onMoved: (fn) => {
+        const off = listen<PageAt & { key: string }>('browser-url', ({ payload: { key, ...page } }) => fn(key, page))
+        return () => void off.then((f) => f())
+      },
+    },
   }
 }

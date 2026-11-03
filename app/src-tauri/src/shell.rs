@@ -36,6 +36,21 @@ pub fn open(path: &Path) -> Result<(), String> {
     spawn(c, path)
 }
 
+/// URL を既定のアプリで開く。
+pub fn open_url(url: &tauri::Url) -> Result<(), String> {
+    #[cfg(windows)]
+    let name = "explorer";
+    #[cfg(target_os = "macos")]
+    let name = "open";
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let name = "xdg-open";
+    Command::new(name)
+        .arg(url.as_str())
+        .spawn()
+        .map(drop)
+        .map_err(|e| format!("{url}: {e}"))
+}
+
 /// 終わるのは待たない（explorer は開けても 0 以外で終わることがある）。
 fn spawn(mut c: Command, path: &Path) -> Result<(), String> {
     if !path.exists() {
