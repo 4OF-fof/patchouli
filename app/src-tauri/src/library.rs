@@ -1516,7 +1516,15 @@ fn hidden(path: &Path) -> bool {
     fs::metadata(path).is_ok_and(|m| m.file_attributes() & (HIDDEN | SYSTEM) != 0)
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
+fn hidden(path: &Path) -> bool {
+    use std::os::macos::fs::MetadataExt;
+    const UF_HIDDEN: u32 = 0x8000;
+    fs::metadata(path).is_ok_and(|m| m.st_flags() & UF_HIDDEN != 0)
+}
+
+/// Linux などには隠す属性がなく、名前が「.」で始まるものだけが隠しファイル。
+#[cfg(not(any(windows, target_os = "macos")))]
 fn hidden(_: &Path) -> bool {
     false
 }
@@ -1577,8 +1585,8 @@ fn hidden_entry(e: &fs::DirEntry) -> bool {
 }
 
 #[cfg(not(windows))]
-fn hidden_entry(_: &fs::DirEntry) -> bool {
-    false
+fn hidden_entry(e: &fs::DirEntry) -> bool {
+    hidden(&e.path())
 }
 
 struct Listed {
