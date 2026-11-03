@@ -113,6 +113,16 @@ export type MenuOutput =
   | { toast: string }
   | { overlay: { title?: string; rows: Detail[] } }
   | { screen: { id: string; window?: boolean } }
+  | { save: SaveFile }
+
+/**
+ * ライブラリの外へ書き出すファイル。本体が保存先を聞いて書く。name は拡張子を含めた既定の名前。
+ * 書き出せるのは 1 つだけなので、複数あるときは zip などにまとめる。文字列は UTF-8 で書く。
+ */
+export interface SaveFile {
+  name: string
+  data: Uint8Array | ArrayBuffer | string
+}
 
 /** 右クリックメニューの項目が選ばれたときの窓口。id は選ばれた項目。 */
 export interface RunMenuApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {

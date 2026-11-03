@@ -45,7 +45,7 @@ interface types {
     value: string,
   }
 
-  /// 右クリックメニューを開いたもの 1 つ。format は拡張子（ノートなら md）。
+  /// 右クリックメニューを開いたものや、取り込んだもの 1 つ。format は拡張子（ノートなら md）。
   record target {
     format: string,
     file: file,
@@ -82,6 +82,12 @@ interface types {
     project: option<string>,
     tags: list<string>,
     memo: string,
+  }
+
+  /// embed の similar で見つけたもの。score は内積で、大きいほど近い。
+  record similar-item {
+    info: item-info,
+    score: f32,
   }
 
   /// 右クリックメニューに足す項目。
@@ -158,11 +164,11 @@ interface types {
     media: content-media,
   }
 
-  /// menu と run-menu の呼び出しの中だけで渡る証明。library の関数に渡す。
-  resource menu-read;
+  /// menu・run-menu・added の呼び出しの中だけで渡る証明。library・embed の関数に渡す。
+  resource read;
 
-  /// run-menu の呼び出しの中だけで渡る証明。clipboard・notes・assets の関数に渡す。
-  resource menu-run;
+  /// run-menu・added の呼び出しの中だけで渡る証明。clipboard・notes・edit・assets・export の関数に渡す。
+  resource run;
 }
 
 /// アプリが用意する処理。重い処理はここに任せる。
@@ -218,42 +224,93 @@ interface commands {
 
 /// ライブラリの情報を読む。plugin.json の permissions に library を書いたときだけ使える。
 interface library {
-  use types.{file, item-info, menu-read};
+  use types.{file, item-info, read};
 
   /// f は targets のファイル。
-  item: func(ctx: borrow<menu-read>, f: file) -> result<item-info, string>;
+  item: func(ctx: borrow<read>, f: file) -> result<item-info, string>;
 }
 
 /// クリップボードに写す。plugin.json の permissions に clipboard を書いたときだけ使える。
-/// 写すのは run-menu が終わったときで、失敗を返したときは写さない。
+/// 写すのは run-menu が終わったときで、失敗を返したときは写さない。added の中では使えない。
 interface clipboard {
-  use types.{menu-run};
+  use types.{run};
 
-  copy: func(ctx: borrow<menu-run>, text: string);
+  copy: func(ctx: borrow<run>, text: string);
 }
 
-/// ノートを作る。plugin.json の permissions に notes を書いたときだけ使える。
-/// 作るのは run-menu が終わったときで、失敗を返したときは作らない。置き場は targets の先頭と同じ。
+/// ノートを作ったり、本文を書き換えたりする。plugin.json の permissions に notes を書いたときだけ使える。
+/// 書くのは run-menu・added が終わったときで、失敗を返したときは書かない。
 interface notes {
-  use types.{menu-run};
+  use types.{file, run};
 
-  create: func(ctx: borrow<menu-run>, name: string, body: string) -> result<_, string>;
+  /// 置き場は、targets の先頭と同じ。
+  create: func(ctx: borrow<run>, name: string, body: string) -> result<_, string>;
+
+  /// f は targets のノート。body は本文で、先頭のメタ情報（---）は含めない。
+  set-body: func(ctx: borrow<run>, f: file, body: string) -> result<_, string>;
 }
 
-/// 素材を登録する。plugin.json の permissions に assets を書いたときだけ使える。
-/// 登録するのは run-menu が終わったときで、失敗を返したときは登録しない。置き場は targets の先頭と同じ。
+/// 素材やノートの名前とタグを変える。plugin.json の permissions に edit を書いたときだけ使える。
+/// 変えるのは run-menu・added が終わったときで、失敗を返したときは変えない。f は targets のファイル。
+interface edit {
+  use types.{file, run};
+
+  /// name は拡張子を除いた名前。
+  rename: func(ctx: borrow<run>, f: file, name: string) -> result<_, string>;
+
+  /// タグをすべて tags に置き換える。
+  set-tags: func(ctx: borrow<run>, f: file, tags: list<string>) -> result<_, string>;
+}
+
+/// 素材を登録したり、中身を置き換えたりする。plugin.json の permissions に assets を書いたときだけ使える。
+/// 登録や置き換えは run-menu・added が終わったときで、失敗を返したときはしない。
 interface assets {
-  use types.{file, menu-run};
+  use types.{file, run};
 
   /// 書き込み用の空のファイルを用意する。name は拡張子を含めた名前。
   /// commands の run の引数に渡してコマンドに書かせるか、write で書く。host の read でも読める。
-  create: func(ctx: borrow<menu-run>, name: string) -> result<file, string>;
+  create: func(ctx: borrow<run>, name: string) -> result<file, string>;
 
   /// create で用意したファイルの終わりに足す。
-  write: func(ctx: borrow<menu-run>, f: file, data: list<u8>) -> result<_, string>;
+  write: func(ctx: borrow<run>, f: file, data: list<u8>) -> result<_, string>;
 
   /// create で用意したファイルを素材として登録する。name を渡すと、その名前（拡張子を除く）にする。
-  add: func(ctx: borrow<menu-run>, f: file, name: option<string>) -> result<_, string>;
+  /// 置き場は、targets の先頭と同じ。
+  add: func(ctx: borrow<run>, f: file, name: option<string>) -> result<_, string>;
+
+  /// targets の素材 target の中身を、create で用意したファイル source に置き換える。拡張子は source に合わせて変わる。
+  /// 元のファイルは残さない。名前・タグ・メモはそのまま。
+  replace: func(ctx: borrow<run>, target: file, source: file) -> result<_, string>;
+}
+
+/// ライブラリの外へファイルを書き出す。plugin.json の permissions に export を書いたときだけ使える。
+/// run-menu が終わったときに、アプリが保存先を聞いて書き出す。失敗を返したときは書き出さない。added の中では使えない。
+interface %export {
+  use types.{file, run};
+
+  /// 書き出すファイルを用意する。name は拡張子を含めた名前で、保存先を聞くときの既定の名前にする。
+  /// 1 回の run-menu で用意できるのは 1 つだけ。複数を書き出すときは zip などにまとめる。
+  /// commands の run の引数に渡してコマンドに書かせるか、write で書く。
+  create: func(ctx: borrow<run>, name: string) -> result<file, string>;
+
+  /// create で用意したファイルの終わりに足す。
+  write: func(ctx: borrow<run>, f: file, data: list<u8>) -> result<_, string>;
+}
+
+/// EmbeddingGemma で文章をベクトルにする。plugin.json の permissions に embed を書いたときだけ使える。
+/// 使えるのは、AI 機能を有効にしてモデルを入れたときだけ。
+interface embed {
+  use types.{read, similar-item};
+
+  /// いま使えるか。
+  available: func() -> bool;
+
+  /// 長さ 1 のベクトル。2 つの内積が大きいほど近い。
+  text: func(ctx: borrow<read>, s: string) -> result<list<f32>, string>;
+
+  /// ライブラリの素材とノートから、s に近いものを近い順に最大 limit 件。
+  /// 内容での検索と同じ索引を使うので、索引をまだ作っていないものは出ない。
+  similar: func(ctx: borrow<read>, s: string, limit: u32) -> result<list<similar-item>, string>;
 }
 
 /// 役割ごとに export する interface。プラグインは、受け持つ役割の world（下の *-role）を include でまとめた world を作る。
@@ -296,14 +353,23 @@ interface content {
 
 /// 右クリックメニュー。plugin.json の menu の by を sandbox にしたときに使う。
 interface menu {
-  use types.{target, menu-item, menu-output, menu-read, menu-run};
+  use types.{target, menu-item, menu-output, read, run};
 
   /// メニューを開くたびに呼ぶ。targets は選んでいるものすべてで、1 つ以上ある。選んだものがすべて menu の formats に入るときだけ呼ぶ。
   /// 数を見て、1 つのときだけ・複数のときだけの項目を返せる。返した項目は、選んだものすべてにかける。
-  menu: func(read: borrow<menu-read>, targets: list<target>) -> result<list<menu-item>, string>;
+  menu: func(read: borrow<read>, targets: list<target>) -> result<list<menu-item>, string>;
 
   /// menu で返した項目が選ばれたとき。targets は menu と同じもの。返したものを、アプリが出し方に合わせて見せる。
-  run-menu: func(read: borrow<menu-read>, run: borrow<menu-run>, targets: list<target>, id: string) -> result<menu-output, string>;
+  run-menu: func(read: borrow<read>, run: borrow<run>, targets: list<target>, id: string) -> result<menu-output, string>;
+}
+
+/// 取り込みのフック。plugin.json の hooks の added に書いた形式のものを取り込んだときに使う。
+interface hook {
+  use types.{target, read, run};
+
+  /// 取り込んだもの 1 つごとに、裏で呼ぶ。同じ形式のフックが複数あれば、プラグインの一覧の順に呼び、
+  /// 前のフックが書き換えたあとのものを渡す。
+  added: func(read: borrow<read>, run: borrow<run>, target: target) -> result<_, string>;
 }
 
 /// 設定の項目。
@@ -329,7 +395,10 @@ world imports {
   import library;
   import clipboard;
   import notes;
+  import edit;
   import assets;
+  import %export;
+  import embed;
 }
 
 world thumbnail-role {
@@ -357,6 +426,11 @@ world menu-role {
   export menu;
 }
 
+world hook-role {
+  include imports;
+  export hook;
+}
+
 world settings-role {
   include imports;
   export settings;
@@ -374,6 +448,7 @@ world full {
   include details-role;
   include content-role;
   include menu-role;
+  include hook-role;
   include settings-role;
   include call-role;
 }

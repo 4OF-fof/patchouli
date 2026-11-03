@@ -58,6 +58,7 @@ import type {
   Developer,
   Dropped,
   FileDrag,
+  HookFailed,
   KnownLibrary,
   MenuResult,
   PageAt,
@@ -290,6 +291,7 @@ export function tauriBackend(): Backend {
     output: MenuOutput | null
     copy: string | null
     items: TauriItem[]
+    saved?: string
     failed: string[]
   }
 
@@ -301,6 +303,7 @@ export function tauriBackend(): Backend {
       output: d.output ?? undefined,
       copy: d.copy ?? undefined,
       items: d.items.map((it) => toItem(it, now, formats, urlsOf(it))),
+      saved: d.saved,
       failed: d.failed,
     }
   }
@@ -514,9 +517,14 @@ export function tauriBackend(): Backend {
     },
     async pluginWork() {
       const thumbnails = [...new Set([...idsOf([...uiQueue, making]), ...(await invoke<string[]>('plugin_work'))])]
-      return { thumbnails, waveforms: idsOf([...waveQueue, waving]) }
+      return { thumbnails, waveforms: idsOf([...waveQueue, waving]), hooks: await invoke<string[]>('hook_work') }
+    },
+    onHookFailed(fn) {
+      const off = listen<HookFailed>('hook-failed', (e) => fn(e.payload))
+      return () => void off.then((f) => f())
     },
     async stopPluginWork(part) {
+      if (part === 'hook') return invoke('stop_hooks')
       if (part !== 'thumbnail') for (const it of waveQueue.splice(0)) waveIds.delete(it.id)
       if (part === 'waveform') return
       uiQueue.length = 0
@@ -724,6 +732,7 @@ export function tauriBackend(): Backend {
       const take = (d: MenuDone) => {
         const m = menuResultOf(d)
         done.copy = m.copy ?? done.copy
+        done.saved = m.saved ?? done.saved
         done.items.push(...m.items)
         done.failed.push(...m.failed)
         return m.output
@@ -733,6 +742,13 @@ export function tauriBackend(): Backend {
         id: entry,
         sandbox: async () => take(await invoke<MenuDone>('sandbox_run_menu', { ids, plugin: e.plugin, entry })),
       })
+      if (done.output && 'save' in done.output) {
+        const { name, data } = done.output.save
+        done.output = undefined
+        const body = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)
+        const to = await invoke<string | null>('export_data', body, { headers: { name: JSON.stringify(name) } })
+        done.saved = to ?? done.saved
+      }
       return done
     },
     async waveform(id) {

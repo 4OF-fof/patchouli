@@ -65,6 +65,7 @@ impl role::call::Guest for Csv { /* ... */ }
 | `details-role`   | `details`          | 同じく詳細に足す行                                   |
 | `content-role`   | `content`          | 同じく内容で探したり分けたりするときに読む区間       |
 | `menu-role`      | `menu`・`run_menu` | `menu` の `by` を `sandbox` にした右クリックメニュー |
+| `hook-role`      | `added`            | `hooks` の `added` に書いた形式の取り込み            |
 | `settings-role`  | `settings`         | 設定の項目                                           |
 | `call-role`      | `call`             | elevated の `api.call`                               |
 
@@ -93,20 +94,44 @@ impl role::call::Guest for Csv { /* ... */ }
 | `MenuOutput::Overlay(Overlay { title, rows })`  | 見出しと値の行を画面に重ねて見せる。値は行ごとにコピーできる                                            |
 | `MenuOutput::Screen(OpenScreen { id, window })` | `screens` の画面を開き、選んだものを渡す。`window` が `true` なら別のウィンドウ、`false` ならタブで開く |
 
-elevated の `runMenu` は、同じものを `{ toast }`・`{ overlay: { title, rows } }`・`{ screen: { id, window } }` で返す。
+elevated の `runMenu` は、同じものを `{ toast }`・`{ overlay: { title, rows } }`・`{ screen: { id, window } }` で返す。ライブラリの外へ書き出すときは `{ save: { name, data } }` を返す。
+
+## 取り込みのフック
+
+素材やノートを取り込んだときに動かすときは、plugin.json の上の階層に `hooks` を書き、`src/lib.rs` で `added` を実装する。
+
+```json
+"hooks": { "added": { "formats": ["md"], "by": "sandbox" } }
+```
+
+- `formats` の書き方は `menu` と同じ。`by` は `sandbox` だけ
+- 取り込んだもの 1 つごとに、裏で `added` を呼ぶ。動いているあいだは作業の表示に出て、そこから止められる
+- 同じ形式のフックが複数あれば、プラグインの一覧の順に呼び、前のフックが書き換えたあとのものを渡す
+- `Err` を返すと、そのたびに知らせを出す
+- 呼ぶのは、アプリで取り込んだときだけ。すでにあるものと、アプリの外で足したものには呼ばない
+
+## 権限
 
 WASM で次のことをするときは、plugin.json の上の階層の `permissions` に書く。書いていないものを使う WASM は、アプリが読み込まない。
 
-| `permissions` | 使える関数                                            | 最初の引数 |
-| ------------- | ----------------------------------------------------- | ---------- |
-| `library`     | `library::item`（ID・名前・タグ・プロジェクト・メモ） | `read`     |
-| `clipboard`   | `clipboard::copy`                                     | `run`      |
-| `notes`       | `notes::create`                                       | `run`      |
-| `assets`      | `assets::create`・`write`・`add`                      | `run`      |
+| `permissions` | 使える関数                                                                  | 最初の引数 |
+| ------------- | --------------------------------------------------------------------------- | ---------- |
+| `library`     | `library::item`（ID・名前・タグ・プロジェクト・メモ）                       | `read`     |
+| `embed`       | `embed::available`・`text`（文章のベクトル）・`similar`（近い素材とノート） | `read`     |
+| `clipboard`   | `clipboard::copy`                                                           | `run`      |
+| `notes`       | `notes::create`・`set_body`                                                 | `run`      |
+| `edit`        | `edit::rename`・`set_tags`                                                  | `run`      |
+| `assets`      | `assets::create`・`write`・`add`・`replace`（中身を置き換える）             | `run`      |
+| `export`      | `export::create`・`write`（ライブラリの外へ書き出す）                       | `run`      |
 
-- コピー・ノートの作成・素材の登録は、`run_menu` が `Ok` を返したあとにアプリが行う。`Err` を返したときは行わない
-- 作ったノートと登録した素材は、選んだものの先頭と同じ場所に置く
-- `assets::create` で用意したファイルは、`commands::run` の引数に渡してコマンドに書かせるか、`assets::write` で書く
+- `menu` には `read`、`run_menu` と `added` には `read` と `run` が渡る
+- `run` の関数で頼んだことは、`run_menu`・`added` が `Ok` を返したあとにアプリが行う。`Err` を返したときは行わない
+- `clipboard` と `export` は `run_menu` の中だけで使える
+- 作ったノートと登録した素材は、対象の先頭と同じ場所に置く
+- `assets::create`・`export::create` で用意したファイルは、`commands::run` の引数に渡してコマンドに書かせるか、`write` で書く
+- `assets::replace` は拡張子を置き換えたファイルに合わせ、元のファイルは残さない
+- 書き出せるのは 1 回に 1 つのファイルだけ。複数あるときは zip などにまとめる。保存先はアプリが聞く
+- `embed` は、AI 機能を有効にしてモデルを入れたときだけ使える。`similar` は内容での検索と同じ索引を使う
 
 ## 画面
 

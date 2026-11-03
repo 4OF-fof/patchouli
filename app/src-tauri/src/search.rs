@@ -25,6 +25,19 @@ fn dot(a: &[f32], b: &[f32]) -> f32 {
 
 /// 項目ごとに、いちばん近い区間の点数を取る。文章は、ノートや中身を読めなかったものにだけ使う。
 pub fn search(thumbs: &Path, query: &str) -> Result<Vec<Hit>, String> {
+    let mut hits = score_all(thumbs, query)?;
+    hits.truncate(MAX_HITS);
+    Ok(hits)
+}
+
+/// プラグインの embed の similar。近い順の ID と点数。
+pub fn similar(thumbs: &Path, text: &str, limit: usize) -> Result<Vec<(String, f32)>, String> {
+    let mut hits = score_all(thumbs, text)?;
+    hits.truncate(limit);
+    Ok(hits.into_iter().map(|h| (h.id, h.score)).collect())
+}
+
+fn score_all(thumbs: &Path, query: &str) -> Result<Vec<Hit>, String> {
     let ix = vectors::index(&vectors::path_for(thumbs))?;
     let q = embed::text("search result", query)?;
     let mut hits: Vec<Hit> = ix
@@ -49,6 +62,5 @@ pub fn search(thumbs: &Path, query: &str) -> Result<Vec<Hit>, String> {
         })
         .collect();
     hits.sort_by(|a, b| b.score.total_cmp(&a.score));
-    hits.truncate(MAX_HITS);
     Ok(hits)
 }

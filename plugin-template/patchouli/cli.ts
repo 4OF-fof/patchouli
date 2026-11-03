@@ -23,13 +23,13 @@ const isMap = (v: unknown) => !!v && typeof v === 'object'
 function readManifest(dir: string): Manifest {
   const file = path.join(dir, 'plugin.json')
   const m: Partial<Manifest> = JSON.parse(fs.readFileSync(file, 'utf8'))
-  const { id, name, version, formats, links, screens, menu, elevated } = m
+  const { id, name, version, formats, links, screens, menu, hooks, elevated } = m
   const missing = (k: string) => new Error(`${file}: 「${k}」が指定されていません`)
   if (!id) throw missing('id')
   if (!name) throw missing('name')
   if (!version) throw missing('version')
-  if (!isMap(formats) && !isMap(links) && !isMap(screens) && !isMap(menu))
-    throw missing('formats・links・screens・menu のいずれか')
+  if (!isMap(formats) && !isMap(links) && !isMap(screens) && !isMap(menu) && !isMap(hooks))
+    throw missing('formats・links・screens・menu・hooks のいずれか')
   if (elevated !== undefined && !elevated.endsWith('.js'))
     throw new Error(`${file}: 「elevated」には .js のパスを指定してください（${elevated}）`)
   return { ...m, id, name, version }

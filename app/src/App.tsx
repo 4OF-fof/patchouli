@@ -867,6 +867,7 @@ export function App(props: AppProps) {
           console.warn('プラグインが頼んだ処理のうち、できなかったもの', r.failed)
           setNotice(`プラグインの処理の一部に失敗しました：${r.failed[0]}`)
         } else if (r.output && 'toast' in r.output) setNotice(r.output.toast)
+        else if (r.saved) setNotice(`「${r.saved}」に書き出しました`)
         if (r.output && 'overlay' in r.output)
           setMenuResult({ title: r.output.overlay.title ?? label ?? 'プラグインの結果', rows: r.output.overlay.rows })
         if (r.output && 'screen' in r.output) {
@@ -1463,6 +1464,12 @@ export function App(props: AppProps) {
   onCleanup(stopDrag)
   const making = progress()
   const waves = progress()
+  const hooking = progress()
+  const stopHookFailed =
+    backend.onHookFailed?.((f) =>
+      setNotice(`プラグイン「${f.plugin}」が、取り込んだ「${f.item}」を処理できませんでした：${f.message}`),
+    ) ?? (() => {})
+  onCleanup(stopHookFailed)
   const seenThumbs = backend.seenThumbs && watchSeen((ids) => backend.seenThumbs?.(ids))
   const [checking, setChecking] = createSignal(false)
   if (backend.pluginWork || backend.checking) {
@@ -1470,12 +1477,13 @@ export function App(props: AppProps) {
       void backend.pluginWork?.().then((w) => {
         making.update(w.thumbnails)
         waves.update(w.waveforms)
+        hooking.update(w.hooks)
       })
       void backend.checking?.().then(setChecking)
     }, 1000)
     onCleanup(() => clearInterval(poll))
   }
-  const working = (key: string, icon: IconName, label: string, p: Progress, part: 'thumbnail' | 'waveform') =>
+  const working = (key: string, icon: IconName, label: string, p: Progress, part: 'thumbnail' | 'waveform' | 'hook') =>
     p.ids().size
       ? [{ key, icon, label, done: p.done(), total: p.total(), onStop: () => void backend.stopPluginWork?.(part) }]
       : []
@@ -1483,6 +1491,7 @@ export function App(props: AppProps) {
     ...(checking() ? [{ key: 'check', icon: 'sync' as const, label: 'ライブラリの整合性を確認中' }] : []),
     ...working('thumbs', 'image', 'サムネイルを作成中', making, 'thumbnail'),
     ...working('waves', 'audio', '音声を解析中', waves, 'waveform'),
+    ...working('hooks', 'plugin', '取り込んだものをプラグインで処理中', hooking, 'hook'),
     ...(importing() ? [{ key: 'import', icon: 'import' as const, label: 'ファイルを取り込み中' }] : []),
   ]
   const flatSub = () => {

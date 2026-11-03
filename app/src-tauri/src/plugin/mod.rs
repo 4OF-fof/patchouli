@@ -16,8 +16,8 @@ use serde_json::Value;
 
 use record::{Record, Source, Stored};
 pub use runtime::{
-    ContentBudget, ContentMedia, ContentPart, ItemInfo, MenuAction, MenuFile, MenuRun, MenuShown,
-    Runner, UiOwner, ViewOut, read, set_compiled_dir,
+    Action, ContentBudget, ContentMedia, ContentPart, Env, ItemInfo, MenuRun, MenuShown, Ran,
+    Runner, TargetFile, UiOwner, ViewOut, read, set_compiled_dir,
 };
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -149,6 +149,12 @@ impl MenuDecl {
     }
 }
 
+/// 取り込みのフック。対象の書き方は menu と同じ。
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct HooksDecl {
+    pub added: Option<MenuDecl>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct ScreenDecl {
     pub label: String,
@@ -259,6 +265,8 @@ pub struct Manifest {
     #[serde(default)]
     pub screens: BTreeMap<String, ScreenDecl>,
     pub menu: Option<MenuDecl>,
+    #[serde(default)]
+    pub hooks: HooksDecl,
     /// WASM に渡すホストの interface。書いていないものを使う WASM は読み込まない。
     #[serde(default)]
     pub permissions: Vec<String>,
@@ -267,7 +275,15 @@ pub struct Manifest {
 }
 
 /// permissions に書けるもの。WIT の interface の名前と同じ。
-pub const PERMISSIONS: [&str; 4] = ["library", "clipboard", "notes", "assets"];
+pub const PERMISSIONS: [&str; 7] = [
+    "library",
+    "clipboard",
+    "notes",
+    "edit",
+    "assets",
+    "export",
+    "embed",
+];
 
 pub const MANIFEST: &str = "plugin.json";
 pub const WASM: &str = "plugin.wasm";
@@ -291,7 +307,9 @@ impl Manifest {
     }
 
     fn wants_sandbox(&self) -> bool {
-        self.formats.values().any(|d| d.sandbox) || self.menu_by(By::Sandbox)
+        self.formats.values().any(|d| d.sandbox)
+            || self.menu_by(By::Sandbox)
+            || self.hooks.added.is_some()
     }
 
     fn wants_elevated(&self) -> bool {
@@ -946,6 +964,24 @@ impl Registry {
                     "menu の formats には、拡張子の並びか all・files を書きます".into(),
                 ));
             }
+            if let Some(h) = &p.manifest.hooks.added {
+                if matches!(h.formats, MenuFormats::Every(MenuEvery::Unknown)) {
+                    p.problems.push(error(
+                        "hooks の added の formats には、拡張子の並びか all・files を書きます"
+                            .into(),
+                    ));
+                }
+                if h.by == By::Elevated {
+                    p.problems.push(error(
+                        "hooks の added の by には sandbox しか書けません".into(),
+                    ));
+                } else if p.wasm.as_ref().is_some_and(|w| !w.has(runtime::Role::Hook)) {
+                    p.problems.push(error(
+                        "hooks の added を書いていますが、plugin.wasm は hook を export していません"
+                            .into(),
+                    ));
+                }
+            }
             for x in p
                 .manifest
                 .permissions
@@ -1128,6 +1164,34 @@ impl Registry {
             .iter()
             .find(|p| p.manifest.id == plugin)
             .is_some_and(|p| p.manifest.permissions.iter().any(|x| x == permission))
+    }
+
+    /// ext のものを取り込んだときに呼ぶフック。プラグインの一覧の順。
+    pub fn hooks_for(&self, ext: &str, note: bool) -> Vec<usize> {
+        self.plugins
+            .iter()
+            .enumerate()
+            .filter(|(_, p)| {
+                !p.blocked
+                    && p.wasm.as_ref().is_some_and(|w| w.has(runtime::Role::Hook))
+                    && p.manifest
+                        .hooks
+                        .added
+                        .as_ref()
+                        .is_some_and(|h| h.by == By::Sandbox && h.covers(ext, note))
+            })
+            .map(|(i, _)| i)
+            .collect()
+    }
+
+    pub fn has_hooks(&self) -> bool {
+        self.plugins
+            .iter()
+            .any(|p| !p.blocked && p.manifest.hooks.added.is_some())
+    }
+
+    pub fn plugin_name(&self, i: usize) -> &str {
+        self.name(i)
     }
 
     fn menu_covers(&self, i: usize, ext: &str, note: bool) -> bool {

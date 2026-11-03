@@ -15,7 +15,7 @@ wit_bindgen::generate!({
 });
 
 use exports::patchouli::plugin as role;
-use patchouli::plugin::types::{ItemInfo, MenuItem, MenuOutput, MenuRead, MenuRun, Target};
+use patchouli::plugin::types::{ItemInfo, MenuItem, MenuOutput, Read, Run, Target};
 use patchouli::plugin::{library, notes};
 
 const COLLECT: &str = "collect";
@@ -23,7 +23,7 @@ const COLLECT: &str = "collect";
 struct Collect;
 
 impl role::menu::Guest for Collect {
-    fn menu(_read: &MenuRead, _targets: Vec<Target>) -> Result<Vec<MenuItem>, String> {
+    fn menu(_read: &Read, _targets: Vec<Target>) -> Result<Vec<MenuItem>, String> {
         Ok(vec![MenuItem {
             id: COLLECT.into(),
             label: "選んだものからページを作る".into(),
@@ -31,8 +31,8 @@ impl role::menu::Guest for Collect {
     }
 
     fn run_menu(
-        read: &MenuRead,
-        run: &MenuRun,
+        read: &Read,
+        run: &Run,
         targets: Vec<Target>,
         id: String,
     ) -> Result<MenuOutput, String> {

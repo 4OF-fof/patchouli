@@ -19,13 +19,13 @@ use super::{
     By, Choice, Manifest, PERMISSIONS, Part, Reads, Registry, SettingDecl, SettingKind, UiRef,
     commands,
 };
-use crate::{library, thumb};
+use crate::{embed, library, search, thumb};
 
 // 役割ごとの export は WASM によってあったりなかったりするので、world 全体の型と import だけを使い、export は名前で呼ぶ
 wasmtime::component::bindgen!({ world: "full", path: "../plugins/sdk/wit" });
 
 use patchouli::plugin::commands::{CommandArg, CommandOutput};
-use patchouli::plugin::types::{self, File, MenuOutput, MenuRead};
+use patchouli::plugin::types::{self, File, MenuOutput, Read as ReadProof, Run as RunProof};
 pub use patchouli::plugin::types::{ContentBudget, ContentMedia, ContentPart};
 
 /// plugin.wit の package の版と合わせる。
@@ -38,6 +38,7 @@ const SETTINGS_LIMIT: Duration = Duration::from_secs(2);
 const THUMBNAIL_LIMIT: Duration = Duration::from_secs(10);
 const VIEW_LIMIT: Duration = Duration::from_secs(30);
 const CONTENT_LIMIT: Duration = Duration::from_secs(120);
+const HOOK_LIMIT: Duration = Duration::from_secs(60);
 
 const TICK: Duration = Duration::from_millis(100);
 
@@ -124,12 +125,44 @@ pub struct ItemInfo {
     pub memo: String,
 }
 
-/// 右クリックメニューに渡すもの 1 つ。ext はノートなら md。
-pub struct MenuFile<'a> {
+impl ItemInfo {
+    fn to_wit(&self) -> types::ItemInfo {
+        types::ItemInfo {
+            id: self.id.clone(),
+            name: self.name.clone(),
+            note: self.note,
+            project: self.project.clone(),
+            tags: self.tags.clone(),
+            memo: self.memo.clone(),
+        }
+    }
+}
+
+/// 右クリックメニューやフックに渡すもの 1 つ。ext はノートなら md。
+pub struct TargetFile<'a> {
     pub ext: &'a str,
     pub note: bool,
     pub path: &'a Path,
     pub info: Option<ItemInfo>,
+}
+
+/// ID からライブラリの情報を引く。
+pub type Lookup = Arc<dyn Fn(&str) -> Option<ItemInfo> + Send + Sync>;
+
+/// library・embed がライブラリを引く窓口。
+pub struct Env {
+    /// embed を使えるか。AI 機能が有効で、モデルが入っているとき。
+    pub ai: bool,
+    /// 内容での検索の索引がある場所（サムネイルの置き場）。
+    pub thumbs: PathBuf,
+    pub info: Lookup,
+}
+
+/// 証明を渡す呼び出しの種類。使える関数が変わる。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Context {
+    Menu,
+    Hook,
 }
 
 /// run-menu の結果の出し方。
@@ -146,17 +179,27 @@ pub enum MenuShown {
     },
 }
 
-/// run-menu の中で頼まれ、終わってからアプリが起こすこと。
-pub enum MenuAction {
+/// run-menu・added の中で頼まれ、終わってからアプリが起こすこと。target は渡したものの順番。
+pub enum Action {
     Copy(String),
     Note { name: String, body: String },
     Asset { path: PathBuf, name: Option<String> },
+    Body { target: usize, body: String },
+    Rename { target: usize, name: String },
+    Tags { target: usize, tags: Vec<String> },
+    Replace { target: usize, path: PathBuf },
+    Export { path: PathBuf, name: String },
 }
 
 pub struct MenuRun {
     pub shown: MenuShown,
-    pub actions: Vec<MenuAction>,
-    /// assets で用意したファイルの置き場。登録し終えるまで持っておく。
+    pub ran: Ran,
+}
+
+/// 頼まれたこと。
+pub struct Ran {
+    pub actions: Vec<Action>,
+    /// assets・export で用意したファイルの置き場。起こし終えるまで持っておく。
     pub scratch: Option<Scratch>,
 }
 
@@ -180,9 +223,14 @@ pub struct HostState {
     files: Vec<PathBuf>,
     /// files と同じ順の、ライブラリの情報。
     items: Vec<Option<ItemInfo>>,
+    /// files の頭からこの数だけが targets。
+    targets: usize,
+    context: Context,
+    env: Option<Arc<Env>>,
     created: Vec<u32>,
     added: Vec<u32>,
-    actions: Vec<MenuAction>,
+    exported: Option<u32>,
+    actions: Vec<Action>,
     scratch: Option<Scratch>,
     current: String,
     index: usize,
@@ -202,8 +250,12 @@ impl HostState {
             table: ResourceTable::new(),
             files: Vec::new(),
             items: Vec::new(),
+            targets: 0,
+            context: Context::Menu,
+            env: None,
             created: Vec::new(),
             added: Vec::new(),
+            exported: None,
             actions: Vec::new(),
             scratch: None,
             current: String::new(),
@@ -250,6 +302,91 @@ impl HostState {
             .map(PathBuf::as_path)
             .ok_or_else(|| "プラグインに渡されていないファイルです".into())
     }
+
+    /// targets の何番目か。
+    fn target(&self, f: &File) -> Result<usize, String> {
+        let i = f.handle as usize;
+        if i < self.targets {
+            Ok(i)
+        } else {
+            Err("targets のファイルではありません".into())
+        }
+    }
+
+    fn note_target(&self, f: &File) -> Result<usize, String> {
+        let i = self.target(f)?;
+        match self.items.get(i).and_then(Option::as_ref) {
+            Some(it) if it.note => Ok(i),
+            _ => Err("ノートではありません".into()),
+        }
+    }
+
+    fn asset_target(&self, f: &File) -> Result<usize, String> {
+        let i = self.target(f)?;
+        match self.items.get(i).and_then(Option::as_ref) {
+            Some(it) if !it.note => Ok(i),
+            _ => Err("素材ではありません".into()),
+        }
+    }
+
+    fn menu_only(&self, what: &str) -> Result<(), String> {
+        match self.context {
+            Context::Menu => Ok(()),
+            Context::Hook => Err(format!("{what}は、取り込みのフックの中では使えません")),
+        }
+    }
+
+    /// 作業用の置き場に、空のファイルを用意する。
+    fn scratch_file(&mut self, name: &str) -> Result<File, String> {
+        library::check_name(name)?;
+        let dir = match &self.scratch {
+            Some(s) => s.0.clone(),
+            None => {
+                let dir = std::env::temp_dir()
+                    .join("patchouli-plugin")
+                    .join(uuid::Uuid::new_v4().simple().to_string());
+                fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+                self.scratch = Some(Scratch(dir.clone()));
+                dir
+            }
+        };
+        let path = dir.join(name);
+        FsFile::create_new(&path).map_err(|e| format!("「{name}」を用意できません：{e}"))?;
+        let ext = path
+            .extension()
+            .and_then(|x| x.to_str())
+            .unwrap_or_default()
+            .to_lowercase();
+        let handle = u32::try_from(self.files.len()).map_err(|e| e.to_string())?;
+        self.files.push(path);
+        Ok(File {
+            handle,
+            ext,
+            size: 0,
+        })
+    }
+
+    fn env(&self) -> Result<&Env, String> {
+        self.env
+            .as_deref()
+            .ok_or_else(|| "いまはライブラリを読めません".into())
+    }
+
+    fn ai(&self) -> Result<&Env, String> {
+        let env = self.env()?;
+        if !env.ai {
+            return Err("AI 機能が無効か、モデルが入っていないため、embed を使えません".into());
+        }
+        Ok(env)
+    }
+}
+
+fn append(path: &Path, data: &[u8]) -> Result<(), String> {
+    let mut file = fs::OpenOptions::new()
+        .append(true)
+        .open(path)
+        .map_err(|e| e.to_string())?;
+    std::io::Write::write_all(&mut file, data).map_err(|e| e.to_string())
 }
 
 impl WasiView for HostState {
@@ -262,14 +399,14 @@ impl WasiView for HostState {
 }
 
 // 証明は呼び出しの中だけで借りて渡すので、持ち主として手放されることはない
-impl types::HostMenuRead for HostState {
-    fn drop(&mut self, _: Resource<MenuRead>) -> wasmtime::Result<()> {
+impl types::HostRead for HostState {
+    fn drop(&mut self, _: Resource<ReadProof>) -> wasmtime::Result<()> {
         Ok(())
     }
 }
 
-impl types::HostMenuRun for HostState {
-    fn drop(&mut self, _: Resource<types::MenuRun>) -> wasmtime::Result<()> {
+impl types::HostRun for HostState {
+    fn drop(&mut self, _: Resource<RunProof>) -> wasmtime::Result<()> {
         Ok(())
     }
 }
@@ -350,89 +487,76 @@ impl patchouli::plugin::host::Host for HostState {
 }
 
 impl patchouli::plugin::library::Host for HostState {
-    fn item(&mut self, _: Resource<MenuRead>, f: File) -> Result<types::ItemInfo, String> {
-        let i = self
-            .items
+    fn item(&mut self, _: Resource<ReadProof>, f: File) -> Result<types::ItemInfo, String> {
+        self.items
             .get(f.handle as usize)
-            .cloned()
-            .flatten()
-            .ok_or("ライブラリの項目ではないファイルです")?;
-        Ok(types::ItemInfo {
-            id: i.id,
-            name: i.name,
-            note: i.note,
-            project: i.project,
-            tags: i.tags,
-            memo: i.memo,
-        })
+            .and_then(Option::as_ref)
+            .map(ItemInfo::to_wit)
+            .ok_or_else(|| "ライブラリの項目ではないファイルです".into())
     }
 }
 
 impl patchouli::plugin::clipboard::Host for HostState {
-    fn copy(&mut self, _: Resource<types::MenuRun>, text: String) {
-        self.actions.push(MenuAction::Copy(text));
+    fn copy(&mut self, _: Resource<RunProof>, text: String) {
+        match self.menu_only("clipboard") {
+            Ok(()) => self.actions.push(Action::Copy(text)),
+            Err(e) => log::warn!("[{}] {e}", self.current),
+        }
     }
 }
 
 impl patchouli::plugin::notes::Host for HostState {
-    fn create(
-        &mut self,
-        _: Resource<types::MenuRun>,
-        name: String,
-        body: String,
-    ) -> Result<(), String> {
+    fn create(&mut self, _: Resource<RunProof>, name: String, body: String) -> Result<(), String> {
         library::check_name(&name)?;
-        self.actions.push(MenuAction::Note { name, body });
+        self.actions.push(Action::Note { name, body });
+        Ok(())
+    }
+
+    fn set_body(&mut self, _: Resource<RunProof>, f: File, body: String) -> Result<(), String> {
+        let target = self.note_target(&f)?;
+        self.actions.push(Action::Body { target, body });
+        Ok(())
+    }
+}
+
+impl patchouli::plugin::edit::Host for HostState {
+    fn rename(&mut self, _: Resource<RunProof>, f: File, name: String) -> Result<(), String> {
+        let target = self.target(&f)?;
+        library::check_name(&name)?;
+        self.actions.push(Action::Rename { target, name });
+        Ok(())
+    }
+
+    fn set_tags(
+        &mut self,
+        _: Resource<RunProof>,
+        f: File,
+        tags: Vec<String>,
+    ) -> Result<(), String> {
+        let target = self.target(&f)?;
+        let mut out: Vec<String> = Vec::new();
+        for t in tags.iter().map(|t| t.trim()).filter(|t| !t.is_empty()) {
+            if !out.iter().any(|x| x == t) {
+                out.push(t.to_owned());
+            }
+        }
+        self.actions.push(Action::Tags { target, tags: out });
         Ok(())
     }
 }
 
 impl patchouli::plugin::assets::Host for HostState {
-    fn create(&mut self, _: Resource<types::MenuRun>, name: String) -> Result<File, String> {
-        library::check_name(&name)?;
-        let dir = match &self.scratch {
-            Some(s) => s.0.clone(),
-            None => {
-                let dir = std::env::temp_dir()
-                    .join("patchouli-plugin")
-                    .join(uuid::Uuid::new_v4().simple().to_string());
-                fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-                self.scratch = Some(Scratch(dir.clone()));
-                dir
-            }
-        };
-        let path = dir.join(&name);
-        FsFile::create_new(&path).map_err(|e| format!("「{name}」を用意できません：{e}"))?;
-        let ext = path
-            .extension()
-            .and_then(|x| x.to_str())
-            .unwrap_or_default()
-            .to_lowercase();
-        let handle = u32::try_from(self.files.len()).map_err(|e| e.to_string())?;
-        self.files.push(path);
-        self.created.push(handle);
-        Ok(File {
-            handle,
-            ext,
-            size: 0,
-        })
+    fn create(&mut self, _: Resource<RunProof>, name: String) -> Result<File, String> {
+        let f = self.scratch_file(&name)?;
+        self.created.push(f.handle);
+        Ok(f)
     }
 
-    fn write(&mut self, _: Resource<types::MenuRun>, f: File, data: Vec<u8>) -> Result<(), String> {
-        let path = self.created(&f)?;
-        let mut file = fs::OpenOptions::new()
-            .append(true)
-            .open(path)
-            .map_err(|e| e.to_string())?;
-        std::io::Write::write_all(&mut file, &data).map_err(|e| e.to_string())
+    fn write(&mut self, _: Resource<RunProof>, f: File, data: Vec<u8>) -> Result<(), String> {
+        append(self.created(&f)?, &data)
     }
 
-    fn add(
-        &mut self,
-        _: Resource<types::MenuRun>,
-        f: File,
-        name: Option<String>,
-    ) -> Result<(), String> {
+    fn add(&mut self, _: Resource<RunProof>, f: File, name: Option<String>) -> Result<(), String> {
         let path = self.created(&f)?.to_owned();
         if self.added.contains(&f.handle) {
             return Err("このファイルはすでに登録しています".into());
@@ -441,8 +565,80 @@ impl patchouli::plugin::assets::Host for HostState {
             library::check_name(n)?;
         }
         self.added.push(f.handle);
-        self.actions.push(MenuAction::Asset { path, name });
+        self.actions.push(Action::Asset { path, name });
         Ok(())
+    }
+
+    fn replace(&mut self, _: Resource<RunProof>, target: File, source: File) -> Result<(), String> {
+        let target = self.asset_target(&target)?;
+        let path = self.created(&source)?.to_owned();
+        if self.added.contains(&source.handle) {
+            return Err("このファイルはすでに使っています".into());
+        }
+        self.added.push(source.handle);
+        self.actions.push(Action::Replace { target, path });
+        Ok(())
+    }
+}
+
+impl patchouli::plugin::export::Host for HostState {
+    fn create(&mut self, _: Resource<RunProof>, name: String) -> Result<File, String> {
+        self.menu_only("export")?;
+        if self.exported.is_some() {
+            return Err(
+                "書き出せるのは 1 つのファイルだけです。複数あるときは zip などにまとめてください"
+                    .into(),
+            );
+        }
+        let f = self.scratch_file(&name)?;
+        self.exported = Some(f.handle);
+        let path = self.path(&f)?.to_owned();
+        self.actions.push(Action::Export { path, name });
+        Ok(f)
+    }
+
+    fn write(&mut self, _: Resource<RunProof>, f: File, data: Vec<u8>) -> Result<(), String> {
+        if self.exported != Some(f.handle) {
+            return Err("export の create で用意したファイルではありません".into());
+        }
+        append(self.path(&f)?, &data)
+    }
+}
+
+impl patchouli::plugin::embed::Host for HostState {
+    fn available(&mut self) -> bool {
+        self.ai().is_ok()
+    }
+
+    fn text(&mut self, _: Resource<ReadProof>, s: String) -> Result<Vec<f32>, String> {
+        self.ai()?;
+        let begun = Instant::now();
+        let v = embed::text("sentence similarity", &s);
+        self.outside += begun.elapsed();
+        v
+    }
+
+    fn similar(
+        &mut self,
+        _: Resource<ReadProof>,
+        s: String,
+        limit: u32,
+    ) -> Result<Vec<types::SimilarItem>, String> {
+        let env = self.ai()?;
+        let begun = Instant::now();
+        let hits = search::similar(&env.thumbs, &s, limit as usize);
+        let out = hits.map(|hs| {
+            hs.into_iter()
+                .filter_map(|(id, score)| {
+                    Some(types::SimilarItem {
+                        info: (env.info)(&id)?.to_wit(),
+                        score,
+                    })
+                })
+                .collect()
+        });
+        self.outside += begun.elapsed();
+        out
     }
 }
 
@@ -549,17 +745,19 @@ pub enum Role {
     Details,
     Content,
     Menu,
+    Hook,
     Settings,
     Call,
 }
 
 /// 役割ごとに export する interface と、その中の関数。
-const ROLES: [(Role, &str, &[&str]); 7] = [
+const ROLES: [(Role, &str, &[&str]); 8] = [
     (Role::Thumbnail, "thumbnail", &["thumbnail"]),
     (Role::View, "view", &["view", "decode"]),
     (Role::Details, "details", &["details"]),
     (Role::Content, "content", &["content"]),
     (Role::Menu, "menu", &["menu", "run-menu"]),
+    (Role::Hook, "hook", &["added"]),
     (Role::Settings, "settings", &["settings"]),
     (Role::Call, "call", &["call"]),
 ];
@@ -572,7 +770,7 @@ impl Role {
             Role::View => Some(Part::View),
             Role::Details => Some(Part::Details),
             Role::Content => Some(Part::Content),
-            Role::Menu | Role::Settings | Role::Call => None,
+            Role::Menu | Role::Hook | Role::Settings | Role::Call => None,
         }
     }
 }
@@ -645,7 +843,9 @@ impl Prepared {
     /// commands は required / optional にコマンドを書いたときだけ、ほかは permissions に書いたものだけを渡す。
     /// 渡さないものを使う WASM は読み込まない。
     pub fn new(wasm: &[u8], m: &Manifest) -> Result<Prepared, String> {
-        use patchouli::plugin::{assets, clipboard, commands, host, library, notes, types};
+        use patchouli::plugin::{
+            assets, clipboard, commands, edit, embed, export, host, library, notes, types,
+        };
         use wasmtime::component::HasSelf;
         let engine = engine();
         let component = component(engine, wasm)?;
@@ -692,8 +892,17 @@ impl Prepared {
         if has("notes") {
             notes::add_to_linker::<_, HasSelf<_>>(&mut linker, |s| s).map_err(e)?;
         }
+        if has("edit") {
+            edit::add_to_linker::<_, HasSelf<_>>(&mut linker, |s| s).map_err(e)?;
+        }
         if has("assets") {
             assets::add_to_linker::<_, HasSelf<_>>(&mut linker, |s| s).map_err(e)?;
+        }
+        if has("export") {
+            export::add_to_linker::<_, HasSelf<_>>(&mut linker, |s| s).map_err(e)?;
+        }
+        if has("embed") {
+            embed::add_to_linker::<_, HasSelf<_>>(&mut linker, |s| s).map_err(e)?;
         }
         let pre = linker
             .instantiate_pre(&component)
@@ -819,11 +1028,11 @@ impl Plugin {
     fn call_menu(
         &self,
         s: &mut Store<HostState>,
-        read: Resource<MenuRead>,
+        read: Resource<ReadProof>,
         targets: &[types::Target],
     ) -> wasmtime::Result<Result<Vec<types::MenuItem>, String>> {
         let (r,) = self
-            .func::<(Resource<MenuRead>, &[types::Target]), _>(s, "menu")?
+            .func::<(Resource<ReadProof>, &[types::Target]), _>(s, "menu")?
             .call(&mut *s, (read, targets))?;
         Ok(r)
     }
@@ -831,19 +1040,32 @@ impl Plugin {
     fn call_run_menu(
         &self,
         s: &mut Store<HostState>,
-        read: Resource<MenuRead>,
-        run: Resource<types::MenuRun>,
+        read: Resource<ReadProof>,
+        run: Resource<RunProof>,
         targets: &[types::Target],
         id: &str,
     ) -> wasmtime::Result<Result<MenuOutput, String>> {
         let (r,) = self
             .func::<(
-                Resource<MenuRead>,
-                Resource<types::MenuRun>,
+                Resource<ReadProof>,
+                Resource<RunProof>,
                 &[types::Target],
                 &str,
             ), _>(s, "run-menu")?
             .call(&mut *s, (read, run, targets, id))?;
+        Ok(r)
+    }
+
+    fn call_added(
+        &self,
+        s: &mut Store<HostState>,
+        read: Resource<ReadProof>,
+        run: Resource<RunProof>,
+        target: &types::Target,
+    ) -> wasmtime::Result<Result<(), String>> {
+        let (r,) = self
+            .func::<(Resource<ReadProof>, Resource<RunProof>, &types::Target), _>(s, "added")?
+            .call(&mut *s, (read, run, target))?;
         Ok(r)
     }
 
@@ -893,6 +1115,7 @@ pub struct Runner {
     reg: Arc<Registry>,
     store: Store<HostState>,
     instances: HashMap<usize, Plugin>,
+    env: Option<Arc<Env>>,
 }
 
 impl Runner {
@@ -901,6 +1124,7 @@ impl Runner {
             store: store(HostState::new(Some(Arc::clone(&reg)))),
             reg,
             instances: HashMap::new(),
+            env: None,
         }
     }
 
@@ -1080,23 +1304,22 @@ impl Runner {
         Some(r.and_then(|x| x))
     }
 
-    /// 選んだものをまとめて plugin のメニューに渡す。頼まれたことと作業用の置き場も返す。
-    fn call_menu_part<R>(
+    /// files を targets として渡す。頼まれたことと作業用の置き場も返す。
+    fn call_targets<R>(
         &mut self,
-        plugin: &str,
-        files: &[MenuFile],
+        i: usize,
+        files: &[TargetFile],
+        context: Context,
+        limit: Duration,
         f: impl FnOnce(&Plugin, &mut Store<HostState>, Vec<types::Target>) -> wasmtime::Result<R>,
-    ) -> Result<(R, Vec<MenuAction>, Option<Scratch>), String> {
-        let i = self.reg.index_of(plugin)?;
-        if !files.iter().all(|m| self.reg.menu_covers(i, m.ext, m.note)) {
-            return Err(format!(
-                "プラグイン「{plugin}」の右クリックメニューは、選んだものに対応していません"
-            ));
-        }
+    ) -> Result<(R, Ran), String> {
         let paths: Vec<(&str, &Path)> = files.iter().map(|m| (m.ext, m.path)).collect();
         let st = self.store.data_mut();
         st.items = files.iter().map(|m| m.info.clone()).collect();
-        let r = self.run_files(i, &paths, VIEW_LIMIT, |p, s, handles| {
+        st.targets = files.len();
+        st.context = context;
+        st.env.clone_from(&self.env);
+        let r = self.run_files(i, &paths, limit, |p, s, handles| {
             let targets = files
                 .iter()
                 .zip(handles)
@@ -1109,19 +1332,40 @@ impl Runner {
         });
         let st = self.store.data_mut();
         st.items.clear();
+        st.targets = 0;
+        st.env = None;
         st.created.clear();
         st.added.clear();
-        let actions = std::mem::take(&mut st.actions);
-        let scratch = st.scratch.take();
-        Ok((r?, actions, scratch))
+        st.exported = None;
+        let ran = Ran {
+            actions: std::mem::take(&mut st.actions),
+            scratch: st.scratch.take(),
+        };
+        Ok((r?, ran))
+    }
+
+    fn menu_index(&self, plugin: &str, files: &[TargetFile]) -> Result<usize, String> {
+        let i = self.reg.index_of(plugin)?;
+        if !files.iter().all(|m| self.reg.menu_covers(i, m.ext, m.note)) {
+            return Err(format!(
+                "プラグイン「{plugin}」の右クリックメニューは、選んだものに対応していません"
+            ));
+        }
+        Ok(i)
+    }
+
+    /// library・embed がライブラリを引く窓口を渡す。
+    pub fn set_env(&mut self, env: Option<Arc<Env>>) {
+        self.env = env;
     }
 
     pub fn menu(
         &mut self,
         plugin: &str,
-        files: &[MenuFile],
+        files: &[TargetFile],
     ) -> Result<Vec<(String, String)>, String> {
-        let (items, _, _) = self.call_menu_part(plugin, files, |p, s, ts| {
+        let i = self.menu_index(plugin, files)?;
+        let (items, _) = self.call_targets(i, files, Context::Menu, VIEW_LIMIT, |p, s, ts| {
             p.call_menu(s, Resource::new_borrow(0), &ts)
         })?;
         Ok(items?.into_iter().map(|m| (m.id, m.label)).collect())
@@ -1131,10 +1375,11 @@ impl Runner {
     pub fn run_menu(
         &mut self,
         plugin: &str,
-        files: &[MenuFile],
+        files: &[TargetFile],
         id: &str,
     ) -> Result<MenuRun, String> {
-        let (out, actions, scratch) = self.call_menu_part(plugin, files, |p, s, ts| {
+        let i = self.menu_index(plugin, files)?;
+        let (out, ran) = self.call_targets(i, files, Context::Menu, VIEW_LIMIT, |p, s, ts| {
             p.call_run_menu(s, Resource::new_borrow(0), Resource::new_borrow(0), &ts, id)
         })?;
         let shown = match out? {
@@ -1149,11 +1394,27 @@ impl Runner {
                 window: s.window,
             },
         };
-        Ok(MenuRun {
-            shown,
-            actions,
-            scratch,
-        })
+        Ok(MenuRun { shown, ran })
+    }
+
+    /// 取り込んだもの 1 つを、plugins の i 番目のフックに渡す。失敗したときは、頼まれたことを捨てる。
+    pub fn added(&mut self, i: usize, file: &TargetFile) -> Result<Ran, String> {
+        let (out, ran) = self.call_targets(
+            i,
+            std::slice::from_ref(file),
+            Context::Hook,
+            HOOK_LIMIT,
+            |p, s, mut ts| {
+                p.call_added(
+                    s,
+                    Resource::new_borrow(0),
+                    Resource::new_borrow(0),
+                    &ts.remove(0),
+                )
+            },
+        )?;
+        out?;
+        Ok(ran)
     }
 
     pub fn decode(&mut self, ext: &str, path: &Path) -> Result<Vec<u8>, String> {

@@ -12,7 +12,12 @@ export const PINNED_TAGS = ['写真', 'UI', '参考']
 
 export type Media = 'image' | 'video' | 'audio' | 'note' | 'link' | 'other'
 
-export const EXAMPLE_PLUGINS: string[] = ['example_page-plugin', 'example_collect-plugin', 'example_graph-plugin']
+export const EXAMPLE_PLUGINS: string[] = [
+  'example_page-plugin',
+  'example_collect-plugin',
+  'example_graph-plugin',
+  'example_autolink-plugin',
+]
 
 export type SpecItem = Item & {
   media: Media

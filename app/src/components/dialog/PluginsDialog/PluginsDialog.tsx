@@ -47,8 +47,11 @@ const PART: Record<CapPart, string> = {
 const PERMISSION: Record<Permission, string> = {
   library: 'ライブラリの情報を読む',
   clipboard: 'クリップボードにコピー',
-  notes: 'ノートを作成',
-  assets: '素材を登録',
+  notes: 'ノートを作成・書き換え',
+  edit: '名前とタグを変更',
+  assets: '素材を登録・置き換え',
+  export: 'ファイルを書き出し',
+  embed: '文章を AI で解析',
 }
 
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [

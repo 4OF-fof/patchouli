@@ -105,11 +105,20 @@ export interface MenuDecl {
 }
 
 /**
- * WASM に渡すホストの interface（WIT）。書いていないものを使う WASM は読み込まない。
- * library はライブラリの情報（名前・タグ・メモなど）を menu と run-menu の中で読む。
- * clipboard はコピー、notes はノートの作成、assets は素材の登録で、run-menu の中だけで使える。
+ * 取り込みのフック。added に書いた形式のものを取り込んだとき、WASM の hook の added を裏で呼ぶ。
+ * formats の書き方は menu と同じで、by は sandbox だけ。
  */
-export type Permission = 'library' | 'clipboard' | 'notes' | 'assets'
+export interface HooksDecl {
+  added?: { formats: string[] | 'all' | 'files'; by: 'sandbox' }
+}
+
+/**
+ * WASM に渡すホストの interface（WIT）。書いていないものを使う WASM は読み込まない。
+ * library はライブラリの情報（名前・タグ・メモなど）を読み、embed は EmbeddingGemma で文章をベクトルにする。
+ * clipboard はコピー、notes はノートの作成と本文の書き換え、edit は名前とタグの変更、assets は素材の登録と中身の置き換え、
+ * export はライブラリの外への書き出し。clipboard と export は run-menu の中だけで使える。
+ */
+export type Permission = 'library' | 'clipboard' | 'notes' | 'edit' | 'assets' | 'export' | 'embed'
 
 /** plugin.json。 */
 export interface Manifest {
@@ -135,6 +144,7 @@ export interface Manifest {
   /** 画面の id → 画面。id は英数字・ハイフン・下線で書く。 */
   screens?: Record<string, ScreenDecl>
   menu?: MenuDecl
+  hooks?: HooksDecl
   permissions?: Permission[]
   /** api.fetch で取りに行けるホスト名。サブドメインも含む。 */
   fetch?: string[]

@@ -3,6 +3,7 @@ mod content;
 mod cover;
 mod decisions;
 mod embed;
+mod hooks;
 pub mod import;
 pub mod library;
 pub mod note;
@@ -23,11 +24,13 @@ use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use cache::Cache;
-use library::{ItemPatch, Library, LibraryState, Opened, Place, StoredItem, StoredProject};
+use library::{
+    ItemPatch, Library, LibraryState, ListDiff, Opened, Place, StoredItem, StoredProject,
+};
 use plugin::record::{self, Source};
 use plugin::{
-    By, ItemInfo, MenuAction, MenuFile, MenuRun, MenuShown, Part, Reads, Registry, Runner, UiOwner,
-    UiRef, ViewOut,
+    Action, By, Env, ItemInfo, MenuRun, MenuShown, Part, Ran, Reads, Registry, Runner, TargetFile,
+    UiOwner, UiRef, ViewOut,
 };
 use serde::Serialize;
 use serde_json::Value;
@@ -216,44 +219,60 @@ fn targets(cur: &State<Current>, ids: &[String]) -> Result<Vec<Target>, String> 
     ids.iter().map(|id| Target::any(cur, id)).collect()
 }
 
-/// 選んだものをまとめて plugin のメニューに渡す。permissions に library があれば、ライブラリの情報も渡す。
+fn info_of(it: StoredItem) -> ItemInfo {
+    ItemInfo {
+        id: it.id,
+        name: it.name,
+        note: it.note,
+        project: it.project,
+        tags: it.tags,
+        memo: it.memo,
+    }
+}
+
+/// library・embed がライブラリを引く窓口。
+fn env_of(app: &tauri::AppHandle, thumbs: &Path) -> Arc<Env> {
+    let a = app.clone();
+    Arc::new(Env {
+        ai: embed::installed() && settings::auto_tag(app).unwrap_or(false),
+        thumbs: thumbs.to_owned(),
+        info: Arc::new(move |id| {
+            with_session(&a.state::<Current>(), |s| Ok(s.lib.stored(id)))
+                .ok()
+                .flatten()
+                .map(info_of)
+        }),
+    })
+}
+
+/// 選んだものをまとめて plugin のメニューに渡す。
 fn run_menu_of<T>(
+    app: &tauri::AppHandle,
     cur: &State<Current>,
     ts: &[Target],
-    plugin: &str,
-    f: impl FnOnce(&mut Runner, &[MenuFile]) -> Result<T, String>,
+    f: impl FnOnce(&mut Runner, &[TargetFile]) -> Result<T, String>,
 ) -> Result<T, String> {
     let first = ts.first().ok_or("素材を選んでいません")?;
-    let infos: Vec<Option<ItemInfo>> = if first.plugins.permits(plugin, "library") {
-        with(cur, |l| {
-            Ok(ts
-                .iter()
-                .map(|t| {
-                    l.stored(&t.id).map(|it| ItemInfo {
-                        id: it.id,
-                        name: it.name,
-                        note: it.note,
-                        project: it.project,
-                        tags: it.tags,
-                        memo: it.memo,
-                    })
-                })
-                .collect())
-        })?
-    } else {
-        vec![None; ts.len()]
-    };
-    let files: Vec<MenuFile> = ts
+    let infos: Vec<Option<ItemInfo>> = with(cur, |l| {
+        Ok(ts.iter().map(|t| l.stored(&t.id).map(info_of)).collect())
+    })?;
+    let files: Vec<TargetFile> = ts
         .iter()
         .zip(infos)
-        .map(|(t, info)| MenuFile {
+        .map(|(t, info)| TargetFile {
             ext: &t.ext,
             note: t.note,
             path: &t.path,
             info,
         })
         .collect();
-    first.runner(|r| f(r, &files))
+    let env = env_of(app, &first.thumbs);
+    first.runner(|r| {
+        r.set_env(Some(env));
+        let out = f(r, &files);
+        r.set_env(None);
+        out
+    })
 }
 
 #[derive(Serialize)]
@@ -271,28 +290,25 @@ enum MenuOutput {
     },
 }
 
-/// run-menu の結果。copy は写すもの、items は作ったノートと登録した素材、failed は起こせなかったこと。
+/// run-menu の結果。copy は写すもの、items は作ったノートと登録した素材、saved は書き出した先、
+/// failed は起こせなかったこと。書き換えたものは library-changed で知らせる。
 #[derive(Serialize, Default)]
 struct MenuDone {
     output: Option<MenuOutput>,
     copy: Option<String>,
     items: Vec<StoredItem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    saved: Option<PathBuf>,
     failed: Vec<String>,
 }
 
-/// run-menu で頼まれたことを起こす。置き場は選んだものの先頭と同じにする。
 fn finish_menu(
     app: &tauri::AppHandle,
     cur: &State<Current>,
     ts: &[Target],
     run: MenuRun,
 ) -> Result<MenuDone, String> {
-    let MenuRun {
-        shown,
-        actions,
-        scratch,
-    } = run;
-    let output = match shown {
+    let output = match run.shown {
         MenuShown::None => None,
         MenuShown::Toast(t) => Some(MenuOutput::Toast(t)),
         MenuShown::Overlay { title, rows } => Some(MenuOutput::Overlay {
@@ -301,23 +317,56 @@ fn finish_menu(
         }),
         MenuShown::Screen { id, window } => Some(MenuOutput::Screen { id, window }),
     };
-    let mut done = MenuDone {
+    let ids: Vec<String> = ts.iter().map(|t| t.id.clone()).collect();
+    let a = apply_ran(app, cur, &ids, run.ran)?;
+    Ok(MenuDone {
         output,
-        ..MenuDone::default()
-    };
+        copy: a.copy,
+        items: a.added,
+        saved: a.saved,
+        failed: a.failed,
+    })
+}
+
+/// 頼まれたことを起こした結果。
+#[derive(Default)]
+struct Applied {
+    copy: Option<String>,
+    added: Vec<StoredItem>,
+    saved: Option<PathBuf>,
+    failed: Vec<String>,
+}
+
+/// run-menu・added で頼まれたことを起こす。作るものの置き場は ids の先頭と同じにする。
+/// 書き換えたものは library-changed で画面に知らせる。
+fn apply_ran(
+    app: &tauri::AppHandle,
+    cur: &State<Current>,
+    ids: &[String],
+    ran: Ran,
+) -> Result<Applied, String> {
+    let Ran { actions, scratch } = ran;
+    let mut out = Applied::default();
     let mut notes = Vec::new();
     let mut assets = Vec::new();
+    let mut edits = Vec::new();
     for a in actions {
         match a {
-            MenuAction::Copy(t) => done.copy = Some(t),
-            MenuAction::Note { name, body } => notes.push((name, body)),
-            MenuAction::Asset { path, name } => assets.push(named(path, name, &mut done.failed)),
+            Action::Copy(t) => out.copy = Some(t),
+            Action::Note { name, body } => notes.push((name, body)),
+            Action::Asset { path, name } => assets.push(named(path, name, &mut out.failed)),
+            Action::Export { path, name } => match export_file(app, &path, &name) {
+                Ok(to) => out.saved = to,
+                Err(e) => out.failed.push(e),
+            },
+            a => edits.push(a),
         }
     }
-    if notes.is_empty() && assets.is_empty() {
-        return Ok(done);
+    if notes.is_empty() && assets.is_empty() && edits.is_empty() {
+        return Ok(out);
     }
-    let first = ts.first().map(|t| t.id.as_str());
+    let first = ids.first().map(String::as_str);
+    let mut changed: Vec<StoredItem> = Vec::new();
     let (thumbs, plugins, cache) = with_session(cur, |s| {
         let place = first
             .and_then(|id| s.lib.stored(id))
@@ -328,27 +377,124 @@ fn finish_menu(
             .unwrap_or_default();
         for (name, body) in notes {
             match note_with(&mut s.lib, &name, body, &place) {
-                Ok(it) => done.items.push(it),
-                Err(e) => done.failed.push(e),
+                Ok(it) => out.added.push(it),
+                Err(e) => out.failed.push(e),
             }
         }
         if !assets.is_empty() {
-            let out = s.lib.import(&assets, &place, true)?;
-            done.items.extend(out.items);
-            done.failed.extend(out.failed);
+            let r = s.lib.import(&assets, &place, true)?;
+            out.added.extend(r.items);
+            out.failed.extend(r.failed);
+        }
+        let mut renamed = false;
+        let mut edited: Vec<String> = Vec::new();
+        for a in edits {
+            renamed |= matches!(a, Action::Rename { .. });
+            match edit_item(&mut s.lib, ids, a) {
+                Ok(id) if !edited.contains(&id) => edited.push(id),
+                Ok(_) => {}
+                Err(e) => out.failed.push(e),
+            }
+        }
+        changed.extend(edited.iter().filter_map(|id| s.lib.stored(id)));
+        if renamed {
+            for it in s.lib.sync_link_names() {
+                changed.retain(|x| x.id != it.id);
+                changed.push(it);
+            }
         }
         Ok((s.thumbs.clone(), Arc::clone(&s.plugins), s.lib.cache()))
     })?;
     drop(scratch);
-    let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut done.items);
+    let (jobs, _, _) = plan_thumbs(
+        &plugins,
+        &thumbs,
+        &cache,
+        out.added.iter_mut().chain(changed.iter_mut()),
+    );
     if !jobs.is_empty() {
         let app = app.clone();
         std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
-    Ok(done)
+    if !changed.is_empty() {
+        let changes = library::Changes {
+            items: changed,
+            ..library::Changes::default()
+        };
+        let _ = app.emit("library-changed", &changes);
+    }
+    Ok(out)
 }
 
-/// 登録する名前にする。作業用の置き場の中で名前を変える。
+/// ids の target 番目を書き換える。書き換えたものの ID を返す。
+fn edit_item(lib: &mut Library, ids: &[String], a: Action) -> Result<String, String> {
+    let id_of = |t: usize| {
+        ids.get(t)
+            .cloned()
+            .ok_or_else(|| "書き換えるものが見つかりません".to_owned())
+    };
+    match a {
+        Action::Body { target, body } => {
+            let id = id_of(target)?;
+            let patch = ItemPatch {
+                body: Some(body),
+                ..ItemPatch::default()
+            };
+            lib.save_item(&id, &patch)?;
+            Ok(id)
+        }
+        Action::Rename { target, name } => {
+            let id = id_of(target)?;
+            lib.rename_item(&id, &name)?;
+            Ok(id)
+        }
+        Action::Tags { target, tags } => {
+            let id = id_of(target)?;
+            let old = lib.stored(&id).map(|it| it.tags).unwrap_or_default();
+            let patch = ItemPatch {
+                tags: Some(ListDiff {
+                    add: tags.iter().filter(|t| !old.contains(t)).cloned().collect(),
+                    remove: old.iter().filter(|t| !tags.contains(t)).cloned().collect(),
+                }),
+                ..ItemPatch::default()
+            };
+            lib.save_item(&id, &patch)?;
+            Ok(id)
+        }
+        Action::Replace { target, path } => {
+            let id = id_of(target)?;
+            lib.replace_file(&id, &path)?;
+            Ok(id)
+        }
+        Action::Copy(_) | Action::Note { .. } | Action::Asset { .. } | Action::Export { .. } => {
+            Err("書き換えではありません".into())
+        }
+    }
+}
+
+/// export で用意したファイルを、聞いた保存先へ写す。やめたときは None。
+fn export_file(app: &tauri::AppHandle, from: &Path, name: &str) -> Result<Option<PathBuf>, String> {
+    let Some(to) = save_dialog(app, name) else {
+        return Ok(None);
+    };
+    std::fs::copy(from, &to).map_err(|e| format!("「{}」に書き出せません：{e}", to.display()))?;
+    Ok(Some(to))
+}
+
+/// 書き出す先を聞く。name は既定の名前。
+fn save_dialog(app: &tauri::AppHandle, name: &str) -> Option<PathBuf> {
+    let mut dialog = app
+        .dialog()
+        .file()
+        .set_title("書き出す場所を選択")
+        .set_file_name(name);
+    if let Some(ext) = Path::new(name).extension().and_then(|x| x.to_str()) {
+        dialog = dialog.add_filter(ext.to_uppercase(), &[ext]);
+    }
+    dialog.blocking_save_file()?.into_path().ok()
+}
+
+// 登録する名前にする。作業用の置き場の中で名前を変える。
 fn named(path: PathBuf, name: Option<String>, failed: &mut Vec<String>) -> PathBuf {
     let Some(name) = name else { return path };
     let to = match path.extension() {
@@ -734,6 +880,41 @@ fn stop_plugin_work() {
     thumb::stop();
 }
 
+/// 取り込みのフックを待っているものと、いま渡しているものの ID。
+#[tauri::command]
+fn hook_work() -> Vec<String> {
+    hooks::pending()
+}
+
+#[tauri::command]
+fn stop_hooks() {
+    hooks::stop();
+}
+
+/// elevated の runMenu が返した save を、聞いた保存先へ書く。やめたときは None。
+#[tauri::command]
+async fn export_data(
+    app: tauri::AppHandle,
+    request: tauri::ipc::Request<'_>,
+) -> Result<Option<PathBuf>, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("リクエスト本文がファイルの中身ではありません".into());
+    };
+    let name: String = request
+        .headers()
+        .get("name")
+        .and_then(|v| v.to_str().ok())
+        .map(serde_json::from_str)
+        .ok_or("ファイル名が指定されていません")?
+        .map_err(|e| format!("name の読み込みに失敗しました：{e}"))?;
+    library::check_name(&name)?;
+    let Some(to) = save_dialog(&app, &name) else {
+        return Ok(None);
+    };
+    std::fs::write(&to, bytes).map_err(|e| format!("「{}」に書き出せません：{e}", to.display()))?;
+    Ok(Some(to))
+}
+
 #[tauri::command]
 fn seen_thumbs(ids: Vec<String>) {
     thumb::set_seen(ids);
@@ -844,6 +1025,7 @@ async fn import_files(
         ))
     })?;
     let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut out.items);
+    hooks::queue(&app, &out.items);
     if !jobs.is_empty() {
         std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
@@ -875,6 +1057,7 @@ async fn import_data(
     })?;
     let mut items = vec![item];
     let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut items);
+    hooks::queue(&app, &items);
     if !jobs.is_empty() {
         std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
@@ -1380,15 +1563,17 @@ struct RunMenuOut {
 
 /// 項目を作れなかったプラグインは、ほかのプラグインの項目を出せるよう、記録して飛ばす。
 #[tauri::command]
-async fn item_menu(cur: State<'_, Current>, ids: Vec<String>) -> Result<Vec<MenuGroup>, String> {
+async fn item_menu(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    ids: Vec<String>,
+) -> Result<Vec<MenuGroup>, String> {
     let ts = targets(&cur, &ids)?;
     let mut out = Vec::new();
     for side in menu_sides(&ts) {
         let (items, elevated) = match side.ui {
             Some(ui) => (Vec::new(), Some(elevated_of(ui, &ts))),
-            None => match run_menu_of(&cur, &ts, &side.plugin, |r, files| {
-                r.menu(&side.plugin, files)
-            }) {
+            None => match run_menu_of(&app, &cur, &ts, |r, files| r.menu(&side.plugin, files)) {
                 Ok(items) if items.is_empty() => continue,
                 Ok(items) => (entries_of(items), None),
                 Err(e) => {
@@ -1425,7 +1610,7 @@ async fn run_item_menu(
             elevated: Some(elevated_of(ui, &ts)),
         }),
         None => {
-            let run = run_menu_of(&cur, &ts, &plugin, |r, files| {
+            let run = run_menu_of(&app, &cur, &ts, |r, files| {
                 r.run_menu(&plugin, files, &entry)
             })?;
             Ok(RunMenuOut {
@@ -1495,12 +1680,13 @@ async fn sandbox_details(cur: State<'_, Current>, id: String) -> Result<Vec<Deta
 
 #[tauri::command]
 async fn sandbox_menu(
+    app: tauri::AppHandle,
     cur: State<'_, Current>,
     ids: Vec<String>,
     plugin: String,
 ) -> Result<Vec<MenuEntry>, String> {
     let ts = targets(&cur, &ids)?;
-    Ok(entries_of(run_menu_of(&cur, &ts, &plugin, |r, files| {
+    Ok(entries_of(run_menu_of(&app, &cur, &ts, |r, files| {
         r.menu(&plugin, files)
     })?))
 }
@@ -1514,7 +1700,7 @@ async fn sandbox_run_menu(
     entry: String,
 ) -> Result<MenuDone, String> {
     let ts = targets(&cur, &ids)?;
-    let run = run_menu_of(&cur, &ts, &plugin, |r, files| {
+    let run = run_menu_of(&app, &cur, &ts, |r, files| {
         r.run_menu(&plugin, files, &entry)
     })?;
     finish_menu(&app, &cur, &ts, run)
@@ -2304,6 +2490,9 @@ pub fn run() {
             plugin_work,
             stop_plugin_work,
             seen_thumbs,
+            hook_work,
+            stop_hooks,
+            export_data,
             checking,
             set_plugin_setting,
             item_view,

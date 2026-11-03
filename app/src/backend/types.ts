@@ -114,7 +114,16 @@ export interface MenuResult {
   output?: MenuOutput
   copy?: string
   items: Item[]
+  /** 書き出した先。 */
+  saved?: string
   failed: string[]
+}
+
+/** 取り込みのフックが失敗したこと。 */
+export interface HookFailed {
+  plugin: string
+  item: string
+  message: string
 }
 
 export interface KnownLibrary {
@@ -248,6 +257,8 @@ export interface TagDecisions {
 export interface PluginWork {
   thumbnails: string[]
   waveforms: string[]
+  /** 取り込みのフックを待っているもの。 */
+  hooks: string[]
 }
 
 export interface Backend {
@@ -302,7 +313,8 @@ export interface Backend {
   plugins(): Promise<PluginReport>
   pluginActions?: PluginActions
   pluginWork?(): Promise<PluginWork>
-  stopPluginWork?(part?: 'thumbnail' | 'waveform'): Promise<void>
+  stopPluginWork?(part?: 'thumbnail' | 'waveform' | 'hook'): Promise<void>
+  onHookFailed?(fn: (f: HookFailed) => void): () => void
   /** 画面に見えている作成待ちの項目。サムネイルをこれから先に作る。 */
   seenThumbs?(ids: string[]): void
   checking?(): Promise<boolean>

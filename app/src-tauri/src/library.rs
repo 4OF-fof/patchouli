@@ -1049,6 +1049,35 @@ impl Library {
         self.relocate(id, row, &to, taken, |it| it.name = name.to_owned())
     }
 
+    /// 素材の中身を from のファイルに置き換える。拡張子は from に合わせ、元のファイルは残さない。
+    pub fn replace_file(&mut self, id: &str, from: &Path) -> Result<StoredItem, String> {
+        // 生成物は ID で引くので、ID をメタ情報に書いてから動かす
+        self.ensure_saved(id)?;
+        let e = self.entry(id)?;
+        if e.note {
+            return Err("ノートの中身は置き換えられません".into());
+        }
+        let path = e.path.clone();
+        let row = self.row_of(&path)?;
+        let ext = from
+            .extension()
+            .and_then(|x| x.to_str())
+            .unwrap_or_default()
+            .to_lowercase();
+        let to = path.with_extension(&ext);
+        if to != path {
+            let file = to.file_name().unwrap_or_default().to_string_lossy();
+            let taken = format!("同じ名前のファイル（{file}）があるため、置き換えられません");
+            self.relocate(id, row, &to, taken, |it| {
+                it.ext.clone_from(&ext);
+                (it.thumb, it.width, it.height) = (None, None, None);
+            })?;
+        }
+        fs::copy(from, &to).map_err(|e| format!("{}: {e}", to.display()))?;
+        self.refresh(id)
+            .ok_or_else(|| format!("{} を読み直せません", to.display()))
+    }
+
     /// ファイルとメタ情報をごみ箱に入れ、ライブラリから外す。
     pub fn delete_item(&mut self, id: &str) -> Result<(), String> {
         let e = self.entry(id)?;
