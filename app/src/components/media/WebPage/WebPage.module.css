@@ -1,13 +1,14 @@
 .root {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
 }
-/* 両端の幅をそろえ、URL を真ん中に置く */
+/* URL の欄を真ん中に置き、URL はその中で左に寄せる */
 .bar {
   display: grid;
-  grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, 640px) 1fr;
   align-items: center;
   gap: var(--space-8);
   height: 36px;
@@ -21,10 +22,17 @@
   align-items: center;
   gap: var(--space-2);
 }
-.end {
-  justify-content: flex-end;
+.address {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+  height: 28px;
+  border-radius: var(--radius-md);
+  background: var(--card);
 }
 .url {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -39,4 +47,39 @@
   min-height: 0;
   border: 0;
   background: var(--paper);
+}
+/* 外のページより前に出すので、影は付けずに枠線で区切る */
+.popup {
+  position: absolute;
+  top: 48px;
+  left: 50%;
+  z-index: 1;
+  translate: -50% 0;
+  width: min(420px, 100% - 24px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-16);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--float);
+  color: var(--ink);
+  font-size: var(--fs-list);
+}
+.popup p {
+  margin: 0;
+  font-weight: 600;
+}
+.popupUrl {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: var(--fs-meta);
+}
+.popupActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  margin-top: var(--space-4);
 }

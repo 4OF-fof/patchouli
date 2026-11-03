@@ -1,9 +1,10 @@
 import { Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 import type { BrowserActions } from '../../../backend/types'
 import { Icon } from '../../base/Icon/Icon'
+import { Button } from '../../controls/Button/Button'
 import { IconButton } from '../../controls/IconButton/IconButton'
 import { useTabActive } from '../../nav/TabPane/TabPane'
-import { setHole } from './layer'
+import { coverPage, setHole } from './layer'
 import styles from './WebPage.module.css'
 
 export interface WebPageProps {
@@ -27,6 +28,7 @@ export function WebPage(props: WebPageProps) {
   let last = ''
   const [at, setAt] = createSignal(props.url)
   const [can, setCan] = createSignal({ back: false, forward: false })
+  const [popup, setPopup] = createSignal<string>()
   createEffect(() => setAt(props.url))
   const sync = () => {
     const b = props.browser
@@ -56,11 +58,13 @@ export function WebPage(props: WebPageProps) {
       setAt(p.url)
       setCan({ back: p.back, forward: p.forward })
     })
+    const offPopup = props.browser.onPopup((k, url) => k === key && props.onOpenDefault && setPopup(url))
     sync()
     onCleanup(() => {
       clearInterval(timer)
       ro.disconnect()
       off()
+      offPopup()
       setHole(key, undefined)
       props.browser?.close(key).catch((e: unknown) => console.warn('外のページを閉じられない', e))
     })
@@ -77,6 +81,18 @@ export function WebPage(props: WebPageProps) {
       return { head: '', host: at(), rest: '' }
     }
   }
+  const [copied, setCopied] = createSignal(false)
+  let copiedTimer = 0
+  onCleanup(() => clearTimeout(copiedTimer))
+  const copy = () =>
+    navigator.clipboard.writeText(at()).then(
+      () => {
+        setCopied(true)
+        clearTimeout(copiedTimer)
+        copiedTimer = window.setTimeout(() => setCopied(false), 1500)
+      },
+      (e: unknown) => console.warn('URL をコピーできない', e),
+    )
   const go = (to: 'back' | 'forward' | 'reload') => {
     if (props.browser) {
       props.browser.go(key, to).catch((e: unknown) => console.warn('外のページを動かせない', e))
@@ -98,12 +114,15 @@ export function WebPage(props: WebPageProps) {
             <Icon name="reload" size={15} />
           </IconButton>
         </span>
-        <span class={styles.url} title={at()}>
-          {parts().head}
-          <b>{parts().host}</b>
-          {parts().rest}
-        </span>
-        <span class={`${styles.side} ${styles.end}`}>
+        <span class={styles.address}>
+          <IconButton label={copied() ? 'コピーしました' : 'URL をコピー'} onClick={copy}>
+            <Icon name={copied() ? 'check' : 'link'} size={14} />
+          </IconButton>
+          <span class={styles.url} title={at()}>
+            {parts().head}
+            <b>{parts().host}</b>
+            {parts().rest}
+          </span>
           <Show when={props.onOpenDefault}>
             {(open) => (
               <IconButton label="既定のブラウザで開く" onClick={() => open()(at())}>
@@ -126,6 +145,28 @@ export function WebPage(props: WebPageProps) {
         }
       >
         <div ref={frame} class={styles.frame} />
+      </Show>
+      <Show when={popup()}>
+        {(url) => (
+          <div ref={coverPage} class={styles.popup} role="alertdialog" aria-label="新しいウィンドウ">
+            <p>ページが新しいウィンドウを開こうとしています</p>
+            <span class={styles.popupUrl} title={url()}>
+              {url()}
+            </span>
+            <span class={styles.popupActions}>
+              <Button onClick={() => setPopup(undefined)}>キャンセル</Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  props.onOpenDefault?.(url())
+                  setPopup(undefined)
+                }}
+              >
+                既定のブラウザで開く
+              </Button>
+            </span>
+          </div>
+        )}
       </Show>
     </div>
   )

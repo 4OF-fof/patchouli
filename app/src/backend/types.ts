@@ -335,6 +335,8 @@ export interface BrowserActions {
   layer(layers: PageLayer[]): Promise<void>
   /** 外のページの中で別のページを開いたら、その URL と戻れるか・進めるかを知らせる。戻り値で知らせをやめる。 */
   onMoved(fn: (key: string, at: PageAt) => void): () => void
+  /** 外のページが新しいウィンドウで URL を開こうとしたら知らせる。ウィンドウは開かない。戻り値で知らせをやめる。 */
+  onPopup(fn: (key: string, url: string) => void): () => void
 }
 
 export interface PageLayer extends Bounds {

@@ -712,6 +712,10 @@ export function tauriBackend(): Backend {
         const off = listen<PageAt & { key: string }>('browser-url', ({ payload: { key, ...page } }) => fn(key, page))
         return () => void off.then((f) => f())
       },
+      onPopup: (fn) => {
+        const off = listen<{ key: string; url: string }>('browser-popup', ({ payload }) => fn(payload.key, payload.url))
+        return () => void off.then((f) => f())
+      },
     },
   }
 }

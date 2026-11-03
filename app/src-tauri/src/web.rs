@@ -5,7 +5,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 #[cfg(not(windows))]
 use tauri::webview::PageLoadEvent;
-use tauri::webview::WebviewBuilder;
+use tauri::webview::{NewWindowResponse, WebviewBuilder};
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Rect, Url, Webview, WebviewUrl,
 };
@@ -119,7 +119,21 @@ pub fn show(
     let win = app
         .get_window(MAIN)
         .ok_or("本体のウィンドウが見つかりません")?;
-    let b = WebviewBuilder::new(&label, WebviewUrl::External(url.clone()));
+    let to = app.clone();
+    let popup_key = key.to_owned();
+    // 新しいウィンドウは開かず、本体に知らせて既定のブラウザで開くかを尋ねる
+    let b = WebviewBuilder::new(&label, WebviewUrl::External(url.clone())).on_new_window(
+        move |url, _| {
+            let popup = Popup {
+                key: popup_key.clone(),
+                url: url.to_string(),
+            };
+            if let Err(e) = to.emit_to(MAIN, "browser-popup", popup) {
+                eprintln!("外のページが開こうとした URL を知らせられません：{e}");
+            }
+            NewWindowResponse::Deny
+        },
+    );
     // Windows では、履歴が変わったときに WebView2 から URL と戻れるかを読む
     #[cfg(not(windows))]
     let b = b.on_page_load(|wv, p| {
@@ -162,6 +176,13 @@ struct Moved {
     url: String,
     back: bool,
     forward: bool,
+}
+
+/// 外のページが新しいウィンドウで開こうとした URL。
+#[derive(Clone, Serialize)]
+struct Popup {
+    key: String,
+    url: String,
 }
 
 fn tell(wv: &Webview, moved: Moved) {
