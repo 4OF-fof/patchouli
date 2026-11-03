@@ -15,6 +15,7 @@ import {
   ChevronRight,
   ChevronUp,
   Code,
+  Columns2,
   Copy,
   Ellipsis,
   ExternalLink,
@@ -57,6 +58,7 @@ import {
   Puzzle,
   Quote,
   RotateCw,
+  Rows2,
   Search,
   SeparatorHorizontal,
   Settings,
@@ -150,6 +152,8 @@ const ICONS = {
   trash: Trash2,
   filter: Funnel,
   sort: ArrowUpDown,
+  splitRight: Columns2,
+  splitDown: Rows2,
 }
 
 export type IconName = keyof typeof ICONS

@@ -1,0 +1,48 @@
+/* 当たりは広く取り、見える線は 1px にする */
+.seam {
+  position: absolute;
+  z-index: 2;
+  touch-action: none;
+}
+.seam[data-dir='row'] {
+  width: 9px;
+  margin-left: -4px;
+  cursor: col-resize;
+}
+.seam[data-dir='col'] {
+  height: 9px;
+  margin-top: -4px;
+  cursor: row-resize;
+}
+.seam::after {
+  content: '';
+  position: absolute;
+  background: var(--line);
+  transition: background 0.12s;
+}
+.seam[data-dir='row']::after {
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 1px;
+}
+.seam[data-dir='col']::after {
+  left: 0;
+  right: 0;
+  top: 4px;
+  height: 1px;
+}
+.seam:hover::after,
+.seam:active::after {
+  background: var(--accent);
+}
+.seam[data-dir='row']:hover::after,
+.seam[data-dir='row']:active::after {
+  left: 3px;
+  width: 3px;
+}
+.seam[data-dir='col']:hover::after,
+.seam[data-dir='col']:active::after {
+  top: 3px;
+  height: 3px;
+}

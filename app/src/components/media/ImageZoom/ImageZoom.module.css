@@ -26,8 +26,9 @@
   user-select: none;
   visibility: hidden;
 }
+/* visible にすると、裏に回したタブの visibility: hidden を上書きして残るので、親に従わせる */
 .img[data-ready] {
-  visibility: visible;
+  visibility: inherit;
 }
 /* 画像の上に重ねる。置き場所の側で、--player-controls（0〜1）と --player-events で隠せる */
 .bar {

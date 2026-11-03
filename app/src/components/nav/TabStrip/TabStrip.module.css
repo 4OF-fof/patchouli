@@ -17,8 +17,8 @@
 .tab {
   position: relative;
   flex: 0 1 auto;
-  width: 180px;
-  min-width: 72px;
+  width: calc(180px * var(--panes, 1));
+  min-width: calc(72px * var(--panes, 1));
   height: 30px;
   display: flex;
   align-items: center;
@@ -28,7 +28,21 @@
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   color: var(--muted);
 }
-.tab:hover {
+/* 分割して開いたまとまりは、1 つのタブの枠を縦線で区切る */
+.seg {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  border-radius: inherit;
+}
+.seg + .seg {
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+}
+.seg:hover {
   color: var(--ink);
 }
 .tab[data-current='true'] {
@@ -79,7 +93,7 @@
   cursor: pointer;
   visibility: hidden;
 }
-.tab:hover .close,
+.seg:hover .close,
 .close:focus-visible {
   visibility: visible;
 }
@@ -87,12 +101,12 @@
   background: var(--card);
   color: var(--ink);
 }
+/* タイトルバーの中央ではなく、下に寄せたタブの中央にそろえる */
 .add {
-  align-self: center;
   width: 28px;
   height: 28px;
   flex: none;
-  margin-left: var(--space-4);
+  margin: 0 0 1px var(--space-4);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -105,4 +119,41 @@
 .add:hover {
   background: var(--card);
   color: var(--ink);
+}
+/* 開いたまとまりの中では、操作しているペインのタブだけを目立たせる */
+.tab[data-group='open'] .seg {
+  color: var(--muted);
+}
+.tab[data-group='open'] .seg:hover,
+.tab[data-group='open'] .seg[data-current='true'] {
+  color: var(--ink);
+}
+.tab[data-group='open'] .seg[data-current='true'] .main svg {
+  color: var(--accent);
+}
+.count {
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  margin-left: auto;
+  padding: 0 var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+/* ドラッグ中は、ほかのタブがよけて入る場所を空ける。つかんだタブはカーソルに付けて動かす */
+.list[data-dragging] .tab {
+  transition: transform 0.15s ease;
+}
+.list[data-dragging] .tab[data-dragged] {
+  z-index: 3;
+  background: var(--paper);
+  box-shadow: var(--shadow-pill);
+  transition: none;
+  cursor: grabbing;
 }

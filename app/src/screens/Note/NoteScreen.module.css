@@ -1,21 +1,24 @@
+.root {
+  container-type: inline-size;
+}
 .scroll {
   flex: 1;
   min-height: 0;
 }
+/* 左上の見出しのボタン（アイコンと余白の分）には、本文がかからないよう左を空けておく */
 .doc {
   max-width: var(--note-width, 880px);
   margin: 0 auto;
   padding: 96px var(--space-40) 140px;
+  padding-left: max(var(--space-40), min(66px, 66px - (100cqw - var(--note-width, 880px)) / 2));
   display: flex;
   flex-direction: column;
   gap: var(--space-14);
 }
-/* 見出しのカードを開いているとき、左の余白がカードより狭ければ本文を右へ寄せてカードと重ねない */
-@media (min-width: 861px) {
-  [data-heads='true'] .doc {
-    margin-left: max(260px, (100% - var(--note-width, 880px)) / 2);
-    margin-right: auto;
-  }
+/* 見出しのカードを横に置くときは、画面の幅に合わせてカードを細くし、本文をカードの右へ寄せる */
+[data-heads='true'] .doc {
+  margin-left: max(calc(clamp(180px, 100cqw - 640px, 300px) + 24px), (100% - var(--note-width, 880px)) / 2);
+  margin-right: auto;
 }
 .name {
   width: 100%;
@@ -165,16 +168,28 @@
 .headTitle:focus-visible {
   background: var(--card);
 }
-@media (max-width: 860px) {
-  .card {
+.card.l {
+  width: clamp(180px, 100cqw - 640px, 300px);
+  min-width: 0;
+}
+/* 横に置けないときは、本文の上に重ねる */
+.card.l[data-float] {
+  width: min(300px, 100cqw - 40px);
+  box-shadow: var(--shadow-float);
+  border-radius: var(--radius-lg);
+}
+@container (max-width: 860px) {
+  .card.r {
     width: 260px;
   }
 }
-@media (max-width: 640px) {
+@container (max-width: 640px) {
   .doc {
-    padding: 64px var(--space-16) 100px;
+    padding-top: 64px;
+    padding-right: var(--space-16);
+    padding-bottom: 100px;
   }
-  .card {
+  .card.r {
     left: 12px;
     right: 12px;
     width: auto;

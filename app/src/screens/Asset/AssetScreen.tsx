@@ -425,7 +425,7 @@ export function AssetScreen(props: AssetScreenProps) {
       class={`${shared.screen} ${styles.root}`}
       data-idle={idle()}
       data-info={info()}
-      data-bar={!!inBar() || undefined}
+      data-bar={!!barTools() || undefined}
       data-steps={props.list.length > 1 || undefined}
       aria-label="素材"
       onPointerMove={() => wake()}
@@ -508,7 +508,7 @@ export function AssetScreen(props: AssetScreenProps) {
                 </span>
               </div>
             </Show>
-            <Show when={inBar()} keyed fallback={tools(a, false)}>
+            <Show when={inBar()} keyed fallback={!barTools() && tools(a, false)}>
               {(el) => (
                 <Portal mount={el}>
                   <span class={styles.barTools}>{tools(a, true)}</span>

@@ -3,7 +3,7 @@ import type { BrowserActions } from '../../../backend/types'
 import { Icon } from '../../base/Icon/Icon'
 import { Button } from '../../controls/Button/Button'
 import { IconButton } from '../../controls/IconButton/IconButton'
-import { useTabActive } from '../../nav/TabPane/TabPane'
+import { useTabShown } from '../../nav/TabPane/TabPane'
 import { coverPage, setHole } from './layer'
 import styles from './WebPage.module.css'
 
@@ -22,7 +22,7 @@ export interface WebPageProps {
 export function WebPage(props: WebPageProps) {
   // 画面を読み直しても前の WebView と名前が重ならないようにする
   const key = `page-${crypto.randomUUID()}`
-  const active = useTabActive()
+  const active = useTabShown()
   let frame!: HTMLDivElement
   let iframe: HTMLIFrameElement | undefined
   let last = ''

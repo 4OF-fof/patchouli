@@ -5,6 +5,7 @@ import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Button } from '../../components/controls/Button/Button'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { NavMenu } from '../../components/nav/NavMenu/NavMenu'
+import { useTabActive } from '../../components/nav/TabPane/TabPane'
 import { type ItemFilter, NO_FILTER, counted, filtering } from '../../model/filter'
 import { type Item, NOTE_LABEL, toggled } from '../../model/library'
 import type { Sort } from '../../model/prefs'
@@ -43,7 +44,9 @@ export interface ListToolsProps {
 
 /** 絞り込みと並び替えのボタン。いまの場所の行があればそこに出し、なければその場に出す。 */
 export function ListTools(props: ListToolsProps) {
-  const bar = useBarTools()
+  const barTools = useBarTools()
+  const active = useTabActive()
+  const bar = () => (active() ? barTools() : undefined)
   const [open, setOpen] = createSignal<'filter' | 'sort'>()
   let root: HTMLDivElement | undefined
   const close = () => setOpen(undefined)
@@ -206,7 +209,7 @@ export function ListTools(props: ListToolsProps) {
   )
 
   return (
-    <Show when={bar()} fallback={tools}>
+    <Show when={bar()} fallback={!barTools() && tools}>
       {(el) => <Portal mount={el()}>{tools}</Portal>}
     </Show>
   )

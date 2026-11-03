@@ -54,6 +54,10 @@ export interface NoteScreenProps {
 }
 
 const NARROW = '(max-width: 860px)'
+/** 見出しのカードを本文の横に置ける、画面の幅（px）。狭いときはアイコンだけにして、押したら本文の上に重ねる。 */
+const HEADS_SIDE = 820
+/** 閉じた見出しのボタンに、名前と件数を出す画面の幅（px）。狭いと本文にかかるので、アイコンだけにする。 */
+const HEADS_LABEL = 1140
 const narrow = () => typeof matchMedia === 'function' && matchMedia(NARROW).matches
 
 /** ファイル名に使えない文字と、末尾の . を消す。 */
@@ -87,13 +91,22 @@ export function NoteScreen(props: NoteScreenProps) {
   }
   const from = createMemo(() => refsOf(body()))
 
+  // 分割したペインでは窓より狭くなるので、窓ではなく画面の幅で見出しの出し方を変える
+  const [width, setWidth] = createSignal(Infinity)
+  const [floatHeads, setFloatHeads] = createSignal(false)
+  const roomy = () => width() >= HEADS_SIDE
+  const sideHeads = () => heads() && roomy()
+  let section: HTMLElement | undefined
   onMount(() => {
-    if (typeof matchMedia !== 'function') return
-    const mq = matchMedia(NARROW)
-    const close = () => mq.matches && setHeads(false)
-    mq.addEventListener('change', close)
-    onCleanup(() => mq.removeEventListener('change', close))
+    if (!section || typeof ResizeObserver !== 'function') return
+    const ro = new ResizeObserver(([e]) => e && setWidth(e.contentRect.width))
+    ro.observe(section)
+    onCleanup(() => ro.disconnect())
   })
+  const closeHeads = () => {
+    setHeads(false)
+    setFloatHeads(false)
+  }
   onCleanup(() => props.editorRef?.(undefined))
 
   let addBtn: HTMLButtonElement | undefined
@@ -126,10 +139,11 @@ export function NoteScreen(props: NoteScreenProps) {
     <Show when={note()}>
       {(n) => (
         <section
-          class={shared.screen}
+          ref={section}
+          class={`${shared.screen} ${styles.root}`}
           data-idle={!!props.idle}
-          data-heads={heads()}
-          data-bar={!!inBar() || undefined}
+          data-heads={sideHeads()}
+          data-bar={!!barTools() || undefined}
           aria-label="ノート"
         >
           <ScrollArea class={styles.scroll}>
@@ -236,17 +250,19 @@ export function NoteScreen(props: NoteScreenProps) {
             when={inBar()}
             keyed
             fallback={
-              <TopBar
-                class={styles.bar}
-                onMore={more}
-                actions={
-                  <PinToggle
-                    look="float"
-                    pressed={lib().pins.includes(n().id)}
-                    onClick={() => props.onTogglePin?.(n().id)}
-                  />
-                }
-              />
+              !barTools() && (
+                <TopBar
+                  class={styles.bar}
+                  onMore={more}
+                  actions={
+                    <PinToggle
+                      look="float"
+                      pressed={lib().pins.includes(n().id)}
+                      onClick={() => props.onTogglePin?.(n().id)}
+                    />
+                  }
+                />
+              )
             }
           >
             {(el) => (
@@ -273,19 +289,34 @@ export function NoteScreen(props: NoteScreenProps) {
           </Show>
 
           <Show
-            when={heads()}
+            when={sideHeads() || floatHeads()}
             fallback={
-              <FloatingPill
-                class={`${styles.pill} ${styles.l}`}
-                count={headings().length}
-                onClick={() => setHeads(true)}
+              <Show
+                when={width() >= HEADS_LABEL}
+                fallback={
+                  <FloatingPill
+                    class={`${styles.pill} ${styles.l}`}
+                    icon
+                    aria-label="見出し"
+                    data-tip="見出し"
+                    onClick={() => (roomy() ? setHeads(true) : setFloatHeads(true))}
+                  >
+                    <Icon name="list" size={14} />
+                  </FloatingPill>
+                }
               >
-                <Icon name="list" size={14} withText />
-                見出し
-              </FloatingPill>
+                <FloatingPill
+                  class={`${styles.pill} ${styles.l}`}
+                  count={headings().length}
+                  onClick={() => setHeads(true)}
+                >
+                  <Icon name="list" size={14} withText />
+                  見出し
+                </FloatingPill>
+              </Show>
             }
           >
-            <aside class={`${styles.card} ${styles.l}`} aria-label="見出し">
+            <aside class={`${styles.card} ${styles.l}`} data-float={!sideHeads() || undefined} aria-label="見出し">
               <ScrollArea viewClass={styles.cardView}>
                 <FloatingCard
                   title={
@@ -293,9 +324,15 @@ export function NoteScreen(props: NoteScreenProps) {
                       {n().name}
                     </button>
                   }
-                  onClose={() => setHeads(false)}
+                  onClose={closeHeads}
                 >
-                  <HeadingTree headings={headings()} onSelect={(i) => editor?.scrollToHeading(i)} />
+                  <HeadingTree
+                    headings={headings()}
+                    onSelect={(i) => {
+                      editor?.scrollToHeading(i)
+                      setFloatHeads(false)
+                    }}
+                  />
                 </FloatingCard>
               </ScrollArea>
             </aside>

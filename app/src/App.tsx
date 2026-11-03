@@ -5,6 +5,7 @@ import {
   type Signal,
   Show,
   Switch,
+  batch,
   createEffect,
   createMemo,
   createResource,
@@ -73,6 +74,22 @@ import type { Activity } from './components/nav/ActivityButton/ActivityButton'
 import type { NavMenuItem } from './components/nav/NavMenu/NavMenu'
 import { asNewTab, inNewTab } from './components/nav/TabPane/newTab'
 import { TabPane } from './components/nav/TabPane/TabPane'
+import { Seams } from './components/nav/SplitView/Seams'
+import { PaneHint, PaneMenu, type PaneMove } from './components/nav/SplitView/PaneMenu'
+import {
+  type SplitNode,
+  type SplitSide,
+  type PaneDir,
+  insertBeside,
+  leaves,
+  neighborOf,
+  parseSplit,
+  rectsOf,
+  savedSplit,
+  swapLeaves,
+  withSizes,
+  withoutLeaf,
+} from './components/nav/SplitView/split'
 import { TabList } from './components/nav/TabList/TabList'
 import type { TabEntry, TabStripProps } from './components/nav/TabStrip/TabStrip'
 import { applyPrefs, prefs } from './model/prefs'
@@ -151,6 +168,11 @@ interface Tab {
   /** 裏に開いたタブの、開いたもとのタブ。 */
   from?: Tab
 }
+
+const PANE_DIRS: PaneDir[] = ['left', 'right', 'up', 'down']
+/** 右クリックしても、ペインを動かすメニューを出さないところ。 */
+const NOT_EMPTY =
+  'input, textarea, select, button, a, [role="button"], [role="menuitem"], [contenteditable="true"], img, video, audio, canvas, iframe'
 
 const str = (x: unknown) => (typeof x === 'string' ? x : undefined)
 
@@ -257,6 +279,36 @@ export function App(props: AppProps) {
   }
   const [tabs, setTabs] = createSignal<Tab[]>([makeTab()])
   const [currentTab, setCurrentTab] = createSignal(tabs()[0])
+  // 分割して並べるタブのまとまり。currentTab は、いま操作しているペインのタブ
+  const [splits, setSplits] = createSignal<SplitNode[]>([])
+  const splitOf = (t: Tab) => splits().find((n) => leaves(n).includes(t.id))
+  const shownSplit = () => splitOf(currentTab())
+  // たたんだまとまりの表に、最後に操作したタブを出すため、操作した順を覚えておく
+  const [seen, setSeen] = createSignal<ReadonlyMap<number, number>>(new Map())
+  let seenSeq = 0
+  createEffect(() => {
+    const id = currentTab().id
+    setSeen((m) => new Map(m).set(id, ++seenSeq))
+  })
+  const shownRects = createMemo(() => {
+    const n = shownSplit()
+    return n && rectsOf(n)
+  })
+  // 同じまとまりのタブは、ペインの並びの順に続けて並べる
+  const setLayout = (list: Tab[], groups: SplitNode[]) => {
+    const done = new Set<Tab>()
+    const arranged = list.flatMap((t) => {
+      if (done.has(t)) return []
+      const g = groups.find((n) => leaves(n).includes(t.id))
+      const ts = g ? leaves(g).flatMap((id) => list.find((x) => x.id === id) ?? []) : [t]
+      for (const x of ts) done.add(x)
+      return ts
+    })
+    batch(() => {
+      setSplits(groups)
+      setTabs(arranged)
+    })
+  }
   const stack = () => currentTab().stack()
   const setStack = (s: View[]) => currentTab().setStack(s)
   const eachStack = (f: (s: View[]) => View[]) => {
@@ -267,7 +319,7 @@ export function App(props: AppProps) {
     const list = tabs()
     let at = list.indexOf(currentTab()) + 1
     while (list[at]?.from === currentTab()) at++
-    setTabs([...list.slice(0, at), makeTab(views, currentTab()), ...list.slice(at)])
+    setLayout([...list.slice(0, at), makeTab(views, currentTab()), ...list.slice(at)], splits())
   }
   const addTab = () => {
     const t = makeTab()
@@ -280,10 +332,92 @@ export function App(props: AppProps) {
     const t = list[i]
     if (!t) return
     editors.delete(id)
+    const ids = leaves(splitOf(t) ?? { tab: id })
+    const j = ids.indexOf(id)
+    const mate = ids[j + 1] ?? ids[j - 1]
     const rest = list.filter((x) => x !== t)
     if (!rest.length) rest.push(makeTab())
-    setTabs(rest)
-    if (currentTab() === t) setCurrentTab(rest[Math.min(i, rest.length - 1)])
+    batch(() => {
+      setLayout(rest, withoutLeaf(splits(), id))
+      if (currentTab() === t) setCurrentTab(rest.find((x) => x.id === mate) ?? rest[Math.min(i, rest.length - 1)])
+    })
+  }
+  /** add を target の右か下に並べて、add を操作中にする。add がほかのまとまりにいたら、そこから抜く。 */
+  const placeBeside = (target: Tab, add: Tab, side: SplitSide, list = tabs()) => {
+    const groups = withoutLeaf(splits(), add.id)
+    const g = groups.find((n) => leaves(n).includes(target.id))
+    const next = g
+      ? groups.map((n) => (n === g ? insertBeside(n, target.id, add.id, side) : n))
+      : [...groups, insertBeside({ tab: target.id }, target.id, add.id, side)]
+    batch(() => {
+      const base = list.filter((x) => x !== add)
+      setLayout(base.toSpliced(base.indexOf(target) + 1, 0, add), next)
+      setCurrentTab(add)
+    })
+  }
+  /** 見えていないタブを、操作中のペインの横に持ってくる。 */
+  const splitTab = (id: number, side: SplitSide) => {
+    const t = tabs().find((x) => x.id === id)
+    if (t && !leaves(shownSplit() ?? { tab: currentTab().id }).includes(id)) placeBeside(currentTab(), t, side)
+  }
+  /** 分割から抜いて、ふつうのタブにする。抜いたタブはまとまりのすぐ後ろに置き、操作は残ったペインに移す。 */
+  const detachTab = (id: number) => {
+    const t = tabs().find((x) => x.id === id)
+    const g = t && splitOf(t)
+    if (!t || !g) return
+    const ids = leaves(g)
+    const j = ids.indexOf(id)
+    const mate = ids[j + 1] ?? ids[j - 1]
+    const rest = tabs().filter((x) => x !== t)
+    const end = Math.max(...ids.map((x) => rest.findIndex((y) => y.id === x)))
+    batch(() => {
+      setLayout(rest.toSpliced(end + 1, 0, t), withoutLeaf(splits(), id))
+      if (currentTab() === t) setCurrentTab(rest.find((x) => x.id === mate) ?? t)
+    })
+  }
+  /** id のタブを、まとまりごと before の前に動かす。 */
+  const moveTab = (id: number, before: number | undefined) => {
+    const t = tabs().find((x) => x.id === id)
+    if (!t) return
+    const ids = leaves(splitOf(t) ?? { tab: id })
+    const moving = tabs().filter((x) => ids.includes(x.id))
+    const rest = tabs().filter((x) => !ids.includes(x.id))
+    const at = before === undefined ? rest.length : rest.findIndex((x) => x.id === before)
+    if (at < 0) return
+    setLayout(rest.toSpliced(at, 0, ...moving), splits())
+  }
+  const [paneMenu, setPaneMenu] = createSignal<{ tab: Tab; x: number; y: number; moves: PaneMove[] }>()
+  const [paneHint, setPaneHint] = createSignal<number>()
+  /** 分割したペインの何もないところを右クリックしたら、動かせる向きを出す。入力欄や画像などの上では出さない。 */
+  const openPaneMenu = (t: Tab, e: MouseEvent) => {
+    const rects = shownRects()
+    if (e.defaultPrevented || !rects?.has(t.id)) return
+    if (e.target instanceof Element && e.target.closest(NOT_EMPTY)) return
+    if (getSelection()?.toString()) return
+    const moves = PANE_DIRS.flatMap((dir) => {
+      const to = neighborOf(rects, t.id, dir)
+      return to === undefined ? [] : [{ dir, to }]
+    })
+    if (!moves.length) return
+    e.preventDefault()
+    setCurrentTab(t)
+    setPaneMenu({ tab: t, x: e.clientX, y: e.clientY, moves })
+  }
+  const movePane = (t: Tab, to: number) => {
+    const g = splitOf(t)
+    if (g)
+      setLayout(
+        tabs(),
+        splits().map((n) => (n === g ? swapLeaves(n, t.id, to) : n)),
+      )
+  }
+  /** open で新しいタブに開いたものを、操作中のペインの横に並べる。 */
+  const openBeside = (side: SplitSide, open: () => void) => {
+    const before = new Set(tabs())
+    const from = currentTab()
+    asNewTab(open)
+    const t = tabs().find((x) => !before.has(x))
+    if (t) placeBeside(from, t, side)
   }
   const tabStrip = (): TabStripProps => ({
     tabs: tabs().map(tabEntry),
@@ -294,6 +428,8 @@ export function App(props: AppProps) {
     },
     onClose: closeTab,
     onNew: addTab,
+    onAction: (id, a) => (a === 'detach' ? detachTab(id) : splitTab(id, a)),
+    onMove: moveTab,
   })
   const tabsAt = () => prefs().tabsAt
   createEffect(() => applyPrefs(prefs()))
@@ -306,7 +442,16 @@ export function App(props: AppProps) {
   })
   const tabEntry = (t: Tab): TabEntry => {
     const v = t.stack().at(-1) ?? { s: 'edition' }
-    return { id: t.id, label: labelOf(v), icon: TAB_ICON[v.s] }
+    const g = splitOf(t)
+    const face = g && leaves(g).reduce((a, b) => ((seen().get(b) ?? 0) > (seen().get(a) ?? 0) ? b : a))
+    return {
+      id: t.id,
+      label: labelOf(v),
+      icon: TAB_ICON[v.s],
+      shown: !!g && g === shownSplit(),
+      group: g && splits().indexOf(g),
+      face: face === t.id,
+    }
   }
   const selection = createSelection((ids) => setDeleting(ids))
   const [pinnedProjects, setPinnedProjects] = createSignal(props.pinnedProjects ?? PINNED_PROJECTS)
@@ -859,15 +1004,24 @@ export function App(props: AppProps) {
   // 前に開いていたタブを戻してから、変わるたびに書き出す
   const [tabsRead, setTabsRead] = createSignal(!backend.tabs)
   const restoreTabs = (s: SavedTabs | undefined) => {
-    const list = (Array.isArray(s?.tabs) ? s.tabs : [])
+    const made = (Array.isArray(s?.tabs) ? s.tabs : [])
       .map((vs) => (Array.isArray(vs) ? vs.flatMap((v) => viewOf(lib(), v) ?? []) : []))
-      .filter((vs) => vs.length)
-      .map((vs) => makeTab(vs))
+      .map((vs) => (vs.length ? makeTab(vs) : undefined))
+    const list = made.flatMap((t) => t ?? [])
     const at = typeof s?.current === 'number' ? s.current : 0
-    const shown = list[Math.min(Math.max(0, at), list.length - 1)]
+    const shown = made[at] ?? list[Math.min(Math.max(0, at), list.length - 1)]
     if (!shown || prefs().start === 'home') return
-    setTabs(list)
-    setCurrentTab(shown)
+    const used = new Set<number>()
+    const groups = (Array.isArray(s?.splits) ? s.splits : []).flatMap((v) => {
+      const n = parseSplit(v, (i) => made[i]?.id)
+      if (!n || 'tab' in n || leaves(n).some((id) => used.has(id))) return []
+      for (const id of leaves(n)) used.add(id)
+      return [n]
+    })
+    batch(() => {
+      setLayout(list, groups)
+      setCurrentTab(shown)
+    })
   }
   onMount(
     () =>
@@ -888,6 +1042,7 @@ export function App(props: AppProps) {
     const s: SavedTabs = {
       tabs: tabs().map((t) => t.stack().map(savedView)),
       current: tabs().indexOf(currentTab()),
+      splits: splits().map((n) => savedSplit(n, (id) => tabs().findIndex((t) => t.id === id))),
     }
     const save = backend.saveTabs
     if (tabsRead() && save) persist(() => save(s))
@@ -1410,14 +1565,52 @@ export function App(props: AppProps) {
                   <For each={[plugged()]}>
                     {() => (
                       <For each={tabs()}>
-                        {(t) => (
-                          <TabPane active={t === currentTab()}>
-                            <BarToolsProvider value={barTools}>{screenOf(t)}</BarToolsProvider>
-                          </TabPane>
-                        )}
+                        {(t) => {
+                          const rect = () => shownRects()?.get(t.id)
+                          return (
+                            <TabPane
+                              active={t === currentTab()}
+                              shown={t === currentTab() || !!rect()}
+                              rect={rect()}
+                              marked={!!rect() && t === currentTab()}
+                              onFocus={() => rect() && setCurrentTab(t)}
+                              onContextMenu={(e) => openPaneMenu(t, e)}
+                            >
+                              <BarToolsProvider value={barTools}>{screenOf(t)}</BarToolsProvider>
+                            </TabPane>
+                          )
+                        }}
                       </For>
                     )}
                   </For>
+                  <Show when={paneHint() !== undefined && shownRects()?.get(paneHint() ?? -1)}>
+                    {(r) => <PaneHint rect={r()} />}
+                  </Show>
+                  <Show when={paneMenu()} keyed>
+                    {(m) => (
+                      <PaneMenu
+                        x={m.x}
+                        y={m.y}
+                        moves={m.moves}
+                        onPreview={setPaneHint}
+                        onMove={(to) => movePane(m.tab, to)}
+                        onClose={() => {
+                          setPaneMenu(undefined)
+                          setPaneHint(undefined)
+                        }}
+                      />
+                    )}
+                  </Show>
+                  <Show when={shownSplit()}>
+                    {(n) => (
+                      <Seams
+                        node={n()}
+                        onSizes={(path, sizes) =>
+                          setSplits(splits().map((x) => (x === n() ? withSizes(x, path, sizes) : x)))
+                        }
+                      />
+                    )}
+                  </Show>
                   <Show when={peek()}>
                     {(id) => (
                       <Peek
@@ -1429,6 +1622,11 @@ export function App(props: AppProps) {
                           asNewTab(() => openItem(to))
                           const t = tabs().find((x) => !before.has(x))
                           if (t) setCurrentTab(t)
+                        }}
+                        onSplit={(side) => {
+                          const to = id()
+                          setPeek(undefined)
+                          openBeside(side, () => openItem(to))
                         }}
                         onClose={() => setPeek(undefined)}
                       >
@@ -1448,6 +1646,10 @@ export function App(props: AppProps) {
                           asNewTab(() => go({ s: 'web', url }))
                           const t = tabs().find((x) => !before.has(x))
                           if (t) setCurrentTab(t)
+                        }}
+                        onSplit={(side) => {
+                          setPeekUrl(undefined)
+                          openBeside(side, () => go({ s: 'web', url }))
                         }}
                         onOpenDefault={backend.openUrl && (() => void backend.openUrl?.(url).catch(fail))}
                         onClose={() => setPeekUrl(undefined)}

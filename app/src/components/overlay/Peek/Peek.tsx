@@ -1,11 +1,14 @@
 import { type JSX, onCleanup, onMount } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
 import { coverPage } from '../../media/WebPage/layer'
+import type { SplitSide } from '../../nav/SplitView/split'
 import styles from './Peek.module.css'
 
 export interface PeekProps {
   label: string
   onExpand?: () => void
+  /** あれば、分割して横か下に開くボタンを出す。 */
+  onSplit?: (side: SplitSide) => void
   /** あれば、既定のブラウザで開くボタンを一番下に出す。 */
   onOpenDefault?: () => void
   onClose: () => void
@@ -48,6 +51,16 @@ export function Peek(props: PeekProps) {
           >
             <Icon name="fullscreen" size={16} />
           </button>
+        )}
+        {props.onSplit && (
+          <>
+            <button type="button" data-tip="右に分割" aria-label="右に分割" onClick={() => props.onSplit?.('right')}>
+              <Icon name="splitRight" size={16} />
+            </button>
+            <button type="button" data-tip="下に分割" aria-label="下に分割" onClick={() => props.onSplit?.('down')}>
+              <Icon name="splitDown" size={16} />
+            </button>
+          </>
         )}
         {props.onOpenDefault && (
           <button
