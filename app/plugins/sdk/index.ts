@@ -106,8 +106,13 @@ export interface MenuApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> 
 /**
  * 右クリックメニューの項目を実行したあとの出し方。WIT の menu-output と同じ。
  * toast は終わったことなどの短い知らせ、overlay は行の並びを画面に重ねて見せる（行ごとに値をコピーできる）。
+ * screen は plugin.json の screens の画面を開き、選んだものを渡す。window なら別のウィンドウで開き、
+ * 同じ画面のウィンドウがあれば、前に出して中身を入れ替える。
  */
-export type MenuOutput = { toast: string } | { overlay: { title?: string; rows: Detail[] } }
+export type MenuOutput =
+  | { toast: string }
+  | { overlay: { title?: string; rows: Detail[] } }
+  | { screen: { id: string; window?: boolean } }
 
 /** 右クリックメニューの項目が選ばれたときの窓口。id は選ばれた項目。 */
 export interface RunMenuApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
@@ -256,6 +261,10 @@ export interface NewNote {
  * 画面の窓口。書き換えは、先に items に写してから保存する。保存できなかったときは、本体が通知を出して読み込み直す。
  */
 export interface ScreenApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
+  /** 右クリックメニューから開いたときに選んでいたもの。場所のメニューなどから開いたときは空。 */
+  targets(): LibraryItem[]
+  /** 別のウィンドウで開いているか。 */
+  inWindow: boolean
   /** いまのライブラリの項目すべて。 */
   items(): LibraryItem[]
   item(id: string): LibraryItem | undefined

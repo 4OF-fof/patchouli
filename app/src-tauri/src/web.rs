@@ -13,6 +13,13 @@ use ureq::ResponseExt;
 
 /// 本体の画面の WebView。ほかの WebView（外のページ）からは、本体の関数とプラグインのファイルを使わせない。
 pub const MAIN: &str = "main";
+/// プラグインの画面だけを出す別のウィンドウの label の頭。中身は本体の画面と同じに扱う。
+pub const SCREEN: &str = "screen-";
+
+/// 本体の画面を読み込んでいる WebView か。外のページは含めない。
+pub fn ours(label: &str) -> bool {
+    label == MAIN || label.starts_with(SCREEN)
+}
 
 /// 一度に取ってこられる大きさ。
 const LIMIT: u64 = 16 << 20;
@@ -451,13 +458,24 @@ pub fn close(app: &AppHandle, pages: &Pages, key: &str) -> Result<(), String> {
     }
 }
 
-/// 本体の画面を読み直したときに、前の画面が開いた外のページを閉じる。
+/// 本体の画面を読み直したときに、前の画面が開いた外のページと、プラグインの画面のウィンドウを閉じる。
 pub fn close_all(app: &AppHandle, pages: &Pages) -> Result<(), String> {
     pages.0.lock().map_err(|e| e.to_string())?.clear();
     for (label, wv) in app.webviews() {
-        if label != MAIN {
+        if !ours(&label) {
             wv.close().map_err(|e| e.to_string())?;
         }
     }
+    close_screens(app);
     Ok(())
+}
+
+pub fn close_screens(app: &AppHandle) {
+    for (label, w) in app.webview_windows() {
+        if label.starts_with(SCREEN)
+            && let Err(e) = w.close()
+        {
+            log::warn!("画面のウィンドウを閉じられない: {label}: {e}");
+        }
+    }
 }

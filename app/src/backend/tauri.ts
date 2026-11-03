@@ -1,6 +1,8 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { emitTo, listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { FROM_WINDOW, type FromWindow } from '../window/protocol'
 import {
   type ItemUrls,
   type StoredChanged,
@@ -773,6 +775,25 @@ export function tauriBackend(): Backend {
       onPopup: (fn) => {
         const off = listen<{ key: string; url: string }>('browser-popup', ({ payload }) => fn(payload.key, payload.url))
         return () => void off.then((f) => f())
+      },
+    },
+    screenWindows: {
+      open: (s) =>
+        invoke('open_screen_window', {
+          plugin: s.plugin,
+          screen: s.id,
+          title: s.label,
+          width: s.window.width,
+          height: s.window.height,
+        }),
+      send: (label, event, payload) => emitTo(label, event, payload),
+      listen: (fn) => {
+        const off = listen<FromWindow>(FROM_WINDOW, (e) => fn(e.payload))
+        return () => void off.then((f) => f())
+      },
+      focusMain: () => {
+        const w = getCurrentWindow()
+        void w.unminimize().then(() => w.setFocus())
       },
     },
   }

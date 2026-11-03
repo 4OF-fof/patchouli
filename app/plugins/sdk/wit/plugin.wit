@@ -58,11 +58,20 @@ interface types {
     toast(string),
     /// 行の並びを画面に重ねて見せる。行ごとに値をコピーできる。
     overlay(overlay),
+    /// plugin.json の screens の画面を開く。画面には targets を渡す。
+    screen(open-screen),
   }
 
   record overlay {
     title: option<string>,
     rows: list<detail>,
+  }
+
+  record open-screen {
+    /// plugin.json の screens の id。
+    id: string,
+    /// 別のウィンドウで開く。同じ画面のウィンドウがあれば、前に出して中身を入れ替える。
+    window: bool,
   }
 
   /// ライブラリが持つ、素材やノートの情報。

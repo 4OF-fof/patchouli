@@ -19,12 +19,12 @@ npm run zip     # build したものを <id>-<版>.zip にする
 
 ## 中身
 
-| ファイル | 役目 |
-| --- | --- |
-| `plugin.json` | id・名前・版と、対応する形式。上の階層の `elevated` には、ビルド後の `.js` のパスを書く（元は拡張子を `.ts` にしたもの） |
-| `src/lib.rs` | sandbox（WASM）。受け持つ役割（下の「WASM の役割」）を実装する |
-| `ui.ts` | elevated。アプリの画面の中で動き、sandbox でできることに加えて、詳細の表示・波形・カーソルを合わせたときの表示・埋め込みを描ける |
-| `patchouli/` | SDK。型（`index.ts`）、ビルドの道具（`cli.ts`）、WASM の取り決め（`wit/plugin.wit`）。書き換えない |
+| ファイル      | 役目                                                                                                                             |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `plugin.json` | id・名前・版と、対応する形式。上の階層の `elevated` には、ビルド後の `.js` のパスを書く（元は拡張子を `.ts` にしたもの）         |
+| `src/lib.rs`  | sandbox（WASM）。受け持つ役割（下の「WASM の役割」）を実装する                                                                   |
+| `ui.ts`       | elevated。アプリの画面の中で動き、sandbox でできることに加えて、詳細の表示・波形・カーソルを合わせたときの表示・埋め込みを描ける |
+| `patchouli/`  | SDK。型（`index.ts`）、ビルドの道具（`cli.ts`）、WASM の取り決め（`wit/plugin.wit`）。書き換えない                               |
 
 plugin.json の形式ごとに、受け持つものを `sandbox` と `elevated` に書く。
 
@@ -58,15 +58,15 @@ impl role::settings::Guest for Csv { /* ... */ }
 impl role::call::Guest for Csv { /* ... */ }
 ```
 
-| world | 実装する `Guest` | 使う場所 |
-| --- | --- | --- |
-| `thumbnail-role` | `thumbnail` | `sandbox` を `true` にした形式のサムネイル |
-| `view-role` | `view`・`decode` | 同じく詳細の表示 |
-| `details-role` | `details` | 同じく詳細に足す行 |
-| `content-role` | `content` | 同じく内容で探したり分けたりするときに読む区間 |
-| `menu-role` | `menu`・`run_menu` | `menu` の `by` を `sandbox` にした右クリックメニュー |
-| `settings-role` | `settings` | 設定の項目 |
-| `call-role` | `call` | elevated の `api.call` |
+| world            | 実装する `Guest`   | 使う場所                                             |
+| ---------------- | ------------------ | ---------------------------------------------------- |
+| `thumbnail-role` | `thumbnail`        | `sandbox` を `true` にした形式のサムネイル           |
+| `view-role`      | `view`・`decode`   | 同じく詳細の表示                                     |
+| `details-role`   | `details`          | 同じく詳細に足す行                                   |
+| `content-role`   | `content`          | 同じく内容で探したり分けたりするときに読む区間       |
+| `menu-role`      | `menu`・`run_menu` | `menu` の `by` を `sandbox` にした右クリックメニュー |
+| `settings-role`  | `settings`         | 設定の項目                                           |
+| `call-role`      | `call`             | elevated の `api.call`                               |
 
 - アプリは読み込むときに export を調べて、受け持つものを決める
 - 手元のコマンドを動かす `commands::run`・`commands::available` は、plugin.json の `required` か `optional` に `commands` を書いたときだけ使え、書いたコマンドだけを動かせる
@@ -86,24 +86,48 @@ impl role::call::Guest for Csv { /* ... */ }
 - WASM の `menu` には `read`、`run_menu` には `read` と `run` が渡る。下の権限の関数には、これを最初の引数に渡す
 - `run_menu` の戻り値で、結果の出し方を選ぶ
 
-| 戻り値 | 出し方 |
-| --- | --- |
-| `MenuOutput::None` | 何も出さない |
-| `MenuOutput::Toast(text)` | 短い知らせ。終わったことを伝えるときなど |
-| `MenuOutput::Overlay(Overlay { title, rows })` | 見出しと値の行を画面に重ねて見せる。値は行ごとにコピーできる |
+| 戻り値                                          | 出し方                                                                                                  |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `MenuOutput::None`                              | 何も出さない                                                                                            |
+| `MenuOutput::Toast(text)`                       | 短い知らせ。終わったことを伝えるときなど                                                                |
+| `MenuOutput::Overlay(Overlay { title, rows })`  | 見出しと値の行を画面に重ねて見せる。値は行ごとにコピーできる                                            |
+| `MenuOutput::Screen(OpenScreen { id, window })` | `screens` の画面を開き、選んだものを渡す。`window` が `true` なら別のウィンドウ、`false` ならタブで開く |
+
+elevated の `runMenu` は、同じものを `{ toast }`・`{ overlay: { title, rows } }`・`{ screen: { id, window } }` で返す。
 
 WASM で次のことをするときは、plugin.json の上の階層の `permissions` に書く。書いていないものを使う WASM は、アプリが読み込まない。
 
-| `permissions` | 使える関数 | 最初の引数 |
-| --- | --- | --- |
-| `library` | `library::item`（ID・名前・タグ・プロジェクト・メモ） | `read` |
-| `clipboard` | `clipboard::copy` | `run` |
-| `notes` | `notes::create` | `run` |
-| `assets` | `assets::create`・`write`・`add` | `run` |
+| `permissions` | 使える関数                                            | 最初の引数 |
+| ------------- | ----------------------------------------------------- | ---------- |
+| `library`     | `library::item`（ID・名前・タグ・プロジェクト・メモ） | `read`     |
+| `clipboard`   | `clipboard::copy`                                     | `run`      |
+| `notes`       | `notes::create`                                       | `run`      |
+| `assets`      | `assets::create`・`write`・`add`                      | `run`      |
 
 - コピー・ノートの作成・素材の登録は、`run_menu` が `Ok` を返したあとにアプリが行う。`Err` を返したときは行わない
 - 作ったノートと登録した素材は、選んだものの先頭と同じ場所に置く
 - `assets::create` で用意したファイルは、`commands::run` の引数に渡してコマンドに書かせるか、`assets::write` で書く
+
+## 画面
+
+ホームやすべてと並ぶ画面を足すときは、plugin.json の上の階層に `screens` を書き、elevated の `screens` で描く。
+
+```json
+"screens": {
+  "graph": { "label": "ページの関係図", "icon": "diagram", "place": false, "window": { "width": 720, "height": 560 } }
+}
+```
+
+| キー     | 中身                                                                |
+| -------- | ------------------------------------------------------------------- |
+| `label`  | 場所のメニューやタブに出す名前                                      |
+| `icon`   | 本体のアイコンの名前。書かないときはプラグインのアイコン            |
+| `place`  | 場所のメニュー・コマンド・起動時に開く画面に並べるか。既定は `true` |
+| `window` | 別のウィンドウで開いたときの大きさ（px）。既定は 480 × 640          |
+
+- `place` が `false` の画面は、右クリックメニューの戻り値の `screen` で開く
+- 別のウィンドウには画面だけを出す。同じ画面のウィンドウがあれば、前に出して中身を入れ替える
+- 画面の `api.targets()` で、右クリックメニューで選んでいたものを読める。`api.inWindow` は別のウィンドウで開いているか
 
 ## elevated の書き方
 

@@ -140,6 +140,10 @@ pub enum MenuShown {
         title: Option<String>,
         rows: Vec<(String, String)>,
     },
+    Screen {
+        id: String,
+        window: bool,
+    },
 }
 
 /// run-menu の中で頼まれ、終わってからアプリが起こすこと。
@@ -1139,6 +1143,10 @@ impl Runner {
             MenuOutput::Overlay(o) => MenuShown::Overlay {
                 title: o.title,
                 rows: o.rows.into_iter().map(|d| (d.label, d.value)).collect(),
+            },
+            MenuOutput::Screen(s) => MenuShown::Screen {
+                id: s.id,
+                window: s.window,
             },
         };
         Ok(MenuRun {

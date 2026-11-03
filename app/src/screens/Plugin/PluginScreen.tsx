@@ -5,6 +5,7 @@ import { PluginView } from '../../components/media/PluginView/PluginView'
 import type { Item, Library } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './PluginScreen.module.css'
+import { libraryItemOf } from './libraryItem'
 
 export interface PluginScreenProps {
   lib: Library
@@ -12,6 +13,8 @@ export interface PluginScreenProps {
   url?: string
   /** plugin.json の screens の id。 */
   screen: string
+  /** 右クリックメニューから開いたときに選んでいたものの ID。 */
+  targets: string[]
   label: string
   own: OwnApi
   onOpen: (id: string, opts?: OpenOptions) => void
@@ -26,21 +29,7 @@ export interface PluginScreenProps {
 
 export function PluginScreen(props: PluginScreenProps) {
   const pins = createMemo(() => new Set(props.lib.pins))
-  const itemOf = (it: Item): LibraryItem => ({
-    id: it.id,
-    note: it.note,
-    name: it.name,
-    ext: it.ext,
-    project: it.project,
-    tags: it.tags,
-    ...(it.body !== undefined && { body: it.body }),
-    memo: it.memo,
-    ...(it.mtime !== undefined && { mtime: it.mtime }),
-    pinned: pins().has(it.id),
-    ratio: it.ratio,
-    ...(it.thumb && { thumb: it.thumb }),
-    ...(it.src && { url: it.src }),
-  })
+  const itemOf = (it: Item): LibraryItem => libraryItemOf(it, pins())
   const items = createMemo(() => props.lib.items.map(itemOf))
   const subs = new Set<() => void>()
   createEffect(
@@ -59,6 +48,8 @@ export function PluginScreen(props: PluginScreenProps) {
   }
   const api: ScreenApi = {
     ...props.own,
+    targets: () => props.targets.flatMap((id) => api.item(id) ?? []),
+    inWindow: false,
     items: () => items(),
     item: (id) => {
       const it = props.lib.byId.get(id)

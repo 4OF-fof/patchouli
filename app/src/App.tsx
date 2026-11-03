@@ -70,6 +70,8 @@ import {
 import { FormatsProvider } from './plugins/formats'
 import type { MenuGroup, ScreenInfo } from './plugins/types'
 import type { NewNote, OpenOptions, OwnApi } from '../plugins/sdk'
+import { ITEMS, REPLY, STATE, type FromWindow, type Reply, type WindowCall, type WindowState } from './window/protocol'
+import { libraryItemOf } from './screens/Plugin/libraryItem'
 import { type HoverHost, HoverHostProvider } from './components/media/HoverPreview/HoverPreview'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import type { Activity } from './components/nav/ActivityButton/ActivityButton'
@@ -135,7 +137,7 @@ type View =
   | { s: 'asset'; list: string[]; index: number; at?: number }
   | { s: 'tidy'; id?: string }
   | { s: 'web'; url: string }
-  | { s: 'screen'; plugin: string; id: string }
+  | { s: 'screen'; plugin: string; id: string; targets?: string[] }
 
 const LABEL: Record<View['s'], string> = {
   edition: 'ホーム',
@@ -232,8 +234,9 @@ function viewOf(lib: Library, screens: ScreenInfo[], v: unknown): View | undefin
     }
     case 'screen': {
       const [plugin, id] = [str(x.plugin), str(x.id)]
+      const targets = Array.isArray(x.targets) ? x.targets.filter((t): t is string => typeof t === 'string') : []
       return screens.some((s) => s.plugin === plugin && s.id === id) && plugin && id
-        ? { s: 'screen', plugin, id }
+        ? { s: 'screen', plugin, id, ...(targets.length && { targets }) }
         : undefined
     }
   }
@@ -303,7 +306,7 @@ export function App(props: AppProps) {
     return { id: tabSeq++, stack, setStack: (s) => setStack(s), from }
   }
   const startView = (): View => {
-    const s = untrack(screens).find((x) => screenStart(x.plugin, x.id) === prefs().start)
+    const s = untrack(screens).find((x) => x.place && screenStart(x.plugin, x.id) === prefs().start)
     return s ? { s: 'screen', plugin: s.plugin, id: s.id } : { s: 'edition' }
   }
   const [tabs, setTabs] = createSignal<Tab[]>([makeTab([startView()])])
@@ -866,6 +869,12 @@ export function App(props: AppProps) {
         } else if (r.output && 'toast' in r.output) setNotice(r.output.toast)
         if (r.output && 'overlay' in r.output)
           setMenuResult({ title: r.output.overlay.title ?? label ?? 'プラグインの結果', rows: r.output.overlay.rows })
+        if (r.output && 'screen' in r.output) {
+          const { id, window } = r.output.screen
+          const s = screens().find((x) => x.plugin === plugin && x.id === id)
+          if (s) void openScreen(s, ids, window === true).catch(fail)
+          else setNotice(`プラグインの画面「${id}」が見つかりません`)
+        }
       },
       (e: unknown) => setNotice(`プラグインの処理に失敗しました：${messageOf(e)}`),
     )
@@ -914,6 +923,7 @@ export function App(props: AppProps) {
         lib={lib()}
         url={s && backend.uiUrl?.(s)}
         screen={v.id}
+        targets={v.targets ?? []}
         label={s?.label ?? LABEL.screen}
         own={backend.ownApi?.(v.plugin) ?? NO_OWN}
         onOpen={(id, o) => openWith(o, () => openItem(id))}
@@ -926,6 +936,115 @@ export function App(props: AppProps) {
       />
     )
   }
+  /** 画面のウィンドウ（label → 出しているもの）。ライブラリはこちらが持ち、ウィンドウには写しを送る。 */
+  const screenWins = new Map<string, { screen: ScreenInfo; targets: string[] }>()
+  const pinSet = createMemo(() => new Set(lib().pins))
+  const windowItems = () => lib().items.map((it) => libraryItemOf(it, pinSet()))
+  const sendState = (label: string) => {
+    const w = screenWins.get(label)
+    if (!w) return
+    const ws: WindowState = {
+      plugin: w.screen.plugin,
+      screen: w.screen.id,
+      label,
+      url: backend.uiUrl?.(w.screen) ?? '',
+      items: windowItems(),
+      targets: w.targets,
+    }
+    void backend.screenWindows?.send(label, STATE, ws)
+  }
+  /** 別のウィンドウで開けないときは、タブで開く。 */
+  const openScreen = async (s: ScreenInfo, targets: string[], inWindow: boolean) => {
+    const sw = backend.screenWindows
+    if (!inWindow || !sw) {
+      go({ s: 'screen', plugin: s.plugin, id: s.id, ...(targets.length && { targets }) })
+      return
+    }
+    const { label, existed } = await sw.open(s)
+    screenWins.set(label, { screen: s, targets })
+    if (existed) sendState(label)
+  }
+  createEffect(() => {
+    lib()
+    untrack(() => {
+      if (!screenWins.size) return
+      const items = windowItems()
+      for (const label of screenWins.keys()) void backend.screenWindows?.send(label, ITEMS, items)
+    })
+  })
+  const needItem = (id: string) => {
+    const it = lib().byId.get(id)
+    if (!it) throw new Error(`項目「${id}」が見つかりません`)
+    return it
+  }
+  const toFront = (o: OpenOptions | undefined, open: () => void) => {
+    openWith(o, open)
+    backend.screenWindows?.focusMain()
+  }
+  const windowCall = async (plugin: string, c: WindowCall): Promise<Omit<Reply, 'req'>> => {
+    const own = backend.ownApi?.(plugin) ?? NO_OWN
+    switch (c.method) {
+      case 'settings':
+        return { settings: await own.settings() }
+      case 'getData':
+        return { data: await own.getData(c.args[0]) }
+      case 'setSetting':
+        await own.setSetting(c.args[0], c.args[1])
+        break
+      case 'setData':
+        await own.setData(c.args[0], c.args[1] ?? undefined)
+        break
+      case 'open':
+        toFront(c.args[1], () => openItem(needItem(c.args[0]).id))
+        break
+      case 'openTag':
+        toFront(c.args[1], () => go({ s: 'tag', tag: c.args[0] }))
+        break
+      case 'openProject': {
+        const [name, o] = c.args
+        if (!lib().projectBy.has(name)) throw new Error(`プロジェクト「${name}」が見つかりません`)
+        toFront(o, () => go({ s: 'project', name }))
+        break
+      }
+      case 'createNote': {
+        const n = c.args[0]
+        if (n.project != null && !lib().projectBy.has(n.project))
+          throw new Error(`プロジェクト「${n.project}」が見つかりません`)
+        const it = await addNoteWith(n)
+        if (!it) throw new Error('ノートを作成できませんでした')
+        return { item: libraryItemOf(lib().byId.get(it.id) ?? it, pinSet()) }
+      }
+      case 'setBody': {
+        const [id, body] = c.args
+        if (!needItem(id).note) throw new Error('ノートではありません')
+        editItem(id, { body }, { body })
+        break
+      }
+      case 'setTags':
+        needItem(c.args[0])
+        setTags(c.args[0], c.args[1])
+        break
+      case 'rename':
+        needItem(c.args[0])
+        renameItem(c.args[0], c.args[1])
+        break
+    }
+    return {}
+  }
+  const onWindow = (m: FromWindow) => {
+    const w = screenWins.get(m.label)
+    if (!w) return
+    if (m.kind === 'ready') {
+      sendState(m.label)
+      return
+    }
+    const reply = (r: Omit<Reply, 'req'>) => void backend.screenWindows?.send(m.label, REPLY, { req: m.req, ...r })
+    windowCall(w.screen.plugin, m).then(reply, (e: unknown) => reply({ error: messageOf(e) }))
+  }
+  onMount(() => {
+    const off = backend.screenWindows?.listen(onWindow)
+    if (off) onCleanup(off)
+  })
   const embedHost = () => ({
     format: (ext: string) => lib().formats.get(ext),
     view: backend.itemView,
@@ -1194,7 +1313,9 @@ export function App(props: AppProps) {
   }
   const screenPlace = (v: View) => (v.s === 'screen' ? screenStart(v.plugin, v.id) : undefined)
   const screenPlaces = (): ScreenPlace[] =>
-    screens().map((s) => ({ place: screenStart(s.plugin, s.id), label: s.label, icon: screenIcon(s) }))
+    screens()
+      .filter((s) => s.place)
+      .map((s) => ({ place: screenStart(s.plugin, s.id), label: s.label, icon: screenIcon(s) }))
   const here = (): Place | undefined =>
     view().s === 'edition'
       ? 'home'

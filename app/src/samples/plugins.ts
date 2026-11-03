@@ -22,7 +22,15 @@ export const SAMPLE_FORMATS: ReadonlyMap<string, FormatInfo> = resolved.formats
 export const SAMPLE_SCREENS: ScreenInfo[] = EXAMPLES.flatMap(({ manifest: m }) => {
   const module = m.elevated
   if (!module) return []
-  return Object.entries(m.screens ?? {}).map(([id, d]) => ({ id, label: d.label, icon: d.icon, plugin: m.id, module }))
+  return Object.entries(m.screens ?? {}).map(([id, d]) => ({
+    id,
+    label: d.label,
+    icon: d.icon,
+    place: d.place ?? true,
+    window: { width: d.window?.width ?? 480, height: d.window?.height ?? 640 },
+    plugin: m.id,
+    module,
+  }))
 })
 
 /** 例のプラグインの elevated の URL。ビルドしていなければ空。 */

@@ -157,6 +157,11 @@ export async function uiMenu(url: string, api: MenuApi): Promise<MenuItem[]> {
 export const menuOutputOf = (v: unknown): MenuOutput | undefined => {
   const toast: unknown = Reflect.get(Object(v), 'toast')
   if (typeof toast === 'string') return { toast }
+  const s: unknown = Reflect.get(Object(v), 'screen')
+  if (typeof s === 'object' && s !== null) {
+    const id: unknown = Reflect.get(s, 'id')
+    return typeof id === 'string' ? { screen: { id, window: Reflect.get(s, 'window') === true } } : undefined
+  }
   const o: unknown = Reflect.get(Object(v), 'overlay')
   if (typeof o !== 'object' || o === null) return undefined
   const title: unknown = Reflect.get(o, 'title')

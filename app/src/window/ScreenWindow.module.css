@@ -1,0 +1,12 @@
+.root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--paper);
+}
+.view {
+  flex: 1;
+  min-height: 0;
+}

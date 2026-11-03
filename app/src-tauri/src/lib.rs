@@ -265,6 +265,10 @@ enum MenuOutput {
         title: Option<String>,
         rows: Vec<Detail>,
     },
+    Screen {
+        id: String,
+        window: bool,
+    },
 }
 
 /// run-menu の結果。copy は写すもの、items は作ったノートと登録した素材、failed は起こせなかったこと。
@@ -295,6 +299,7 @@ fn finish_menu(
             title,
             rows: rows_of(rows),
         }),
+        MenuShown::Screen { id, window } => Some(MenuOutput::Screen { id, window }),
     };
     let mut done = MenuDone {
         output,
@@ -1318,6 +1323,44 @@ async fn browser_close_all(
     web::close_all(&app, &pages)
 }
 
+#[derive(Serialize)]
+struct ScreenWindow {
+    label: String,
+    /// もう開いていたか。開いていたものは前に出す。
+    existed: bool,
+}
+
+/// プラグインの画面だけを出す別のウィンドウを開く。同じ画面のものがあれば、それを使う。
+#[tauri::command]
+async fn open_screen_window(
+    app: tauri::AppHandle,
+    plugin: String,
+    screen: String,
+    title: String,
+    width: f64,
+    height: f64,
+) -> Result<ScreenWindow, String> {
+    let key = thumb::fnv(&[plugin.as_bytes(), b"\0", screen.as_bytes()]);
+    let label = format!("{}{key:016x}", web::SCREEN);
+    if let Some(w) = app.get_webview_window(&label) {
+        let _ = w.unminimize();
+        w.set_focus().map_err(|e| e.to_string())?;
+        return Ok(ScreenWindow {
+            label,
+            existed: true,
+        });
+    }
+    tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App("index.html".into()))
+        .title(title)
+        .inner_size(width.clamp(240.0, 4096.0), height.clamp(200.0, 4096.0))
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(ScreenWindow {
+        label,
+        existed: false,
+    })
+}
+
 /// プラグイン 1 つが右クリックメニューに足すもの。elevated が受け持つときは、items は空で画面が作る。
 #[derive(Serialize)]
 struct MenuGroup {
@@ -2313,14 +2356,15 @@ pub fn run() {
             browser_layer,
             browser_hide,
             browser_close,
-            browser_close_all
+            browser_close_all,
+            open_screen_window
         ]);
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Current::default())
         .manage(web::Pages::default())
         .register_uri_scheme_protocol("plugin", |ctx, req| {
-            if ctx.webview_label() != web::MAIN {
+            if !web::ours(ctx.webview_label()) {
                 return plugin::files::serve("", None);
             }
             plugin_file(ctx.app_handle(), &req)
@@ -2331,6 +2375,12 @@ pub fn run() {
                 return true;
             }
             commands(invoke)
+        })
+        .on_window_event(|w, e| {
+            // 画面のウィンドウは本体の窓とやり取りして動くので、本体の窓と一緒に閉じる
+            if w.label() == web::MAIN && matches!(e, tauri::WindowEvent::Destroyed) {
+                web::close_screens(w.app_handle());
+            }
         })
         .setup(|app| {
             // 前に起動したときに広げた開発版は、もう使っていない
