@@ -94,7 +94,7 @@ const dark = () => typeof matchMedia === 'function' && matchMedia('(prefers-colo
 export const themeOf = (p: Prefs): 'light' | 'dark' => (p.theme === 'system' ? (dark() ? 'dark' : 'light') : p.theme)
 
 const SCALE = { S: 0.85, M: 1, L: 1.2 } as const
-const NOTE_WIDTH = { narrow: 640, normal: 760, wide: 960 } as const
+const NOTE_WIDTH = { narrow: 640, normal: 880, wide: 1080 } as const
 
 /** 設定を、ページ全体のテーマと CSS 変数に写す。設定や OS のテーマが変わるたびに呼ぶ。 */
 export const applyPrefs = (p: Prefs, root = document.documentElement) => {

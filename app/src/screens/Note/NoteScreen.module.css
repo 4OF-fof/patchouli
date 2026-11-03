@@ -3,17 +3,17 @@
   min-height: 0;
 }
 .doc {
-  max-width: var(--note-width, 760px);
+  max-width: var(--note-width, 880px);
   margin: 0 auto;
   padding: 96px var(--space-40) 140px;
   display: flex;
   flex-direction: column;
   gap: var(--space-14);
 }
-/* 見出しのカードを開いているとき、中くらいの窓では本文を右へ寄せてカードと重ねない */
-@media (min-width: 861px) and (max-width: 1319px) {
+/* 見出しのカードを開いているとき、左の余白がカードより狭ければ本文を右へ寄せてカードと重ねない */
+@media (min-width: 861px) {
   [data-heads='true'] .doc {
-    margin-left: 260px;
+    margin-left: max(260px, (100% - var(--note-width, 880px)) / 2);
     margin-right: auto;
   }
 }
@@ -131,7 +131,7 @@
 .card {
   position: absolute;
   z-index: 5;
-  width: min(300px, calc(50% - 380px));
+  width: min(300px, calc(50% - var(--note-width, 880px) / 2));
   min-width: 220px;
   max-height: calc(100% - 90px);
   display: flex;

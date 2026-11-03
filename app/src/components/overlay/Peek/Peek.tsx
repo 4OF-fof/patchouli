@@ -6,6 +6,8 @@ import styles from './Peek.module.css'
 export interface PeekProps {
   label: string
   onExpand?: () => void
+  /** あれば、既定のブラウザで開くボタンを一番下に出す。 */
+  onOpenDefault?: () => void
   onClose: () => void
   children?: JSX.Element
 }
@@ -45,6 +47,16 @@ export function Peek(props: PeekProps) {
             onClick={() => props.onExpand?.()}
           >
             <Icon name="fullscreen" size={16} />
+          </button>
+        )}
+        {props.onOpenDefault && (
+          <button
+            type="button"
+            data-tip="既定のブラウザで開く"
+            aria-label="既定のブラウザで開く"
+            onClick={() => props.onOpenDefault?.()}
+          >
+            <Icon name="external" size={16} />
           </button>
         )}
       </div>

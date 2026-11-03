@@ -39,6 +39,15 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 6;
 }
+/* 縦に長すぎるものだけ切り詰め、上下や左右に余白の帯を出さない */
+.image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 360px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
 .missing {
   color: var(--danger);
 }

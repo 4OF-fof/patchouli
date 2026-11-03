@@ -15,7 +15,12 @@ import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { menuBelow, useItemMenu } from '../../components/media/Thumb/Thumb'
 import { useTabActive } from '../../components/nav/TabPane/TabPane'
 import { BarButton, useBarTools } from '../AppBar'
-import { type Embed, NoteEditor, type NoteEditorApi } from '../../components/editor/NoteEditor/NoteEditor'
+import {
+  type Embed,
+  NoteEditor,
+  type NoteEditorApi,
+  type UrlPreview,
+} from '../../components/editor/NoteEditor/NoteEditor'
 import { type Item, type Library, type Place, headingsOf, placeOf, refsOf, relDay } from '../../model/library'
 import { prefs } from '../../model/prefs'
 import shared from '../screen.module.css'
@@ -42,7 +47,7 @@ export interface NoteScreenProps {
   onCreateNote?: (name: string, place: Place) => Promise<Item | undefined>
   embedOf?: (it: Item) => Promise<Embed | undefined>
   urlEmbedOf?: (url: string, image: boolean) => Promise<Embed | undefined>
-  onOpenUrl?: (url: string) => void
+  urlPreviewOf?: (url: string) => Promise<UrlPreview>
   onOpenPage?: (url: string) => void
   onImport?: (files: File[], place: Place) => Promise<Item[]>
   editorRef?: (api: NoteEditorApi | undefined) => void
@@ -216,7 +221,7 @@ export function NoteScreen(props: NoteScreenProps) {
                 onCreateNote={async (name) => props.onCreateNote?.(name, placeOf(n()))}
                 embedOf={props.embedOf}
                 urlEmbedOf={props.urlEmbedOf}
-                onOpenUrl={props.onOpenUrl}
+                urlPreviewOf={props.urlPreviewOf}
                 onOpenPage={props.onOpenPage}
                 onImport={props.onImport && ((files) => props.onImport?.(files, placeOf(n())) ?? Promise.resolve([]))}
                 ref={(api) => {

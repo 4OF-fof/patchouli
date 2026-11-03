@@ -304,6 +304,8 @@ export interface Backend {
   uiUrl?: (ui: UiRef) => string
   /** url の part を受け持つもの。 */
   linkOf?: (url: string, part: LinkPart) => LinkShown
+  /** URL の素材と同じ作り方のサムネイル（blob の URL）。作れなければ undefined。 */
+  linkThumb?: (url: string) => Promise<string | undefined>
   /** URL を既定のアプリで開く。 */
   openUrl?: (url: string) => Promise<void>
   /** タブの中に出す外のページ。ないときは iframe で出す。 */

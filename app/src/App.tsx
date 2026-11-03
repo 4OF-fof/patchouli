@@ -91,7 +91,7 @@ import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
 import { GroupScreen } from './screens/Group/GroupScreen'
 import { NoteScreen } from './screens/Note/NoteScreen'
-import type { NoteEditorApi } from './components/editor/NoteEditor/NoteEditor'
+import type { NoteEditorApi, UrlPreview } from './components/editor/NoteEditor/NoteEditor'
 import { embedOf as embedFor, urlEmbedOf as urlEmbedFor } from './screens/Note/embed'
 import { WebScreen } from './screens/Web/WebScreen'
 import { hostOf } from './plugins/links'
@@ -704,6 +704,16 @@ export function App(props: AppProps) {
     linkOf: backend.linkOf,
   })
   const embedOf = (it: Item) => embedFor(it, embedHost())
+  const urlPreviewOf = async (url: string): Promise<UrlPreview> => {
+    const [page, thumb] = await Promise.all([
+      backend
+        .linkOf?.(url, 'details')
+        .page()
+        .catch(() => undefined),
+      backend.linkThumb?.(url).catch(() => undefined),
+    ])
+    return { title: page?.title, thumb }
+  }
   /** 設定に合わせて、内蔵ブラウザ（新しい画面）か既定のアプリで開く。 */
   const openUrl = async (url: string) => {
     const s = await backend.appSettings?.get().catch(() => undefined)
@@ -1115,7 +1125,7 @@ export function App(props: AppProps) {
       onCreateNote={addNote}
       embedOf={embedOf}
       urlEmbedOf={(url, image) => urlEmbedFor(url, embedHost(), image)}
-      onOpenUrl={openUrl}
+      urlPreviewOf={urlPreviewOf}
       onOpenPage={openPage}
       onImport={backend.importData && importFiles}
       editorRef={tab ? (api) => (api ? editors.set(tab.id, api) : editors.delete(tab.id)) : undefined}
@@ -1422,6 +1432,7 @@ export function App(props: AppProps) {
                           const t = tabs().find((x) => !before.has(x))
                           if (t) setCurrentTab(t)
                         }}
+                        onOpenDefault={backend.openUrl && (() => void backend.openUrl?.(url).catch(fail))}
                         onClose={() => setPeekUrl(undefined)}
                       >
                         {webScreen(url)}

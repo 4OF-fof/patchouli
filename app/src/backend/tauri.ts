@@ -255,6 +255,7 @@ export function tauriBackend(): Backend {
   /** 素材が指す URL。ui は link を受け持つもの。 */
   const readLink = (item: UiItem, ui: UiRef) => uiLink(pluginUrl(ui.plugin, ui.module), uiApi(item, 'link', ui.plugin))
 
+  const linkThumbs = new Map<string, Promise<string | undefined>>()
   const linkThumbnail = async (url: string) => {
     const h = handlerOf(links, url)
     if (h?.parts.includes('thumbnail')) return uiLinkThumbnail(pluginUrl(h.plugin, h.module), linkApi(url, h.plugin))
@@ -700,6 +701,17 @@ export function tauriBackend(): Backend {
         ui: h?.parts.includes(part) ? { url: pluginUrl(h.plugin, h.module), api: linkApi(url, h.plugin) } : undefined,
         page: () => pageOf(url, hostFetch),
       }
+    },
+    linkThumb(url) {
+      let t = linkThumbs.get(url)
+      if (!t) {
+        t = linkThumbnail(url).then((x) =>
+          x ? URL.createObjectURL(x.png instanceof Blob ? x.png : new Blob([new Uint8Array(x.png)])) : undefined,
+        )
+        linkThumbs.set(url, t)
+        t.catch(() => linkThumbs.delete(url))
+      }
+      return t
     },
     openUrl: (url) => invoke('open_url', { url }),
     browser: {

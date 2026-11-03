@@ -12,6 +12,8 @@ export interface QuickViewProps {
   text?: string
   /** 素材のサムネイル。 */
   thumb?: ThumbProps
+  /** 縦横比のまま幅いっぱいに出す画像。表示の高さは画像に合わせる。 */
+  image?: string
   left: number
   top: number
 }
@@ -39,6 +41,7 @@ export function QuickView(props: QuickViewProps) {
           <p class={styles.text}>{props.text || 'まだ本文がありません'}</p>
         </Show>
         <Show when={props.thumb}>{(t) => <Thumb {...t()} fit="contain" height={180} />}</Show>
+        <Show when={props.image}>{(src) => <img class={styles.image} src={src()} alt="" />}</Show>
       </Show>
       <span class={styles.hint}>Ctrl+クリックで開く</span>
     </div>

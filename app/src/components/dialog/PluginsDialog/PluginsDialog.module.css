@@ -169,8 +169,11 @@
 .mainView {
   padding: var(--space-28) var(--space-40) var(--space-40);
 }
+/* 説明が文節の途中や 1 字だけで折り返さないようにする */
 .page {
   max-width: 640px;
+  word-break: auto-phrase;
+  text-wrap: pretty;
   --setting-label-size: var(--fs-body);
   --setting-label-color: var(--ink);
 }

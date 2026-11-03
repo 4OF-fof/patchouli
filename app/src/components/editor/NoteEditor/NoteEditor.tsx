@@ -4,7 +4,8 @@ import { languages } from '@codemirror/language-data'
 import { EditorState, Prec, Transaction } from '@codemirror/state'
 import { EditorView, type ViewUpdate, keymap } from '@codemirror/view'
 import { GFM } from '@lezer/markdown'
-import { For, Show, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { hostOf } from '../../../plugins/links'
 import { EMBED_SCALES, type Item, type Library, type Place, hrefOf, plainText, thumbOf } from '../../../model/library'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
@@ -58,9 +59,8 @@ export interface NoteEditorProps {
   embedOf?: (it: Item) => Promise<Embed | undefined>
   /** URL を埋め込んだときの表示。image は、まだ画像として読んでいないか。undefined なら画像として出す */
   urlEmbedOf?: (url: string, image: boolean) => Promise<Embed | undefined>
-  /** 外の URL のリンクを Ctrl+クリックしたとき。 */
-  onOpenUrl?: (url: string) => void
-  /** URL の埋め込みを Ctrl+クリックしたとき。 */
+  urlPreviewOf?: (url: string) => Promise<UrlPreview>
+  /** 外の URL のリンクか埋め込みを Ctrl+クリックしたとき。 */
   onOpenPage?: (url: string) => void
   /** 貼り付けたり落としたりしたファイルを素材として取り込む。 */
   onImport?: (files: File[]) => Promise<Item[]>
@@ -92,8 +92,17 @@ interface Picking {
   scale?: number
 }
 
+/** ホバーしているもの。id は素材やノートへのリンク、url は外の URL へのリンク。同じリンク先でも、要素が違えば出し直す。 */
 interface Hover extends At {
-  id: string
+  el: Element
+  id?: string
+  url?: string
+}
+
+/** 外の URL のリンクにホバーしたときに見せるもの。thumb は URL の素材のサムネイルと同じもの。 */
+export interface UrlPreview {
+  title?: string
+  thumb?: string
 }
 
 const BAR: { mark: string; icon: IconName; label: string; wrap: string }[] = [
@@ -289,14 +298,15 @@ export function NoteEditor(props: NoteEditorProps) {
   const hoverOn = (el: Element | null) => {
     if (hoverTimer) clearTimeout(hoverTimer)
     const id = el instanceof HTMLElement ? el.dataset.ref : undefined
-    if (!el || !id) {
+    const url = el instanceof HTMLElement && !id ? el.dataset.href : undefined
+    if (!el || (!id && !url)) {
       hoverTimer = setTimeout(() => setHover(undefined), 120)
       return
     }
-    if (hover()?.id === id) return
+    if (hover()?.el === el) return
     hoverTimer = setTimeout(() => {
       const r = el.getBoundingClientRect()
-      setHover({ id, left: r.left, top: r.top, bottom: r.bottom })
+      setHover({ el, id, url, left: r.left, top: r.top, bottom: r.bottom })
     }, 250)
   }
 
@@ -357,14 +367,13 @@ export function NoteEditor(props: NoteEditorProps) {
               if (!id && !href && !page) return false
               e.preventDefault()
               setHover(undefined)
-              const open = () =>
-                id ? props.onOpenRef?.(id) : href ? props.onOpenUrl?.(href) : page && props.onOpenPage?.(page)
+              const open = () => (id ? props.onOpenRef?.(id) : (href ?? page) && props.onOpenPage?.(href ?? page ?? ''))
               if (middle) asNewTab(open)
               else open()
               return true
             },
             mouseover: (e) => {
-              const el = e.target instanceof Element ? e.target.closest('[data-ref]') : null
+              const el = e.target instanceof Element ? e.target.closest('[data-ref], [data-href]') : null
               // 埋め込みは中身がもう見えているので、浮かべない
               hoverOn(el?.classList.contains(styles.embed) ? null : el)
             },
@@ -434,7 +443,11 @@ export function NoteEditor(props: NoteEditorProps) {
     })
   })
 
+  // 送ってリンクが動いたら、浮かべた表示は元の位置に残さず消す
+  const unhover = () => setHover(undefined)
+  window.addEventListener('scroll', unhover, true)
   onCleanup(() => {
+    window.removeEventListener('scroll', unhover, true)
     flush()
     if (hoverTimer) clearTimeout(hoverTimer)
     view?.destroy()
@@ -548,8 +561,14 @@ export function NoteEditor(props: NoteEditorProps) {
   /** ホバーしているリンク先。カーソルのあるリンクはメニューを出すので浮かべない。 */
   const shown = () => {
     const h = hover()
-    return h && h.id !== active()?.id ? { id: h.id, left: h.left, top: h.bottom + 6 } : undefined
+    const a = active()
+    const same = h?.id ? h.id === a?.id : h?.url === a?.href
+    return h && !same ? { id: h.id, url: h.url, left: h.left, top: h.bottom + 6 } : undefined
   }
+  const [preview] = createResource(
+    () => shown()?.url,
+    (url) => props.urlPreviewOf?.(url).catch(() => undefined),
+  )
 
   return (
     <>
@@ -679,12 +698,25 @@ export function NoteEditor(props: NoteEditorProps) {
           )
         }}
       </Show>
-      <Show when={!selected() && shown()}>
+      <Show when={!selected() && shown()?.url}>
+        {(url) => (
+          <QuickView
+            id={url()}
+            name={preview()?.title ?? hostOf(url()) ?? url()}
+            kind="URL"
+            text={url()}
+            image={preview()?.thumb}
+            left={shown()?.left ?? 0}
+            top={shown()?.top ?? 0}
+          />
+        )}
+      </Show>
+      <Show when={!selected() && shown()?.id ? shown() : undefined}>
         {(s) => {
-          const it = () => props.lib.byId.get(s().id)
+          const it = () => props.lib.byId.get(s().id ?? '')
           return (
             <QuickView
-              id={s().id}
+              id={s().id ?? ''}
               name={it()?.name}
               kind={it()?.note ? 'ノート' : it()?.ext.toUpperCase()}
               text={it()?.note ? plainText(it()?.body ?? '').slice(0, 240) : undefined}
