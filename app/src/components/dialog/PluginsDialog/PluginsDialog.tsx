@@ -45,7 +45,8 @@ const PART: Record<Part, string> = {
 
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [
   { label: 'ファイル形式', has: (p) => !p.dev && p.formats.length > 0 },
-  { label: 'その他', has: (p) => !p.dev && p.formats.length === 0 },
+  { label: 'URL', has: (p) => !p.dev && p.formats.length === 0 && !!p.links?.length },
+  { label: 'その他', has: (p) => !p.dev && p.formats.length === 0 && !p.links?.length },
   { label: '開発版', has: (p) => p.dev },
 ]
 
@@ -92,21 +93,27 @@ const needs = (p: PluginStatus, k: keyof Deps): Need[] => [
 const need = (d: { need: string; min?: string; from?: string }) =>
   [d.need, d.min && `${d.min} 以上`, d.from && `${d.from} から使用`].filter(Boolean).join(' · ')
 
-const perms = (p: PluginStatus) => [
-  ...(p.formats.length ? [{ label: 'ファイルの読み取り', text: '対応形式のファイルのみ', full: false }] : []),
-  ...(needs(p, 'commands').length
-    ? [
-        {
-          label: '外部ツールの実行',
-          text: [...new Set(needs(p, 'commands').map((n) => n.name))].join(', '),
-          full: false,
-        },
-      ]
-    : []),
-  ...(p.caps.some((c) => c.by === 'elevated')
-    ? [{ label: 'フルアクセス', text: 'アプリの画面上で直接動作し、すべての機能にアクセス可能', full: true }]
-    : []),
-]
+// フルアクセスはほかの権限を含むので、それと並べるのは外部ツールの実行だけにする
+const perms = (p: PluginStatus) => {
+  const full = p.caps.some((c) => c.by === 'elevated')
+  return [
+    ...(full
+      ? [{ label: 'フルアクセス', text: 'アプリの画面上で直接動作し、すべての機能にアクセス可能', full: true }]
+      : []),
+    ...(!full && p.formats.length
+      ? [{ label: 'ファイルの読み取り', text: '対応形式のファイルのみ', full: false }]
+      : []),
+    ...(needs(p, 'commands').length
+      ? [
+          {
+            label: '外部ツールの実行',
+            text: [...new Set(needs(p, 'commands').map((n) => n.name))].join(', '),
+            full: false,
+          },
+        ]
+      : []),
+  ]
+}
 
 const latest = <T,>(f: () => T | undefined) => createMemo<T>((prev) => f() ?? prev, f()!)
 

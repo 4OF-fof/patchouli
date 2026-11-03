@@ -230,6 +230,12 @@ impl Manifest {
                     by: By::Elevated,
                 }))
             })
+            .chain(self.links.values().flat_map(|d| {
+                d.elevated.iter().map(|&part| Cap {
+                    part,
+                    by: By::Elevated,
+                })
+            }))
             .filter(|c| c.part != Part::Unknown)
             .collect();
         out.sort();

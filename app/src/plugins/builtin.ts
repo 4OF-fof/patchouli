@@ -178,7 +178,9 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
 const resolvedBuiltin = resolveFormats(BUILTIN_MANIFESTS)
 
 const capsOf = (m: Manifest): Cap[] => {
-  const has = (p: Part, k: 'sandbox' | 'elevated') => Object.values(m.formats ?? {}).some((d) => d[k]?.includes(p))
+  const has = (p: Part, k: 'sandbox' | 'elevated') =>
+    Object.values(m.formats ?? {}).some((d) => d[k]?.includes(p)) ||
+    (k === 'elevated' && Object.values(m.links ?? {}).some((d) => d.elevated?.some((x) => x === p)))
   return [
     ...PARTS.filter((p) => has(p, 'sandbox')).map((part): Cap => ({ part, by: 'sandbox' })),
     ...PARTS.filter((p) => has(p, 'elevated')).map((part): Cap => ({ part, by: 'elevated' })),
@@ -204,6 +206,7 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
     .filter((f) => f.plugin === m.id)
     .map((f) => f.ext)
     .toSorted(),
+  links: Object.keys(m.links ?? {}).toSorted(),
   settings: [],
   problems: r.problems.get(m.id) ?? [],
 })
