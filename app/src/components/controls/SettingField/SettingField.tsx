@@ -23,9 +23,12 @@ export function SettingField(props: SettingFieldProps) {
   }
   return (
     <div class={styles.root}>
-      <label class={styles.label} for={id}>
-        {s().label}
-      </label>
+      <div class={styles.text}>
+        <label class={styles.label} for={id}>
+          {s().label}
+        </label>
+        {s().help && <p class={styles.help}>{s().help}</p>}
+      </div>
       <Switch>
         <Match when={s().kind === 'toggle'}>
           <input
@@ -71,7 +74,6 @@ export function SettingField(props: SettingFieldProps) {
           />
         </Match>
       </Switch>
-      {s().help && <p class={styles.help}>{s().help}</p>}
     </div>
   )
 }

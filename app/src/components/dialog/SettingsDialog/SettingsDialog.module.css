@@ -66,20 +66,31 @@
   min-height: 0;
 }
 .mainView {
-  padding: var(--space-28) var(--space-32) var(--space-32);
+  padding: var(--space-28) var(--space-40) var(--space-40);
+}
+.page {
+  max-width: 640px;
+  --setting-label-size: var(--fs-body);
+  --setting-label-color: var(--ink);
 }
 .page + .page {
-  margin-top: var(--space-32);
+  margin-top: var(--space-40);
 }
 .head {
-  margin: 0 var(--space-20) var(--space-16) 0;
+  margin: 0 var(--space-20) var(--space-12) 0;
   font-size: var(--fs-heading);
   font-weight: 600;
 }
-.entries {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-16);
+.group + .group {
+  margin-top: var(--space-28);
+}
+.label {
+  flex: 1;
+  min-width: 0;
+  margin: 0 0 var(--space-6);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--muted);
 }
 .search {
   display: flex;
@@ -117,19 +128,16 @@
   flex-direction: column;
   gap: var(--space-2);
 }
-.what b {
+.name {
+  flex: 1;
+  min-width: 0;
   font-size: var(--fs-body);
-  font-weight: 600;
 }
-.tool {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  padding: var(--space-8) 0;
-  border-bottom: 1px solid var(--line);
+.what .name {
+  flex: none;
 }
 .note {
-  margin: var(--space-4) 0 0;
+  margin: var(--space-8) 0 0;
   font-size: var(--fs-meta);
   color: var(--muted);
 }
@@ -145,30 +153,27 @@
   background: var(--danger-soft);
   color: var(--danger);
 }
+.field,
+.row {
+  min-height: 56px;
+  padding: var(--space-10) 0;
+  border-top: 1px solid var(--line);
+}
+.field {
+  display: grid;
+  align-items: center;
+}
 .row {
   display: flex;
   align-items: center;
-  gap: var(--space-12);
-  padding: var(--space-8) 0;
+  gap: var(--space-16);
 }
-.row b {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--fs-body);
-  font-weight: 600;
-}
-/* AI 機能を有効にしたときだけ出す設定。上のスイッチにつながって見えるよう、線で寄せる */
 .sub {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-12);
-  margin: var(--space-12) 0 var(--space-4) var(--space-4);
-  padding-left: var(--space-14);
-  border-left: 2px solid var(--line);
+  padding-left: var(--space-24);
 }
-.mono {
+.value {
   font: 400 var(--fs-meta) var(--f-mono);
-  color: var(--muted);
+  color: var(--ink-2);
 }
 .loading,
 .empty {
@@ -177,43 +182,55 @@
   color: var(--muted);
 }
 .places {
-  padding: var(--space-8) 0;
+  margin-top: var(--space-28);
 }
 .placesHead {
   display: flex;
   align-items: center;
   gap: var(--space-12);
-  margin-bottom: var(--space-4);
+  margin-bottom: var(--space-2);
 }
-.placesHead span {
-  flex: 1;
-  min-width: 0;
-  font-size: var(--fs-body);
-  font-weight: 600;
+.placesHead .label {
+  margin: 0;
 }
 .place {
   display: flex;
   align-items: center;
-  gap: var(--space-12);
-  padding: var(--space-2) 0;
+  gap: var(--space-16);
+  min-height: 44px;
+  padding: var(--space-6) 0;
+  border-top: 1px solid var(--line);
+}
+.place .path {
+  flex: 1;
+  color: var(--ink-2);
+}
+.none {
+  margin: 0;
+  padding: var(--space-12) 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-list);
+  color: var(--muted);
 }
 .path {
-  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font: 400 var(--fs-meta) var(--f-mono);
-  color: var(--ink-2);
+  color: var(--muted);
 }
 .path[data-ok='false'] {
   color: var(--danger);
+}
+.notices {
+  border-top: 1px solid var(--line);
 }
 .notices > summary {
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  padding: var(--space-8) 0;
+  min-height: 56px;
   font-size: var(--fs-body);
   cursor: pointer;
   list-style: none;
@@ -231,15 +248,6 @@
 }
 .notices[open] > summary::before {
   transform: rotate(90deg);
-}
-.notices > summary b {
-  font-weight: 600;
-}
-.reload {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: var(--space-8);
-  padding: var(--space-8) 0;
 }
 .x {
   position: absolute;

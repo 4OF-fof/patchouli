@@ -86,7 +86,7 @@ export const Developer: Story = {
     developer: { enabled: true, pluginDirs: [DIR, 'E:\\work\\plugins'], repos: [REPO] },
   },
   play: async ({ args, canvas, userEvent }) => {
-    await userEvent.click(canvas.getByRole('button', { name: 'プラグインを再読み込み' }))
+    await userEvent.click(canvas.getByRole('button', { name: '再読み込み' }))
     await expect(args.onReload).toHaveBeenCalled()
   },
 }

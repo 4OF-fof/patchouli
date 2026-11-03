@@ -99,10 +99,14 @@ const SIZES = [
 
 interface Entry {
   page: SettingsPage
+  /** ページの中の小見出し。続く項目が同じ小見出しなら、まとめて 1 つの下に並べる。 */
+  group?: string
   /** 検索で当てる言葉。項目の名前と説明を並べる。 */
   words: string
   body: () => JSX.Element
 }
+
+const grouped = (group: string, list: Entry[]) => list.map((e) => ({ ...e, group }))
 
 export function SettingsDialog(props: SettingsDialogProps) {
   let el!: HTMLDivElement
@@ -184,25 +188,27 @@ export function SettingsDialog(props: SettingsDialogProps) {
     page,
     words: `${label} ${help ?? ''} ${choices === 'toggle' ? '' : choices.map((c) => c.label).join(' ')}`,
     body: () => (
-      <SettingField
-        setting={
-          choices === 'toggle'
-            ? { key, label, kind: 'toggle', default: DEFAULT_PREFS[key], value: prefs()[key], help }
-            : {
-                key,
-                label,
-                kind: 'choice',
-                choices: [...choices],
-                default: DEFAULT_PREFS[key],
-                value: prefs()[key],
-                help,
-              }
-        }
-        onChange={(v) => {
-          const next = choices === 'toggle' ? v === true : choices.find((c) => c.value === v)?.value
-          if (next !== undefined) props.onPrefsChange?.({ [key]: next })
-        }}
-      />
+      <div class={styles.field}>
+        <SettingField
+          setting={
+            choices === 'toggle'
+              ? { key, label, kind: 'toggle', default: DEFAULT_PREFS[key], value: prefs()[key], help }
+              : {
+                  key,
+                  label,
+                  kind: 'choice',
+                  choices: [...choices],
+                  default: DEFAULT_PREFS[key],
+                  value: prefs()[key],
+                  help,
+                }
+          }
+          onChange={(v) => {
+            const next = choices === 'toggle' ? v === true : choices.find((c) => c.value === v)?.value
+            if (next !== undefined) props.onPrefsChange?.({ [key]: next })
+          }}
+        />
+      </div>
     ),
   })
 
@@ -226,21 +232,23 @@ export function SettingsDialog(props: SettingsDialogProps) {
   }
 
   const entries = (): Entry[] => [
-    pref('general', 'start', '起動時に開く画面', [
-      { value: 'last', label: '前回のタブ' },
-      { value: 'home', label: 'ホーム' },
+    ...grouped('起動', [
+      pref('general', 'start', '起動時に開く画面', [
+        { value: 'last', label: '前回のタブ' },
+        { value: 'home', label: 'ホーム' },
+      ]),
+      pref(
+        'general',
+        'openLink',
+        'リンクを押したときの開き方',
+        [
+          { value: 'peek', label: '重ねて表示' },
+          { value: 'here', label: 'いまのタブ' },
+          { value: 'tab', label: '新しいタブ' },
+        ],
+        'ノートのリンクを押したとき。中クリックでは、いつも新しいタブで開きます',
+      ),
     ]),
-    pref(
-      'general',
-      'openLink',
-      'リンクを押したときの開き方',
-      [
-        { value: 'peek', label: '重ねて表示' },
-        { value: 'here', label: 'いまのタブ' },
-        { value: 'tab', label: '新しいタブ' },
-      ],
-      'ノートのリンクを押したとき。中クリックでは、いつも新しいタブで開きます',
-    ),
     pref('view', 'theme', 'テーマ', [
       { value: 'system', label: 'システムに合わせる' },
       { value: 'light', label: 'ライト' },
@@ -276,71 +284,76 @@ export function SettingsDialog(props: SettingsDialogProps) {
       { value: 'wide', label: '広い' },
     ]),
     pref('note', 'headsOpen', '見出しのカードを開いておく', 'toggle', '窓が狭いときは、閉じた状態で開きます'),
-    ...(props.library !== undefined || props.onOpenLibraries
-      ? [
-          {
-            page: 'general' as const,
-            words: 'いまのライブラリ ライブラリを切り替え 場所',
-            body: () => (
-              <div class={styles.row}>
-                <div class={styles.what}>
-                  <b>いまのライブラリ</b>
-                  <span class={styles.path} data-tip={props.library}>
-                    {props.library ?? '未選択'}
-                  </span>
+    ...grouped('ライブラリ', [
+      ...(props.library !== undefined || props.onOpenLibraries
+        ? [
+            {
+              page: 'general' as const,
+              words: 'いまのライブラリ ライブラリを切り替え 場所',
+              body: () => (
+                <div class={styles.row}>
+                  <div class={styles.what}>
+                    <span class={styles.name}>いまのライブラリ</span>
+                    <span class={styles.path} data-tip={props.library}>
+                      {props.library ?? '未選択'}
+                    </span>
+                  </div>
+                  <Show when={props.onOpenLibraries}>
+                    <Button size="sm" onClick={() => props.onOpenLibraries?.()}>
+                      切り替え
+                    </Button>
+                  </Show>
                 </div>
-                <Show when={props.onOpenLibraries}>
-                  <Button size="sm" onClick={() => props.onOpenLibraries?.()}>
-                    切り替え
-                  </Button>
+              ),
+            },
+          ]
+        : []),
+      ...(props.onAppChange
+        ? [
+            {
+              page: 'general' as const,
+              words: 'ファイルを取り込むとき コピー 移動 取り込み',
+              body: () => (
+                <Show when={props.app} fallback={<p class={styles.loading}>読み込み中…</p>}>
+                  {(a) => (
+                    <For each={[failed()]}>
+                      {() => (
+                        <div class={styles.field}>
+                          <SettingField
+                            setting={{
+                              key: 'importMode',
+                              label: 'ファイルを取り込むとき',
+                              kind: 'choice',
+                              choices: [
+                                { value: 'copy', label: 'コピーする' },
+                                { value: 'move', label: '移動する' },
+                              ],
+                              default: 'copy',
+                              value: a().importMode,
+                              help:
+                                a().importMode === 'move'
+                                  ? 'ライブラリの外から落としたファイルを、ライブラリへ移します。元の場所からはなくなります'
+                                  : 'ライブラリの外から落としたファイルを、ライブラリへコピーします',
+                            }}
+                            onChange={(v) =>
+                              setApp({ importMode: v === 'move' ? 'move' : 'copy' }, '取り込み方を変えています')
+                            }
+                          />
+                        </div>
+                      )}
+                    </For>
+                  )}
                 </Show>
-              </div>
-            ),
-          },
-        ]
-      : []),
-    ...(props.onAppChange
-      ? [
-          {
-            page: 'general' as const,
-            words: 'ファイルを取り込むとき コピー 移動 取り込み',
-            body: () => (
-              <Show when={props.app} fallback={<p class={styles.loading}>読み込み中…</p>}>
-                {(a) => (
-                  <For each={[failed()]}>
-                    {() => (
-                      <SettingField
-                        setting={{
-                          key: 'importMode',
-                          label: 'ファイルを取り込むとき',
-                          kind: 'choice',
-                          choices: [
-                            { value: 'copy', label: 'コピーする' },
-                            { value: 'move', label: '移動する' },
-                          ],
-                          default: 'copy',
-                          value: a().importMode,
-                          help:
-                            a().importMode === 'move'
-                              ? 'ライブラリの外から落としたファイルを、ライブラリへ移します。元の場所からはなくなります'
-                              : 'ライブラリの外から落としたファイルを、ライブラリへコピーします',
-                        }}
-                        onChange={(v) =>
-                          setApp({ importMode: v === 'move' ? 'move' : 'copy' }, '取り込み方を変えています')
-                        }
-                      />
-                    )}
-                  </For>
-                )}
-              </Show>
-            ),
-          },
-        ]
-      : []),
+              ),
+            },
+          ]
+        : []),
+    ]),
     ...(props.onAutoTagChange
       ? [
           {
             page: 'general' as const,
+            group: 'AI 機能',
             words: 'AI 機能を有効化 自動分類 AI 検索 タグ 候補 モデル llama.cpp 実行環境 GPU',
             body: () => aiSettings(props.onAutoTagChange!),
           },
@@ -355,74 +368,103 @@ export function SettingsDialog(props: SettingsDialogProps) {
           },
         ]
       : []),
-    ...(props.onClear
-      ? [
-          {
-            page: 'general' as const,
-            words: 'ストレージ キャッシュ インデックス サムネイル すべて 削除',
-            body: () => caches(props.onClear!),
-          },
-        ]
-      : []),
-    ...(props.onRemoveUnused
-      ? [
-          {
-            page: 'general' as const,
-            words: 'ストレージ 未使用のプラグイン 削除',
-            body: () => (
-              <div class={styles.row}>
-                <b data-tip={props.unused?.map((p) => p.name).join('、')}>未使用のプラグイン</b>
-                <span class={styles.mono}>
-                  {props.unused ? `${props.unused.length} 件 | ${bytesLabel(unusedBytes())}` : '…'}
-                </span>
-                <Button
-                  size="sm"
-                  variant="danger"
-                  disabled={busy() !== undefined || !props.unused?.length}
-                  onClick={() => void run('未使用のプラグインを削除しています', props.onRemoveUnused!)}
-                >
-                  削除
-                </Button>
-              </div>
-            ),
-          },
-        ]
-      : []),
-    ...(props.onAppChange
-      ? [
-          {
-            page: 'general' as const,
-            words: 'ストレージ サムネイルの大きさ 標準 高精細 作り直す',
-            body: () => (
-              <Show when={props.app}>
-                {(a) => (
-                  <For each={[failed()]}>
-                    {() => (
-                      <SettingField
-                        setting={{
-                          key: 'thumbSize',
-                          label: 'サムネイルの大きさ',
-                          kind: 'choice',
-                          choices: [
-                            { value: 'standard', label: '標準' },
-                            { value: 'large', label: '高精細' },
-                          ],
-                          default: 'standard',
-                          value: a().thumbSize,
-                          help: '変えると、サムネイルを作り直します。高精細は、キャッシュがおよそ 4 倍になります',
-                        }}
-                        onChange={(v) =>
-                          setApp({ thumbSize: v === 'large' ? 'large' : 'standard' }, 'サムネイルを作り直しています')
-                        }
-                      />
-                    )}
-                  </For>
-                )}
-              </Show>
-            ),
-          },
-        ]
-      : []),
+    ...grouped('ストレージ', [
+      ...(props.onAppChange
+        ? [
+            {
+              page: 'general' as const,
+              words: 'ストレージ サムネイルの大きさ 標準 高精細 作り直す',
+              body: () => (
+                <Show when={props.app}>
+                  {(a) => (
+                    <For each={[failed()]}>
+                      {() => (
+                        <div class={styles.field}>
+                          <SettingField
+                            setting={{
+                              key: 'thumbSize',
+                              label: 'サムネイルの大きさ',
+                              kind: 'choice',
+                              choices: [
+                                { value: 'standard', label: '標準' },
+                                { value: 'large', label: '高精細' },
+                              ],
+                              default: 'standard',
+                              value: a().thumbSize,
+                              help: '変えると、サムネイルを作り直します。高精細は、キャッシュがおよそ 4 倍になります',
+                            }}
+                            onChange={(v) =>
+                              setApp(
+                                { thumbSize: v === 'large' ? 'large' : 'standard' },
+                                'サムネイルを作り直しています',
+                              )
+                            }
+                          />
+                        </div>
+                      )}
+                    </For>
+                  )}
+                </Show>
+              ),
+            },
+          ]
+        : []),
+      ...(props.onClear
+        ? [
+            {
+              page: 'general' as const,
+              words: 'ストレージ キャッシュ インデックス サムネイル 削除',
+              body: () =>
+                caches(
+                  props.onClear!,
+                  CACHES.filter((c) => c.kind !== 'all'),
+                ),
+            },
+          ]
+        : []),
+      ...(props.onRemoveUnused
+        ? [
+            {
+              page: 'general' as const,
+              words: `ストレージ 未使用のプラグイン 削除 ${(props.unused ?? []).map((p) => p.name).join(' ')}`,
+              body: () => (
+                <div class={styles.row}>
+                  <div class={styles.what}>
+                    <span class={styles.name}>未使用のプラグイン</span>
+                    <span class={styles.path} data-tip={props.unused?.map((p) => p.name).join('、')}>
+                      {props.unused
+                        ? props.unused.length
+                          ? `${props.unused.map((p) => p.name).join('、')} · ${bytesLabel(unusedBytes())}`
+                          : 'ありません'
+                        : '…'}
+                    </span>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={busy() !== undefined || !props.unused?.length}
+                    onClick={() => void run('未使用のプラグインを削除しています', props.onRemoveUnused!)}
+                  >
+                    削除
+                  </Button>
+                </div>
+              ),
+            },
+          ]
+        : []),
+      ...(props.onClear
+        ? [
+            {
+              page: 'general' as const,
+              words: 'ストレージ キャッシュ すべて 削除',
+              body: () =>
+                caches(
+                  props.onClear!,
+                  CACHES.filter((c) => c.kind === 'all'),
+                ),
+            },
+          ]
+        : []),
+    ]),
     ...(props.onDeveloperChange
       ? [
           {
@@ -437,8 +479,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
       words: 'Patchouli 版 バージョン',
       body: () => (
         <div class={styles.row}>
-          <b>Patchouli</b>
-          <span class={styles.mono}>{props.version}</span>
+          <span class={styles.name}>Patchouli</span>
+          <span class={styles.value}>{props.version}</span>
         </div>
       ),
     },
@@ -454,7 +496,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 onToggle={(e) => setNoticesOpen(e.currentTarget.open)}
               >
                 <summary>
-                  <b>権利表示</b>
+                  <span class={styles.name}>権利表示</span>
                 </summary>
                 <Show when={noticesOpen()}>
                   <NoticesView notices={notices()} />
@@ -492,6 +534,16 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const current = () => pages().find((p) => p.id === picked()) ?? pages()[0]
   const searching = () => words().length > 0
   const shown = () => (searching() ? pages() : current() ? [current()] : [])
+  const groupsOf = (page: SettingsPage) => {
+    const out: { name?: string; entries: Entry[] }[] = []
+    for (const e of hits()) {
+      if (e.page !== page) continue
+      const last = out.at(-1)
+      if (last && last.name === e.group) last.entries.push(e)
+      else out.push({ name: e.group, entries: [e] })
+    }
+    return out
+  }
 
   const aiSettings = (change: (on: boolean) => Promise<void>) => (
     <Show when={props.autoTag} fallback={<p class={styles.loading}>読み込み中…</p>}>
@@ -499,39 +551,41 @@ export function SettingsDialog(props: SettingsDialogProps) {
         <>
           <For each={[failed()]}>
             {() => (
-              <SettingField
-                setting={{
-                  key: 'autoTag',
-                  label: 'AI 機能を有効化',
-                  kind: 'toggle',
-                  default: false,
-                  value: a().enabled || downloading(),
-                  help: a().installed
-                    ? '自動分類と AI 検索に使用します'
-                    : `自動分類と AI 検索に使用します。有効にすると、モデルと llama.cpp（${bytesLabel(a().need)}）をダウンロードします`,
-                }}
-                disabled={downloading()}
-                onChange={(v) => void changeAutoTag(change, v === true)}
-              />
+              <div class={styles.field}>
+                <SettingField
+                  setting={{
+                    key: 'autoTag',
+                    label: 'AI 機能を有効化',
+                    kind: 'toggle',
+                    default: false,
+                    value: a().enabled || downloading(),
+                    help: a().installed
+                      ? '自動分類と AI 検索に使用します'
+                      : `自動分類と AI 検索に使用します。有効にすると、モデルと llama.cpp（${bytesLabel(a().need)}）をダウンロードします`,
+                  }}
+                  disabled={downloading()}
+                  onChange={(v) => void changeAutoTag(change, v === true)}
+                />
+              </div>
             )}
           </For>
           <Show when={a().gpus}>
             {(g) => (
-              <div class={styles.row}>
-                <b>実行環境</b>
-                <span class={styles.mono}>
+              <div class={`${styles.row} ${styles.sub}`}>
+                <span class={styles.name}>実行環境</span>
+                <span class={styles.value}>
                   {g().length ? `GPU: ${g().join('、')}` : 'CPU（GPU が見つからないため）'}
                 </span>
               </div>
             )}
           </Show>
           <Show when={a().enabled && a().installed && !downloading()}>
-            <div class={styles.sub}>
-              <For each={[failed()]}>
-                {() => (
-                  <>
-                    <Show when={props.onSuggestChange}>
-                      {(set) => (
+            <For each={[failed()]}>
+              {() => (
+                <>
+                  <Show when={props.onSuggestChange}>
+                    {(set) => (
+                      <div class={`${styles.field} ${styles.sub}`}>
                         <SettingField
                           setting={{
                             key: 'tagSuggest',
@@ -547,10 +601,12 @@ export function SettingsDialog(props: SettingsDialogProps) {
                             if (mode) void run('自動分類を切り替えています', () => set()(mode))
                           }}
                         />
-                      )}
-                    </Show>
-                    <Show when={props.onSearchChange}>
-                      {(set) => (
+                      </div>
+                    )}
+                  </Show>
+                  <Show when={props.onSearchChange}>
+                    {(set) => (
+                      <div class={`${styles.field} ${styles.sub}`}>
                         <SettingField
                           setting={{
                             key: 'contentSearch',
@@ -562,17 +618,19 @@ export function SettingsDialog(props: SettingsDialogProps) {
                           }}
                           onChange={(v) => void run('AI 検索を切り替えています', () => set()(v === true))}
                         />
-                      )}
-                    </Show>
-                  </>
-                )}
-              </For>
-            </div>
+                      </div>
+                    )}
+                  </Show>
+                </>
+              )}
+            </For>
           </Show>
           <Show when={downloading() && !a().installed}>
-            <div class={styles.row}>
-              <b>ダウンロード中</b>
-              <span class={styles.mono}>{props.autoTagProgress ? progressLabel(props.autoTagProgress) : '…'}</span>
+            <div class={`${styles.row} ${styles.sub}`}>
+              <div class={styles.what}>
+                <span class={styles.name}>ダウンロード中</span>
+                <span class={styles.path}>{props.autoTagProgress ? progressLabel(props.autoTagProgress) : '…'}</span>
+              </div>
               <Show when={props.onCancelDownload}>
                 {(cancel) => (
                   <Button size="sm" onClick={() => void cancel()()}>
@@ -593,9 +651,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
         {(c) => {
           const fixed = () => props.app?.commandPaths[c.name]
           return (
-            <div class={styles.tool}>
+            <div class={styles.row}>
               <div class={styles.what}>
-                <b>{c.name}</b>
+                <span class={styles.name}>{c.name}</span>
                 <span class={styles.path} data-ok={!!c.path} data-tip={c.path}>
                   {c.path
                     ? `${fixed() ? '指定' : '自動'}：${c.path}`
@@ -622,19 +680,21 @@ export function SettingsDialog(props: SettingsDialogProps) {
     </Show>
   )
 
-  const caches = (clear: (kind: CacheKind) => Promise<void>) => (
-    <For each={CACHES}>
+  const caches = (clear: (kind: CacheKind) => Promise<void>, list: typeof CACHES) => (
+    <For each={list}>
       {(c) => (
         <div class={styles.row}>
-          <b>{c.label}のキャッシュ</b>
-          <span class={styles.mono}>{props.usage ? bytesLabel(sizeOf(props.usage, c.kind)) : '…'}</span>
+          <div class={styles.what}>
+            <span class={styles.name}>{c.label}のキャッシュ</span>
+            <span class={styles.path}>{props.usage ? bytesLabel(sizeOf(props.usage, c.kind)) : '…'}</span>
+          </div>
           <Button
             size="sm"
             variant={c.kind === 'all' ? 'danger' : 'default'}
             disabled={busy() !== undefined}
             onClick={() => void run(`${c.label}を削除しています`, () => clear(c.kind))}
           >
-            削除
+            {c.kind === 'all' ? 'すべて削除' : '削除'}
           </Button>
         </div>
       )}
@@ -647,37 +707,53 @@ export function SettingsDialog(props: SettingsDialogProps) {
         <>
           <For each={[failed()]}>
             {() => (
-              <SettingField
-                setting={{
-                  key: 'enabled',
-                  label: '開発者モードを有効化',
-                  kind: 'toggle',
-                  default: false,
-                  value: d().enabled,
-                }}
-                disabled={busy() !== undefined}
-                onChange={(v) =>
-                  void run(v ? '開発者モードを有効にしています' : '開発者モードを無効にしています', () =>
-                    change({ ...d(), enabled: v === true }),
-                  )
-                }
-              />
+              <div class={styles.field}>
+                <SettingField
+                  setting={{
+                    key: 'enabled',
+                    label: '開発者モードを有効化',
+                    kind: 'toggle',
+                    default: false,
+                    value: d().enabled,
+                  }}
+                  disabled={busy() !== undefined}
+                  onChange={(v) =>
+                    void run(v ? '開発者モードを有効にしています' : '開発者モードを無効にしています', () =>
+                      change({ ...d(), enabled: v === true }),
+                    )
+                  }
+                />
+              </div>
             )}
           </For>
+          <Show when={props.onReload && d().enabled}>
+            <div class={styles.row}>
+              <span class={styles.name}>プラグインを再読み込み</span>
+              <Button size="sm" disabled={busy() !== undefined} onClick={() => props.onReload?.()}>
+                再読み込み
+              </Button>
+            </div>
+          </Show>
           <For each={['dir', 'repo'] as const}>
             {(kind) => (
               <div class={styles.places}>
                 <div class={styles.placesHead}>
-                  <span>{PLACES[kind].label}</span>
+                  <h4 class={styles.label}>{PLACES[kind].label}</h4>
                   <Show when={props.onPickDevPath}>
-                    <Button size="sm" disabled={busy() !== undefined} onClick={() => void addPath(d(), kind)}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={busy() !== undefined}
+                      onClick={() => void addPath(d(), kind)}
+                    >
+                      <Icon name="plus" size={14} withText />
                       {PLACES[kind].noun}を追加
                     </Button>
                   </Show>
                 </div>
                 <For
                   each={d()[PLACES[kind].key]}
-                  fallback={<p class={styles.empty}>{PLACES[kind].noun}が登録されていません</p>}
+                  fallback={<p class={styles.none}>{PLACES[kind].noun}が登録されていません</p>}
                 >
                   {(p) => (
                     <div class={styles.place}>
@@ -698,13 +774,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
               </div>
             )}
           </For>
-          <Show when={props.onReload && d().enabled}>
-            <div class={styles.reload}>
-              <Button size="sm" disabled={busy() !== undefined} onClick={() => props.onReload?.()}>
-                プラグインを再読み込み
-              </Button>
-            </div>
-          </Show>
         </>
       )}
     </Show>
@@ -763,9 +832,16 @@ export function SettingsDialog(props: SettingsDialogProps) {
             {(p) => (
               <section class={styles.page}>
                 <h3 class={styles.head}>{p.label}</h3>
-                <div class={styles.entries}>
-                  <For each={hits().filter((e) => e.page === p.id)}>{(e) => e.body()}</For>
-                </div>
+                <For each={groupsOf(p.id)}>
+                  {(g) => (
+                    <div class={styles.group}>
+                      <Show when={g.name}>
+                        <h4 class={styles.label}>{g.name}</h4>
+                      </Show>
+                      <For each={g.entries}>{(e) => e.body()}</For>
+                    </div>
+                  )}
+                </For>
               </section>
             )}
           </For>

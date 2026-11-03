@@ -2,14 +2,21 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-2) var(--space-12);
+  gap: var(--space-12);
   font-size: var(--fs-list);
 }
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+/* 置き場所の側で、--setting-label-size と --setting-label-color で名前の見た目を変えられる */
 .label {
-  color: var(--ink-2);
+  font-size: var(--setting-label-size, inherit);
+  color: var(--setting-label-color, var(--ink-2));
 }
 .help {
-  grid-column: 1 / -1;
   margin: 0;
   font-size: var(--fs-meta);
   color: var(--muted);
