@@ -6,9 +6,9 @@ use symphonia::core::formats::{FormatReader, SeekMode, SeekTo, TrackType};
 use symphonia::core::io::{MediaSource, MediaSourceStream};
 use symphonia::core::units::Time;
 
-use crate::File;
 use crate::content::{part, starts};
 use crate::patchouli::plugin::host;
+use crate::patchouli::plugin::types::File;
 use crate::patchouli::plugin::types::{ContentBudget, ContentMedia, ContentPart};
 
 /// ホストの read で読む MediaSource。

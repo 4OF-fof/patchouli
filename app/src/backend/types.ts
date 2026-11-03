@@ -13,8 +13,9 @@ import type {
   ItemDetails,
   ItemView,
   LinkPart,
-  MenuEntry,
-  Part,
+  MenuGroup,
+  MenuOutput,
+  CapPart,
   PluginActions,
   PluginReport,
   ScreenInfo,
@@ -104,6 +105,14 @@ export interface Imported {
   items: Item[]
   groups: Group[]
   skipped: number
+  failed: string[]
+}
+
+/** 右クリックメニューの項目を実行したあと。copy は写すもの、items はプラグインが作ったノートと登録した素材。 */
+export interface MenuResult {
+  output?: MenuOutput
+  copy?: string
+  items: Item[]
   failed: string[]
 }
 
@@ -302,12 +311,12 @@ export interface Backend {
   revealItem?: (id: string) => Promise<void>
   openItemDefault?: (id: string) => Promise<void>
   itemPath?: (id: string) => Promise<string>
-  /** プラグインが右クリックメニューに足す項目。ids は選んでいる素材すべて。 */
-  itemMenu?: (ids: string[]) => Promise<MenuEntry[]>
-  /** プラグインの項目を選んだとき。返った文字列は通知に出す。 */
-  runItemMenu?: (ids: string[], entry: string) => Promise<string | undefined>
+  /** プラグインが右クリックメニューに足す項目。ids は選んでいるものすべて。項目のないプラグインは含めない。 */
+  itemMenu?: (ids: string[]) => Promise<MenuGroup[]>
+  /** プラグインの項目を選んだとき。 */
+  runItemMenu?: (ids: string[], plugin: string, entry: string) => Promise<MenuResult>
   waveform?: (id: string) => Promise<Uint8Array | null>
-  uiApi?: (item: UiItem, part: Part, plugin: string) => UiApi
+  uiApi?: (item: UiItem, part: CapPart, plugin: string) => UiApi
   /** プラグインの、自分の設定と残した値の窓口。 */
   ownApi?: (plugin: string) => OwnApi
   uiUrl?: (ui: UiRef) => string

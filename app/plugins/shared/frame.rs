@@ -1,8 +1,8 @@
-use crate::File;
-use crate::patchouli::plugin::host::{self, CommandArg};
+use crate::patchouli::plugin::commands::{self, CommandArg};
+use crate::patchouli::plugin::types::File;
 
 pub fn frame(f: &File, at: f64, edge: u32) -> Result<Vec<u8>, String> {
-    if !host::command_available("ffmpeg") {
+    if !commands::available("ffmpeg") {
         return Err("この形式を読むには FFmpeg が必要です".into());
     }
     let t = |s: &str| CommandArg::Text(s.to_owned());
@@ -28,7 +28,7 @@ pub fn frame(f: &File, at: f64, edge: u32) -> Result<Vec<u8>, String> {
         t("png"),
         t("-"),
     ];
-    let out = host::run_command("ffmpeg", &args, None)?;
+    let out = commands::run("ffmpeg", &args, None)?;
     if out.code != Some(0) || out.stdout.is_empty() {
         return Err(format!(
             "FFmpeg でのフレームの取り出しに失敗しました：{}",

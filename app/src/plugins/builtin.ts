@@ -34,15 +34,16 @@ export interface RawManifest extends Omit<Manifest, 'formats' | 'links'> {
       fit?: string
       hover?: string
       embed?: string
-      sandbox?: string[]
+      sandbox?: boolean
       elevated?: string[]
       keepDecoded?: boolean
     }
   >
 }
 
-const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover', 'details', 'embed', 'menu', 'content', 'link']
-const ELEVATED_ONLY: readonly Part[] = ['waveform', 'hover', 'embed', 'link']
+const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover', 'details', 'embed', 'content', 'link']
+/** WASM が受け持つものは export で決まる。ここでは WASM を読まないので、組み込みの WASM が export するものを使う。 */
+const WASM_PARTS: readonly Part[] = ['thumbnail', 'view', 'details', 'content']
 const LINK_PARTS: readonly LinkPart[] = ['thumbnail', 'view', 'embed', 'details']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
 const HOVERS: readonly Hover[] = ['video', 'audio']
@@ -66,7 +67,6 @@ export const readManifest = (raw: RawManifest): Manifest => ({
         fit: FITS.find((f) => f === d.fit),
         hover: HOVERS.find((h) => h === d.hover),
         embed: EMBEDS.find((e) => e === d.embed),
-        sandbox: partsOf(d.sandbox),
         elevated: partsOf(d.elevated),
       },
     ]),
@@ -135,10 +135,7 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
         const now = parts.get(p)
         if ((now === undefined || now === 'sandbox') && at.elevated) parts.set(p, at)
       }
-      for (const p of d.sandbox ?? []) {
-        if (ELEVATED_ONLY.includes(p)) add(at.id, `「.${fmt}」の ${p} は elevated でしか受け持てません`)
-        else if (!parts.has(p)) parts.set(p, 'sandbox')
-      }
+      if (d.sandbox) for (const p of WASM_PARTS) if (!parts.has(p)) parts.set(p, 'sandbox')
       if (!d.extends) break
       const next = claim.get(d.extends)
       if (!next) add(at.id, `「.${fmt}」が引き継ぐ「.${d.extends}」に対応するプラグインがありません`)
@@ -178,12 +175,14 @@ export function resolveFormats(manifests: Manifest[]): Resolved {
 const resolvedBuiltin = resolveFormats(BUILTIN_MANIFESTS)
 
 const capsOf = (m: Manifest): Cap[] => {
-  const has = (p: Part, k: 'sandbox' | 'elevated') =>
-    Object.values(m.formats ?? {}).some((d) => d[k]?.includes(p)) ||
-    (k === 'elevated' && Object.values(m.links ?? {}).some((d) => d.elevated?.some((x) => x === p)))
+  const formats = Object.values(m.formats ?? {})
+  const elevated = (p: Part) =>
+    formats.some((d) => d.elevated?.includes(p)) ||
+    Object.values(m.links ?? {}).some((d) => d.elevated?.some((x) => x === p))
   return [
-    ...PARTS.filter((p) => has(p, 'sandbox')).map((part): Cap => ({ part, by: 'sandbox' })),
-    ...PARTS.filter((p) => has(p, 'elevated')).map((part): Cap => ({ part, by: 'elevated' })),
+    ...(formats.some((d) => d.sandbox) ? WASM_PARTS.map((part): Cap => ({ part, by: 'sandbox' })) : []),
+    ...PARTS.filter(elevated).map((part): Cap => ({ part, by: 'elevated' })),
+    ...(m.menu ? [{ part: 'menu', by: m.menu.by } as const] : []),
   ]
 }
 
@@ -208,6 +207,7 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
     .toSorted(),
   links: Object.keys(m.links ?? {}).toSorted(),
   screens: Object.values(m.screens ?? {}).map((d) => d.label),
+  permissions: m.permissions ?? [],
   settings: [],
   problems: r.problems.get(m.id) ?? [],
 })

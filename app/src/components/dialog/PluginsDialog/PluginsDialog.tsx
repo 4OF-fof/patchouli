@@ -2,7 +2,8 @@ import { For, Index, type JSX, Show, createMemo, createSignal, onCleanup, onMoun
 import type {
   CommandStatus,
   Deps,
-  Part,
+  CapPart,
+  Permission,
   PluginActions,
   PluginReport,
   PluginSource,
@@ -31,7 +32,7 @@ export interface PluginsDialogProps {
   onClose?: () => void
 }
 
-const PART: Record<Part, string> = {
+const PART: Record<CapPart, string> = {
   thumbnail: 'サムネイル',
   view: '詳細表示',
   waveform: '波形',
@@ -41,6 +42,13 @@ const PART: Record<Part, string> = {
   menu: '右クリックメニュー',
   content: '内容の読み取り',
   link: 'URL の読み取り',
+}
+
+const PERMISSION: Record<Permission, string> = {
+  library: 'ライブラリの情報を読む',
+  clipboard: 'クリップボードにコピー',
+  notes: 'ノートを作成',
+  assets: '素材を登録',
 }
 
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [
@@ -315,6 +323,14 @@ export function PluginsDialog(props: PluginsDialogProps) {
               <h4>画面</h4>
               <span class={styles.chips}>
                 <For each={p().screens}>{(s) => <span class={styles.cap}>{s}</span>}</For>
+              </span>
+            </section>
+          </Show>
+          <Show when={p().permissions?.length}>
+            <section>
+              <h4>権限</h4>
+              <span class={styles.chips}>
+                <For each={p().permissions}>{(x) => <span class={styles.cap}>{PERMISSION[x]}</span>}</For>
               </span>
             </section>
           </Show>

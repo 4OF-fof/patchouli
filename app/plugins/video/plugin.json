@@ -17,7 +17,7 @@
       "label": "動画",
       "ratio": 1.7778,
       "hover": "video",
-      "sandbox": ["thumbnail", "view", "details", "content"],
+      "sandbox": true,
       "elevated": ["thumbnail", "content"]
     },
     "webm": { "extends": "mp4" },

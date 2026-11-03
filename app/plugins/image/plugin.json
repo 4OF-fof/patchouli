@@ -12,7 +12,7 @@
     }
   },
   "formats": {
-    "jpg": { "label": "画像", "ratio": 1.6, "sandbox": ["thumbnail", "view", "details", "content"] },
+    "jpg": { "label": "画像", "ratio": 1.6, "sandbox": true },
     "jpeg": { "extends": "jpg" },
     "png": { "extends": "jpg" },
     "webp": { "extends": "jpg" },

@@ -1,5 +1,6 @@
-use crate::File;
-use crate::patchouli::plugin::host::{self, CommandArg};
+use crate::patchouli::plugin::commands::{self, CommandArg};
+use crate::patchouli::plugin::host;
+use crate::patchouli::plugin::types::File;
 use crate::patchouli::plugin::types::{ContentBudget, ContentMedia, ContentPart};
 
 /// 1 回の FFmpeg の待ち時間。
@@ -40,7 +41,7 @@ pub fn ffmpeg(f: &File, start: f64, len: f64, out: &[&str]) -> Result<Vec<u8>, S
         CommandArg::File(f.clone()),
     ];
     args.extend(out.iter().map(|s| t(s)));
-    let r = host::run_command("ffmpeg", &args, Some(TIMEOUT))?;
+    let r = commands::run("ffmpeg", &args, Some(TIMEOUT))?;
     if r.code != Some(0) {
         return Err(format!(
             "FFmpeg での取り出しに失敗しました：{}",

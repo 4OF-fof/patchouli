@@ -1,0 +1,68 @@
+.ov {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-dialog);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 9vh var(--space-16) var(--space-16);
+  background: var(--scrim);
+}
+.frame {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 100%);
+  max-height: 100%;
+}
+.root {
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
+}
+.body {
+  padding: var(--space-20);
+}
+.body:focus {
+  outline: none;
+}
+.root h2 {
+  margin: 0 var(--space-32) var(--space-12) 0;
+  font-size: var(--fs-heading);
+  font-weight: 600;
+}
+.root dl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin: 0;
+  font-size: var(--fs-list);
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(80px, 30%) 1fr auto;
+  align-items: start;
+  gap: var(--space-12);
+  padding: var(--space-4) 0;
+}
+.row dt {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.row dd {
+  margin: 0;
+  font-family: var(--f-mono);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.copy {
+  margin-top: -4px;
+}
+.x {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
+}

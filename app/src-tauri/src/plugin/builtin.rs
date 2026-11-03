@@ -60,7 +60,10 @@ fn prepared() -> &'static [Slot] {
     static P: OnceLock<Vec<Slot>> = OnceLock::new();
     P.get_or_init(|| {
         ALL.iter()
-            .map(|(_, _, wasm)| wasm.map(|b| Prepared::new(b).map(Arc::new)))
+            .map(|(_, json, wasm)| {
+                let manifest = serde_json::from_str::<Manifest>(json).map_err(|e| e.to_string());
+                wasm.map(|b| manifest.and_then(|m| Prepared::new(b, &m).map(Arc::new)))
+            })
             .collect()
     })
 }

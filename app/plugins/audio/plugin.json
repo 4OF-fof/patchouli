@@ -17,7 +17,7 @@
       "label": "音声",
       "ratio": 1.6,
       "hover": "audio",
-      "sandbox": ["thumbnail", "view", "details", "content"],
+      "sandbox": true,
       "elevated": ["waveform"]
     },
     "wav": { "extends": "mp3" },

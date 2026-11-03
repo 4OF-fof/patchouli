@@ -15,6 +15,7 @@ import type {
   LinkThumbnailApi,
   MenuApi,
   MenuItem,
+  MenuOutput,
   PluginModule,
   RunMenuApi,
   ThumbnailApi,
@@ -152,11 +153,25 @@ export async function uiMenu(url: string, api: MenuApi): Promise<MenuItem[]> {
   return pairs(await mod.menu(api), ['id', 'label'])
 }
 
-export async function uiRunMenu(url: string, api: RunMenuApi): Promise<string | undefined> {
+/** 形の合わないものは出さない。 */
+export const menuOutputOf = (v: unknown): MenuOutput | undefined => {
+  const toast: unknown = Reflect.get(Object(v), 'toast')
+  if (typeof toast === 'string') return { toast }
+  const o: unknown = Reflect.get(Object(v), 'overlay')
+  if (typeof o !== 'object' || o === null) return undefined
+  const title: unknown = Reflect.get(o, 'title')
+  return {
+    overlay: {
+      title: typeof title === 'string' ? title : undefined,
+      rows: pairs(Reflect.get(o, 'rows'), ['label', 'value']),
+    },
+  }
+}
+
+export async function uiRunMenu(url: string, api: RunMenuApi): Promise<MenuOutput | undefined> {
   const mod = await loadUi(url)
   if (!mod.runMenu) throw new Error('右クリックメニューの項目を実行する関数（runMenu）が見つかりません')
-  const r = await mod.runMenu(api)
-  return typeof r === 'string' ? r : undefined
+  return menuOutputOf(await mod.runMenu(api))
 }
 
 /** ファイルが指す URL。http か https でなければ undefined。 */

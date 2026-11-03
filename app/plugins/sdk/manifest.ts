@@ -1,14 +1,13 @@
 /* plugin.json の形。 */
 
 /**
- * 形式ごとに受け持つもの。details はファイルの詳細に足す行、menu は右クリックメニューに足す項目、
- * content は内容で探したり分けたりするときに読む区間。
+ * 形式ごとに受け持つもの。details はファイルの詳細に足す行、content は内容で探したり分けたりするときに読む区間。
  * waveform は音の波形、hover はカーソルを合わせたときにサムネイルの上に重ねる表示、
  * embed はノートに埋め込んだときの表示で、この 3 つは elevated だけが受け持てる。
  * link はファイルが指す URL（ショートカットなど）で、elevated だけが受け持てる。link を受け持つ形式のサムネイル・詳細の表示・
  * 埋め込み・ファイルの詳細は、ほかに受け持つものがなければ、URL に当てはまる links のプラグインか本体が受け持つ。
  */
-export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details' | 'embed' | 'menu' | 'content' | 'link'
+export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details' | 'embed' | 'content' | 'link'
 
 /** links で受け持てるもの。 */
 export type LinkPart = 'thumbnail' | 'view' | 'embed' | 'details'
@@ -64,8 +63,11 @@ export interface FormatDecl {
   hover?: Hover
   /** ノートに埋め込んだときに、本体が見せるもの。書かなければ view。elevated の embed があれば、そちらを使う。 */
   embed?: Embed
-  /** 権限を絞った WASM（plugin.wasm）で受け持つもの。ファイルは本体が渡したものだけを読め、ネットワークは使えない。 */
-  sandbox?: Part[]
+  /**
+   * true にすると、権限を絞った WASM（plugin.wasm）が export する役割（thumbnail・view・details・content）を受け持つ。
+   * ファイルは本体が渡したものだけを読め、ネットワークは使えない。
+   */
+  sandbox?: boolean
   /**
    * 本体の画面と同じ WebView で動く TypeScript（plugin.json の elevated）で受け持つもの。
    * sandbox と同じものを書いたときは、こちらを使う。中から api.sandbox() で sandbox の同じものを呼べる。
@@ -88,6 +90,23 @@ export interface ScreenDecl {
   icon?: string
 }
 
+/**
+ * 右クリックメニューに項目を足す対象と担当。formats は拡張子の並び、all（ノートも含めたすべて）、files（ノートを除いたすべて）のどれか。
+ * ノートの拡張子は md。選んだものがすべて対象のときだけ、項目を足す。同じものを対象にするプラグインが複数あれば、プラグインごとに並べる。
+ */
+export interface MenuDecl {
+  formats: string[] | 'all' | 'files'
+  /** sandbox は WASM の menu・run-menu、elevated は PluginModule の menu・runMenu で項目を作る。 */
+  by: 'sandbox' | 'elevated'
+}
+
+/**
+ * WASM に渡すホストの interface（WIT）。書いていないものを使う WASM は読み込まない。
+ * library はライブラリの情報（名前・タグ・メモなど）を menu と run-menu の中で読む。
+ * clipboard はコピー、notes はノートの作成、assets は素材の登録で、run-menu の中だけで使える。
+ */
+export type Permission = 'library' | 'clipboard' | 'notes' | 'assets'
+
 /** plugin.json。 */
 export interface Manifest {
   id: string
@@ -99,7 +118,7 @@ export interface Manifest {
   /** あれば使うもの。 */
   optional?: Deps
   /**
-   * formats と links の elevated、screens を受け持つ ES モジュール（plugin.json からの相対パス、.js）。中身は PluginModule。
+   * formats と links の elevated、screens、by が elevated の menu を受け持つ ES モジュール（plugin.json からの相対パス、.js）。中身は PluginModule。
    * ビルドでは、拡張子を .ts にしたものから作る。
    */
   elevated?: string
@@ -111,6 +130,8 @@ export interface Manifest {
   links?: Record<string, LinkDecl>
   /** 画面の id → 画面。id は英数字・ハイフン・下線で書く。 */
   screens?: Record<string, ScreenDecl>
+  menu?: MenuDecl
+  permissions?: Permission[]
   /** api.fetch で取りに行けるホスト名。サブドメインも含む。 */
   fetch?: string[]
 }

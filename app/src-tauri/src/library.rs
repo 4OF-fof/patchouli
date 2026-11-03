@@ -889,17 +889,28 @@ impl Library {
     }
 
     pub fn asset(&self, id: &str) -> Result<(&Path, String), String> {
-        let e = self.entry(id)?;
-        if e.note {
+        let (path, ext, note) = self.file(id)?;
+        if note {
             return Err(format!("ID「{id}」はノートのため、素材として扱えません"));
         }
+        Ok((path, ext))
+    }
+
+    /// 覚えている項目の情報。
+    pub fn stored(&self, id: &str) -> Option<StoredItem> {
+        Some(self.cache.row(&self.entry(id).ok()?.path)?.item)
+    }
+
+    /// 素材とノートのパス・拡張子（小文字）・ノートか。
+    pub fn file(&self, id: &str) -> Result<(&Path, String, bool), String> {
+        let e = self.entry(id)?;
         let ext = e
             .path
             .extension()
             .and_then(|x| x.to_str())
             .unwrap_or_default()
             .to_lowercase();
-        Ok((&e.path, ext))
+        Ok((&e.path, ext, e.note))
     }
 
     pub fn save_item(&mut self, id: &str, patch: &ItemPatch) -> Result<Option<StoredItem>, String> {

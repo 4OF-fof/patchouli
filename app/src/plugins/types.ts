@@ -1,6 +1,6 @@
 /* プラグインの形。plugin.json と、Rust 側（src-tauri/src/plugin/）から届くもの。Rust 側と合わせる。 */
 
-import type { Deps, Embed, Fit, Hover, LinkPart, Part, SettingValue } from '../../plugins/sdk'
+import type { Deps, Embed, Fit, Hover, LinkPart, Part, Permission, SettingValue } from '../../plugins/sdk'
 
 export type {
   CommandDep,
@@ -12,7 +12,10 @@ export type {
   LinkDecl,
   LinkPart,
   Manifest,
+  MenuDecl,
+  MenuOutput,
   Part,
+  Permission,
   PluginDep,
   Probe,
   ScreenDecl,
@@ -21,8 +24,11 @@ export type {
 
 export type By = 'sandbox' | 'elevated'
 
+/** 受け持つもの。formats の Part に、plugin.json の menu の右クリックメニューを足したもの。 */
+export type CapPart = Part | 'menu'
+
 export interface Cap {
-  part: Part
+  part: CapPart
   by: By
 }
 
@@ -103,6 +109,7 @@ export interface PluginStatus {
   links?: string[]
   /** 足す画面の名前。 */
   screens?: string[]
+  permissions?: Permission[]
   settings: Setting[]
   problems: Problem[]
 }
@@ -150,6 +157,12 @@ export interface ItemDetails {
 export interface MenuEntry {
   id: string
   label: string
+}
+
+/** プラグイン 1 つが右クリックメニューに足す項目。 */
+export interface MenuGroup {
+  plugin: string
+  items: MenuEntry[]
 }
 
 export type ItemView =

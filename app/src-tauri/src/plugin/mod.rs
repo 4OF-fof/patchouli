@@ -16,7 +16,8 @@ use serde_json::Value;
 
 use record::{Record, Source, Stored};
 pub use runtime::{
-    ContentBudget, ContentMedia, ContentPart, Runner, ViewOut, read, set_compiled_dir,
+    ContentBudget, ContentMedia, ContentPart, ItemInfo, MenuAction, MenuFile, MenuRun, MenuShown,
+    Runner, UiOwner, ViewOut, read, set_compiled_dir,
 };
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -51,15 +52,6 @@ pub enum Part {
     Unknown,
 }
 
-impl Part {
-    fn elevated_only(self) -> bool {
-        matches!(
-            self,
-            Part::Waveform | Part::Hover | Part::Embed | Part::Link
-        )
-    }
-}
-
 /// link を受け持つ形式で、ほかに受け持つものがなければ、URL ごとに links のプラグインか本体が受け持つもの。
 const LINK_PARTS: [Part; 4] = [Part::Thumbnail, Part::View, Part::Embed, Part::Details];
 
@@ -91,7 +83,7 @@ pub enum Fit {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum By {
     Sandbox,
@@ -107,8 +99,9 @@ pub struct FormatDecl {
     pub fit: Option<Fit>,
     pub hover: Option<Hover>,
     pub embed: Option<Embed>,
+    /// WASM の export にある役割を受け持たせる。
     #[serde(default)]
-    pub sandbox: Vec<Part>,
+    pub sandbox: bool,
     #[serde(default)]
     pub elevated: Vec<Part>,
     #[serde(default)]
@@ -119,6 +112,41 @@ pub struct FormatDecl {
 pub struct LinkDecl {
     #[serde(default)]
     pub elevated: Vec<Part>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MenuEvery {
+    /// ノートも含めたすべて。
+    All,
+    /// ノートを除いたすべてのファイル。
+    Files,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+pub enum MenuFormats {
+    List(Vec<String>),
+    Every(MenuEvery),
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MenuDecl {
+    pub formats: MenuFormats,
+    pub by: By,
+}
+
+impl MenuDecl {
+    fn covers(&self, ext: &str, note: bool) -> bool {
+        match &self.formats {
+            MenuFormats::List(l) => l.iter().any(|f| f.eq_ignore_ascii_case(ext)),
+            MenuFormats::Every(MenuEvery::All) => true,
+            MenuFormats::Every(MenuEvery::Files) => !note,
+            MenuFormats::Every(MenuEvery::Unknown) => false,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -195,9 +223,16 @@ pub struct Manifest {
     pub links: BTreeMap<String, LinkDecl>,
     #[serde(default)]
     pub screens: BTreeMap<String, ScreenDecl>,
+    pub menu: Option<MenuDecl>,
+    /// WASM に渡すホストの interface。書いていないものを使う WASM は読み込まない。
+    #[serde(default)]
+    pub permissions: Vec<String>,
     #[serde(default)]
     pub fetch: Vec<String>,
 }
+
+/// permissions に書けるもの。WIT の interface の名前と同じ。
+pub const PERMISSIONS: [&str; 4] = ["library", "clipboard", "notes", "assets"];
 
 pub const MANIFEST: &str = "plugin.json";
 pub const WASM: &str = "plugin.wasm";
@@ -216,22 +251,30 @@ impl Manifest {
             .or_else(|| self.optional.commands.get(command))
     }
 
+    fn menu_by(&self, by: By) -> bool {
+        self.menu.as_ref().is_some_and(|m| m.by == by)
+    }
+
     fn wants_sandbox(&self) -> bool {
-        self.formats.values().any(|d| !d.sandbox.is_empty())
+        self.formats.values().any(|d| d.sandbox) || self.menu_by(By::Sandbox)
     }
 
     fn wants_elevated(&self) -> bool {
         self.formats.values().any(|d| !d.elevated.is_empty())
             || self.links.values().any(|d| !d.elevated.is_empty())
             || !self.screens.is_empty()
+            || self.menu_by(By::Elevated)
     }
 
-    fn caps(&self) -> Vec<Cap> {
+    /// sandbox の受け持つものは WASM の export で決まるので、wasm がなければ並べない。
+    fn caps(&self, wasm: Option<&runtime::Prepared>) -> Vec<Cap> {
+        let parts: Vec<Part> = wasm.map(|w| w.parts().collect()).unwrap_or_default();
         let mut out: Vec<Cap> = self
             .formats
             .values()
             .flat_map(|d| {
-                let sandbox = d.sandbox.iter().map(|&part| Cap {
+                let own = if d.sandbox { parts.as_slice() } else { &[] };
+                let sandbox = own.iter().map(|&part| Cap {
                     part,
                     by: By::Sandbox,
                 });
@@ -245,6 +288,10 @@ impl Manifest {
                     part,
                     by: By::Elevated,
                 })
+            }))
+            .chain(self.menu.as_ref().map(|m| Cap {
+                part: Part::Menu,
+                by: m.by,
             }))
             .filter(|c| c.part != Part::Unknown)
             .collect();
@@ -432,6 +479,13 @@ pub struct ScreenInfo {
     pub ui: UiRef,
 }
 
+/// 右クリックメニューに項目を足すプラグイン。ui は elevated が受け持つときの読み込み先。
+#[derive(Debug, Clone)]
+pub struct MenuSide {
+    pub plugin: String,
+    pub ui: Option<UiRef>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct UiRef {
     pub plugin: String,
@@ -501,6 +555,7 @@ pub struct PluginStatus {
     pub formats: Vec<String>,
     pub links: Vec<String>,
     pub screens: Vec<String>,
+    pub permissions: Vec<String>,
     pub settings: Vec<SettingStatus>,
     pub problems: Vec<Problem>,
 }
@@ -670,6 +725,7 @@ impl Registry {
                     formats: Vec::new(),
                     links: Vec::new(),
                     screens: Vec::new(),
+                    permissions: Vec::new(),
                     settings: Vec::new(),
                     problems: vec![error("この端末にインストールされていません".into())],
                 }),
@@ -772,17 +828,22 @@ impl Registry {
                 fit = fit.or(decl.fit.filter(|&f| f != Fit::Unknown));
                 hover = hover.or(decl.hover.filter(|&h| h != Hover::Unknown));
                 embed = embed.or(decl.embed.filter(|&e| e != Embed::Unknown));
-                let own = decl.sandbox.iter().map(|&p| (p, By::Sandbox));
-                for (part, by) in own.chain(decl.elevated.iter().map(|&p| (p, By::Elevated))) {
+                let own: Vec<(Part, By)> = match &self.plugins[at].wasm {
+                    Some(w) if decl.sandbox => w.parts().map(|p| (p, By::Sandbox)).collect(),
+                    _ => Vec::new(),
+                };
+                for (part, by) in own
+                    .into_iter()
+                    .chain(decl.elevated.iter().map(|&p| (p, By::Elevated)))
+                {
                     if part == Part::Unknown {
                         continue;
                     }
-                    if by == By::Sandbox && part.elevated_only() {
+                    if part == Part::Menu {
                         problems.push((
                             at,
                             error(format!(
-                                "「.{fmt}」の {} は elevated でしか受け持てません",
-                                format!("{part:?}").to_lowercase()
+                                "「.{fmt}」の menu は使っていません。右クリックメニューは plugin.json の menu に書きます"
                             )),
                         ));
                         continue;
@@ -826,6 +887,38 @@ impl Registry {
                 p.problems.push(error(
                     "plugin.wasm が見つからないため、サムネイルと詳細表示を処理できません".into(),
                 ));
+            }
+            if let Some(w) = &p.wasm {
+                if p.manifest.formats.values().any(|d| d.sandbox) && w.parts().next().is_none() {
+                    p.problems.push(error(
+                        "formats で sandbox を true にしていますが、plugin.wasm はサムネイル・詳細表示・詳細の記述・内容のどれも export していません".into(),
+                    ));
+                }
+                if p.manifest.menu_by(By::Sandbox) && !w.has(runtime::Role::Menu) {
+                    p.problems.push(error(
+                        "menu の by が sandbox ですが、plugin.wasm は menu と run-menu を export していません".into(),
+                    ));
+                }
+            }
+            if let Some(MenuDecl {
+                formats: MenuFormats::Every(MenuEvery::Unknown),
+                ..
+            }) = &p.manifest.menu
+            {
+                p.problems.push(error(
+                    "menu の formats には、拡張子の並びか all・files を書きます".into(),
+                ));
+            }
+            for x in p
+                .manifest
+                .permissions
+                .iter()
+                .filter(|x| !PERMISSIONS.contains(&x.as_str()))
+            {
+                p.problems.push(error(format!(
+                    "permissions の「{x}」は使えません（{} のどれか）",
+                    PERMISSIONS.join("・")
+                )));
             }
             for id in p.manifest.screens.keys().filter(|id| !screen_id_ok(id)) {
                 p.problems.push(error(format!(
@@ -956,6 +1049,55 @@ impl Registry {
                     })
             })
             .collect()
+    }
+
+    /// 右クリックメニューに項目を足すプラグイン。targets（拡張子とノートか）のすべてを対象にするものだけを、並び順に返す。
+    pub fn menus(&self, targets: &[(&str, bool)]) -> Vec<MenuSide> {
+        if targets.is_empty() {
+            return Vec::new();
+        }
+        (0..self.plugins.len())
+            .filter(|&i| {
+                targets
+                    .iter()
+                    .all(|&(ext, note)| self.menu_covers(i, ext, note))
+            })
+            .filter_map(|i| {
+                let p = &self.plugins[i];
+                let by = p.manifest.menu.as_ref()?.by;
+                let ui = match by {
+                    By::Sandbox => {
+                        p.wasm.as_ref().filter(|w| w.has(runtime::Role::Menu))?;
+                        None
+                    }
+                    By::Elevated => Some(UiRef {
+                        plugin: p.manifest.id.clone(),
+                        module: p.elevated.clone()?,
+                    }),
+                };
+                Some(MenuSide {
+                    plugin: p.manifest.id.clone(),
+                    ui,
+                })
+            })
+            .collect()
+    }
+
+    /// プラグインが permissions に permission を書いたか。
+    pub fn permits(&self, plugin: &str, permission: &str) -> bool {
+        self.plugins
+            .iter()
+            .find(|p| p.manifest.id == plugin)
+            .is_some_and(|p| p.manifest.permissions.iter().any(|x| x == permission))
+    }
+
+    fn menu_covers(&self, i: usize, ext: &str, note: bool) -> bool {
+        let p = &self.plugins[i];
+        !p.blocked
+            && p.manifest
+                .menu
+                .as_ref()
+                .is_some_and(|m| m.covers(ext, note))
     }
 
     /// plugin が host へ取りに行けるか。plugin が None のときは本体（どのホストにも行ける）。
@@ -1369,10 +1511,11 @@ impl Registry {
                     required: m.required.clone(),
                     optional: m.optional.clone(),
                     via,
-                    caps: m.caps(),
+                    caps: m.caps(p.wasm.as_deref()),
                     formats,
                     links,
                     screens,
+                    permissions: permissions_of(m),
                     settings,
                     problems,
                 }
@@ -1394,7 +1537,7 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
     let wasm = if wasm_path.is_file() {
         match fs::read(&wasm_path)
             .map_err(|e| e.to_string())
-            .and_then(|b| runtime::Prepared::new(&b))
+            .and_then(|b| runtime::Prepared::new(&b, &manifest))
         {
             Ok(p) => Some(Arc::new(p)),
             Err(e) => {
@@ -1509,10 +1652,11 @@ fn idle(
         required: m.required.clone(),
         optional: m.optional.clone(),
         via: Vec::new(),
-        caps: m.caps(),
+        caps: m.caps(None),
         formats: m.formats.keys().cloned().collect(),
         links: m.links.keys().map(|h| host_key(h)).collect(),
         screens: screen_labels(m),
+        permissions: permissions_of(m),
         settings: Vec::new(),
         problems,
     }
@@ -1523,6 +1667,18 @@ fn screen_id_ok(id: &str) -> bool {
         && id
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+}
+
+fn permissions_of(m: &Manifest) -> Vec<String> {
+    let mut out: Vec<String> = m
+        .permissions
+        .iter()
+        .filter(|x| PERMISSIONS.contains(&x.as_str()))
+        .cloned()
+        .collect();
+    out.sort();
+    out.dedup();
+    out
 }
 
 fn screen_labels(m: &Manifest) -> Vec<String> {

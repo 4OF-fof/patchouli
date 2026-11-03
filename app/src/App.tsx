@@ -28,6 +28,7 @@ import {
 import { DropZone } from './components/overlay/DropZone/DropZone'
 import { ReloadOverlay } from './components/overlay/ReloadOverlay/ReloadOverlay'
 import { DeleteDialog } from './components/dialog/DeleteDialog/DeleteDialog'
+import { MenuResultDialog } from './components/dialog/MenuResultDialog/MenuResultDialog'
 import { OrphanDialog } from './components/dialog/OrphanDialog/OrphanDialog'
 import { TagGoneDialog } from './components/dialog/TagGoneDialog/TagGoneDialog'
 import { TagMergeDialog } from './components/dialog/TagMergeDialog/TagMergeDialog'
@@ -67,7 +68,7 @@ import {
   withToggledPin,
 } from './model/library'
 import { FormatsProvider } from './plugins/formats'
-import type { MenuEntry, ScreenInfo } from './plugins/types'
+import type { MenuGroup, ScreenInfo } from './plugins/types'
 import type { NewNote, OpenOptions, OwnApi } from '../plugins/sdk'
 import { type HoverHost, HoverHostProvider } from './components/media/HoverPreview/HoverPreview'
 import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
@@ -829,7 +830,7 @@ export function App(props: AppProps) {
       (e: unknown) => setNotice(`コピーに失敗しました：${messageOf(e)}`),
     )
   const [menu, setMenu] = createSignal<MenuAt & { ids: string[] }>()
-  const [menuPlugins, setMenuPlugins] = createSignal<MenuEntry[]>()
+  const [menuPlugins, setMenuPlugins] = createSignal<MenuGroup[]>()
   // 選んでいないものを右クリックしたときは、選択を外してそれだけにかける
   const openMenu = (id: string, at: MenuAt) => {
     if (at.anchor && menu()?.anchor === at.anchor) {
@@ -841,17 +842,34 @@ export function App(props: AppProps) {
     const m = { ids, ...at }
     setMenu(m)
     setMenuPlugins(undefined)
-    if (ids.some((x) => lib().byId.get(x)?.note) || !backend.itemMenu) return
+    if (!backend.itemMenu) return
     backend.itemMenu(ids).then(
       (es) => menu() === m && setMenuPlugins(es),
       (e: unknown) => console.warn('プラグインのメニューを読めない', e),
     )
   }
-  const runPlugin = (ids: string[], entry: string) =>
-    backend.runItemMenu?.(ids, entry).then(
-      (msg) => msg && setNotice(msg),
+  const [menuResult, setMenuResult] = createSignal<{ title: string; rows: { label: string; value: string }[] }>()
+  const runPlugin = (ids: string[], plugin: string, entry: string) => {
+    const label = menuPlugins()
+      ?.find((g) => g.plugin === plugin)
+      ?.items.find((e) => e.id === entry)?.label
+    return backend.runItemMenu?.(ids, plugin, entry).then(
+      (r) => {
+        if (r.items.length) setLib(withAdded(lib(), r.items))
+        if (r.copy !== undefined)
+          navigator.clipboard
+            .writeText(r.copy)
+            .catch((e: unknown) => setNotice(`コピーに失敗しました：${messageOf(e)}`))
+        if (r.failed.length) {
+          console.warn('プラグインが頼んだ処理のうち、できなかったもの', r.failed)
+          setNotice(`プラグインの処理の一部に失敗しました：${r.failed[0]}`)
+        } else if (r.output && 'toast' in r.output) setNotice(r.output.toast)
+        if (r.output && 'overlay' in r.output)
+          setMenuResult({ title: r.output.overlay.title ?? label ?? 'プラグインの結果', rows: r.output.overlay.rows })
+      },
       (e: unknown) => setNotice(`プラグインの処理に失敗しました：${messageOf(e)}`),
     )
+  }
   const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
 
   const createProject = async () => {
@@ -1813,6 +1831,16 @@ export function App(props: AppProps) {
                       </Show>
                     )}
                   </Show>
+                  <Show when={menuResult()} keyed>
+                    {(r) => (
+                      <MenuResultDialog
+                        title={r.title}
+                        rows={r.rows}
+                        onCopy={(v) => void copy(v, 'コピーしました')}
+                        onClose={() => setMenuResult(undefined)}
+                      />
+                    )}
+                  </Show>
                   <Show when={menu()} keyed>
                     {(m) => {
                       const its = () => m.ids.flatMap((id) => lib().byId.get(id) ?? [])
@@ -1860,7 +1888,7 @@ export function App(props: AppProps) {
                                 its().length > 1 ? `${its().length} 件の名前をコピーしました` : '名前をコピーしました',
                               )
                             }
-                            onPlugin={(entry) => void runPlugin(ids(), entry)}
+                            onPlugin={(plugin, entry) => void runPlugin(ids(), plugin, entry)}
                             onDelete={backend.deleteItem && (() => setDeleting(ids()))}
                             onClose={() => menu() === m && setMenu(undefined)}
                           />

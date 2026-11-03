@@ -1,5 +1,5 @@
-use crate::File;
-use crate::patchouli::plugin::host::{self, CommandArg};
+use crate::patchouli::plugin::commands::{self, CommandArg};
+use crate::patchouli::plugin::types::File;
 
 pub struct Probe {
     pub size: Option<(u32, u32)>,
@@ -8,7 +8,7 @@ pub struct Probe {
 
 /// FFmpeg が読んだ入力の情報から、映像の大きさと長さを拾う。FFmpeg がなければ none。
 pub fn probe(f: &File) -> Option<Probe> {
-    if !host::command_available("ffmpeg") {
+    if !commands::available("ffmpeg") {
         return None;
     }
     let t = |s: &str| CommandArg::Text(s.to_owned());
@@ -19,7 +19,7 @@ pub fn probe(f: &File) -> Option<Probe> {
         CommandArg::File(f.clone()),
     ];
     // 出力を書かないので終わりの番号は 0 でないが、入力の情報は stderr に出る
-    let log = host::run_command("ffmpeg", &args, None).ok()?.stderr;
+    let log = commands::run("ffmpeg", &args, None).ok()?.stderr;
     Some(Probe {
         size: size(&log),
         secs: duration(&log),

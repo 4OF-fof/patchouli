@@ -1,36 +1,57 @@
-wit_bindgen::generate!({ world: "plugin", path: "../sdk/wit" });
+wit_bindgen::generate!({
+    inline: "
+        package local:image;
 
-use patchouli::plugin::host;
-use patchouli::plugin::types::ContentMedia;
+        world image {
+            include patchouli:plugin/thumbnail-role@0.11.0;
+            include patchouli:plugin/view-role@0.11.0;
+            include patchouli:plugin/details-role@0.11.0;
+            include patchouli:plugin/content-role@0.11.0;
+        }
+    ",
+    path: "../sdk/wit",
+    world: "local:image/image",
+    generate_all,
+});
+
+use exports::patchouli::plugin as role;
+use patchouli::plugin::types::{
+    ContentBudget, ContentMedia, ContentPart, Detail, File, ThumbnailImage, ViewKind,
+};
+use patchouli::plugin::{commands, host};
 
 #[path = "../../shared/frame.rs"]
 mod frame;
 
 struct Image;
 
-impl Guest for Image {
-    fn thumbnail(_format: String, f: File, edge: u32) -> Result<Option<Thumbnail>, String> {
+impl role::thumbnail::Guest for Image {
+    fn thumbnail(_format: String, f: File, edge: u32) -> Result<Option<ThumbnailImage>, String> {
         let png = match host::image_thumbnail(&f, edge) {
             Ok(png) => png,
-            Err(e) if host::command_available("ffmpeg") => {
+            Err(e) if commands::available("ffmpeg") => {
                 frame::frame(&f, 0.0, edge).map_err(|e2| format!("{e} / {e2}"))?
             }
             Err(e) => return Err(e),
         };
-        Ok(Some(Thumbnail {
+        Ok(Some(ThumbnailImage {
             png,
             size: host::image_size(&f),
         }))
     }
+}
 
-    fn view(_format: String, _f: File) -> Option<View> {
-        Some(View::Image)
+impl role::view::Guest for Image {
+    fn view(_format: String, _f: File) -> Option<ViewKind> {
+        Some(ViewKind::Image)
     }
 
     fn decode(_format: String, _f: File) -> Result<Vec<u8>, String> {
         Err("decode には対応していません".into())
     }
+}
 
+impl role::details::Guest for Image {
     fn details(_format: String, f: File) -> Result<Vec<Detail>, String> {
         Ok(host::image_size(&f)
             .map(|d| Detail {
@@ -40,15 +61,9 @@ impl Guest for Image {
             .into_iter()
             .collect())
     }
+}
 
-    fn menu(_targets: Vec<Target>) -> Result<Vec<MenuItem>, String> {
-        Ok(Vec::new())
-    }
-
-    fn run_menu(_targets: Vec<Target>, id: String) -> Result<Option<String>, String> {
-        Err(format!("{id} には対応していません"))
-    }
-
+impl role::content::Guest for Image {
     fn content(
         _format: String,
         f: File,
@@ -56,7 +71,7 @@ impl Guest for Image {
     ) -> Result<Vec<ContentPart>, String> {
         let png = match host::image_thumbnail(&f, budget.edge) {
             Ok(png) => png,
-            Err(e) if host::command_available("ffmpeg") => {
+            Err(e) if commands::available("ffmpeg") => {
                 frame::frame(&f, 0.0, budget.edge).map_err(|e2| format!("{e} / {e2}"))?
             }
             Err(e) => return Err(e),
@@ -66,14 +81,6 @@ impl Guest for Image {
             end: None,
             media: ContentMedia::Images(vec![png]),
         }])
-    }
-
-    fn settings() -> Vec<Setting> {
-        Vec::new()
-    }
-
-    fn call(_format: String, _f: File, method: String, _args: String) -> Result<String, String> {
-        Err(format!("{method} には対応していません"))
     }
 }
 

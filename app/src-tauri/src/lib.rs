@@ -25,7 +25,10 @@ use std::sync::{Arc, Mutex};
 use cache::Cache;
 use library::{ItemPatch, Library, LibraryState, Opened, Place, StoredItem, StoredProject};
 use plugin::record::{self, Source};
-use plugin::{By, Part, Reads, Registry, Runner, UiRef, ViewOut};
+use plugin::{
+    By, ItemInfo, MenuAction, MenuFile, MenuRun, MenuShown, Part, Reads, Registry, Runner, UiOwner,
+    UiRef, ViewOut,
+};
 use serde::Serialize;
 use serde_json::Value;
 use tauri::{Emitter, Manager, State};
@@ -138,6 +141,7 @@ struct Target {
     id: String,
     path: PathBuf,
     ext: String,
+    note: bool,
     runner: Arc<Mutex<Runner>>,
     plugins: Arc<Registry>,
     thumbs: PathBuf,
@@ -145,12 +149,19 @@ struct Target {
 
 impl Target {
     fn of(cur: &State<Current>, id: &str) -> Result<Target, String> {
+        with_session(cur, |s| s.lib.asset(id).map(|_| ()))?;
+        Target::any(cur, id)
+    }
+
+    /// ノートも受け取る。右クリックメニューに使う。
+    fn any(cur: &State<Current>, id: &str) -> Result<Target, String> {
         with_session(cur, |s| {
-            let (path, ext) = s.lib.asset(id)?;
+            let (path, ext, note) = s.lib.file(id)?;
             Ok(Target {
                 id: id.to_owned(),
                 path: path.to_owned(),
                 ext,
+                note,
                 runner: Arc::clone(&s.runner),
                 plugins: Arc::clone(&s.plugins),
                 thumbs: s.thumbs.clone(),
@@ -202,50 +213,185 @@ struct Elevated {
 }
 
 fn targets(cur: &State<Current>, ids: &[String]) -> Result<Vec<Target>, String> {
-    ids.iter().map(|id| Target::of(cur, id)).collect()
+    ids.iter().map(|id| Target::any(cur, id)).collect()
 }
 
-/// 右クリックメニューを受け持つもの。選んだものすべてを 1 つのプラグインの同じ側が受け持つときだけ Some で、
-/// sandbox なら中は None。
-fn menu_side(ts: &[Target]) -> Option<Option<Elevated>> {
-    let first = ts.first()?;
-    let by = first.plugins.handles(&first.ext, Part::Menu)?;
-    if ts
-        .iter()
-        .any(|t| t.plugins.handles(&t.ext, Part::Menu) != Some(by))
-    {
-        return None;
-    }
-    if by == By::Sandbox {
-        return Some(None);
-    }
-    let ui = first.plugins.ui_of(&first.ext, Part::Menu)?;
-    if ts.iter().any(|t| {
-        t.plugins
-            .ui_of(&t.ext, Part::Menu)
-            .is_none_or(|u| u.plugin != ui.plugin)
-    }) {
-        return None;
-    }
-    Some(Some(Elevated {
-        ui,
-        items: ts.iter().map(Target::item).collect(),
-    }))
-}
-
-/// 選んだ素材をまとめてプラグインに渡す。
-fn run_targets<T>(
+/// 選んだものをまとめて plugin のメニューに渡す。permissions に library があれば、ライブラリの情報も渡す。
+fn run_menu_of<T>(
     cur: &State<Current>,
-    ids: &[String],
-    f: impl FnOnce(&mut Runner, &[(&str, &Path)]) -> Result<T, String>,
+    ts: &[Target],
+    plugin: &str,
+    f: impl FnOnce(&mut Runner, &[MenuFile]) -> Result<T, String>,
 ) -> Result<T, String> {
-    let ts = targets(cur, ids)?;
     let first = ts.first().ok_or("素材を選んでいません")?;
-    let files: Vec<_> = ts
+    let infos: Vec<Option<ItemInfo>> = if first.plugins.permits(plugin, "library") {
+        with(cur, |l| {
+            Ok(ts
+                .iter()
+                .map(|t| {
+                    l.stored(&t.id).map(|it| ItemInfo {
+                        id: it.id,
+                        name: it.name,
+                        note: it.note,
+                        project: it.project,
+                        tags: it.tags,
+                        memo: it.memo,
+                    })
+                })
+                .collect())
+        })?
+    } else {
+        vec![None; ts.len()]
+    };
+    let files: Vec<MenuFile> = ts
         .iter()
-        .map(|t| (t.ext.as_str(), t.path.as_path()))
+        .zip(infos)
+        .map(|(t, info)| MenuFile {
+            ext: &t.ext,
+            note: t.note,
+            path: &t.path,
+            info,
+        })
         .collect();
     first.runner(|r| f(r, &files))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+enum MenuOutput {
+    Toast(String),
+    Overlay {
+        #[serde(skip_serializing_if = "Option::is_none")]
+        title: Option<String>,
+        rows: Vec<Detail>,
+    },
+}
+
+/// run-menu の結果。copy は写すもの、items は作ったノートと登録した素材、failed は起こせなかったこと。
+#[derive(Serialize, Default)]
+struct MenuDone {
+    output: Option<MenuOutput>,
+    copy: Option<String>,
+    items: Vec<StoredItem>,
+    failed: Vec<String>,
+}
+
+/// run-menu で頼まれたことを起こす。置き場は選んだものの先頭と同じにする。
+fn finish_menu(
+    app: &tauri::AppHandle,
+    cur: &State<Current>,
+    ts: &[Target],
+    run: MenuRun,
+) -> Result<MenuDone, String> {
+    let MenuRun {
+        shown,
+        actions,
+        scratch,
+    } = run;
+    let output = match shown {
+        MenuShown::None => None,
+        MenuShown::Toast(t) => Some(MenuOutput::Toast(t)),
+        MenuShown::Overlay { title, rows } => Some(MenuOutput::Overlay {
+            title,
+            rows: rows_of(rows),
+        }),
+    };
+    let mut done = MenuDone {
+        output,
+        ..MenuDone::default()
+    };
+    let mut notes = Vec::new();
+    let mut assets = Vec::new();
+    for a in actions {
+        match a {
+            MenuAction::Copy(t) => done.copy = Some(t),
+            MenuAction::Note { name, body } => notes.push((name, body)),
+            MenuAction::Asset { path, name } => assets.push(named(path, name, &mut done.failed)),
+        }
+    }
+    if notes.is_empty() && assets.is_empty() {
+        return Ok(done);
+    }
+    let first = ts.first().map(|t| t.id.as_str());
+    let (thumbs, plugins, cache) = with_session(cur, |s| {
+        let place = first
+            .and_then(|id| s.lib.stored(id))
+            .map(|it| Place {
+                project: it.project,
+                group: it.group,
+            })
+            .unwrap_or_default();
+        for (name, body) in notes {
+            match note_with(&mut s.lib, &name, body, &place) {
+                Ok(it) => done.items.push(it),
+                Err(e) => done.failed.push(e),
+            }
+        }
+        if !assets.is_empty() {
+            let out = s.lib.import(&assets, &place, true)?;
+            done.items.extend(out.items);
+            done.failed.extend(out.failed);
+        }
+        Ok((s.thumbs.clone(), Arc::clone(&s.plugins), s.lib.cache()))
+    })?;
+    drop(scratch);
+    let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut done.items);
+    if !jobs.is_empty() {
+        let app = app.clone();
+        std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
+    }
+    Ok(done)
+}
+
+/// 登録する名前にする。作業用の置き場の中で名前を変える。
+fn named(path: PathBuf, name: Option<String>, failed: &mut Vec<String>) -> PathBuf {
+    let Some(name) = name else { return path };
+    let to = match path.extension() {
+        Some(ext) => path.with_file_name(format!("{name}.{}", ext.to_string_lossy())),
+        None => path.with_file_name(&name),
+    };
+    if to == path || to.exists() {
+        return path;
+    }
+    match std::fs::rename(&path, &to) {
+        Ok(()) => to,
+        Err(e) => {
+            failed.push(format!("「{name}」に名前を変えられません：{e}"));
+            path
+        }
+    }
+}
+
+fn note_with(
+    lib: &mut Library,
+    name: &str,
+    body: String,
+    place: &Place,
+) -> Result<StoredItem, String> {
+    let mut it = lib.create_note(name, place)?;
+    let patch = ItemPatch {
+        body: Some(body.clone()),
+        ..ItemPatch::default()
+    };
+    lib.save_item(&it.id, &patch)?;
+    it.body = Some(body);
+    Ok(it)
+}
+
+/// 右クリックメニューに項目を足すプラグイン。
+fn menu_sides(ts: &[Target]) -> Vec<plugin::MenuSide> {
+    let Some(first) = ts.first() else {
+        return Vec::new();
+    };
+    let keys: Vec<_> = ts.iter().map(|t| (t.ext.as_str(), t.note)).collect();
+    first.plugins.menus(&keys)
+}
+
+fn elevated_of(ui: UiRef, ts: &[Target]) -> Elevated {
+    Elevated {
+        ui,
+        items: ts.iter().map(Target::item).collect(),
+    }
 }
 
 fn reads_now(plugins: &Registry, before: Option<&Reads>, ext: &str) -> Reads {
@@ -1172,8 +1318,10 @@ async fn browser_close_all(
     web::close_all(&app, &pages)
 }
 
+/// プラグイン 1 つが右クリックメニューに足すもの。elevated が受け持つときは、items は空で画面が作る。
 #[derive(Serialize)]
-struct MenuOut {
+struct MenuGroup {
+    plugin: String,
     items: Vec<MenuEntry>,
     #[serde(skip_serializing_if = "Option::is_none")]
     elevated: Option<Elevated>,
@@ -1181,46 +1329,67 @@ struct MenuOut {
 
 #[derive(Serialize)]
 struct RunMenuOut {
-    message: Option<String>,
+    #[serde(flatten)]
+    done: MenuDone,
     #[serde(skip_serializing_if = "Option::is_none")]
     elevated: Option<Elevated>,
 }
 
-/// elevated が受け持つときは、項目を作らずに elevated を返す（画面が作る）。
+/// 項目を作れなかったプラグインは、ほかのプラグインの項目を出せるよう、記録して飛ばす。
 #[tauri::command]
-async fn item_menu(cur: State<'_, Current>, ids: Vec<String>) -> Result<MenuOut, String> {
-    let elevated = match menu_side(&targets(&cur, &ids)?) {
-        None => None,
-        Some(Some(e)) => Some(e),
-        Some(None) => {
-            return Ok(MenuOut {
-                items: entries_of(run_targets(&cur, &ids, |r, files| r.menu(files))?),
-                elevated: None,
-            });
-        }
-    };
-    Ok(MenuOut {
-        items: Vec::new(),
-        elevated,
-    })
+async fn item_menu(cur: State<'_, Current>, ids: Vec<String>) -> Result<Vec<MenuGroup>, String> {
+    let ts = targets(&cur, &ids)?;
+    let mut out = Vec::new();
+    for side in menu_sides(&ts) {
+        let (items, elevated) = match side.ui {
+            Some(ui) => (Vec::new(), Some(elevated_of(ui, &ts))),
+            None => match run_menu_of(&cur, &ts, &side.plugin, |r, files| {
+                r.menu(&side.plugin, files)
+            }) {
+                Ok(items) if items.is_empty() => continue,
+                Ok(items) => (entries_of(items), None),
+                Err(e) => {
+                    log::warn!("右クリックメニューの項目を作れない（{}）: {e}", side.plugin);
+                    continue;
+                }
+            },
+        };
+        out.push(MenuGroup {
+            plugin: side.plugin,
+            items,
+            elevated,
+        });
+    }
+    Ok(out)
 }
 
 #[tauri::command]
 async fn run_item_menu(
+    app: tauri::AppHandle,
     cur: State<'_, Current>,
     ids: Vec<String>,
+    plugin: String,
     entry: String,
 ) -> Result<RunMenuOut, String> {
-    match menu_side(&targets(&cur, &ids)?) {
-        None => Err("メニューに対応するプラグインがありません".into()),
-        Some(Some(e)) => Ok(RunMenuOut {
-            message: None,
-            elevated: Some(e),
+    let ts = targets(&cur, &ids)?;
+    let side = menu_sides(&ts)
+        .into_iter()
+        .find(|s| s.plugin == plugin)
+        .ok_or("メニューに対応するプラグインがありません")?;
+    match side.ui {
+        Some(ui) => Ok(RunMenuOut {
+            done: MenuDone::default(),
+            elevated: Some(elevated_of(ui, &ts)),
         }),
-        Some(None) => Ok(RunMenuOut {
-            message: run_targets(&cur, &ids, |r, files| r.run_menu(files, &entry))?,
-            elevated: None,
-        }),
+        None => {
+            let run = run_menu_of(&cur, &ts, &plugin, |r, files| {
+                r.run_menu(&plugin, files, &entry)
+            })?;
+            Ok(RunMenuOut {
+                done: finish_menu(&app, &cur, &ts, run)?,
+                elevated: None,
+            })
+        }
     }
 }
 
@@ -1282,19 +1451,30 @@ async fn sandbox_details(cur: State<'_, Current>, id: String) -> Result<Vec<Deta
 }
 
 #[tauri::command]
-async fn sandbox_menu(cur: State<'_, Current>, ids: Vec<String>) -> Result<Vec<MenuEntry>, String> {
-    Ok(entries_of(run_targets(&cur, &ids, |r, files| {
-        r.menu(files)
+async fn sandbox_menu(
+    cur: State<'_, Current>,
+    ids: Vec<String>,
+    plugin: String,
+) -> Result<Vec<MenuEntry>, String> {
+    let ts = targets(&cur, &ids)?;
+    Ok(entries_of(run_menu_of(&cur, &ts, &plugin, |r, files| {
+        r.menu(&plugin, files)
     })?))
 }
 
 #[tauri::command]
 async fn sandbox_run_menu(
+    app: tauri::AppHandle,
     cur: State<'_, Current>,
     ids: Vec<String>,
+    plugin: String,
     entry: String,
-) -> Result<Option<String>, String> {
-    run_targets(&cur, &ids, |r, files| r.run_menu(files, &entry))
+) -> Result<MenuDone, String> {
+    let ts = targets(&cur, &ids)?;
+    let run = run_menu_of(&cur, &ts, &plugin, |r, files| {
+        r.run_menu(&plugin, files, &entry)
+    })?;
+    finish_menu(&app, &cur, &ts, run)
 }
 
 #[tauri::command]
@@ -1304,7 +1484,7 @@ async fn plugin_read(
     offset: u64,
     length: u32,
 ) -> Result<tauri::ipc::Response, String> {
-    let path = with(&cur, |l| Ok(l.asset(&id)?.0.to_owned()))?;
+    let path = with(&cur, |l| Ok(l.file(&id)?.0.to_owned()))?;
     Ok(tauri::ipc::Response::new(plugin::read(
         &path, offset, length,
     )?))
@@ -1318,10 +1498,26 @@ async fn plugin_call(
     plugin: Option<String>,
     method: String,
     args: String,
+    owner: Option<String>,
 ) -> Result<String, String> {
-    let t = Target::of(&cur, &id)?;
+    // 右クリックメニューは拡張子の担当と別に決まるので、受け持つプラグインを画面から受け取る
+    let menu = (part == Part::Menu)
+        .then(|| owner.ok_or("右クリックメニューのプラグインが指定されていません"))
+        .transpose()?;
+    let t = if menu.is_some() {
+        Target::any(&cur, &id)?
+    } else {
+        Target::of(&cur, &id)?
+    };
+    let note = t.note;
     let (r, reads) = t.run(|r, ext, path| {
-        r.reading(|r| r.call_ui(ext, part, path, plugin.as_deref(), &method, &args))
+        r.reading(|r| {
+            let owner = match menu.as_deref() {
+                Some(plugin) => UiOwner::Menu { plugin, note },
+                None => UiOwner::Format(part),
+            };
+            r.call_ui(ext, owner, path, plugin.as_deref(), &method, &args)
+        })
     });
     // 呼んでいるあいだにライブラリを開き直していたら、読んだ設定は残さない
     if part == Part::Thumbnail

@@ -1,5 +1,5 @@
-use crate::File;
 use crate::content::ffmpeg;
+use crate::patchouli::plugin::types::File;
 
 /// つながった JPEG を 1 枚ずつに分ける。FFmpeg の mjpeg は、画像の中に FF D9 を書かない。
 fn split_jpeg(b: &[u8]) -> Vec<Vec<u8>> {

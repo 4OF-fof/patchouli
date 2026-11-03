@@ -2,10 +2,24 @@
 //! 関数と型の説明は patchouli/wit/plugin.wit にある。
 //! この例では、サムネイルと詳細は ui.ts が描き、WASM は設定の項目と、行と列を数える関数を持つ。
 
-wit_bindgen::generate!({ world: "plugin", path: "patchouli/wit" });
+// 受け持つ役割の world を include でまとめる。役割と world の名前は plugin.wit にある
+wit_bindgen::generate!({
+    inline: "
+        package local:csv;
 
+        world csv {
+            include patchouli:plugin/settings-role@0.11.0;
+            include patchouli:plugin/call-role@0.11.0;
+        }
+    ",
+    path: "patchouli/wit",
+    world: "local:csv/csv",
+    generate_all,
+});
+
+use exports::patchouli::plugin as role;
 use patchouli::plugin::host;
-use patchouli::plugin::types::{SettingKind, SettingValue};
+use patchouli::plugin::types::{File, Setting, SettingKind, SettingValue};
 use serde::Serialize;
 
 struct Csv;
@@ -17,40 +31,8 @@ struct Summary {
     columns: usize,
 }
 
-impl Guest for Csv {
-    fn thumbnail(_format: String, _f: File, _edge: u32) -> Result<Option<Thumbnail>, String> {
-        Ok(None)
-    }
-
-    fn view(_format: String, _f: File) -> Option<View> {
-        None
-    }
-
-    fn decode(_format: String, _f: File) -> Result<Vec<u8>, String> {
-        Err("decode には対応していません".into())
-    }
-
+impl role::settings::Guest for Csv {
     /// ui.ts の settings の型と合わせる。
-    fn details(_format: String, _f: File) -> Result<Vec<Detail>, String> {
-        Ok(Vec::new())
-    }
-
-    fn menu(_targets: Vec<Target>) -> Result<Vec<MenuItem>, String> {
-        Ok(Vec::new())
-    }
-
-    fn run_menu(_targets: Vec<Target>, id: String) -> Result<Option<String>, String> {
-        Err(format!("{id} には対応していません"))
-    }
-
-    fn content(
-        _format: String,
-        _f: File,
-        _budget: ContentBudget,
-    ) -> Result<Vec<ContentPart>, String> {
-        Ok(Vec::new())
-    }
-
     fn settings() -> Vec<Setting> {
         vec![Setting {
             key: "header".into(),
@@ -60,7 +42,9 @@ impl Guest for Csv {
             default: SettingValue::Toggle(true),
         }]
     }
+}
 
+impl role::call::Guest for Csv {
     /// ui.ts の api.call から呼ばれる。args と戻り値は JSON。
     fn call(_format: String, f: File, method: String, _args: String) -> Result<String, String> {
         match method.as_str() {

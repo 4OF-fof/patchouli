@@ -1,5 +1,5 @@
-use crate::File;
 use crate::patchouli::plugin::host;
+use crate::patchouli::plugin::types::File;
 use crate::probe::Probe;
 
 /// 入れ物（mp4・mov・m4v は ISO BMFF、webm は Matroska）の頭を読んで、映像の大きさと長さを拾う。
@@ -83,7 +83,11 @@ fn mvhd(f: &File, b: &Bx) -> Option<f64> {
         (be(&d[..4]), be(&d[4..]))
     };
     // 長さがわからないときは、すべてのビットが立っている
-    let unknown = if v == 1 { u64::MAX } else { u64::from(u32::MAX) };
+    let unknown = if v == 1 {
+        u64::MAX
+    } else {
+        u64::from(u32::MAX)
+    };
     (scale > 0 && dur > 0 && dur != unknown).then(|| dur as f64 / scale as f64)
 }
 

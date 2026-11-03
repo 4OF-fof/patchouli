@@ -2,8 +2,8 @@ use symphonia::core::errors::Error;
 use symphonia::core::formats::TrackType;
 use symphonia::core::units::Duration;
 
-use crate::File;
 use crate::bpm;
+use crate::patchouli::plugin::types::File;
 use crate::pcm::reader;
 
 /// テンポを測る範囲（秒）。頭は前奏のことが多いので、長い曲では少し先から測る。

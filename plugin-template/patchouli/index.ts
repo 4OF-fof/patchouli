@@ -96,19 +96,28 @@ export interface MenuItem {
   label: string
 }
 
-/** 右クリックメニューの窓口。targets は選んでいる素材ごとの窓口で、どれもこの形式のプラグインが受け持つ。 */
+/** 右クリックメニューの窓口。targets は選んでいるものごとの窓口で、どれも plugin.json の menu の対象。 */
 export interface MenuApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
   targets: Api<T>[]
-  /** sandbox の menu を呼ぶ。sandbox に menu を書いていなければ失敗する。 */
+  /** WASM の menu を呼ぶ。plugin.wasm がなければ失敗する。 */
   sandbox(): Promise<MenuItem[]>
 }
+
+/**
+ * 右クリックメニューの項目を実行したあとの出し方。WIT の menu-output と同じ。
+ * toast は終わったことなどの短い知らせ、overlay は行の並びを画面に重ねて見せる（行ごとに値をコピーできる）。
+ */
+export type MenuOutput = { toast: string } | { overlay: { title?: string; rows: Detail[] } }
 
 /** 右クリックメニューの項目が選ばれたときの窓口。id は選ばれた項目。 */
 export interface RunMenuApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
   targets: Api<T>[]
   id: string
-  /** sandbox の run-menu を呼ぶ。sandbox に menu を書いていなければ失敗する。 */
-  sandbox(): Promise<string | undefined>
+  /**
+   * WASM の run-menu を呼ぶ。plugin.wasm がなければ失敗する。
+   * WASM が頼んだコピー・ノートの作成・素材の登録は、本体が済ませてから返す。
+   */
+  sandbox(): Promise<MenuOutput | undefined>
 }
 
 /** 波形を作るときの窓口。signal は、時間の上限を過ぎて止めてほしいときに中止になる。 */
@@ -296,7 +305,7 @@ export interface PluginModule<T extends PluginTypes = PluginTypes> {
   /** 右クリックメニューに足す項目。 */
   menu?(api: MenuApi<T>): Promise<MenuItem[]>
   /** menu で返した項目が選ばれたとき。文字列を返すと、本体が通知として出す。 */
-  runMenu?(api: RunMenuApi<T>): Promise<string | undefined | void>
+  runMenu?(api: RunMenuApi<T>): Promise<MenuOutput | undefined | void>
   /** 内容で探したり分けたりするときに読む区間。区間の分け方はプラグインが決め、budget を超えない。 */
   content?(api: ContentApi<T>): Promise<ContentPart[]>
   /** ファイルが指す URL。指していなければ undefined。 */

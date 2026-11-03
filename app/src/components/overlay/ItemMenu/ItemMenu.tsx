@@ -6,10 +6,10 @@ import type { NavMenuEntry } from '../../nav/NavMenu/NavMenu'
 import { PlaceMenu } from '../../nav/PlaceMenu/PlaceMenu'
 import { ContextMenu } from '../ContextMenu/ContextMenu'
 
-/** プラグインが足す項目。 */
-export interface ItemMenuEntry {
-  id: string
-  label: string
+/** プラグイン 1 つが足す項目。 */
+export interface ItemMenuGroup {
+  plugin: string
+  items: { id: string; label: string }[]
 }
 
 export interface ItemMenuProps {
@@ -25,7 +25,7 @@ export interface ItemMenuProps {
   lib: Library
   tags: string[]
   recentTags: string[]
-  plugins?: ItemMenuEntry[]
+  plugins?: ItemMenuGroup[]
   revealLabel?: string
   onOpen: () => void
   onOpenInTab?: () => void
@@ -36,7 +36,7 @@ export interface ItemMenuProps {
   onPin: (on: boolean) => void
   onCopyPath?: () => void
   onCopyName: () => void
-  onPlugin?: (id: string) => void
+  onPlugin?: (plugin: string, entry: string) => void
   onDelete?: () => void
   onClose: () => void
 }
@@ -76,12 +76,10 @@ export function ItemMenu(props: ItemMenuProps) {
         props.onCopyPath && { id: 'path', icon: 'copy', label: 'パスをコピー' },
         { id: 'name', icon: 'copy', label: '名前をコピー' },
       ]),
-      ...(plugins.length
-        ? [
-            'separator' as const,
-            ...plugins.map((p): NavMenuEntry => ({ id: PLUGIN + p.id, icon: 'plugin', label: p.label })),
-          ]
-        : []),
+      ...plugins.flatMap((g, i): NavMenuEntry[] => [
+        'separator',
+        ...g.items.map((e, j): NavMenuEntry => ({ id: `${PLUGIN}${i}:${j}`, icon: 'plugin', label: e.label })),
+      ]),
       ...(props.onDelete
         ? [
             'separator' as const,
@@ -108,8 +106,12 @@ export function ItemMenu(props: ItemMenuProps) {
     props.onClose()
   }
   const onMain = (id: string) => {
-    if (id.startsWith(PLUGIN)) done(() => props.onPlugin?.(id.slice(PLUGIN.length)))
-    else done(run()[id])
+    if (id.startsWith(PLUGIN)) {
+      const [i, j] = id.slice(PLUGIN.length).split(':').map(Number)
+      const g = props.plugins?.[i ?? -1]
+      const e = g?.items[j ?? -1]
+      done(() => g && e && props.onPlugin?.(g.plugin, e.id))
+    } else done(run()[id])
   }
   const run = (): Record<string, (() => void) | undefined> => ({
     open: props.onOpen,

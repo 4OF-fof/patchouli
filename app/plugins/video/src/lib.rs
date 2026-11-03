@@ -1,9 +1,27 @@
-wit_bindgen::generate!({ world: "plugin", path: "../sdk/wit" });
+wit_bindgen::generate!({
+    inline: "
+        package local:video;
+
+        world video {
+            include patchouli:plugin/thumbnail-role@0.11.0;
+            include patchouli:plugin/view-role@0.11.0;
+            include patchouli:plugin/details-role@0.11.0;
+            include patchouli:plugin/content-role@0.11.0;
+            include patchouli:plugin/call-role@0.11.0;
+        }
+    ",
+    path: "../sdk/wit",
+    world: "local:video/video",
+    generate_all,
+});
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
-use patchouli::plugin::host;
-use patchouli::plugin::types::Dimensions;
+use exports::patchouli::plugin as role;
+use patchouli::plugin::commands;
+use patchouli::plugin::types::{
+    ContentBudget, ContentPart, Detail, Dimensions, File, ThumbnailImage, ViewKind,
+};
 
 #[path = "../../shared/clock.rs"]
 mod clock;
@@ -20,26 +38,30 @@ mod probe;
 
 struct Video;
 
-impl Guest for Video {
+impl role::thumbnail::Guest for Video {
     /// elevated が WebView で読めなかったときに呼ぶ。FFmpeg でコマを取り出す。
-    fn thumbnail(_format: String, f: File, edge: u32) -> Result<Option<Thumbnail>, String> {
+    fn thumbnail(_format: String, f: File, edge: u32) -> Result<Option<ThumbnailImage>, String> {
         // 最初のコマは黒いことが多いので 1 秒目から取る。それより短ければ最初のコマ
         let png = frame::frame(&f, 1.0, edge).or_else(|_| frame::frame(&f, 0.0, edge))?;
         let size = meta::meta(&f)
             .or_else(|| probe::probe(&f))
             .and_then(|p| p.size)
             .map(|(width, height)| Dimensions { width, height });
-        Ok(Some(Thumbnail { png, size }))
+        Ok(Some(ThumbnailImage { png, size }))
     }
+}
 
-    fn view(_format: String, _f: File) -> Option<View> {
-        Some(View::Video)
+impl role::view::Guest for Video {
+    fn view(_format: String, _f: File) -> Option<ViewKind> {
+        Some(ViewKind::Video)
     }
 
     fn decode(_format: String, _f: File) -> Result<Vec<u8>, String> {
         Err("decode には対応していません".into())
     }
+}
 
+impl role::details::Guest for Video {
     fn details(_format: String, f: File) -> Result<Vec<Detail>, String> {
         let Some(p) = probed(&f) else {
             return Ok(Vec::new());
@@ -54,30 +76,22 @@ impl Guest for Video {
         });
         Ok(size.into_iter().chain(secs).collect())
     }
+}
 
-    fn menu(_targets: Vec<Target>) -> Result<Vec<MenuItem>, String> {
-        Ok(Vec::new())
-    }
-
-    fn run_menu(_targets: Vec<Target>, id: String) -> Result<Option<String>, String> {
-        Err(format!("{id} には対応していません"))
-    }
-
+impl role::content::Guest for Video {
     /// 音声トラックだけを返す。コマは elevated が WebView で取る。
     fn content(format: String, f: File, budget: ContentBudget) -> Result<Vec<ContentPart>, String> {
         match pcm::audio(&format, &f, &budget) {
             Ok(parts) => Ok(parts),
-            Err(_) if host::command_available("ffmpeg") => {
+            Err(_) if commands::available("ffmpeg") => {
                 Ok(content::audio(&f, probed(&f).and_then(|p| p.secs), &budget))
             }
             Err(_) => Ok(Vec::new()),
         }
     }
+}
 
-    fn settings() -> Vec<Setting> {
-        Vec::new()
-    }
-
+impl role::call::Guest for Video {
     /// WebView で読めなかったもののために、elevated から呼ぶ。
     /// secs：長さ（秒）。わからなければ null。
     /// frames：区間のコマを FFmpeg で取り出す。args は「start,span,every,count,edge」の JSON の文字列で、
