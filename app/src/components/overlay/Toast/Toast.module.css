@@ -9,9 +9,9 @@
   padding: 0 var(--space-16) 0 var(--space-14);
   border: 1px solid var(--edge);
   border-radius: var(--radius-lg);
-  background: color-mix(in oklch, var(--tone) var(--tint, 0%), var(--card));
+  background: color-mix(in oklab, var(--tone) var(--tint, 0%), var(--card));
   box-shadow: var(--shadow-float);
-  color: color-mix(in oklch, var(--tone) var(--tint, 0%), var(--ink));
+  color: color-mix(in oklab, var(--tone) var(--tint, 0%), var(--ink));
   font-size: var(--fs-list);
 }
 .success {
@@ -27,7 +27,7 @@
 .warning,
 .error {
   --act: var(--tone);
-  --edge: color-mix(in oklch, var(--tone) 75%, transparent);
+  --edge: color-mix(in oklab, var(--tone) 75%, transparent);
   --tint: 26%;
 }
 .root:has(button) {
