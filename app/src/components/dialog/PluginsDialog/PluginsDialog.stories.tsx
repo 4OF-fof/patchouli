@@ -190,7 +190,14 @@ const meta = {
   title: '部品/dialog/PluginsDialog',
   component: PluginsDialog,
   parameters: { layout: 'fullscreen' },
-  args: { report: found, actions, onClose: () => {} },
+  args: {
+    report: found,
+    actions,
+    commandPaths: {},
+    onPickCommand: fn(async () => undefined),
+    onCommandPathChange: fn(async () => {}),
+    onClose: () => {},
+  },
   decorators: [
     (Story) => (
       <div style={{ position: 'relative', height: '100vh', 'min-height': '640px', background: 'var(--paper)' }}>

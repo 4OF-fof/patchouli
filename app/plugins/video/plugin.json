@@ -8,7 +8,7 @@
     "commands": {
       "ffmpeg": {
         "version": { "args": ["-version"], "pattern": "ffmpeg version n?([0-9][^ ]*)" },
-        "description": "コマの切り出しと、本体で読めない音声の、内容の読み取りに使います"
+        "description": "H.265・ProRes など、アプリで再生できない動画のサムネイルを作れます。Opus・AC-3 などの音声も AI 機能で読み取れます"
       }
     }
   },

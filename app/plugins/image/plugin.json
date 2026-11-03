@@ -7,7 +7,7 @@
     "commands": {
       "ffmpeg": {
         "version": { "args": ["-version"], "pattern": "ffmpeg version n?([0-9][^ ]*)" },
-        "description": "本体で読めない画像の、サムネイルと内容の読み取りに使います"
+        "description": "AVIF のサムネイルを作り、AI 機能で読み取れるようになります"
       }
     }
   },

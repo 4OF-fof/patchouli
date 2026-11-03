@@ -8,7 +8,7 @@
     "commands": {
       "ffmpeg": {
         "version": { "args": ["-version"], "pattern": "ffmpeg version n?([0-9][^ ]*)" },
-        "description": "本体で読めない音声の、内容の読み取りに使います"
+        "description": "本体で読めない符号化の MP3・WAV・FLAC も、AI 機能で読み取れるようになります"
       }
     }
   },

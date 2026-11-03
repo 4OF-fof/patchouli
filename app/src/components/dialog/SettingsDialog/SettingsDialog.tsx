@@ -10,7 +10,6 @@ import type {
   UnusedPlugin,
 } from '../../../backend/types'
 import { DEFAULT_PREFS, type Prefs } from '../../../model/prefs'
-import type { CommandStatus } from '../../../plugins/types'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
@@ -19,7 +18,7 @@ import styles from './SettingsDialog.module.css'
 import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 
-export type SettingsPage = 'general' | 'view' | 'note' | 'tools' | 'developer' | 'about'
+export type SettingsPage = 'general' | 'view' | 'note' | 'developer' | 'about'
 
 export interface SettingsDialogProps {
   version: string
@@ -32,10 +31,6 @@ export interface SettingsDialogProps {
   onOpenLibraries?: () => void
   app?: AppSettings
   onAppChange?: (s: AppSettings) => Promise<void>
-  /** 外部ツールの場所を選ぶ。選ばなかったときは undefined。 */
-  onPickCommand?: (name: string) => Promise<string | undefined>
-  /** プラグインが使う外部ツール。 */
-  commands?: CommandStatus[]
   autoTag?: AutoTag
   autoTagProgress?: AutoTagProgress
   /** 有効にするときは、ダウンロードし終えるまで待つ。 */
@@ -217,19 +212,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
     const change = props.onAppChange
     if (a && change) void run(label, () => change({ ...a, ...patch }))
   }
-  const pickCommand = async (name: string) => {
-    setError(undefined)
-    try {
-      const p = await props.onPickCommand!(name)
-      if (p) setApp({ commandPaths: { ...props.app!.commandPaths, [name]: p } }, `${name} の場所を変えています`)
-    } catch (e) {
-      setError(message(e))
-    }
-  }
-  const autoCommand = (name: string) => {
-    const { [name]: _, ...rest } = props.app!.commandPaths
-    setApp({ commandPaths: rest }, `${name} の場所を戻しています`)
-  }
 
   const entries = (): Entry[] => [
     ...grouped('起動', [
@@ -356,15 +338,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
             group: 'AI 機能',
             words: 'AI 機能を有効化 自動分類 AI 検索 タグ 候補 モデル llama.cpp 実行環境 GPU',
             body: () => aiSettings(props.onAutoTagChange!),
-          },
-        ]
-      : []),
-    ...(props.onAppChange
-      ? [
-          {
-            page: 'tools' as const,
-            words: `外部ツール 場所 ${(props.commands ?? []).map((c) => c.name).join(' ')}`,
-            body: () => tools(),
           },
         ]
       : []),
@@ -512,7 +485,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
     { id: 'general', label: '一般' },
     { id: 'view', label: '表示' },
     { id: 'note', label: 'ノート' },
-    { id: 'tools', label: '外部ツール' },
     { id: 'developer', label: '開発者モード' },
     { id: 'about', label: '情報' },
   ]
@@ -642,41 +614,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
           </Show>
         </>
       )}
-    </Show>
-  )
-
-  const tools = () => (
-    <Show when={props.app && props.commands} fallback={<p class={styles.loading}>読み込み中…</p>}>
-      <For each={props.commands} fallback={<p class={styles.empty}>プラグインが使う外部ツールはありません</p>}>
-        {(c) => {
-          const fixed = () => props.app?.commandPaths[c.name]
-          return (
-            <div class={styles.row}>
-              <div class={styles.what}>
-                <span class={styles.name}>{c.name}</span>
-                <span class={styles.path} data-ok={!!c.path} data-tip={c.path}>
-                  {c.path
-                    ? `${fixed() ? '指定' : '自動'}：${c.path}`
-                    : fixed()
-                      ? `見つかりません：${fixed()}`
-                      : '未検出'}
-                </span>
-              </div>
-              <Show when={props.onPickCommand}>
-                <Button size="sm" disabled={busy() !== undefined} onClick={() => void pickCommand(c.name)}>
-                  場所を指定
-                </Button>
-              </Show>
-              <Show when={fixed()}>
-                <Button size="sm" variant="ghost" disabled={busy() !== undefined} onClick={() => autoCommand(c.name)}>
-                  自動に戻す
-                </Button>
-              </Show>
-            </div>
-          )
-        }}
-      </For>
-      <p class={styles.note}>指定しないものは、PATH から探します</p>
     </Show>
   )
 

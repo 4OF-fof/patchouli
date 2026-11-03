@@ -22,6 +22,12 @@ export interface PluginsDialogProps {
   actions?: PluginActions
   onChanged?: () => void | Promise<void>
   onRefresh?: () => void
+  /** 外部ツールの名前 → 自分で指定した場所。 */
+  commandPaths?: Record<string, string>
+  /** 外部ツールの場所を選ぶ。選ばなかったときは undefined。 */
+  onPickCommand?: (name: string) => Promise<string | undefined>
+  /** 外部ツールの場所を変える。path がなければ、PATH から探すのに戻す。 */
+  onCommandPathChange?: (name: string, path?: string) => Promise<void>
   onClose?: () => void
 }
 
@@ -83,7 +89,7 @@ const needs = (p: PluginStatus, k: keyof Deps): Need[] => [
 ]
 
 const need = (d: { need: string; min?: string; from?: string }) =>
-  [d.need, d.min && `${d.min} 以上`, d.from && `${d.from} から`].filter(Boolean).join('・')
+  [d.need, d.min && `${d.min} 以上`, d.from && `${d.from} から使用`].filter(Boolean).join(' · ')
 
 const perms = (p: PluginStatus) => [
   ...(p.formats.length ? [{ label: 'ファイルの読み取り', text: '対応形式のファイルのみ', full: false }] : []),
@@ -299,85 +305,81 @@ export function PluginsDialog(props: PluginsDialogProps) {
           <Show when={needs(p(), 'plugins').length}>
             <section>
               <h4>依存プラグイン</h4>
-              <ul class={styles.deps}>
-                <For each={needs(p(), 'plugins')}>
-                  {(d) => {
-                    const q = () => byId(d.name)
-                    const ok = () => q()?.state === 'active'
-                    return (
-                      <li>
-                        <Show when={q()} fallback={<b>{d.name}</b>}>
+              <For each={needs(p(), 'plugins')}>
+                {(d) => {
+                  const q = () => byId(d.name)
+                  const ok = () => q()?.state === 'active'
+                  return (
+                    <div class={styles.row}>
+                      <div class={styles.what}>
+                        <Show when={q()} fallback={<span class={styles.name}>{d.name}</span>}>
                           {(dep) => (
                             <button type="button" class={styles.link} onClick={() => setPicked(keyOf(dep()))}>
                               {dep().name}
                             </button>
                           )}
                         </Show>
-                        <span class={styles.need}>{need(d)}</span>
-                        <span class={styles.state} data-ok={ok()}>
-                          {ok() ? '有効' : ((q() && STATE_LABEL[q()!.state]) ?? '未導入')}
-                        </span>
-                      </li>
-                    )
-                  }}
-                </For>
-              </ul>
-            </section>
-          </Show>
-          <Show when={perms(p()).length}>
-            <section>
-              <h4>権限</h4>
-              <ul class={styles.perms}>
-                <For each={perms(p())}>
-                  {(x) => (
-                    <li data-full={x.full}>
-                      <b>{x.label}</b>
-                      <span>{x.text}</span>
-                    </li>
-                  )}
-                </For>
-              </ul>
+                        <span class={styles.hint}>{need(d)}</span>
+                      </div>
+                      <span class={styles.state} data-ok={ok()}>
+                        {ok() ? '有効' : ((q() && STATE_LABEL[q()!.state]) ?? '未導入')}
+                      </span>
+                    </div>
+                  )
+                }}
+              </For>
             </section>
           </Show>
           <Show when={needs(p(), 'commands').length}>
             <section>
               <h4>{TOOLS}</h4>
-              <ul class={styles.deps}>
-                <For each={needs(p(), 'commands')}>
-                  {(d) => {
-                    const c = () => byName(d.name)
-                    return (
-                      <li>
-                        <Show when={c()} fallback={<b>{d.name}</b>}>
+              <For each={needs(p(), 'commands')}>
+                {(d) => {
+                  const c = () => byName(d.name)
+                  return (
+                    <div class={styles.row}>
+                      <div class={styles.what}>
+                        <Show when={c()} fallback={<span class={styles.name}>{d.name}</span>}>
                           <button type="button" class={styles.link} onClick={() => setPicked(CMD + d.name)}>
                             {d.name}
                           </button>
                         </Show>
-                        <span class={styles.need}>{need(d)}</span>
-                        <Show when={props.report?.commands} fallback={<span class={styles.state}>未確認</span>}>
-                          <Show
-                            when={c()?.path}
-                            fallback={
-                              <span class={styles.state} data-ok="false">
-                                未検出
-                              </span>
-                            }
-                          >
-                            {(path) => (
-                              <span class={styles.path} data-tip={path()}>
-                                {c()?.version ? `${c()?.version}　${path()}` : path()}
-                              </span>
-                            )}
-                          </Show>
-                        </Show>
                         <Show when={d.description}>
-                          <p class={styles.use}>{d.description}</p>
+                          <span class={styles.use}>{d.description}</span>
                         </Show>
-                      </li>
-                    )
-                  }}
-                </For>
-              </ul>
+                        <span class={styles.hint}>{need(d)}</span>
+                        <Show when={c()?.path}>
+                          {(path) => (
+                            <span class={styles.path} data-tip={path()}>
+                              {path()}
+                            </span>
+                          )}
+                        </Show>
+                      </div>
+                      <Show when={props.report?.commands} fallback={<span class={styles.state}>未確認</span>}>
+                        <span class={styles.state} data-ok={!!c()?.path}>
+                          {c()?.path ? (c()?.version ?? '検出') : '未検出'}
+                        </span>
+                      </Show>
+                    </div>
+                  )
+                }}
+              </For>
+            </section>
+          </Show>
+          <Show when={perms(p()).length}>
+            <section>
+              <h4>権限</h4>
+              <For each={perms(p())}>
+                {(x) => (
+                  <div class={styles.row} data-full={x.full}>
+                    <div class={styles.what}>
+                      <span class={styles.name}>{x.label}</span>
+                      <span class={styles.hint}>{x.text}</span>
+                    </div>
+                  </div>
+                )}
+              </For>
             </section>
           </Show>
         </Show>
@@ -385,74 +387,116 @@ export function PluginsDialog(props: PluginsDialogProps) {
           {(s) => (
             <section>
               <h4>取得先</h4>
-              <p class={styles.source} data-tip={sourceLabel(s())}>
-                {sourceLabel(s())}
-              </p>
+              <div class={styles.row}>
+                <span class={styles.path} data-tip={sourceLabel(s())}>
+                  {sourceLabel(s())}
+                </span>
+              </div>
             </section>
           )}
         </Show>
         <Show when={p().state === 'active' && p().settings.length}>
           <section>
             <h4>設定</h4>
-            <div class={styles.settings}>
-              <Index each={p().settings}>
-                {(s) => (
+            <Index each={p().settings}>
+              {(s) => (
+                <div class={styles.field}>
                   <SettingField
                     setting={s()}
                     disabled={!a().setSetting}
                     onChange={(v) => void save(p().id, s().key, v)}
                   />
-                )}
-              </Index>
-            </div>
+                </div>
+              )}
+            </Index>
           </section>
         </Show>
       </>
     )
   }
 
-  const command = (c: () => CommandStatus) => (
-    <>
-      <header class={styles.head}>
-        <div>
-          <h3>{c().name}</h3>
-          <span class={styles.badge}>{TOOLS}</span>
+  const pickCommand = async (name: string) => {
+    setError(undefined)
+    try {
+      const path = await props.onPickCommand!(name)
+      if (path) await run(`${name} の場所を変えています`, () => props.onCommandPathChange!(name, path))
+    } catch (e) {
+      setError(message(e))
+    }
+  }
+
+  const command = (c: () => CommandStatus) => {
+    const fixed = () => props.commandPaths?.[c().name]
+    return (
+      <>
+        <header class={styles.head}>
+          <div>
+            <h3>{c().name}</h3>
+            <Show when={c().version}>
+              <span class={styles.mono}>{c().version}</span>
+            </Show>
+            <span class={styles.badge}>{TOOLS}</span>
+          </div>
+        </header>
+        <div class={`${styles.row} ${styles.where}`}>
+          <div class={styles.what}>
+            <span class={styles.name}>場所</span>
+            <span class={styles.path} data-ok={!!c().path} data-tip={c().path ?? fixed()}>
+              {c().path
+                ? `${fixed() ? '指定' : '自動'}：${c().path}`
+                : fixed()
+                  ? `見つかりません：${fixed()}`
+                  : '未検出。PATH から探しています'}
+            </span>
+          </div>
+          <Show when={props.onPickCommand && props.onCommandPathChange}>
+            <Show when={fixed()}>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy() !== undefined}
+                onClick={() => void run(`${c().name} の場所を戻しています`, () => props.onCommandPathChange!(c().name))}
+              >
+                自動に戻す
+              </Button>
+            </Show>
+            <Button size="sm" disabled={busy() !== undefined} onClick={() => void pickCommand(c().name)}>
+              場所を指定
+            </Button>
+          </Show>
         </div>
-      </header>
-      <p class={styles.where} data-ok={!!c().path} data-tip={c().path}>
-        {c().path ?? '未検出'}
-      </p>
-      <For
-        each={[
-          { label: '必須としているプラグイン', need: '必須' },
-          { label: '任意で使用するプラグイン', need: '任意' },
-        ]}
-      >
-        {(g) => {
-          const ps = () => users(c().name).filter((u) => u.need === g.need)
-          return (
-            <section>
-              <h4>{g.label}</h4>
-              <Show when={ps().length} fallback={<p class={styles.none}>なし</p>}>
-                <ul class={styles.users}>
-                  <For each={ps()}>
-                    {(u) => (
-                      <li>
+        <For
+          each={[
+            { label: '必須としているプラグイン', need: '必須' },
+            { label: '任意で使用するプラグイン', need: '任意' },
+          ]}
+        >
+          {(g) => {
+            const ps = () => users(c().name).filter((u) => u.need === g.need)
+            return (
+              <section>
+                <h4>{g.label}</h4>
+                <For each={ps()} fallback={<p class={styles.none}>なし</p>}>
+                  {(u) => (
+                    <div class={styles.row}>
+                      <div class={styles.what}>
                         <button type="button" class={styles.link} data-tip={u.p.id} onClick={() => setPicked(u.p.id)}>
                           {u.p.name}
                         </button>
-                        <span class={styles.need}>{u.description}</span>
-                      </li>
-                    )}
-                  </For>
-                </ul>
-              </Show>
-            </section>
-          )
-        }}
-      </For>
-    </>
-  )
+                        <Show when={u.description}>
+                          <span class={styles.use}>{u.description}</span>
+                        </Show>
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </section>
+            )
+          }}
+        </For>
+      </>
+    )
+  }
 
   return (
     <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
@@ -537,16 +581,18 @@ export function PluginsDialog(props: PluginsDialogProps) {
           </Show>
         </nav>
         <ScrollArea class={styles.main} viewClass={styles.mainView}>
-          <Show when={busy() || error()}>
-            <p class={styles.status} data-error={!!error()} role="status">
-              {error() ?? `${busy()}…`}
-            </p>
-          </Show>
-          <Show when={props.report}>
-            <Show when={key()} keyed>
-              {(k) => (k.startsWith(CMD) ? command(latest(pickedCommand)) : detail(latest(pickedPlugin)))}
+          <div class={styles.page}>
+            <Show when={busy() || error()}>
+              <p class={styles.status} data-error={!!error()} role="status">
+                {error() ?? `${busy()}…`}
+              </p>
             </Show>
-          </Show>
+            <Show when={props.report}>
+              <Show when={key()} keyed>
+                {(k) => (k.startsWith(CMD) ? command(latest(pickedCommand)) : detail(latest(pickedPlugin)))}
+              </Show>
+            </Show>
+          </div>
         </ScrollArea>
       </div>
     </div>

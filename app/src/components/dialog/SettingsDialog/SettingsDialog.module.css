@@ -136,11 +136,6 @@
 .what .name {
   flex: none;
 }
-.note {
-  margin: var(--space-8) 0 0;
-  font-size: var(--fs-meta);
-  color: var(--muted);
-}
 .status {
   margin: 0 0 var(--space-16);
   padding: var(--space-8) var(--space-12);
@@ -219,9 +214,6 @@
   white-space: nowrap;
   font: 400 var(--fs-meta) var(--f-mono);
   color: var(--muted);
-}
-.path[data-ok='false'] {
-  color: var(--danger);
 }
 .notices {
   border-top: 1px solid var(--line);

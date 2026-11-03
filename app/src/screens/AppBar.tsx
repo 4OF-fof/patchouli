@@ -367,12 +367,8 @@ export function AppBar(props: AppBarProps) {
     (d) => d.get(),
   )
   const [app, { refetch: reloadApp }] = createResource(
-    () => (state() === 'settings' && props.appSettings) || undefined,
+    () => ((state() === 'settings' || state() === 'plugins') && props.appSettings) || undefined,
     (a) => a.get(),
-  )
-  const [toolReport, { refetch: reloadTools }] = createResource(
-    () => (state() === 'settings' && props.appSettings && props.loadPlugins) || undefined,
-    (load) => load(),
   )
   const [autoTag, { refetch: reloadAutoTag }] = createResource(
     () => (state() === 'settings' && props.autoTag) || undefined,
@@ -704,6 +700,17 @@ export function AppBar(props: AppBarProps) {
             })
           }
           onRefresh={() => void reloadPlugins()}
+          commandPaths={app.latest?.commandPaths}
+          onPickCommand={props.appSettings && ((name) => props.appSettings!.pickCommand(name))}
+          onCommandPathChange={
+            props.appSettings &&
+            (async (name, path) => {
+              const a = app.latest ?? (await props.appSettings!.get())
+              const { [name]: _, ...rest } = a.commandPaths
+              await props.appSettings!.set({ ...a, commandPaths: path ? { ...rest, [name]: path } : rest })
+              await reloadApp()
+            })
+          }
           onClose={close}
         />
       </Show>
@@ -746,14 +753,8 @@ export function AppBar(props: AppBarProps) {
               await props.appSettings!.set(next)
               await reloadApp()
               if (before && before.thumbSize !== next.thumbSize) props.onReopen?.()
-              else if (JSON.stringify(before?.commandPaths) !== JSON.stringify(next.commandPaths)) {
-                await props.onPluginsChanged?.()
-                await reloadTools()
-              }
             })
           }
-          onPickCommand={props.appSettings && ((name) => props.appSettings!.pickCommand(name))}
-          commands={toolReport.latest?.commands ?? (toolReport.latest ? [] : undefined)}
           loadNotices={async () => (await import('../notices/third-party.json')).default}
           usage={usage.latest}
           unused={unused.latest}
