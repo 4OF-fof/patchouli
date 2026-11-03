@@ -7,21 +7,11 @@ import { GroupCard } from '../../components/media/GroupCard/GroupCard'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
-import { Tabs } from '../../components/controls/Tabs/Tabs'
-import {
-  type CardSize,
-  type Group,
-  type Item,
-  type Library,
-  NOTE_LABEL,
-  facesOf,
-  newerFirst,
-  thumbOf,
-  toggled,
-} from '../../model/library'
-import { useFormats } from '../../plugins/formats'
+import { type ItemFilter, NO_FILTER, filtering, matcher, sorter } from '../../model/filter'
+import { type CardSize, type Group, type Item, type Library, facesOf, thumbOf, toggled } from '../../model/library'
 import shared from '../screen.module.css'
 import { type Sort, prefs } from '../../model/prefs'
+import { ListTools, useKindOf } from '../ListTools/ListTools'
 import styles from './DetailScreen.module.css'
 
 const FIRST = 60
@@ -52,30 +42,25 @@ export interface DetailScreenProps {
 
 export function DetailScreen(props: DetailScreenProps) {
   const [sort, setSort] = createSignal<Sort>(prefs().sort)
-  const formats = useFormats()
+  const [filter, setFilter] = createSignal<ItemFilter>(NO_FILTER)
+  const kindOf = useKindOf()
   const sel = useSelection()
   const preview = useHoverPreview()
-  const labelOf = (it: Item) => (it.note ? NOTE_LABEL : (formats().get(it.ext)?.label ?? it.ext))
+  const match = createMemo(() => matcher(filter()))
   const side = children(() => props.side)
   const hasSide = () => side.toArray().some((x) => x != null)
   const [pins, setPins] = createSignal(props.pins ?? [])
   const pinned = createMemo(() => {
     const here = new Map((props.pinFrom ?? props.items).map((i) => [i.id, i]))
-    return pins().flatMap((id) => here.get(id) ?? [])
+    return pins()
+      .flatMap((id) => here.get(id) ?? [])
+      .filter(match())
   })
   const togglePin = (id: string) => {
     setPins(toggled(pins(), id))
     props.onTogglePin?.(id)
   }
-  const all = createMemo(() =>
-    props.items.toSorted(
-      sort() === 'name'
-        ? (a, b) => a.name.localeCompare(b.name, 'ja')
-        : sort() === 'kind'
-          ? (a, b) => Number(b.note) - Number(a.note) || labelOf(a).localeCompare(labelOf(b), 'ja') || newerFirst(a, b)
-          : newerFirst,
-    ),
-  )
+  const all = createMemo(() => props.items.filter(match()).toSorted(sorter(sort(), kindOf)))
   let scroll!: HTMLDivElement
   let more: HTMLDivElement | undefined
   const [shown, setShown] = createSignal(FIRST)
@@ -115,7 +100,8 @@ export function DetailScreen(props: DetailScreenProps) {
       }
     />
   )
-  const groups = () => (props.groups ?? []).toSorted((a, b) => a.name.localeCompare(b.name, 'ja'))
+  const groups = () =>
+    (filtering(filter()) ? [] : (props.groups ?? [])).toSorted((a, b) => a.name.localeCompare(b.name, 'ja'))
   const groupCard = (g: Group) => (
     <GroupCard
       name={g.name}
@@ -156,24 +142,20 @@ export function DetailScreen(props: DetailScreenProps) {
               </Show>
               <div class={shared.head} data-first={!pinned().length || undefined}>
                 <h2>すべて</h2>
-                <span>{props.items.length} 件</span>
+                <span>{filtering(filter()) ? `${all().length} / ${props.items.length}` : props.items.length} 件</span>
+                <ListTools items={props.items} sort={sort()} onSort={setSort} filter={filter()} onFilter={setFilter} />
                 <Show when={props.onFlat}>
                   <Button size="sm" variant="ghost" pressed={!!props.flat} onClick={() => props.onFlat?.(!props.flat)}>
                     フォルダを展開
                   </Button>
                 </Show>
-                <Tabs
-                  label="並び順"
-                  value={sort()}
-                  onChange={setSort}
-                  items={[
-                    { key: 'moved', label: '更新順' },
-                    { key: 'name', label: '名前順' },
-                    { key: 'kind', label: '種類順' },
-                  ]}
-                />
               </div>
-              <Show when={all().length || groups().length} fallback={<div class={shared.empty}>{props.empty}</div>}>
+              <Show
+                when={all().length || groups().length}
+                fallback={
+                  <div class={shared.empty}>{filtering(filter()) ? '一致する項目がありません' : props.empty}</div>
+                }
+              >
                 <JustifiedRow height={104}>
                   <For each={groups()}>{(g) => groupCard(g)}</For>
                   <For each={visible()}>{(it) => card(it, 'S', all, false)}</For>

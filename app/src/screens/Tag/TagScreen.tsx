@@ -79,7 +79,6 @@ export function TagScreen(props: TagScreenProps) {
   const together = createMemo(() =>
     count(shown().flatMap((i) => [...new Set(i.tags)].filter((t) => !near(props.tag, t)))).slice(0, 6),
   )
-  const projectCount = () => new Set(all().flatMap((i) => i.project ?? [])).size
 
   const body = (c: TagCoverPart, i: number): JSX.Element => {
     if (c.type === 'desc')
@@ -159,7 +158,7 @@ export function TagScreen(props: TagScreenProps) {
       meta={
         editing()
           ? `タグ名を変更すると、付与されている ${all().length} 件とサブタグも更新されます`
-          : `${all().length} 件 | ${projectCount()} プロジェクト`
+          : `${all().length} 件`
       }
       actions={
         <>

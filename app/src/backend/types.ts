@@ -257,6 +257,8 @@ export interface Backend {
   saveProject(name: string, cover: CoverPart[]): Promise<void>
   /** フォルダの名前を変える。中の項目は、あとで onChanged で届く。 */
   renameProject?: (from: string, to: string) => Promise<void>
+  /** 中身をルートの直下に移し、フォルダと概要をごみ箱に移す。中の項目は、あとで onChanged で届く。 */
+  deleteProject?: (name: string) => Promise<void>
   saveTagCover(tag: string, cover: TagCoverPart[]): Promise<void>
   /**
    * 下の階層のタグも合わせて付け替える。素材に付いたタグは saveItem で直す。

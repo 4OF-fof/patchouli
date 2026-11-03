@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowLeftRight,
   ArrowRight,
+  ArrowUpDown,
   AudioWaveform,
   Bold,
   Briefcase,
@@ -25,6 +26,7 @@ import {
   Folder,
   FolderInput,
   FolderSync,
+  Funnel,
   GripVertical,
   Hash,
   Heading1,
@@ -146,6 +148,8 @@ const ICONS = {
   rename: Pencil,
   tag: Tag,
   trash: Trash2,
+  filter: Funnel,
+  sort: ArrowUpDown,
 }
 
 export type IconName = keyof typeof ICONS

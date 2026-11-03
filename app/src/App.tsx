@@ -58,6 +58,7 @@ import {
   withProject,
   withProjectCover,
   withRenamedProject,
+  withoutProject,
   withRenamedTag,
   withTagCover,
   type Thumbnail,
@@ -786,6 +787,21 @@ export function App(props: AppProps) {
       saveState()
     })
   }
+  const deleteProject = (name: string) => {
+    const del = backend.deleteProject
+    if (!del) return
+    persist(async () => {
+      await del(name)
+      setLib(withoutProject(lib(), name))
+      setPinnedProjects(pinnedProjects().filter((n) => n !== name))
+      eachStack((s) => {
+        const rest = s.filter((v) => !(v.s === 'project' && v.name === name))
+        return rest.length ? rest : [{ s: 'edition' }]
+      })
+      saveState()
+      setNotice(`プロジェクト「${name}」を削除し、中身を所属なしに移動しました`)
+    })
+  }
   const [orphans, setOrphans] = createSignal(props.orphans ?? [])
   const [orphansHeld, setOrphansHeld] = createSignal(false)
   const settleOrphan = (meta: string, job?: () => Promise<void>) => {
@@ -1254,6 +1270,7 @@ export function App(props: AppProps) {
                 onToggleProjectPin={() => toggleProjectPin(v.name)}
                 onSaveCover={(cover) => saveProjectCover(v.name, cover)}
                 onRename={backend.renameProject && ((to) => renameProject(v.name, to))}
+                onDelete={backend.deleteProject && (() => deleteProject(v.name))}
                 onOpenItem={openItem}
                 onOpenGroup={openGroup}
               />

@@ -1991,6 +1991,17 @@ async fn rename_project(
 }
 
 #[tauri::command]
+async fn delete_project(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    name: String,
+) -> Result<(), String> {
+    let r = with(&cur, |l| l.delete_project(&name));
+    recheck(&app)?;
+    r
+}
+
+#[tauri::command]
 async fn relink_meta(
     app: tauri::AppHandle,
     cur: State<'_, Current>,
@@ -2035,6 +2046,7 @@ pub fn run() {
             rename_tag,
             delete_tag_cover,
             rename_project,
+            delete_project,
             relink_meta,
             discard_meta,
             plugins,

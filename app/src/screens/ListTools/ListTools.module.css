@@ -1,0 +1,70 @@
+.root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* ボタンからメニューへ移るあいだにポインタが外れないよう、すき間は余白で取る */
+.drop {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: var(--z-menu);
+  padding-top: var(--space-6);
+}
+.panel {
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--float);
+  box-shadow: var(--shadow);
+  font-size: var(--fs-list);
+}
+.scroll {
+  max-height: min(520px, 70vh);
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-14);
+  padding: var(--space-12);
+}
+.name {
+  height: 30px;
+  padding: 0 var(--space-10);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+.name:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+.facet {
+  display: grid;
+  gap: var(--space-6);
+}
+.facet > b {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--muted);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+.chips small {
+  font: 400 var(--fs-tiny) var(--f-mono);
+  opacity: 0.7;
+}
+.panel footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-6) var(--space-8);
+  border-top: 1px solid var(--line-2);
+}

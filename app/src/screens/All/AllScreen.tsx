@@ -8,7 +8,10 @@ import { useHoverPreview } from '../../components/media/HoverPreview/HoverPrevie
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
-import { type Item, type Library, facesOf, newerFirst, thumbOf } from '../../model/library'
+import { type ItemFilter, NO_FILTER, filtering, matcher, sorter } from '../../model/filter'
+import { type Item, type Library, facesOf, thumbOf } from '../../model/library'
+import { type Sort, prefs } from '../../model/prefs'
+import { ListTools, useKindOf } from '../ListTools/ListTools'
 import shared from '../screen.module.css'
 import styles from './AllScreen.module.css'
 
@@ -28,15 +31,21 @@ export function AllScreen(props: AllScreenProps) {
   const lib = () => props.lib
   const preview = useHoverPreview()
   const sel = useSelection()
+  const kindOf = useKindOf()
   const [flat, setFlat] = createSignal(false)
+  const [sort, setSort] = createSignal<Sort>(prefs().sort)
+  const [filter, setFilter] = createSignal<ItemFilter>(NO_FILTER)
+  const scope = createMemo(() => (flat() ? lib().items : lib().items.filter((i) => i.group === null)))
   const all = createMemo(() => {
     const pins = new Map(lib().pins.map((id, i) => [id, i]))
     const rank = (id: string) => pins.get(id) ?? pins.size
-    const items = flat() ? lib().items : lib().items.filter((i) => i.group === null)
-    return items.toSorted((a, b) => rank(a.id) - rank(b.id) || newerFirst(a, b))
+    const by = sorter(sort(), kindOf)
+    return scope()
+      .filter(matcher(filter()))
+      .toSorted((a, b) => rank(a.id) - rank(b.id) || by(a, b))
   })
   const groups = () =>
-    flat()
+    flat() || filtering(filter())
       ? []
       : lib()
           .groups.filter((g) => g.parent === null)
@@ -88,9 +97,11 @@ export function AllScreen(props: AllScreenProps) {
           <header class={shared.mast}>
             <h1>すべて</h1>
             <span class={shared.meta}>
-              {lib().items.length} 件{sel?.ids().length ? ` | ${sel.ids().length} 件を選択中` : ''}
+              {filtering(filter()) ? `${all().length} / ${scope().length}` : lib().items.length} 件
+              {sel?.ids().length ? ` | ${sel.ids().length} 件を選択中` : ''}
             </span>
-            <span class={shared.end}>
+            <span class={`${shared.end} ${shared.actions}`}>
+              <ListTools items={scope()} sort={sort()} onSort={setSort} filter={filter()} onFilter={setFilter} />
               <Button size="sm" variant="ghost" pressed={flat()} onClick={() => setFlat(!flat())}>
                 フォルダを展開
               </Button>
@@ -100,7 +111,7 @@ export function AllScreen(props: AllScreenProps) {
             when={all().length || groups().length}
             fallback={
               <div class={styles.body}>
-                <NoneText>まだ項目がありません</NoneText>
+                <NoneText>{filtering(filter()) ? '一致する項目がありません' : 'まだ項目がありません'}</NoneText>
               </div>
             }
           >

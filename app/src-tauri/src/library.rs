@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
@@ -1475,6 +1475,40 @@ impl Library {
         Ok(())
     }
 
+    /// 中のファイルとフォルダをルートの直下に移し、残ったフォルダと .meta、概要のカードをごみ箱に移す。
+    /// ルートに同じ名前があれば、番号を付けて移す。中の項目は、次に突き合わせたときに読み直す。
+    pub fn delete_project(&mut self, name: &str) -> Result<(), String> {
+        let dir = self.project_dir(name)?;
+        if !dir.is_dir() {
+            return Err(format!("プロジェクト「{name}」が見つかりません"));
+        }
+        let rd = fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        for e in rd.filter_map(Result::ok).filter(listed_entry) {
+            let from = e.path();
+            let to = free_path(&self.root, &e.file_name(), from.is_dir());
+            fs::rename(&from, &to).map_err(|e| format!("{}: {e}", from.display()))?;
+            let meta = meta_path(&from);
+            if meta.exists() {
+                fs::rename(&meta, meta_path(&to))
+                    .map_err(|e| format!("{}: {e}", meta.display()))?;
+            }
+        }
+        let meta = meta_path(&dir);
+        let mut gone = vec![dir.clone()];
+        let cards = read_json(&meta)?
+            .as_ref()
+            .and_then(|m| m.get(ID_KEY))
+            .and_then(Value::as_str)
+            .filter(|id| check_name(id).is_ok())
+            .map(|id| self.cards_dir(id))
+            .filter(|d| d.is_dir());
+        gone.extend(cards);
+        if meta.exists() {
+            gone.push(meta);
+        }
+        trash::delete_all(&gone).map_err(|e| format!("{}: {e}", dir.display()))
+    }
+
     fn orphan(&self, meta: &Path) -> Result<Orphan, String> {
         self.orphans
             .iter()
@@ -1490,6 +1524,26 @@ impl Library {
     pub fn discard_meta(&mut self, meta: &Path) -> Result<(), String> {
         orphan::discard(&self.root, &self.orphan(meta)?)
     }
+}
+
+/// dir の中で、その名前も .meta もまだ使われていないパス。かぶれば番号を付ける。
+fn free_path(dir: &Path, name: &OsStr, is_dir: bool) -> PathBuf {
+    let p = Path::new(name);
+    let (stem, ext) = match (is_dir, p.file_stem(), p.extension()) {
+        (false, Some(s), Some(e)) => (
+            s.to_string_lossy().into_owned(),
+            format!(".{}", e.to_string_lossy()),
+        ),
+        _ => (name.to_string_lossy().into_owned(), String::new()),
+    };
+    let mut to = dir.join(name);
+    for k in 2.. {
+        if !to.exists() && !meta_path(&to).exists() {
+            break;
+        }
+        to = dir.join(format!("{stem} {k}{ext}"));
+    }
+    to
 }
 
 pub fn canonical(root: &Path) -> Result<PathBuf, String> {

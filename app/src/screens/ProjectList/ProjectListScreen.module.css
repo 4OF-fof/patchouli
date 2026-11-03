@@ -7,12 +7,6 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-20);
 }
-.quiet {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: var(--space-16);
-  padding-top: var(--space-14);
-}
 .card {
   min-width: 0;
   display: flex;
@@ -33,11 +27,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--fs-body);
-  font-weight: 600;
-}
-.card[data-big='true'] .nm {
   font-size: var(--fs-large);
+  font-weight: 600;
 }
 .ds {
   overflow: hidden;

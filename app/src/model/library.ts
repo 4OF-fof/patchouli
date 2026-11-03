@@ -414,6 +414,18 @@ export const withRenamedProject = (lib: Library, from: string, to: string) =>
     lib.groups.map((g) => (g.project === from ? { ...g, project: to } : g)),
   )
 
+/** 中身は所属なしにする。 */
+export const withoutProject = (lib: Library, name: string) =>
+  buildLibrary(
+    lib.items.map((i) => (i.project === name ? { ...i, project: null } : i)),
+    lib.projects.filter((p) => p.name !== name),
+    lib.today,
+    lib.tagCovers,
+    lib.pins,
+    lib.formats,
+    lib.groups.map((g) => (g.project === name ? { ...g, project: null } : g)),
+  )
+
 export function newNoteName(lib: Library, name = '新しいノート') {
   let n = name
   for (let k = 2; lib.byName.has(n); k++) n = `${name} ${k}`

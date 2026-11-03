@@ -537,6 +537,7 @@ export function tauriBackend(): Backend {
     },
     saveProject: (name, cover) => invoke('save_project', { name, cover }),
     renameProject: (from, to) => invoke('rename_project', { from, to }),
+    deleteProject: (name) => invoke('delete_project', { name }),
     saveTagCover: (tag, cover) => invoke('save_tag_cover', { tag, cover }),
     renameTag: (from, to, keepFrom) => invoke('rename_tag', { from, to, keepFrom }),
     deleteTagCover: (tag) => invoke('delete_tag_cover', { tag }),

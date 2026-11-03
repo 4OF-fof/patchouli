@@ -53,6 +53,7 @@ export function sampleBackend(): Backend {
     },
     async saveProject() {},
     async renameProject() {},
+    async deleteProject() {},
     async saveTagCover() {},
     async renameTag() {},
     async deleteTagCover() {},

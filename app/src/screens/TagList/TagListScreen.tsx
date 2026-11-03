@@ -8,12 +8,14 @@ import { type Item, type Library, coverOrder, toggled } from '../../model/librar
 import shared from '../screen.module.css'
 import styles from './TagListScreen.module.css'
 
-type Sort = 'name' | 'count'
+type Sort = 'moved' | 'name' | 'count'
 interface Row {
   tag: string
   items: Item[]
   kids: Row[]
 }
+
+const newest = (r: Row) => Math.min(...r.items.map((i) => i.moved))
 
 export interface TagListScreenProps {
   lib: Library
@@ -28,10 +30,13 @@ export function TagListScreen(props: TagListScreenProps) {
   const [open, setOpen] = createSignal(props.expanded ?? [])
   const flat = createMemo(() => lib().tagGroups())
   const rows = createMemo(() => {
+    const byName = (a: Row, b: Row) => a.tag.localeCompare(b.tag, 'ja')
     const sorter =
       sort() === 'name'
-        ? (a: Row, b: Row) => a.tag.localeCompare(b.tag, 'ja')
-        : (a: Row, b: Row) => b.items.length - a.items.length || a.tag.localeCompare(b.tag, 'ja')
+        ? byName
+        : sort() === 'moved'
+          ? (a: Row, b: Row) => newest(a) - newest(b) || byName(a, b)
+          : (a: Row, b: Row) => b.items.length - a.items.length || byName(a, b)
     const top = new Map<string, { set: Set<Item>; kids: Row[] }>()
     for (const [t, list] of flat()) {
       const k = t.split('/')[0] ?? t
@@ -44,7 +49,6 @@ export function TagListScreen(props: TagListScreenProps) {
   })
 
   const row = (r: Row, sub: boolean) => {
-    const projects = new Set(r.items.flatMap((i) => i.project ?? [])).size
     const isOpen = () => open().includes(r.tag)
     const [head, ...rest] = r.tag.split('/')
     return (
@@ -80,9 +84,7 @@ export function TagListScreen(props: TagListScreenProps) {
                   `# ${r.tag}`
                 )}
               </b>
-              <span>
-                {r.items.length} 件 | {projects} プロジェクト
-              </span>
+              <span>{r.items.length} 件</span>
             </span>
             <ThumbStrip class={styles.strip} items={r.items.toSorted(coverOrder(lib())).slice(0, 8)} />
             <Icon name="chevron" class={styles.go} />
@@ -101,15 +103,14 @@ export function TagListScreen(props: TagListScreenProps) {
         <div class={shared.page}>
           <header class={shared.mast}>
             <h1>タグ</h1>
-            <span class={shared.meta}>
-              {flat().size} 件 | {sort() === 'name' ? '名前順' : '件数順'}
-            </span>
+            <span class={shared.meta}>{flat().size} 件</span>
             <span class={shared.end}>
               <Tabs
                 label="並び順"
                 value={sort()}
                 onChange={setSort}
                 items={[
+                  { key: 'moved', label: '更新順' },
                   { key: 'name', label: '名前順' },
                   { key: 'count', label: '件数順' },
                 ]}
