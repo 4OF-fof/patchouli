@@ -705,6 +705,7 @@ export function tauriBackend(): Backend {
     browser: {
       show: (key, url, bounds) => invoke('browser_show', { key, url, bounds }),
       go: (key, to) => invoke('browser_go', { key, to }),
+      layer: (layers) => invoke('browser_layer', { layers }),
       hide: (key) => invoke('browser_hide', { key }),
       close: (key) => invoke('browser_close', { key }),
       onMoved: (fn) => {

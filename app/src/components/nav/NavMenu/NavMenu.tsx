@@ -2,6 +2,7 @@ import { For, createEffect, on } from 'solid-js'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { Kbd } from '../../base/Kbd/Kbd'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
+import { coverPage } from '../../media/WebPage/layer'
 import styles from './NavMenu.module.css'
 
 export interface NavMenuItem {
@@ -68,7 +69,16 @@ export function NavMenu(props: NavMenuProps) {
     bs[next]?.focus()
   }
   return (
-    <div class={styles.root} role="menu" tabIndex={-1} ref={el} onKeyDown={onKeyDown}>
+    <div
+      class={styles.root}
+      role="menu"
+      tabIndex={-1}
+      ref={(e) => {
+        el = e
+        coverPage(e)
+      }}
+      onKeyDown={onKeyDown}
+    >
       <ScrollArea class={styles.scroll} viewClass={styles.list}>
         <For each={props.items}>
           {(it) =>

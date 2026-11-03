@@ -1,0 +1,75 @@
+import { getOwner, onCleanup } from 'solid-js'
+import type { BrowserActions, PageLayer } from '../../../backend/types'
+
+/**
+ * 外のページは本体の画面の下に置き、本体の画面に開けた穴から見せる。
+ * 穴の上に重ねる表示は穴を塞いで、本体の画面のまま前に出す。
+ * どちらも描く順（重ねる表示の中のページは、その表示のあと）に並べて送る。
+ */
+const holes = new Map<string, { el: HTMLElement; browser: BrowserActions }>()
+const covers = new Set<HTMLElement>()
+let frame = 0
+let sent = ''
+let last: BrowserActions | undefined
+
+const shown = (el: HTMLElement) =>
+  el.isConnected && el.checkVisibility({ visibilityProperty: true, opacityProperty: true })
+
+const depth = (el: HTMLElement) => {
+  let n = 0
+  for (const c of covers) if (c !== el && c.contains(el)) n++
+  return n
+}
+
+const collect = (): PageLayer[] => {
+  const items = [
+    ...[...holes.values()].map(({ el }) => ({ el, hole: true })),
+    ...[...covers].filter(shown).map((el) => ({ el, hole: false })),
+  ]
+  return items
+    .map((it) => ({ ...it, depth: depth(it.el) }))
+    .toSorted((a, b) => a.depth - b.depth || Number(b.hole) - Number(a.hole))
+    .flatMap(({ el, hole }) => {
+      const r = el.getBoundingClientRect()
+      if (r.width <= 0 || r.height <= 0) return []
+      const radius = hole ? 0 : Number.parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0
+      return [{ hole, x: r.left, y: r.top, width: r.width, height: r.height, radius }]
+    })
+}
+
+const tick = () => {
+  frame = 0
+  const b = holes.values().next().value?.browser ?? last
+  if (!b) return
+  last = b
+  const layers = collect()
+  const now = JSON.stringify(layers)
+  if (now !== sent) {
+    sent = now
+    b.layer(layers).catch((e: unknown) => console.warn('外のページの重なりを変えられない', e))
+  }
+  // 重ねる表示は知らせなく動くので、ページが出ている間は毎回確かめる
+  if (holes.size) kick()
+}
+
+const kick = () => {
+  if (!frame) frame = requestAnimationFrame(tick)
+}
+
+/** 外のページを見せる穴。el が出ている間だけ置く。 */
+export function setHole(key: string, el: HTMLElement | undefined, browser?: BrowserActions) {
+  if (el && browser) holes.set(key, { el, browser })
+  else holes.delete(key)
+  kick()
+}
+
+/** 外のページより前に出す表示。作ったときに呼ぶと、消えるときに外す。 */
+export function coverPage(el: HTMLElement) {
+  covers.add(el)
+  kick()
+  if (getOwner())
+    onCleanup(() => {
+      covers.delete(el)
+      kick()
+    })
+}

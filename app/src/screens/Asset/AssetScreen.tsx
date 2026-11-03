@@ -34,6 +34,7 @@ import type { ItemDetails, ItemView, LinkPart, Part } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
 import shared from '../screen.module.css'
 import styles from './AssetScreen.module.css'
+import { coverPage } from '../../components/media/WebPage/layer'
 import { Icon } from '../../components/base/Icon/Icon'
 import { Spinner } from '../../components/base/Spinner/Spinner'
 
@@ -495,7 +496,7 @@ export function AssetScreen(props: AssetScreenProps) {
               )}
             </Show>
             <Show when={info()}>
-              <aside class={styles.info} aria-label="情報">
+              <aside ref={coverPage} class={styles.info} aria-label="情報">
                 <div class={styles.infoHead}>情報</div>
                 <ScrollArea class={styles.infoScroll} viewClass={styles.infoView}>
                   <div class={styles.fl}>

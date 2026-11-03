@@ -88,7 +88,6 @@ import { NoteScreen } from './screens/Note/NoteScreen'
 import type { NoteEditorApi } from './components/editor/NoteEditor/NoteEditor'
 import { embedOf as embedFor, urlEmbedOf as urlEmbedFor } from './screens/Note/embed'
 import { WebScreen } from './screens/Web/WebScreen'
-import { pageOnTop } from './components/media/WebPage/WebPage'
 import { hostOf } from './plugins/links'
 import { ProjectScreen } from './screens/Project/ProjectScreen'
 import { ProjectListScreen } from './screens/ProjectList/ProjectListScreen'
@@ -1360,7 +1359,6 @@ export function App(props: AppProps) {
                   }
                   side={tabsAt() === 'left' ? <TabList {...tabStrip()} /> : undefined}
                   toast={
-                    !pageOnTop() &&
                     (notice() || broken().length > 0 || clashes().length > 0) && (
                       <>
                         {notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}

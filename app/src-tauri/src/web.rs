@@ -145,7 +145,10 @@ pub fn show(
         )
         .map_err(e)?;
     #[cfg(windows)]
-    watch(&wv, key.to_owned()).map_err(e)?;
+    {
+        watch(&wv, key.to_owned()).map_err(e)?;
+        layer::sink(app, &wv).map_err(e)?;
+    }
     #[cfg(not(windows))]
     let _ = wv;
     opened.insert(label, url);
@@ -206,6 +209,172 @@ fn watch(wv: &Webview, key: String) -> tauri::Result<()> {
             eprintln!("外のページの履歴を見張れません：{e}");
         }
     })
+}
+
+/// 本体の画面のうち、外のページを見せる穴（hole）と、穴の上に描く表示。CSS の px で、描く順に並べる。
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[cfg_attr(not(windows), allow(dead_code))]
+pub struct Layer {
+    hole: bool,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    radius: f64,
+}
+
+/// 本体の画面に穴を開ける。Windows のほかは、外のページがいつも本体の画面の上に出る。
+pub fn layer(app: &AppHandle, layers: Vec<Layer>) -> Result<(), String> {
+    #[cfg(windows)]
+    return layer::cut(app, layers).map_err(|e| e.to_string());
+    #[cfg(not(windows))]
+    {
+        let _ = (app, layers);
+        Ok(())
+    }
+}
+
+/// 外のページは本体の画面の下に置き、本体の画面の WebView を入れたウィンドウに
+/// ウィンドウの領域（SetWindowRgn）で穴を開けて見せる。穴の上に重ねる表示の所は領域に戻すので、
+/// 本体の画面の表示がそのままページの前に出る。領域の外のクリックは下のページに届く。
+#[cfg(windows)]
+mod layer {
+    use std::ffi::c_void;
+    use std::sync::atomic::{AtomicIsize, Ordering};
+
+    use tauri::webview::PlatformWebview;
+    use tauri::{AppHandle, Manager, Webview};
+    use windows_sys::Win32::Foundation::HWND;
+    use windows_sys::Win32::Graphics::Gdi::{
+        CombineRgn, CreateRectRgn, DeleteObject, HRGN, RGN_DIFF, RGN_OR, SetWindowRgn,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOSIZE, SetWindowPos,
+    };
+
+    use super::{Layer, MAIN};
+
+    /// 本体の画面の WebView を入れたウィンドウ。
+    static MAIN_HWND: AtomicIsize = AtomicIsize::new(0);
+
+    /// WebView2 を入れたウィンドウ（wry が WebView ごとに作る）。
+    fn container(pv: &PlatformWebview) -> Option<HWND> {
+        let mut raw: *mut c_void = std::ptr::null_mut();
+        // SAFETY: UI スレッドで、HWND を 1 つ書いてもらうだけ。HWND は *mut c_void と同じ並び
+        unsafe {
+            pv.controller()
+                .ParentWindow(std::ptr::from_mut(&mut raw).cast())
+        }
+        .ok()?;
+        (!raw.is_null()).then_some(raw)
+    }
+
+    fn remember_main(app: &AppHandle) -> tauri::Result<()> {
+        let main = app.get_webview(MAIN).ok_or(tauri::Error::WebviewNotFound)?;
+        main.with_webview(|pv| {
+            if let Some(h) = container(&pv) {
+                MAIN_HWND.store(h as isize, Ordering::Relaxed);
+            }
+        })
+    }
+
+    /// 外のページを、本体の画面のすぐ下に置く。あとから出したページほど上になる。
+    pub fn sink(app: &AppHandle, page: &Webview) -> tauri::Result<()> {
+        remember_main(app)?;
+        page.with_webview(|pv| {
+            let main = MAIN_HWND.load(Ordering::Relaxed) as HWND;
+            let Some(h) = container(&pv) else {
+                return;
+            };
+            if main.is_null() {
+                return;
+            }
+            // SAFETY: どちらもこのプロセスが作った、同じ親の子ウィンドウ
+            unsafe {
+                SetWindowPos(
+                    h,
+                    main,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+                )
+            };
+        })
+    }
+
+    pub fn cut(app: &AppHandle, layers: Vec<Layer>) -> tauri::Result<()> {
+        let main = app.get_webview(MAIN).ok_or(tauri::Error::WebviewNotFound)?;
+        let scale = main.window().scale_factor()?;
+        main.with_webview(move |pv| {
+            let Some(h) = container(&pv) else {
+                return;
+            };
+            MAIN_HWND.store(h as isize, Ordering::Relaxed);
+            let px = |v: f64| (v * scale).round() as i32;
+            // SAFETY: 作った領域は SetWindowRgn に渡すか、ここで消す
+            unsafe {
+                if !layers.iter().any(|l| l.hole) {
+                    SetWindowRgn(h, std::ptr::null_mut(), 1);
+                    return;
+                }
+                let all = CreateRectRgn(0, 0, i16::MAX.into(), i16::MAX.into());
+                for l in &layers {
+                    let r = if l.hole {
+                        CreateRectRgn(px(l.x), px(l.y), px(l.x + l.width), px(l.y + l.height))
+                    } else {
+                        cover(l, scale)
+                    };
+                    CombineRgn(all, all, r, if l.hole { RGN_DIFF } else { RGN_OR });
+                    DeleteObject(r);
+                }
+                SetWindowRgn(h, all, 1);
+            }
+        })
+    }
+
+    /// 重ねる表示の領域。領域は画素の単位でしか切れないので、角の丸みは少しでもかかる画素まで含め、
+    /// 本体の画面が描いたなめらかな縁がそのまま見えるようにする。
+    unsafe fn cover(l: &Layer, scale: f64) -> HRGN {
+        let (x0, y0) = (l.x * scale, l.y * scale);
+        let (x1, y1) = ((l.x + l.width) * scale, (l.y + l.height) * scale);
+        let r = (l.radius * scale)
+            .min((x1 - x0) / 2.0)
+            .min((y1 - y0) / 2.0)
+            .max(0.0);
+        let (top, bottom) = (y0 + r, y1 - r);
+        let span = |y: i32| {
+            let (a, b) = (f64::from(y), f64::from(y + 1));
+            let dy = if b < top {
+                top - b
+            } else if a > bottom {
+                a - bottom
+            } else {
+                0.0
+            };
+            let dx = r - (r * r - dy * dy).max(0.0).sqrt();
+            ((x0 + dx).floor() as i32, (x1 - dx).ceil() as i32)
+        };
+        // SAFETY: 作った領域は呼び出し元が消すか SetWindowRgn に渡す
+        unsafe {
+            let out = CreateRectRgn(0, 0, 0, 0);
+            let (first, last) = (y0.floor() as i32, y1.ceil() as i32);
+            let mut from = first;
+            let mut run = span(first);
+            for y in first + 1..=last {
+                let s = if y < last { span(y) } else { (0, 0) };
+                if s == run && y < last {
+                    continue;
+                }
+                let part = CreateRectRgn(run.0, from, run.1, y);
+                CombineRgn(out, out, part, RGN_OR);
+                DeleteObject(part);
+                (from, run) = (y, s);
+            }
+            out
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]

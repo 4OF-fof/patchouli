@@ -1146,6 +1146,11 @@ async fn browser_go(app: tauri::AppHandle, key: String, to: web::Go) -> Result<(
 }
 
 #[tauri::command]
+async fn browser_layer(app: tauri::AppHandle, layers: Vec<web::Layer>) -> Result<(), String> {
+    web::layer(&app, layers)
+}
+
+#[tauri::command]
 async fn browser_hide(app: tauri::AppHandle, key: String) -> Result<(), String> {
     web::hide(&app, &key)
 }
@@ -2097,6 +2102,7 @@ pub fn run() {
             plugin_fetch,
             browser_show,
             browser_go,
+            browser_layer,
             browser_hide,
             browser_close,
             browser_close_all

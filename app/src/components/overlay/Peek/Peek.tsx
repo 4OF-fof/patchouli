@@ -1,5 +1,6 @@
 import { type JSX, onCleanup, onMount } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
+import { coverPage } from '../../media/WebPage/layer'
 import styles from './Peek.module.css'
 
 export interface PeekProps {
@@ -23,7 +24,12 @@ export function Peek(props: PeekProps) {
   })
   onCleanup(() => window.removeEventListener('keydown', onKey))
   return (
-    <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose()}>
+    <div
+      ref={coverPage}
+      class={styles.ov}
+      role="presentation"
+      onMouseDown={(e) => e.target === e.currentTarget && props.onClose()}
+    >
       <div ref={panel} class={styles.panel} role="dialog" aria-label={props.label} tabIndex={-1}>
         {props.children}
       </div>

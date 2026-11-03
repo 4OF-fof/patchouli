@@ -47,7 +47,13 @@ opt-level = 3
 [target."cfg(windows)".dependencies]
 webview2-com = "0.39.1"
 windows-core = "0.62.2"
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_JobObjects", "Win32_Security"] }
+windows-sys = { version = "0.61.2", features = [
+  "Win32_Foundation",
+  "Win32_System_JobObjects",
+  "Win32_Security",
+  "Win32_Graphics_Gdi",
+  "Win32_UI_WindowsAndMessaging",
+] }
 
 [target."cfg(not(windows))".dependencies]
 flate2 = "1.1.10"

@@ -3,6 +3,7 @@ import type { BrowserActions } from '../../../backend/types'
 import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 import { useTabActive } from '../../nav/TabPane/TabPane'
+import { setHole } from './layer'
 import styles from './WebPage.module.css'
 
 export interface WebPageProps {
@@ -13,20 +14,9 @@ export interface WebPageProps {
   class?: string
 }
 
-const [onTop, setOnTop] = createSignal<ReadonlySet<string>>(new Set())
-const mark = (key: string, shown: boolean) => {
-  if (onTop().has(key) === shown) return
-  const next = new Set(onTop())
-  if (shown) next.add(key)
-  else next.delete(key)
-  setOnTop(next)
-}
-/** 別の WebView の外のページが出ているか。出ているあいだは、本体の画面の重ねる表示がその下に隠れる。 */
-export const pageOnTop = () => onTop().size > 0
-
 /**
  * 外のページ。browser があれば、本体とは別の WebView を枠の位置に重ねる。
- * 別の WebView は本体の画面の上に描かれるので、枠が隠れたり動いたりしたら合わせて隠し、動かす。
+ * 別の WebView は本体の画面とは別に描かれるので、枠が隠れたり動いたりしたら合わせて隠し、動かす。
  */
 export function WebPage(props: WebPageProps) {
   // 画面を読み直しても前の WebView と名前が重ならないようにする
@@ -51,7 +41,7 @@ export function WebPage(props: WebPageProps) {
     const now = shown ? `${props.url} ${r.left} ${r.top} ${r.width} ${r.height}` : ''
     if (now === last) return
     last = now
-    mark(key, shown)
+    setHole(key, shown ? frame : undefined, b)
     const done = shown ? b.show(key, props.url, { x: r.left, y: r.top, width: r.width, height: r.height }) : b.hide(key)
     done.catch((e: unknown) => console.warn('外のページを出せない', e))
   }
@@ -71,7 +61,7 @@ export function WebPage(props: WebPageProps) {
       clearInterval(timer)
       ro.disconnect()
       off()
-      mark(key, false)
+      setHole(key, undefined)
       props.browser?.close(key).catch((e: unknown) => console.warn('外のページを閉じられない', e))
     })
   })

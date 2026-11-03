@@ -1,6 +1,7 @@
 import type { JSX } from 'solid-js'
 import styles from './Toast.module.css'
 import { Icon } from '../../base/Icon/Icon'
+import { coverPage } from '../../media/WebPage/layer'
 
 export interface ToastProps {
   message: JSX.Element
@@ -13,7 +14,7 @@ export interface ToastProps {
 
 export function Toast(props: ToastProps) {
   return (
-    <div class={styles.root} role="status">
+    <div ref={coverPage} class={styles.root} role="status">
       <span class={styles.msg}>{props.message}</span>
       {(props.actionLabel || props.onClose) && <span class={styles.sep} />}
       {props.actionLabel && (

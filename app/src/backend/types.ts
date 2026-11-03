@@ -331,8 +331,16 @@ export interface BrowserActions {
   go(key: string, to: 'back' | 'forward' | 'reload'): Promise<void>
   hide(key: string): Promise<void>
   close(key: string): Promise<void>
+  /** 本体の画面のうち、外のページを見せる穴と、その上に重ねる表示を、描く順に伝える。 */
+  layer(layers: PageLayer[]): Promise<void>
   /** 外のページの中で別のページを開いたら、その URL と戻れるか・進めるかを知らせる。戻り値で知らせをやめる。 */
   onMoved(fn: (key: string, at: PageAt) => void): () => void
+}
+
+export interface PageLayer extends Bounds {
+  /** 外のページを見せる穴か、穴の上に重ねる表示か */
+  hole: boolean
+  radius: number
 }
 
 export interface PageAt {

@@ -1,5 +1,6 @@
 import { type JSX, createSignal, onCleanup, onMount } from 'solid-js'
 import { Portal } from 'solid-js/web'
+import { coverPage } from '../../media/WebPage/layer'
 import styles from './ContextMenu.module.css'
 
 export interface ContextMenuProps {
@@ -48,7 +49,10 @@ export function ContextMenu(props: ContextMenuProps) {
   return (
     <Portal>
       <div
-        ref={el}
+        ref={(e) => {
+          el = e
+          coverPage(e)
+        }}
         class={styles.root}
         style={{ left: `${pos().left}px`, top: `${pos().top}px` }}
         onContextMenu={(e) => e.preventDefault()}

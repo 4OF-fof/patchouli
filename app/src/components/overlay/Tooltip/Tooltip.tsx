@@ -1,5 +1,6 @@
 import { Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 import { Portal } from 'solid-js/web'
+import { coverPage } from '../../media/WebPage/layer'
 import styles from './Tooltip.module.css'
 
 const DELAY = 500
@@ -86,7 +87,14 @@ export function TooltipHost() {
     <Show when={tip()}>
       {(t) => (
         <Portal>
-          <div ref={el} class={styles.root} role="tooltip">
+          <div
+            ref={(e) => {
+              el = e
+              coverPage(e)
+            }}
+            class={styles.root}
+            role="tooltip"
+          >
             {t().text}
           </div>
         </Portal>
