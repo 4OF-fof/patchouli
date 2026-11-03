@@ -6,6 +6,7 @@ import audio from '../../plugins/audio/plugin.json'
 import image from '../../plugins/image/plugin.json'
 import shortcut from '../../plugins/shortcut/plugin.json'
 import video from '../../plugins/video/plugin.json'
+import youtube from '../../plugins/youtube/plugin.json'
 import type {
   Cap,
   Conflict,
@@ -72,7 +73,7 @@ export const readManifest = (raw: RawManifest): Manifest => ({
   ),
 })
 
-export const BUILTIN_MANIFESTS = [image, video, audio, shortcut].map(readManifest)
+export const BUILTIN_MANIFESTS = [image, video, audio, shortcut, youtube].map(readManifest)
 
 const DEFAULT_RATIO = 1.6
 

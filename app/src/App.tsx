@@ -77,7 +77,13 @@ import type { TabEntry, TabStripProps } from './components/nav/TabStrip/TabStrip
 import { applyPrefs, prefs } from './model/prefs'
 import type { IconName } from './components/base/Icon/Icon'
 import { SelectionProvider, createSelection } from './components/media/Selection/Selection'
-import { ItemMenuProvider, ThumbMakingProvider, ThumbSeenProvider, watchSeen } from './components/media/Thumb/Thumb'
+import {
+  ItemMenuProvider,
+  type MenuAt,
+  ThumbMakingProvider,
+  ThumbSeenProvider,
+  watchSeen,
+} from './components/media/Thumb/Thumb'
 import { AllScreen } from './screens/All/AllScreen'
 import { AppBar, type BarRequest, BarToolsProvider, type Place } from './screens/AppBar'
 import type { Blocker } from './components/media/Unsupported/Unsupported'
@@ -640,10 +646,14 @@ export function App(props: AppProps) {
       () => setNotice(done),
       (e: unknown) => setNotice(`コピーに失敗しました：${messageOf(e)}`),
     )
-  const [menu, setMenu] = createSignal<{ ids: string[]; x: number; y: number }>()
+  const [menu, setMenu] = createSignal<MenuAt & { ids: string[] }>()
   const [menuPlugins, setMenuPlugins] = createSignal<MenuEntry[]>()
   // 選んでいないものを右クリックしたときは、選択を外してそれだけにかける
-  const openMenu = (id: string, at: { x: number; y: number }) => {
+  const openMenu = (id: string, at: MenuAt) => {
+    if (at.anchor && menu()?.anchor === at.anchor) {
+      setMenu(undefined)
+      return
+    }
     const ids = selection.has(id) ? selection.ids() : [id]
     if (!selection.has(id)) selection.clear()
     const m = { ids, ...at }
@@ -885,6 +895,7 @@ export function App(props: AppProps) {
     linkOf: backend.linkOf,
     browser: backend.browser,
     openUrl: backend.openUrl && ((url: string) => void backend.openUrl?.(url).catch(fail)),
+    openLink: (url: string) => void openUrl(url),
   }
   const { uiApi, uiUrl } = backend
   const hoverHost: HoverHost = {
@@ -1319,7 +1330,7 @@ export function App(props: AppProps) {
     <FormatsProvider value={() => lib().formats}>
       <ThumbMakingProvider value={(id) => making.ids().has(id) || waves.ids().has(id)}>
         <ThumbSeenProvider value={seenThumbs}>
-          <ItemMenuProvider value={openMenu}>
+          <ItemMenuProvider value={{ open: openMenu, anchor: () => menu()?.anchor }}>
             <SelectionProvider value={selection}>
               <HoverHostProvider value={hoverHost}>
                 <ScreenFrame
@@ -1507,6 +1518,7 @@ export function App(props: AppProps) {
                             items={its()}
                             x={m.x}
                             y={m.y}
+                            anchor={m.anchor}
                             pinned={ids().filter((id) => lib().pins.includes(id)).length}
                             lib={lib()}
                             tags={allTags()}

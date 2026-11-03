@@ -1,3 +1,4 @@
+import { Portal } from 'solid-js/web'
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
@@ -11,6 +12,9 @@ import { HeadingTree } from '../../components/nav/HeadingTree/HeadingTree'
 import { LinkCaption, LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
 import { middleClick } from '../../components/nav/TabPane/newTab'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
+import { menuBelow, useItemMenu } from '../../components/media/Thumb/Thumb'
+import { useTabActive } from '../../components/nav/TabPane/TabPane'
+import { BarButton, useBarTools } from '../AppBar'
 import { type Embed, NoteEditor, type NoteEditorApi } from '../../components/editor/NoteEditor/NoteEditor'
 import { type Item, type Library, type Place, headingsOf, placeOf, refsOf, relDay } from '../../model/library'
 import { prefs } from '../../model/prefs'
@@ -62,6 +66,12 @@ export function NoteScreen(props: NoteScreenProps) {
   const [heads, setHeads] = createSignal(props.headsOpen ?? (prefs().headsOpen && !narrow()))
   const [links, setLinks] = createSignal(!!props.linksOpen)
   const [propsOpen, setPropsOpen] = createSignal(!!props.propsOpen)
+  const active = useTabActive()
+  const barTools = useBarTools()
+  const inBar = () => (active() ? barTools() : undefined)
+  const itemMenu = useItemMenu()
+  const more = (e: MouseEvent & { currentTarget: HTMLElement }) => itemMenu?.open(props.noteId, menuBelow(e))
+  let moreBtn: HTMLButtonElement | undefined
   let editor: NoteEditorApi | undefined
   // ライブラリはサムネイルが届くたびに作り直すので、本文が変わったときだけ数え直す
   const body = createMemo(() => note()?.body ?? '')
@@ -110,7 +120,13 @@ export function NoteScreen(props: NoteScreenProps) {
   return (
     <Show when={note()}>
       {(n) => (
-        <section class={shared.screen} data-idle={!!props.idle} data-heads={heads()} aria-label="ノート">
+        <section
+          class={shared.screen}
+          data-idle={!!props.idle}
+          data-heads={heads()}
+          data-bar={!!inBar() || undefined}
+          aria-label="ノート"
+        >
           <ScrollArea class={styles.scroll}>
             <article class={styles.doc}>
               <input
@@ -211,16 +227,45 @@ export function NoteScreen(props: NoteScreenProps) {
             </article>
           </ScrollArea>
 
-          <TopBar
-            class={styles.bar}
-            actions={
-              <PinToggle
-                look="float"
-                pressed={lib().pins.includes(n().id)}
-                onClick={() => props.onTogglePin?.(n().id)}
+          <Show
+            when={inBar()}
+            keyed
+            fallback={
+              <TopBar
+                class={styles.bar}
+                onMore={more}
+                actions={
+                  <PinToggle
+                    look="float"
+                    pressed={lib().pins.includes(n().id)}
+                    onClick={() => props.onTogglePin?.(n().id)}
+                  />
+                }
               />
             }
-          />
+          >
+            {(el) => (
+              <Portal mount={el}>
+                <span class={styles.barTools}>
+                  <BarButton
+                    label={lib().pins.includes(n().id) ? 'ピン留めを解除' : 'ピン留めする'}
+                    aria-pressed={lib().pins.includes(n().id)}
+                    onClick={() => props.onTogglePin?.(n().id)}
+                  >
+                    <Icon name="pin" size={15} class={styles.pinGlyph} />
+                  </BarButton>
+                  <BarButton
+                    ref={moreBtn}
+                    label="その他"
+                    aria-expanded={!!moreBtn && itemMenu?.anchor() === moreBtn}
+                    onClick={more}
+                  >
+                    <Icon name="more" size={15} />
+                  </BarButton>
+                </span>
+              </Portal>
+            )}
+          </Show>
 
           <Show
             when={heads()}

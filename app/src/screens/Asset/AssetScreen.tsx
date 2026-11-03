@@ -24,7 +24,7 @@ import { useBarTools } from '../AppBar'
 import { AudioPlayer } from '../../components/media/AudioPlayer/AudioPlayer'
 import { ImageZoom } from '../../components/media/ImageZoom/ImageZoom'
 import { PluginView } from '../../components/media/PluginView/PluginView'
-import { Thumb } from '../../components/media/Thumb/Thumb'
+import { Thumb, menuBelow, useItemMenu } from '../../components/media/Thumb/Thumb'
 import { type Blocker, Unsupported } from '../../components/media/Unsupported/Unsupported'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
 import { type Item, type Library, type Place, jacketOf, relDay, thumbOf } from '../../model/library'
@@ -46,6 +46,8 @@ export interface AssetViewHost {
   linkOf?: (url: string, part: LinkPart) => LinkShown
   browser?: BrowserActions
   openUrl?: (url: string) => void
+  /** 設定に合わせて、内蔵ブラウザか既定のアプリで開く。 */
+  openLink?: (url: string) => void
 }
 
 export interface AssetScreenProps {
@@ -375,30 +377,48 @@ export function AssetScreen(props: AssetScreenProps) {
   const idle = () => !!props.idle || still()
   const barTools = useBarTools()
   const inBar = () => (active() ? barTools() : undefined)
-  const tools = (a: () => Item, bar: boolean) => (
-    <>
-      <button
-        type="button"
-        class={bar ? styles.barBtn : `${styles.btn} ${styles.pin} ${styles.fade}`}
-        aria-pressed={lib().pins.includes(a().id)}
-        aria-label={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
-        data-tip={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
-        onClick={() => props.onTogglePin?.(a().id)}
-      >
-        <Icon name="pin" size={15} class={styles.pinGlyph} />
-      </button>
-      <button
-        type="button"
-        class={bar ? styles.barBtn : `${styles.btn} ${styles.infoBtn} ${styles.fade}`}
-        aria-expanded={info()}
-        aria-label={info() ? '情報を閉じる' : '情報'}
-        data-tip={info() ? '情報を閉じる（I）' : '情報（I）'}
-        onClick={() => setInfo(!info())}
-      >
-        <Icon name="info" size={15} />
-      </button>
-    </>
-  )
+  const itemMenu = useItemMenu()
+  const tools = (a: () => Item, bar: boolean) => {
+    let more!: HTMLButtonElement
+    return (
+      <>
+        <button
+          type="button"
+          class={bar ? styles.barBtn : `${styles.btn} ${styles.pin} ${styles.fade}`}
+          aria-pressed={lib().pins.includes(a().id)}
+          aria-label={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
+          data-tip={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
+          onClick={() => props.onTogglePin?.(a().id)}
+        >
+          <Icon name="pin" size={15} class={styles.pinGlyph} />
+        </button>
+        <button
+          type="button"
+          class={bar ? styles.barBtn : `${styles.btn} ${styles.more} ${styles.fade}`}
+          ref={more}
+          aria-expanded={itemMenu?.anchor() === more}
+          aria-label="その他"
+          data-tip="その他"
+          onClick={(e) => {
+            setInfo(false)
+            itemMenu?.open(a().id, menuBelow(e))
+          }}
+        >
+          <Icon name="more" size={15} />
+        </button>
+        <button
+          type="button"
+          class={bar ? styles.barBtn : `${styles.btn} ${styles.infoBtn} ${styles.fade}`}
+          aria-expanded={info()}
+          aria-label={info() ? '情報を閉じる' : '情報'}
+          data-tip={info() ? '情報を閉じる（I）' : '情報（I）'}
+          onClick={() => setInfo(!info())}
+        >
+          <Icon name="info" size={15} />
+        </button>
+      </>
+    )
+  }
   return (
     <section
       ref={root}
@@ -566,16 +586,37 @@ export function AssetScreen(props: AssetScreenProps) {
                         {(r) => (
                           <>
                             <span>{r.label}</span>
-                            <span>{r.value}</span>
+                            <span class={details()?.url ? styles.line : undefined} title={r.value}>
+                              {r.value}
+                            </span>
                           </>
                         )}
                       </For>
                       <Show when={details.state === 'ready' && details()}>
                         {(d) => (
-                          <>
-                            <span>サイズ</span>
-                            <span>{bytes(d().size)}</span>
-                          </>
+                          <Show
+                            when={d().url}
+                            fallback={
+                              <>
+                                <span>サイズ</span>
+                                <span>{bytes(d().size)}</span>
+                              </>
+                            }
+                          >
+                            {(url) => (
+                              <>
+                                <span>URL</span>
+                                <button
+                                  type="button"
+                                  class={`${styles.line} ${styles.url}`}
+                                  title={url()}
+                                  onClick={() => props.host?.openLink?.(url())}
+                                >
+                                  {url()}
+                                </button>
+                              </>
+                            )}
+                          </Show>
                         )}
                       </Show>
                       <span>更新日</span>

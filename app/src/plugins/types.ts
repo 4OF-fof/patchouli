@@ -132,6 +132,8 @@ export interface Via {
 export interface ItemDetails {
   size: number
   rows: { label: string; value: string }[]
+  /** 素材が指す URL。あれば、サイズの代わりに押して開ける URL の行を出す。 */
+  url?: string
 }
 
 /** プラグインが右クリックメニューに足す項目。 */

@@ -1,6 +1,5 @@
 /*
  * YouTube の動画の URL。サムネイルは動画の ID から決まる画像を、詳細は oEmbed を、表示は埋め込みのプレーヤーを使う。
- * 例のプラグインとして、plugin.json の links と fetch の使い方を見せる。
  */
 
 import { type LinkApi, definePlugin } from '@patchouli/plugin'
@@ -17,7 +16,7 @@ function player(el: HTMLElement, api: LinkApi, fill: boolean) {
   const id = videoOf(api.url)
   if (!id) {
     el.textContent = '動画の URL ではありません'
-    return
+    return undefined
   }
   const frame = document.createElement('iframe')
   frame.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}`
@@ -53,11 +52,8 @@ export default definePlugin({
     async details(api) {
       const f = await api.fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(api.url)}`)
       if (f.status >= 400) return []
-      const o: { title?: string; author_name?: string } = JSON.parse(new TextDecoder().decode(f.body))
-      return [
-        { label: 'タイトル', value: o.title ?? '' },
-        { label: 'チャンネル', value: o.author_name ?? '' },
-      ].filter((r) => r.value)
+      const o: { title?: string } = JSON.parse(new TextDecoder().decode(f.body))
+      return o.title ? [{ label: 'タイトル', value: o.title }] : []
     },
   },
 })

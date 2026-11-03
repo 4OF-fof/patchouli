@@ -275,7 +275,7 @@ export function tauriBackend(): Backend {
       console.warn(`URL の詳細を足せない: ${url}`, err)
       return []
     })
-    return { size: d.size, rows: [{ label: 'URL', value: url }, ...rows] }
+    return { size: d.size, rows, url }
   }
 
   const menuApi = (e: Elevated) => ({

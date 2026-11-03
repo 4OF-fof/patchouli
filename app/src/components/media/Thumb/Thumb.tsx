@@ -1,4 +1,4 @@
-import { createContext, createEffect, createSignal, onCleanup, useContext } from 'solid-js'
+import { type Accessor, createContext, createEffect, createSignal, onCleanup, useContext } from 'solid-js'
 import { useFormats } from '../../../plugins/formats'
 import type { Fit } from '../../../plugins/types'
 import { Icon } from '../../base/Icon/Icon'
@@ -43,10 +43,31 @@ export function watchSeen(onChange: (ids: string[]) => void): Watch {
   }
 }
 
-const Menu = createContext<(id: string, at: { x: number; y: number }) => void>()
+/** anchor はメニューを開いたボタン。開いている間にもう一度押すと閉じる。 */
+export interface MenuAt {
+  x: number
+  y: number
+  anchor?: Element
+}
+
+export interface ItemMenuControl {
+  open: (id: string, at: MenuAt) => void
+  /** いま開いているメニューの anchor。 */
+  anchor: Accessor<Element | undefined>
+}
+
+const Menu = createContext<ItemMenuControl>()
 
 /** サムネイルを右クリックしたときに、素材のメニューを出す。 */
 export const ItemMenuProvider = Menu.Provider
+/** 素材のメニュー。画面の「その他」のボタンからも、右クリックと同じメニューを出す。 */
+export const useItemMenu = () => useContext(Menu)
+
+/** ボタンの下に出す位置。画面の右の端にはみ出すときは、メニューの右の端がボタンの右の端にそろう。 */
+export const menuBelow = (e: MouseEvent & { currentTarget: HTMLElement }): MenuAt => {
+  const r = e.currentTarget.getBoundingClientRect()
+  return { x: r.right, y: r.bottom + 4, anchor: e.currentTarget }
+}
 
 export interface ThumbProps {
   note?: boolean
@@ -75,7 +96,7 @@ export function Thumb(props: ThumbProps) {
     if (!menu || !props.id || props.menu === false) return
     e.preventDefault()
     e.stopPropagation()
-    menu(props.id, { x: e.clientX, y: e.clientY })
+    menu.open(props.id, { x: e.clientX, y: e.clientY })
   }
   const formats = useFormats()
   const mark = () => {

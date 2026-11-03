@@ -29,6 +29,9 @@
   background: var(--card);
   color: var(--ink);
 }
+.ib[aria-pressed='true'] {
+  color: var(--accent);
+}
 .placeBar {
   display: flex;
   align-items: center;

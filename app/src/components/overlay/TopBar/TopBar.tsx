@@ -7,6 +7,7 @@ export interface TopBarProps {
   class?: string
   children?: JSX.Element
   actions?: JSX.Element
+  onMore?: (e: MouseEvent & { currentTarget: HTMLElement }) => void
 }
 
 export function TopBar(props: TopBarProps) {
@@ -15,7 +16,7 @@ export function TopBar(props: TopBarProps) {
       {props.children}
       <span class={styles.sp} />
       {props.actions}
-      <FloatingPill icon aria-label="その他">
+      <FloatingPill icon aria-label="その他" onClick={(e) => props.onMore?.(e)}>
         <Icon name="more" />
       </FloatingPill>
     </div>

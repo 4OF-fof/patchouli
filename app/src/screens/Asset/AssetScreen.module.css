@@ -124,6 +124,7 @@
 }
 /* 情報のカードは「情報」のボタンの位置から開き、ピン留めをカードの左へ押し出す */
 .pin,
+.more,
 .infoBtn {
   position: absolute;
   top: 13px;
@@ -132,8 +133,14 @@
 .infoBtn {
   right: 16px;
 }
-.pin {
+.more {
   right: 54px;
+}
+.pin {
+  right: 92px;
+}
+.pin,
+.more {
   transition:
     right 0.26s cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 0.2s ease;
@@ -174,15 +181,24 @@
   background: var(--accent-soft);
   color: var(--accent);
 }
-.root[data-info='true'] .pin {
-  right: min(340px, 100% - 46px);
+.root[data-info='true'] .more {
+  right: min(340px, 100% - 84px);
 }
-.root[data-info='true'] .infoBtn {
+.root[data-info='true'] .pin {
+  right: min(378px, 100% - 46px);
+}
+.root[data-info='true'] .infoBtn,
+.more[aria-expanded='true'] {
   background: var(--accent-soft);
   color: var(--accent);
   backdrop-filter: none;
 }
+.more[aria-expanded='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
 .root[data-info='true'] .pin,
+.root[data-info='true'] .more,
 .root[data-info='true'] .infoBtn {
   opacity: 1;
   pointer-events: auto;
@@ -293,6 +309,24 @@ details[open] > .sum > .sumIcon {
 .fi > :nth-child(odd) {
   color: var(--muted);
 }
+.line {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.url {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.url:hover {
+  text-decoration: underline;
+}
 .tags {
   display: flex;
   flex-wrap: wrap;
@@ -318,7 +352,10 @@ details[open] > .sum > .sumIcon {
     top: 52px;
     max-height: calc(100% - 60px);
   }
-  .root[data-info='true'] .pin {
+  .root[data-info='true'] .more {
     right: 54px;
+  }
+  .root[data-info='true'] .pin {
+    right: 92px;
   }
 }

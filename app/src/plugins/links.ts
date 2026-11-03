@@ -33,7 +33,6 @@ export interface Page {
   title?: string
   description?: string
   image?: string
-  site?: string
 }
 
 const charsetOf = (type?: string) => /charset=([\w-]+)/i.exec(type ?? '')?.[1]
@@ -77,7 +76,6 @@ export function pageOf(url: string, fetch: Fetch): Promise<Page> {
         title: meta('og:title', 'twitter:title') ?? (doc.title.trim() || undefined),
         description: meta('og:description', 'twitter:description', 'description'),
         image: abs,
-        site: meta('og:site_name'),
       }
     })()
     pages.set(url, p)
@@ -102,6 +100,5 @@ export async function imageThumbnail(src: string, fetch: Fetch, edge: number): P
 export const pageRows = (p: Page): Detail[] =>
   [
     { label: 'ページ名', value: p.title },
-    { label: 'サイト', value: p.site },
     { label: '説明', value: p.description },
   ].flatMap((r) => (r.value ? [{ label: r.label, value: r.value }] : []))

@@ -1,8 +1,8 @@
 {
-  "id": "example.youtube",
+  "id": "patchouli.youtube",
   "name": "YouTube",
   "version": "0.1.0",
-  "description": "YouTube の動画の URL を、サムネイルとプレーヤーで見せる例",
+  "description": "YouTube の動画の URL を、サムネイルとプレーヤーで見せる",
   "elevated": "ui/youtube.js",
   "fetch": ["youtube.com", "ytimg.com"],
   "links": {

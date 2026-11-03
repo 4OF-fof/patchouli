@@ -17,6 +17,7 @@ export interface ItemMenuProps {
   items: Item[]
   x: number
   y: number
+  anchor?: Element
   /** items のうち、ピン留めしている数。 */
   pinned: number
   lib: Library
@@ -141,7 +142,7 @@ export function ItemMenu(props: ItemMenuProps) {
     </Switch>
   )
   return (
-    <ContextMenu x={props.x} y={props.y} onClose={props.onClose}>
+    <ContextMenu x={props.x} y={props.y} anchor={props.anchor} onClose={props.onClose}>
       <div ref={box}>
         <CascadeMenu items={main()} submenu={submenu} onSelect={onMain} onClose={props.onClose} />
       </div>

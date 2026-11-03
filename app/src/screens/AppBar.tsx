@@ -1,6 +1,7 @@
 import {
   type Accessor,
   For,
+  type JSX,
   Show,
   createContext,
   createEffect,
@@ -9,6 +10,7 @@ import {
   createSignal,
   onCleanup,
   onMount,
+  splitProps,
   useContext,
 } from 'solid-js'
 import { version } from '../../package.json'
@@ -118,6 +120,16 @@ const BarToolsContext = createContext<Accessor<HTMLElement | undefined>>(() => u
 export const BarToolsProvider = BarToolsContext.Provider
 /** 画面のボタンを、いまの場所の行に出すときの置き場。タブの外（Peek など）では undefined。 */
 export const useBarTools = () => useContext(BarToolsContext)
+
+/** バーのボタン。画面がバーに足すボタンも、これで見た目をそろえる。 */
+export function BarButton(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & { label: string; tip?: string }) {
+  const [local, rest] = splitProps(props, ['label', 'tip', 'children'])
+  return (
+    <button type="button" class={styles.ib} aria-label={local.label} data-tip={local.tip ?? local.label} {...rest}>
+      {local.children}
+    </button>
+  )
+}
 
 const toggleTheme = () => setPrefs({ theme: themeOf(prefs()) === 'light' ? 'dark' : 'light' })
 
