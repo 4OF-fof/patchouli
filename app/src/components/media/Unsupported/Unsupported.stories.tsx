@@ -7,9 +7,9 @@ const meta = {
   title: '部品/media/Unsupported',
   component: Unsupported,
   args: {
-    name: 'ポスター案',
-    ext: 'psd',
-    label: 'PSD',
+    name: 'ロゴ原図',
+    ext: 'ai',
+    label: 'AI',
     onOpenPlugins: () => {},
     onReveal: done,
     onOpenDefault: done,
@@ -29,11 +29,11 @@ type Story = StoryObj<typeof meta>
 export const Unknown: Story = { name: '理由がわからない' }
 export const Disabled: Story = {
   name: 'プラグインが無効',
-  args: { blocker: { id: 'photoshop', name: 'Photoshop', dev: false, state: 'disabled' } },
+  args: { blocker: { id: 'example_ai', name: 'example_ai', dev: false, state: 'disabled' } },
 }
 export const Blocked: Story = {
   name: 'プラグインを使用できない',
-  args: { blocker: { id: 'photoshop', name: 'Photoshop', dev: false, state: 'blocked' } },
+  args: { blocker: { id: 'example_ai', name: 'example_ai', dev: false, state: 'blocked' } },
 }
 export const Decoder: Story = {
   name: 'デコーダーが対応していない',
@@ -43,7 +43,7 @@ export const Failed: Story = {
   name: '開けなかった',
   args: {
     onOpenDefault: async () => {
-      throw new Error('D:素材秋の企画ポスター案.psd が見つかりません')
+      throw new Error('D:素材秋の企画ロゴ原図.ai が見つかりません')
     },
   },
 }

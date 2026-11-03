@@ -64,7 +64,13 @@ function ffmpegArgs(it: SpecItem, out: string): string[] {
   const base = ['-v', 'error', '-y']
   if (it.media === 'image') {
     const codec =
-      it.ext === 'jpg' ? ['-q:v', '3'] : it.ext === 'webp' ? ['-c:v', 'libwebp', '-quality', '80'] : ['-pix_fmt', 'rgb24']
+      it.ext === 'jpg'
+        ? ['-q:v', '3']
+        : it.ext === 'webp'
+          ? ['-c:v', 'libwebp', '-quality', '80']
+          : it.ext === 'psd'
+            ? ['-f', 'rawvideo', '-pix_fmt', 'rgb24']
+            : ['-pix_fmt', 'rgb24']
     const vf = label(it, h)
     return [
       ...base,
@@ -120,6 +126,105 @@ function ffmpegArgs(it: SpecItem, out: string): string[] {
     ...(vf.length ? ['-vf', vf.join(',')] : []),
     ...['-pix_fmt', 'yuv420p', ...codec, '-shortest', out],
   ]
+}
+
+/** PackBits で 1 行を縮める。 */
+function packBits(row: Uint8Array) {
+  const out: number[] = []
+  let i = 0
+  while (i < row.length) {
+    let same = 1
+    while (i + same < row.length && same < 128 && row[i + same] === row[i]) same++
+    if (same >= 2) {
+      out.push(257 - same, row[i] ?? 0)
+      i += same
+      continue
+    }
+    let j = i + 1
+    while (j < row.length && j - i < 128 && row[j] !== row[j + 1]) j++
+    out.push(j - i - 1, ...row.subarray(i, j))
+    i = j
+  }
+  return Buffer.from(out)
+}
+
+/**
+ * rgb（rgb24 の画素）を背景のレイヤーにし、左上に四角いレイヤーを重ねた PSD を書く。
+ * 合成画像は PackBits、レイヤーは圧縮しないで入れる。
+ */
+function writePsd(file: string, rgb: Buffer, it: SpecItem) {
+  const [w, h] = it.size ?? [0, 0]
+  const box = { top: Math.round(h / 8), left: Math.round(w / 8), bottom: Math.round(h / 3), right: Math.round(w / 3) }
+  const color = Number(hex(it.hue + 180, 60, 50))
+  const shape = [16, 8, 0].map((s) => (color >> s) & 0xff)
+  const plane = (c: number, x0: number, y0: number, x1: number, y1: number, fill?: number) => {
+    const out = Buffer.alloc((x1 - x0) * (y1 - y0))
+    for (let y = y0; y < y1; y++)
+      for (let x = x0; x < x1; x++) out[(y - y0) * (x1 - x0) + x - x0] = fill ?? rgb[(y * w + x) * 3 + c] ?? 0
+    return out
+  }
+  const u16 = (v: number) => Buffer.from([v >> 8, v & 0xff])
+  const u32 = (v: number) => {
+    const b = Buffer.alloc(4)
+    b.writeUInt32BE(v)
+    return b
+  }
+  const layers = [
+    { name: 'background', top: 0, left: 0, bottom: h, right: w, planes: [0, 1, 2].map((c) => plane(c, 0, 0, w, h)) },
+    {
+      name: 'shape',
+      ...box,
+      planes: shape.map((v) => plane(0, box.left, box.top, box.right, box.bottom, v)),
+    },
+  ]
+  const records = layers.map((l) => {
+    const name = Buffer.from(l.name, 'latin1')
+    const padded = Buffer.alloc(Math.ceil((name.length + 1) / 4) * 4)
+    padded[0] = name.length
+    name.copy(padded, 1)
+    return Buffer.concat([
+      ...[l.top, l.left, l.bottom, l.right].map(u32),
+      u16(3),
+      ...l.planes.flatMap((p, c) => [u16(c), u32(p.length + 2)]),
+      Buffer.from('8BIMnorm'),
+      Buffer.from([255, 0, 0, 0]),
+      u32(8 + padded.length),
+      u32(0),
+      u32(0),
+      padded,
+    ])
+  })
+  const data = layers.flatMap((l) => l.planes.flatMap((p) => [u16(0), p]))
+  let info = Buffer.concat([u16(layers.length), ...records, ...data])
+  if (info.length % 2) info = Buffer.concat([info, Buffer.alloc(1)])
+  const masks = Buffer.concat([u32(info.length), info, u32(0)])
+  // 合成画像は、背景に四角を描いたもの
+  const merged = [0, 1, 2].map((c) => {
+    const p = plane(c, 0, 0, w, h)
+    for (let y = box.top; y < box.bottom; y++) p.fill(shape[c] ?? 0, y * w + box.left, y * w + box.right)
+    return p
+  })
+  const rows = merged.flatMap((p) => Array.from({ length: h }, (_, y) => packBits(p.subarray(y * w, (y + 1) * w))))
+  fs.writeFileSync(
+    file,
+    Buffer.concat([
+      Buffer.from('8BPS'),
+      u16(1),
+      Buffer.alloc(6),
+      u16(3),
+      u32(h),
+      u32(w),
+      u16(8),
+      u16(3),
+      u32(0),
+      u32(0),
+      u32(masks.length),
+      masks,
+      u16(1),
+      ...rows.map((r) => u16(r.length)),
+      ...rows,
+    ]),
+  )
 }
 
 function run(args: string[], cmd = 'ffmpeg', cwd = tmp) {
@@ -231,6 +336,12 @@ for (const it of spec.items) {
   if (it.media === 'other') fs.writeFileSync(file, '')
   else if (it.media === 'archive') archives.push({ it, file })
   else if (it.media === 'link') fs.writeFileSync(file, `[InternetShortcut]\r\nURL=${it.link ?? ''}\r\n`)
+  else if (it.ext === 'psd')
+    jobs.push(async () => {
+      const raw = path.join(tmp, `${it.id}.rgb`)
+      await run(ffmpegArgs(it, raw))
+      writePsd(file, fs.readFileSync(raw), it)
+    })
   else if (stress && !it.heavy) {
     const key = [it.ext, it.size, it.sec, it.jacket].join(' ')
     let from = bases.get(key)

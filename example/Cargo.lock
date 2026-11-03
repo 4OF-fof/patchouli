@@ -74,6 +74,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-psd-plugin"
+version = "0.1.0"
+dependencies = [
+ "png",
+ "wit-bindgen",
+]
+
+[[package]]
 name = "example-zip-plugin"
 version = "0.1.0"
 dependencies = [

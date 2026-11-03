@@ -111,7 +111,7 @@ const done = async () => {}
 const unsupported = (o: Partial<AssetScreenProps> = {}) => {
   const lib = sampleLibrary()
   const list = lib.inProject('秋の企画').filter((i) => !i.note)
-  const at = list.findIndex((i) => i.ext === 'psd')
+  const at = list.findIndex((i) => i.ext === 'ai')
   return (
     <ScreenFrame>
       <AssetScreen

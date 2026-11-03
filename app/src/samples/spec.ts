@@ -18,6 +18,7 @@ export const EXAMPLE_PLUGINS: string[] = [
   'example_graph-plugin',
   'example_autolink-plugin',
   'example_zip-plugin',
+  'example_psd-plugin',
 ]
 
 export type SpecItem = Item & {
@@ -54,8 +55,10 @@ const MEDIA_OF: Record<string, Media> = {
   flac: 'audio',
   url: 'link',
   zip: 'archive',
+  // 例のプラグイン（example_psd）が読む
+  psd: 'image',
   // アプリもプラグインも読めない（開くと、対応するプラグインがないことを出す）
-  psd: 'other',
+  ai: 'other',
 }
 
 /** id は書き出すときに振る。 */
@@ -703,6 +706,7 @@ export function sampleSpec(): Spec {
   add({ name: 'ref-a', ext: 'jpg', tags: ['参考'], project: null, group: null, moved: 26, hue: 40, sat: 18 })
   add({ name: 'ref-b', ext: 'jpg', tags: ['参考'], project: null, group: null, moved: 26, hue: 44, sat: 18 })
   add({ name: 'ポスター案', ext: 'psd', tags: [], project: '秋の企画', group: null, moved: 3, hue: 28, sat: 20 })
+  add({ name: 'ロゴ原図', ext: 'ai', tags: [], project: '秋の企画', group: null, moved: 5, hue: 200, sat: 12 })
   add({
     name: '記法の見本',
     ext: 'md',
@@ -992,7 +996,7 @@ export function stressSpec(): Spec {
       const [prefix, ext, sec, jacket] = pick(STRESS_AUDIOS)
       add({ ...base, name: `${prefix}${n + 1}`, ext, media: 'audio', sec, ...(jacket && { jacket }) })
     } else if (r < 0.028) {
-      add({ ...base, name: `layered-${n + 1}`, ext: 'psd', media: 'other' })
+      add({ ...base, name: `vector-${n + 1}`, ext: 'ai', media: 'other' })
     } else {
       const [prefix, ext, size] = pick(STRESS_IMAGES)
       add({ ...base, name: `${prefix}${n + 1}${prefix.endsWith('(') ? ')' : ''}`, ext, media: 'image', size })
