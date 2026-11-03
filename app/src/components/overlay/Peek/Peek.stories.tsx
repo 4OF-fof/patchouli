@@ -7,6 +7,7 @@ const meta = {
   args: {
     label: '配色メモ',
     onExpand: () => {},
+    onOpenInTab: () => {},
     onClose: () => {},
     children: <div style={{ padding: '28px' }}>リンク先の中身</div>,
   },
