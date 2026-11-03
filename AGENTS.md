@@ -4,7 +4,7 @@
 
 - 仕様や設計は勝手に決めない。選択肢を示して、決めてもらう。
 - テストは、頼まれたときだけ書く。
-- Storybook のテスト（`vp test --project storybook`）は時間がかかるので、頼まれたときだけ走らせる。
+- Storybook がすでに動いていたら、別のポートで立ち上げずにそれを使い回す。ほかのチャットが起動したもの（`preview_start` が「Port 6006 is in use」で失敗したとき）は、`preview_start` に `url: "http://localhost:6006"` を渡して開く。
 - 実際の素材ライブラリには手を出さない。画面は見本データ（`app/src/samples/`）で、ファイルを扱う動作は動作確認用のライブラリ（`example/dev-library/`）で確かめる。
 
 ## 見本と動作確認用のライブラリ
