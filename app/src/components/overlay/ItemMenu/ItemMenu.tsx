@@ -18,6 +18,8 @@ export interface ItemMenuProps {
   x: number
   y: number
   anchor?: Element
+  /** 開いている画面の「その他」から出したとき。画面のボタンや情報でできる操作と、新しいタブで開くは出さない。 */
+  onScreen?: boolean
   /** items のうち、ピン留めしている数。 */
   pinned: number
   lib: Library
@@ -52,23 +54,25 @@ export function ItemMenu(props: ItemMenuProps) {
   const main = (): NavMenuEntry[] => {
     const plugins = props.plugins ?? []
     const it = one()
+    const opens = it
+      ? group([
+          !props.onScreen && { id: 'open', icon: it.note ? 'note' : 'file', label: '開く' },
+          !props.onScreen && props.onOpenInTab && { id: 'tab', icon: 'newTab', label: '新しいタブで開く' },
+          props.onOpenDefault && { id: 'default', icon: 'external', label: '既定のアプリで開く' },
+          props.onReveal && { id: 'reveal', icon: 'folder', label: props.revealLabel ?? 'フォルダを開く' },
+        ])
+      : []
     return [
-      ...(it
-        ? [
-            ...group([
-              { id: 'open', icon: it.note ? 'note' : 'file', label: '開く' },
-              props.onOpenInTab && { id: 'tab', icon: 'newTab', label: '新しいタブで開く' },
-              props.onOpenDefault && { id: 'default', icon: 'external', label: '既定のアプリで開く' },
-              props.onReveal && { id: 'reveal', icon: 'folder', label: props.revealLabel ?? 'フォルダを開く' },
-            ]),
+      ...(opens.length ? [...opens, 'separator' as const] : []),
+      ...(props.onScreen
+        ? []
+        : [
+            { id: 'move', icon: 'move', label: '移動', sub: true } as const,
+            { id: 'tag', icon: 'tag', label: 'タグを追加', sub: true } as const,
             'separator' as const,
-          ]
-        : []),
-      { id: 'move', icon: 'move', label: '移動', sub: true },
-      { id: 'tag', icon: 'tag', label: 'タグを追加', sub: true },
-      'separator',
+          ]),
       ...group([
-        { id: 'pin', icon: 'pin', label: allPinned() ? 'ピン留めを解除' : 'ピン留め' },
+        !props.onScreen && { id: 'pin', icon: 'pin', label: allPinned() ? 'ピン留めを解除' : 'ピン留め' },
         props.onCopyPath && { id: 'path', icon: 'copy', label: 'パスをコピー' },
         { id: 'name', icon: 'copy', label: '名前をコピー' },
       ]),

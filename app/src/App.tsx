@@ -1530,6 +1530,7 @@ export function App(props: AppProps) {
                             x={m.x}
                             y={m.y}
                             anchor={m.anchor}
+                            onScreen={!!m.anchor}
                             pinned={ids().filter((id) => lib().pins.includes(id)).length}
                             lib={lib()}
                             tags={allTags()}

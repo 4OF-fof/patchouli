@@ -20,8 +20,8 @@ export function DeleteDialog(props: DeleteDialogProps) {
     notes() === n()
       ? 'ノートをごみ箱に移動します。'
       : notes()
-        ? 'ノートと、素材のファイルとメタ情報をごみ箱に移動します。'
-        : 'ファイルとメタ情報をごみ箱に移動します。'
+        ? 'ノートと素材のファイルをごみ箱に移動します。'
+        : 'ファイルをごみ箱に移動します。'
   return (
     <ConfirmDialog
       label="削除の確認"
