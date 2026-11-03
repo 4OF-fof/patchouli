@@ -1,6 +1,6 @@
 import { createSignal } from 'solid-js'
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import { type Item, withChanged } from '../../model/library'
 import type { ItemView } from '../../plugins/types'
 import { sampleLibrary } from '../../samples/library'
@@ -26,15 +26,17 @@ const asset = (o: Partial<AssetScreenProps> = {}) => {
 
 export const Default: Story = { render: () => asset() }
 export const Info: Story = { name: '情報を開く', render: () => asset({ infoOpen: true }) }
-export const Details: Story = {
+export const Details: StoryObj<Pick<AssetScreenProps, 'onRename'>> = {
   name: 'ファイルの詳細',
-  render: () => {
+  args: { onRename: fn() },
+  render: (args) => {
     const [lib, setLib] = createSignal(sampleLibrary())
     const list = lib()
       .inProject('秋の企画')
       .filter((i) => !i.note)
       .map((i) => i.id)
     const onRename = (id: string, name: string) => {
+      args.onRename?.(id, name)
       const it = lib().byId.get(id)
       if (it) setLib(withChanged(lib(), [{ ...it, name }], []))
     }
@@ -59,14 +61,15 @@ export const Details: Story = {
       </ScreenFrame>
     )
   },
-  play: async ({ canvas }) => {
+  play: async ({ args, canvas }) => {
     await userEvent.click(canvas.getByText('ファイルの詳細'))
     await expect(await canvas.findByText('4.5 MB')).toBeInTheDocument()
     await expect(await canvas.findByText('128')).toBeInTheDocument()
     const name = canvas.getByRole('textbox', { name: '名前' })
     await userEvent.clear(name)
     await userEvent.type(name, '新しい名前{Enter}')
-    await expect(await canvas.findByText('新しい名前')).toBeInTheDocument()
+    await expect(args.onRename).toHaveBeenCalledWith(expect.any(String), '新しい名前')
+    await expect(name).toHaveValue('新しい名前')
   },
 }
 export const Tags: Story = {
