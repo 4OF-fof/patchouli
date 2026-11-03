@@ -1,0 +1,78 @@
+# プラグイン
+
+プラグインは次のものを足す。
+
+- アプリが読めない形式や URL のサムネイルと表示
+- 右クリックメニューの項目
+- 取り込んだときの処理
+- ホームやすべてと並ぶ画面
+
+| リファレンス                   | 中身                                                       |
+| ------------------------------ | ---------------------------------------------------------- |
+| [manifest.md](manifest.md)     | plugin.json                                                |
+| [wasm.md](wasm.md)             | sandbox（WASM）の役割と、ホストの関数                      |
+| [elevated.md](elevated.md)     | elevated（TypeScript）の書き方と窓口                       |
+
+## sandbox と elevated
+
+プラグインは 2 つの部分でできていて、どちらか一方だけでもよい。
+
+| 部分     | 書くもの                     | 動く場所                     | できること                                                                                  |
+| -------- | ---------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------- |
+| sandbox  | Rust（`plugin.wasm`）        | 権限を絞った WASM            | アプリが渡したファイルを読む。ネットワークは使えない。`permissions` に書いた関数を呼べる     |
+| elevated | TypeScript（`ui.js`）        | アプリの画面と同じ WebView   | DOM に描く。WASM を `api.call` で呼ぶ。`fetch` に書いたホストへ取りに行ける                  |
+
+同じものを両方に書いたときは elevated を使い、中から `api.sandbox()` で sandbox の同じものを呼べる。重い処理やファイルの中身を解くところは sandbox に、描くところは elevated に置くとよい。
+
+## 作り方
+
+1. `plugin-template/` を丸ごと写す。中の `patchouli/` は SDK（型・CLI・WIT）なので書き換えない。
+2. 要るものを入れる。
+   - Node 22.18 以上（CLI を TypeScript のまま動かす）
+   - Rust と `rustup target add wasm32-wasip2`（sandbox を書くとき）
+3. `plugin.json` に、id・名前・版と受け持つものを書く（[manifest.md](manifest.md)）。
+4. sandbox は `src/lib.rs`（[wasm.md](wasm.md)）、elevated は `ui.ts`（[elevated.md](elevated.md)）に書く。いらないほうは消し、elevated を消したら plugin.json の `elevated` も消す。
+5. ビルドする。
+
+   ```bash
+   npm install
+   npm run build
+   ```
+
+   - `dist/` に、アプリに入れられる形（`plugin.json`・`plugin.wasm`・`ui.js`）ができる
+   - `plugin.wasm` は `Cargo.toml` があるときだけ、`cargo build --release --target wasm32-wasip2` で作る
+   - `ui.js` は、plugin.json の `elevated` の拡張子を `.ts` にしたものを esbuild で 1 つの ES モジュールにまとめたもの。`@patchouli/plugin` は SDK を指す
+
+6. アプリで試す。設定の「開発者モード」を有効にして、どちらかを登録し、「再読み込み」を押す。
+   - 開発用プラグインのフォルダ：プラグインのフォルダを登録する。中のフォルダのうち plugin.json のあるもの（`dist/`）を読む
+   - プラグインのリポジトリ：プラグインのフォルダを登録する。`npm run zip` で作った `<id>-<版>.zip` を読む
+7. 配る。
+
+   ```bash
+   npm run zip
+   ```
+
+   - `<id>-<版>.zip` ができる。アプリの「プラグイン」の「インストール」で選ぶ
+
+CLI は SDK の `cli.ts` で、npm のスクリプトはこれを呼んでいる。
+
+```bash
+node patchouli/cli.ts build [フォルダ] [--out <dir>] [--no-wasm]
+node patchouli/cli.ts zip [フォルダ] [--out <file>]
+```
+
+## 例のプラグイン
+
+`example/` にある。`node scripts/dev-library.ts` が SDK の CLI でビルドし、開発中のアプリに入れる（example_youtube は入れない）。
+
+| 例                                                               | 受け持つもの                                       | 主に使っているもの                                                                     |
+| ---------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [example_psd](../../example/example_psd-plugin/)                 | PSD のサムネイル・詳細の表示・ファイルの詳細       | sandbox の `thumbnail`・`view`（`decoded`）・`details`、`keepDecoded`                   |
+| [example_zip](../../example/example_zip-plugin/)                 | zip のサムネイルと、中身をフォルダの木で見せる詳細 | sandbox の `thumbnail`・`call`、elevated の `mount`                                     |
+| [example_youtube](../../example/example_youtube-plugin/)         | YouTube の URL                                     | `links`、`fetch`                                                                       |
+| [example_collect](../../example/example_collect-plugin/)         | 選んだものをまとめたノートを作るメニュー           | sandbox の `menu`、`library`・`notes`                                                  |
+| [example_graph](../../example/example_graph-plugin/)             | ページの関係図を別のウィンドウで開くメニュー       | elevated の `menu`、`screens`（`place: false`・`window`）                              |
+| [example_page](../../example/example_page-plugin/)               | ノートをカードで並べる画面                         | `screens`                                                                              |
+| [example_autolink](../../example/example_autolink-plugin/)       | 取り込んだ md に、ノートへのリンクを付ける         | `hooks`、`library`・`notes`・`embed`                                                   |
+
+組み込みのプラグイン（`app/plugins/`）も同じ形で書いてある。elevated の `thumbnail`・`content` とコマンドは video、`waveform` は audio、`link` は shortcut が使っている。

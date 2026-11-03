@@ -20,9 +20,10 @@
 - 内蔵ブラウザの戻る・進むの macOS（WKWebView）と Linux（WebKitGTK）。今は Windows の WebView2 だけが履歴を読み、ほかはいつも押せてページの中で history.back() を呼ぶ。ページを読み込み直さない移動では URL の表示も追いつかない
 - 内蔵ブラウザのページの前に、情報やツールチップなどを出す仕組みの macOS と Linux。今は Windows だけが本体の画面に穴を開けてページを下に置き、ほかはページが本体の画面の上に出て重ねる表示を隠す
 
-### ドキュメント
+### 例のプラグインとドキュメント
 
-- 作り方とリファレンス（plugin.json・WASM・組み込み UI・CLI）。例のプラグインを作ってから、それを具体例にして書く
+- `example/` と `docs/plugins/` を直す。もっとよいサンプルができたら example を入れ替え、docs の例と表も合わせる
+- 例がまだ使っていないもの：`content`、elevated の `thumbnail`・`details`・`hover`・`embed`・`waveform`・`link`、`extends`、`api.sandbox()`、設定、コマンド、ほかのプラグインへの依存、`clipboard`・`edit`・`assets`・`export`、メニューの結果の `overlay`・`save`
 
 ### 公式プラグイン
 
