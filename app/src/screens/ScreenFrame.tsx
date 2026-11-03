@@ -1,4 +1,4 @@
-import type { JSX } from 'solid-js'
+import { children, type JSX } from 'solid-js'
 import styles from './ScreenFrame.module.css'
 
 export interface ScreenFrameProps {
@@ -10,6 +10,7 @@ export interface ScreenFrameProps {
 }
 
 export function ScreenFrame(props: ScreenFrameProps) {
+  const toast = children(() => props.toast)
   return (
     <div class={styles.root}>
       {props.bar}
@@ -17,7 +18,7 @@ export function ScreenFrame(props: ScreenFrameProps) {
         {props.side}
         <div class={styles.body}>
           {props.children}
-          {props.toast && <div class={styles.toast}>{props.toast}</div>}
+          {toast.toArray().some(Boolean) && <div class={styles.toast}>{toast()}</div>}
         </div>
       </div>
     </div>

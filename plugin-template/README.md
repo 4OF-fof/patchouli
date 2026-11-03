@@ -43,8 +43,8 @@ wit_bindgen::generate!({
         package local:csv;
 
         world csv {
-            include patchouli:plugin/settings-role@0.11.0;
-            include patchouli:plugin/call-role@0.11.0;
+            include patchouli:plugin/settings-role@0.12.0;
+            include patchouli:plugin/call-role@0.12.0;
         }
     ",
     path: "patchouli/wit",
@@ -71,7 +71,7 @@ impl role::call::Guest for Csv { /* ... */ }
 
 - アプリは読み込むときに export を調べて、受け持つものを決める
 - 手元のコマンドを動かす `commands::run`・`commands::available` は、plugin.json の `required` か `optional` に `commands` を書いたときだけ使え、書いたコマンドだけを動かせる
-- world の `@0.11.0` は `patchouli/wit/plugin.wit` の版と合わせる。アプリは同じマイナー版（1.0 からは同じメジャー版）で、アプリの版以下のものを読む。合わないときは読み込まず、作り直すかアプリを更新するかをプラグインの問題に出す
+- world の `@0.12.0` は `patchouli/wit/plugin.wit` の版と合わせる。アプリは同じマイナー版（1.0 からは同じメジャー版）で、アプリの版以下のものを読む。合わないときは読み込まず、作り直すかアプリを更新するかをプラグインの問題に出す
 
 ## 右クリックメニュー
 
@@ -90,11 +90,13 @@ impl role::call::Guest for Csv { /* ... */ }
 | 戻り値                                          | 出し方                                                                                                  |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `MenuOutput::None`                              | 何も出さない                                                                                            |
-| `MenuOutput::Toast(text)`                       | 短い知らせ。終わったことを伝えるときなど                                                                |
+| `MenuOutput::Toast(Toast { text, level })`      | 短い知らせ。終わったことを伝えるときなど。`level`（`ToastLevel`）で色と消え方が変わる                   |
 | `MenuOutput::Overlay(Overlay { title, rows })`  | 見出しと値の行を画面に重ねて見せる。値は行ごとにコピーできる                                            |
 | `MenuOutput::Screen(OpenScreen { id, window })` | `screens` の画面を開き、選んだものを渡す。`window` が `true` なら別のウィンドウ、`false` ならタブで開く |
 
-elevated の `runMenu` は、同じものを `{ toast }`・`{ overlay: { title, rows } }`・`{ screen: { id, window } }` で返す。ライブラリの外へ書き出すときは `{ save: { name, data } }` を返す。
+`ToastLevel` は `Info`（グレー）・`Success`（緑）・`Warning`（黄土色）・`Error`（赤）。`Info` と `Success` は 4 秒で消え、`Warning` と `Error` は閉じるまで残る。
+
+elevated の `runMenu` は、同じものを `{ toast, level? }`・`{ overlay: { title, rows } }`・`{ screen: { id, window } }` で返す。ライブラリの外へ書き出すときは `{ save: { name, data } }` を返す。
 
 ## 取り込みのフック
 

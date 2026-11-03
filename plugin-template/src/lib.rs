@@ -8,8 +8,8 @@ wit_bindgen::generate!({
         package local:csv;
 
         world csv {
-            include patchouli:plugin/settings-role@0.11.0;
-            include patchouli:plugin/call-role@0.11.0;
+            include patchouli:plugin/settings-role@0.12.0;
+            include patchouli:plugin/call-role@0.12.0;
         }
     ",
     path: "patchouli/wit",

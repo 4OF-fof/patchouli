@@ -90,6 +90,9 @@ export interface DetailsApi<T extends PluginTypes = PluginTypes> extends Api<T> 
   sandbox(): Promise<Detail[]>
 }
 
+/** 知らせの重要度。info と success は 4 秒で消え、warning と error は閉じるまで残る。 */
+export type ToastLevel = 'info' | 'success' | 'warning' | 'error'
+
 /** 右クリックメニューに足す項目。id は runMenu で受け取る。 */
 export interface MenuItem {
   id: string
@@ -105,12 +108,13 @@ export interface MenuApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> 
 
 /**
  * 右クリックメニューの項目を実行したあとの出し方。WIT の menu-output と同じ。
- * toast は終わったことなどの短い知らせ、overlay は行の並びを画面に重ねて見せる（行ごとに値をコピーできる）。
+ * toast は終わったことなどの短い知らせで、level で色が変わる（既定は info）。
+ * overlay は行の並びを画面に重ねて見せる（行ごとに値をコピーできる）。
  * screen は plugin.json の screens の画面を開き、選んだものを渡す。window なら別のウィンドウで開き、
  * 同じ画面のウィンドウがあれば、前に出して中身を入れ替える。
  */
 export type MenuOutput =
-  | { toast: string }
+  | { toast: string; level?: ToastLevel }
   | { overlay: { title?: string; rows: Detail[] } }
   | { screen: { id: string; window?: boolean } }
   | { save: SaveFile }

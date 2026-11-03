@@ -12,8 +12,8 @@ wit_bindgen::generate!({
         package local:zip;
 
         world zip {
-            include patchouli:plugin/thumbnail-role@0.11.0;
-            include patchouli:plugin/call-role@0.11.0;
+            include patchouli:plugin/thumbnail-role@0.12.0;
+            include patchouli:plugin/call-role@0.12.0;
         }
     ",
     path: "patchouli/wit",
@@ -31,7 +31,7 @@ impl role::call::Guest for Zip { /* ... */ }
 export!(Zip);
 ```
 
-- `@0.11.0` は `wit/plugin.wit` の版と合わせる。アプリは同じマイナー版（1.0 からは同じメジャー版）で、アプリの版以下のものを読む
+- `@0.12.0` は `wit/plugin.wit` の版と合わせる。アプリは同じマイナー版（1.0 からは同じメジャー版）で、アプリの版以下のものを読む
 - `Cargo.toml` の `crate-type` は `cdylib`。依存は `wit-bindgen` だけでよい
 
 ## 役割
@@ -87,9 +87,11 @@ export!(Zip);
 | `menu-output`               | 出し方                                                                                  |
 | --------------------------- | --------------------------------------------------------------------------------------- |
 | `none`                      | 何も出さない                                                                            |
-| `toast(text)`               | 短い知らせ                                                                              |
+| `toast({ text, level })`    | 短い知らせ。`level`（`toast-level`）は重要度で、色と消え方が変わる                      |
 | `overlay({ title, rows })`  | 見出しと値の行を画面に重ねる。値は行ごとにコピーできる                                  |
 | `screen({ id, window })`    | `screens` の画面を開き、`targets` を渡す。`window` が `true` なら別のウィンドウで開く   |
+
+`toast-level` は `info`（グレー）・`success`（緑）・`warning`（黄土色）・`error`（赤）。`info` と `success` は 4 秒で消え、`warning` と `error` は閉じるまで残る。
 
 ### added
 

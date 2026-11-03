@@ -278,7 +278,6 @@ fn run_menu_of<T>(
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 enum MenuOutput {
-    Toast(String),
     Overlay {
         #[serde(skip_serializing_if = "Option::is_none")]
         title: Option<String>,
@@ -287,6 +286,12 @@ enum MenuOutput {
     Screen {
         id: String,
         window: bool,
+    },
+    /// SDK の MenuOutput に合わせて、{ toast, level } で送る。
+    #[serde(untagged)]
+    Toast {
+        toast: String,
+        level: &'static str,
     },
 }
 
@@ -310,7 +315,7 @@ fn finish_menu(
 ) -> Result<MenuDone, String> {
     let output = match run.shown {
         MenuShown::None => None,
-        MenuShown::Toast(t) => Some(MenuOutput::Toast(t)),
+        MenuShown::Toast { text, level } => Some(MenuOutput::Toast { toast: text, level }),
         MenuShown::Overlay { title, rows } => Some(MenuOutput::Overlay {
             title,
             rows: rows_of(rows),

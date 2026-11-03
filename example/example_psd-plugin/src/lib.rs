@@ -6,9 +6,9 @@ wit_bindgen::generate!({
         package local:psd;
 
         world psd {
-            include patchouli:plugin/thumbnail-role@0.11.0;
-            include patchouli:plugin/view-role@0.11.0;
-            include patchouli:plugin/details-role@0.11.0;
+            include patchouli:plugin/thumbnail-role@0.12.0;
+            include patchouli:plugin/view-role@0.12.0;
+            include patchouli:plugin/details-role@0.12.0;
         }
     ",
     path: "../../app/plugins/sdk/wit",

@@ -6,7 +6,7 @@ wit_bindgen::generate!({
         package local:collect;
 
         world collect {
-            include patchouli:plugin/menu-role@0.11.0;
+            include patchouli:plugin/menu-role@0.12.0;
         }
     ",
     path: "../../app/plugins/sdk/wit",
@@ -15,7 +15,9 @@ wit_bindgen::generate!({
 });
 
 use exports::patchouli::plugin as role;
-use patchouli::plugin::types::{ItemInfo, MenuItem, MenuOutput, Read, Run, Target};
+use patchouli::plugin::types::{
+    ItemInfo, MenuItem, MenuOutput, Read, Run, Target, Toast, ToastLevel,
+};
 use patchouli::plugin::{library, notes};
 
 const COLLECT: &str = "collect";
@@ -49,7 +51,10 @@ impl role::menu::Guest for Collect {
             n => format!("{} ほか {} 件のノート", first.name, n - 1),
         };
         notes::create(run, &name, &body(&items))?;
-        Ok(MenuOutput::Toast(format!("「{name}」を作りました")))
+        Ok(MenuOutput::Toast(Toast {
+            text: format!("「{name}」を作りました"),
+            level: ToastLevel::Success,
+        }))
     }
 }
 

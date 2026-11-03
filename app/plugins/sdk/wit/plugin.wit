@@ -1,6 +1,6 @@
 /// 版は semver で上げる。足すだけの変更はパッチ版、壊す変更は 0.x のマイナー版を上げる。
 /// アプリは、同じマイナー版で、アプリの版以下のものを読む。版を上げたら src-tauri/src/plugin/runtime.rs の WIT_VERSION も合わせる。
-package patchouli:plugin@0.11.0;
+package patchouli:plugin@0.12.0;
 
 interface types {
   /// アプリが渡すファイル。中身はホストの関数を通して読む。
@@ -55,11 +55,24 @@ interface types {
   variant menu-output {
     none,
     /// 短い知らせ。終わったことを伝えるときなど。
-    toast(string),
+    toast(toast),
     /// 行の並びを画面に重ねて見せる。行ごとに値をコピーできる。
     overlay(overlay),
     /// plugin.json の screens の画面を開く。画面には targets を渡す。
     screen(open-screen),
+  }
+
+  record toast {
+    text: string,
+    level: toast-level,
+  }
+
+  /// 知らせの重要度。色が変わる。info と success は 4 秒で消え、warning と error は閉じるまで残る。
+  enum toast-level {
+    info,
+    success,
+    warning,
+    error,
   }
 
   record overlay {

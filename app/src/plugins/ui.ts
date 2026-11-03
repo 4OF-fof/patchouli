@@ -19,7 +19,10 @@ import type {
   PluginModule,
   RunMenuApi,
   ThumbnailApi,
+  ToastLevel,
 } from '../../plugins/sdk'
+
+const TOAST_LEVELS: ToastLevel[] = ['info', 'success', 'warning', 'error']
 
 export type UiApi = Api
 export type UiItem = Item
@@ -156,7 +159,10 @@ export async function uiMenu(url: string, api: MenuApi): Promise<MenuItem[]> {
 /** 形の合わないものは出さない。 */
 export const menuOutputOf = (v: unknown): MenuOutput | undefined => {
   const toast: unknown = Reflect.get(Object(v), 'toast')
-  if (typeof toast === 'string') return { toast }
+  if (typeof toast === 'string') {
+    const level = TOAST_LEVELS.find((l) => l === Reflect.get(Object(v), 'level'))
+    return level ? { toast, level } : { toast }
+  }
   const save: unknown = Reflect.get(Object(v), 'save')
   if (typeof save === 'object' && save !== null) {
     const name: unknown = Reflect.get(save, 'name')

@@ -29,7 +29,7 @@ use patchouli::plugin::types::{self, File, MenuOutput, Read as ReadProof, Run as
 pub use patchouli::plugin::types::{ContentBudget, ContentMedia, ContentPart};
 
 /// plugin.wit の package の版と合わせる。
-const WIT_VERSION: (u64, u64, u64) = (0, 11, 0);
+const WIT_VERSION: (u64, u64, u64) = (0, 12, 0);
 
 pub const READ_MAX: u32 = 16 << 20;
 
@@ -168,7 +168,10 @@ enum Context {
 /// run-menu の結果の出し方。
 pub enum MenuShown {
     None,
-    Toast(String),
+    Toast {
+        text: String,
+        level: &'static str,
+    },
     Overlay {
         title: Option<String>,
         rows: Vec<(String, String)>,
@@ -1384,7 +1387,15 @@ impl Runner {
         })?;
         let shown = match out? {
             MenuOutput::None => MenuShown::None,
-            MenuOutput::Toast(t) => MenuShown::Toast(t),
+            MenuOutput::Toast(t) => MenuShown::Toast {
+                text: t.text,
+                level: match t.level {
+                    types::ToastLevel::Info => "info",
+                    types::ToastLevel::Success => "success",
+                    types::ToastLevel::Warning => "warning",
+                    types::ToastLevel::Error => "error",
+                },
+            },
             MenuOutput::Overlay(o) => MenuShown::Overlay {
                 title: o.title,
                 rows: o.rows.into_iter().map(|d| (d.label, d.value)).collect(),

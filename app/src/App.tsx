@@ -32,7 +32,7 @@ import { MenuResultDialog } from './components/dialog/MenuResultDialog/MenuResul
 import { OrphanDialog } from './components/dialog/OrphanDialog/OrphanDialog'
 import { TagGoneDialog } from './components/dialog/TagGoneDialog/TagGoneDialog'
 import { TagMergeDialog } from './components/dialog/TagMergeDialog/TagMergeDialog'
-import { Toast } from './components/overlay/Toast/Toast'
+import { Toast, type ToastLevel } from './components/overlay/Toast/Toast'
 import { Peek } from './components/overlay/Peek/Peek'
 import { ItemMenu } from './components/overlay/ItemMenu/ItemMenu'
 import {
@@ -488,7 +488,9 @@ export function App(props: AppProps) {
   const selection = createSelection((ids) => setDeleting(ids))
   const [pinnedProjects, setPinnedProjects] = createSignal(props.pinnedProjects ?? PINNED_PROJECTS)
   const [pinnedTags, setPinnedTags] = createSignal(props.pinnedTags ?? PINNED_TAGS)
-  const [notice, setNotice] = createSignal(props.notice)
+  const [notice, setNotice] = createSignal<{ message: string; level: ToastLevel }>()
+  const notify = (message: string, level: ToastLevel) => setNotice({ message, level })
+  if (props.notice) notify(props.notice, 'error')
   const view = () => stack().at(-1) ?? { s: 'edition' }
   // 素材の画面で動いた位置。並びの View に書くと画面が作り直されるので、別に持つ
   const assetIndexes = new WeakMap<View, Signal<number>>()
@@ -625,7 +627,7 @@ export function App(props: AppProps) {
 
   let queue = Promise.resolve()
   const fail = (e: unknown) => {
-    setNotice(`保存できませんでした：${e instanceof Error ? e.message : String(e)}`)
+    notify(`保存できませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
   }
   const persist = (job: () => Promise<void>) => {
     queue = queue.then(job).catch(fail)
@@ -645,7 +647,7 @@ export function App(props: AppProps) {
       const it = await backend.saveItem(id, patch)
       if (!it) return
       setLib(withChanged(lib(), [it], []))
-      setNotice('外で変更されたので読み込み直しました')
+      notify('外で変更されたので読み込み直しました', 'info')
     })
 
   const editItem = (id: string, change: Partial<Item>, patch: ItemPatch) => {
@@ -746,11 +748,12 @@ export function App(props: AppProps) {
       }
       const place = `「${lib().placeName(to) ?? '所属なし'}」へ`
       const moved = its.length - failed.length
-      setNotice(
-        failed.length
-          ? `${moved ? `${moved} 件を${place}移しました。` : ''}${namesOf(failed)}は、同じ名前のファイルがあるなどで移せませんでした`
-          : `${moved} 件を${place}移しました`,
-      )
+      if (failed.length)
+        notify(
+          `${moved ? `${moved} 件を${place}移しました。` : ''}${namesOf(failed)}は、同じ名前のファイルがあるなどで移せませんでした`,
+          'error',
+        )
+      else notify(`${moved} 件を${place}移しました`, 'success')
     })
   }
   const approveTags = (id: string, d: TidyDecision) => {
@@ -816,21 +819,21 @@ export function App(props: AppProps) {
       selection.set(selection.ids().filter((id) => lib().byId.has(id)))
       const done = its.length - failed.length
       const one = its.length === 1 ? its[0] : undefined
-      if (one && failed[0]) setNotice(`削除に失敗しました：${messageOf(failed[0].e)}`)
-      else if (one) setNotice(`「${one.name}」をごみ箱に移動しました`)
-      else
-        setNotice(
-          failed.length
-            ? `${done ? `${done} 件をごみ箱に移動しました。` : ''}${namesOf(failed.map((f) => f.it))}は削除できませんでした`
-            : `${done} 件をごみ箱に移動しました`,
+      if (one && failed[0]) notify(`削除に失敗しました：${messageOf(failed[0].e)}`, 'error')
+      else if (one) notify(`「${one.name}」をごみ箱に移動しました`, 'success')
+      else if (failed.length)
+        notify(
+          `${done ? `${done} 件をごみ箱に移動しました。` : ''}${namesOf(failed.map((f) => f.it))}は削除できませんでした`,
+          'error',
         )
+      else notify(`${done} 件をごみ箱に移動しました`, 'success')
     })
   }
   const [deleting, setDeleting] = createSignal<string[]>()
   const copy = (text: string, done: string) =>
     navigator.clipboard.writeText(text).then(
-      () => setNotice(done),
-      (e: unknown) => setNotice(`コピーに失敗しました：${messageOf(e)}`),
+      () => notify(done, 'success'),
+      (e: unknown) => notify(`コピーに失敗しました：${messageOf(e)}`, 'error'),
     )
   const [menu, setMenu] = createSignal<MenuAt & { ids: string[] }>()
   const [menuPlugins, setMenuPlugins] = createSignal<MenuGroup[]>()
@@ -862,22 +865,22 @@ export function App(props: AppProps) {
         if (r.copy !== undefined)
           navigator.clipboard
             .writeText(r.copy)
-            .catch((e: unknown) => setNotice(`コピーに失敗しました：${messageOf(e)}`))
+            .catch((e: unknown) => notify(`コピーに失敗しました：${messageOf(e)}`, 'error'))
         if (r.failed.length) {
           console.warn('プラグインが頼んだ処理のうち、できなかったもの', r.failed)
-          setNotice(`プラグインの処理の一部に失敗しました：${r.failed[0]}`)
-        } else if (r.output && 'toast' in r.output) setNotice(r.output.toast)
-        else if (r.saved) setNotice(`「${r.saved}」に書き出しました`)
+          notify(`プラグインの処理の一部に失敗しました：${r.failed[0]}`, 'error')
+        } else if (r.output && 'toast' in r.output) notify(r.output.toast, r.output.level ?? 'info')
+        else if (r.saved) notify(`「${r.saved}」に書き出しました`, 'success')
         if (r.output && 'overlay' in r.output)
           setMenuResult({ title: r.output.overlay.title ?? label ?? 'プラグインの結果', rows: r.output.overlay.rows })
         if (r.output && 'screen' in r.output) {
           const { id, window } = r.output.screen
           const s = screens().find((x) => x.plugin === plugin && x.id === id)
           if (s) void openScreen(s, ids, window === true).catch(fail)
-          else setNotice(`プラグインの画面「${id}」が見つかりません`)
+          else notify(`プラグインの画面「${id}」が見つかりません`, 'error')
         }
       },
-      (e: unknown) => setNotice(`プラグインの処理に失敗しました：${messageOf(e)}`),
+      (e: unknown) => notify(`プラグインの処理に失敗しました：${messageOf(e)}`, 'error'),
     )
   }
   const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
@@ -1126,7 +1129,7 @@ export function App(props: AppProps) {
     const rename = backend.renameProject
     if (!rename) return
     if (lib().projectBy.has(to)) {
-      setNotice(`プロジェクト「${to}」はすでに存在します`)
+      notify(`プロジェクト「${to}」はすでに存在します`, 'error')
       return
     }
     persist(async () => {
@@ -1149,7 +1152,7 @@ export function App(props: AppProps) {
         return rest.length ? rest : [{ s: 'edition' }]
       })
       saveState()
-      setNotice(`プロジェクト「${name}」を削除し、中身を所属なしに移動しました`)
+      notify(`プロジェクト「${name}」を削除し、中身を所属なしに移動しました`, 'success')
     })
   }
   const [orphans, setOrphans] = createSignal(props.orphans ?? [])
@@ -1165,7 +1168,7 @@ export function App(props: AppProps) {
       try {
         if (await backend.chooseLibrary?.()) window.location.reload()
       } catch (e) {
-        setNotice(`ライブラリを切り替えられませんでした：${e instanceof Error ? e.message : String(e)}`)
+        notify(`ライブラリを切り替えられませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
       }
     })
   const [plugged, setPlugged] = createSignal(0)
@@ -1198,10 +1201,10 @@ export function App(props: AppProps) {
       setPlugged(plugged() + 1)
       if (o.problems.length) {
         console.warn('読めなかったもの', o.problems)
-        setNotice(`${o.problems.length} 件を読み込めませんでした`)
+        notify(`${o.problems.length} 件を読み込めませんでした`, 'error')
       }
     } catch (e) {
-      setNotice(`プラグインの読み込みに失敗しました：${e instanceof Error ? e.message : String(e)}`)
+      notify(`プラグインの読み込みに失敗しました：${e instanceof Error ? e.message : String(e)}`, 'error')
     } finally {
       clearInterval(poll)
       setReloading(undefined)
@@ -1392,7 +1395,7 @@ export function App(props: AppProps) {
       }
       if (c.problems.length) {
         console.warn('読めなかったもの', c.problems)
-        setNotice(`${c.problems.length} 件を読み込めませんでした`)
+        notify(`${c.problems.length} 件を読み込めませんでした`, 'error')
       }
     }) ?? (() => {})
   onCleanup(stopChanged)
@@ -1412,10 +1415,10 @@ export function App(props: AppProps) {
       const r = await backend.importDropped(place)
       if (r.failed.length) console.warn('取り込めなかったもの', r.failed)
       setLib(withAdded(lib(), r.items, [], r.groups))
-      setNotice(importedNotice(r))
+      notify(importedNotice(r), r.failed.length ? 'error' : r.items.length ? 'success' : 'info')
       return r.items
     } catch (e) {
-      setNotice(`取り込めませんでした：${e instanceof Error ? e.message : String(e)}`)
+      notify(`取り込めませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
       return []
     } finally {
       setImporting(importing() - 1)
@@ -1431,7 +1434,7 @@ export function App(props: AppProps) {
       const failed = done.flatMap((r) => (r.status === 'rejected' ? [r.reason] : []))
       if (failed.length) console.warn('取り込めなかったもの', failed)
       setLib(withAdded(lib(), items))
-      if (failed.length) setNotice(`${failed.length} 件の取り込みに失敗しました`)
+      if (failed.length) notify(`${failed.length} 件の取り込みに失敗しました`, 'error')
       return items
     } finally {
       setImporting(importing() - 1)
@@ -1467,7 +1470,7 @@ export function App(props: AppProps) {
   const hooking = progress()
   const stopHookFailed =
     backend.onHookFailed?.((f) =>
-      setNotice(`プラグイン「${f.plugin}」が、取り込んだ「${f.item}」を処理できませんでした：${f.message}`),
+      notify(`プラグイン「${f.plugin}」が、取り込んだ「${f.item}」を処理できませんでした：${f.message}`, 'error'),
     ) ?? (() => {})
   onCleanup(stopHookFailed)
   const seenThumbs = backend.seenThumbs && watchSeen((ids) => backend.seenThumbs?.(ids))
@@ -1572,6 +1575,7 @@ export function App(props: AppProps) {
     const more = rest.length ? `（ほか ${rest.length} 件のノートにもあります）` : ''
     return (
       <Toast
+        level="warning"
         message={`「${b.note.name}」に、見つからないリンクが ${b.lost} 件あります${more}`}
         actionLabel="修正"
         onAction={() => {
@@ -1603,6 +1607,7 @@ export function App(props: AppProps) {
     const [first] = c.by
     return (
       <Toast
+        level="warning"
         message={`「.${c.ext}」に複数のプラグイン（${names}）が対応しているため、使用していません${more}`}
         actionLabel="修正"
         onAction={() => {
@@ -1779,7 +1784,16 @@ export function App(props: AppProps) {
                   toast={
                     (notice() || broken().length > 0 || clashes().length > 0) && (
                       <>
-                        {notice() && <Toast message={notice()} onClose={() => setNotice(undefined)} />}
+                        <Show when={notice()} keyed>
+                          {(n) => (
+                            <Toast
+                              message={n.message}
+                              level={n.level}
+                              onClose={() => setNotice(undefined)}
+                              autoClose={n.level === 'info' || n.level === 'success'}
+                            />
+                          )}
+                        </Show>
                         {brokenNotice()}
                         {clashNotice()}
                       </>
@@ -2007,7 +2021,7 @@ export function App(props: AppProps) {
                                       ps.join('\n'),
                                       ps.length > 1 ? `${ps.length} 件のパスをコピーしました` : 'パスをコピーしました',
                                     ),
-                                  (e: unknown) => setNotice(`コピーに失敗しました：${messageOf(e)}`),
+                                  (e: unknown) => notify(`コピーに失敗しました：${messageOf(e)}`, 'error'),
                                 ))
                             }
                             onCopyName={() =>

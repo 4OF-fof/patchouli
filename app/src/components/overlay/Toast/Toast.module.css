@@ -1,31 +1,45 @@
 .root {
+  --tone: var(--muted);
+  --act: var(--accent);
+  --edge: var(--line-2);
   display: inline-flex;
   align-items: center;
-  min-height: 34px;
+  min-height: 40px;
   max-width: 100%;
-  padding: 0 var(--space-16);
+  padding: 0 var(--space-16) 0 var(--space-14);
+  border: 1px solid var(--edge);
   border-radius: var(--radius-lg);
-  background: var(--float);
-  box-shadow: var(--shadow-pill);
-  color: var(--ink);
+  background: color-mix(in oklch, var(--tone) var(--tint, 0%), var(--card));
+  box-shadow: var(--shadow-float);
+  color: color-mix(in oklch, var(--tone) var(--tint, 0%), var(--ink));
   font-size: var(--fs-list);
+}
+.success {
+  --tone: var(--ok);
+}
+.warning {
+  --tone: var(--warm-ink);
+}
+.error {
+  --tone: var(--danger);
+}
+.success,
+.warning,
+.error {
+  --act: var(--tone);
+  --edge: color-mix(in oklch, var(--tone) 75%, transparent);
+  --tint: 26%;
 }
 .root:has(button) {
   padding-right: var(--space-6);
 }
-.msg {
-  padding: var(--space-6) 0;
-}
-.sep {
+.icon {
   flex: none;
-  align-self: stretch;
-  width: 1px;
-  margin: var(--space-8) var(--space-10) var(--space-8) var(--space-14);
-  background: var(--line-2);
+  margin-right: var(--space-10);
+  color: var(--tone);
 }
-/* 右の端は丸いぶん詰まって見えるので、✕ は縦線と右の端の真ん中より少し左に置く */
-.sep:has(+ .x) {
-  margin-right: var(--space-4);
+.msg {
+  padding: var(--space-8) 0;
 }
 .root button {
   height: 26px;
@@ -36,21 +50,25 @@
   cursor: pointer;
 }
 .root .act {
-  padding: 0 var(--space-4);
-  color: var(--accent);
+  margin-left: var(--space-14);
+  padding: 0 var(--space-6);
+  color: var(--act);
   font-weight: 600;
 }
 .root .quiet {
-  padding: 0 var(--space-10) 0 var(--space-8);
+  padding: 0 var(--space-10) 0 var(--space-6);
   color: var(--muted);
 }
 .root .quiet:hover {
   color: var(--ink);
 }
+.msg + .quiet {
+  margin-left: var(--space-14);
+}
 .x {
   flex: none;
   width: 26px;
-  margin-right: var(--space-2);
+  margin-left: var(--space-10);
   color: var(--muted);
 }
 .act + .x {
