@@ -24,6 +24,21 @@
 .video[data-fit='contain'] {
   object-fit: contain;
 }
+/* サムネイルの波形の絵を型にして塗る。位置と大きさは Thumb の背景と合わせる */
+.bars {
+  position: absolute;
+  inset: 0;
+  background: var(--overlay-ink);
+  mask-size: cover;
+  mask-position: center;
+  mask-repeat: no-repeat;
+}
+.bars[data-fit='top'] {
+  mask-position: top;
+}
+.bars[data-fit='contain'] {
+  mask-size: contain;
+}
 .time {
   position: absolute;
   bottom: 6px;

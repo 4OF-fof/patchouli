@@ -14,7 +14,7 @@ export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details' | 'em
 export type LinkPart = 'thumbnail' | 'view' | 'embed' | 'details'
 
 /** カーソルを合わせたときに、本体がサムネイルの上で見せるもの。video は元のファイルを音を消して再生する。 */
-export type Hover = 'video'
+export type Hover = 'video' | 'audio'
 
 /**
  * ノートに埋め込んだときに、本体が見せるもの。view は詳細と同じ表示（画像・動画・音声）、card はサムネイルと名前のカード。

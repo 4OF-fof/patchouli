@@ -34,8 +34,78 @@ export function useHoverPreview() {
       }
     const src = it.src
     if (f?.hover === 'video' && src) return () => <VideoHover src={src} fit={it.fit} clock={opts?.clock} />
+    if (f?.hover === 'audio' && src)
+      return () => <AudioHover src={src} wave={it.waveThumb ? it.thumb : undefined} fit={it.fit} clock={opts?.clock} />
     return undefined
   }
+}
+
+const played = (at: number, length: number) => Math.min(100, (at / length) * 100)
+
+/** 再生した位置と長さ。サムネイルの下に重ねる。track がなければ時間だけ出す。 */
+function Progress(props: { at: number; length: number; clock?: boolean; track?: boolean }) {
+  return (
+    <Show when={props.length > 0}>
+      <Show when={props.clock ?? true}>
+        <span class={styles.time}>
+          {clock(props.at)} / {clock(props.length)}
+        </span>
+      </Show>
+      <Show when={props.track ?? true}>
+        <span class={styles.track}>
+          <span class={styles.done} style={{ width: `${played(props.at, props.length)}%` }} />
+        </span>
+      </Show>
+    </Show>
+  )
+}
+
+/**
+ * 音声はサムネイルをそのまま見せる。波形のサムネイル（wave）なら、その絵を型にして再生したところまでの棒に色を付ける。
+ * ジャケットのときは、再生した位置を下の帯で出す。
+ */
+export function AudioHover(props: { src: string; wave?: string; fit?: Fit; clock?: boolean }) {
+  const [ready, setReady] = createSignal(false)
+  const [at, setAt] = createSignal(0)
+  const [length, setLength] = createSignal(0)
+  let audio!: HTMLAudioElement
+  let frame = 0
+  const tick = () => {
+    setAt(audio.currentTime)
+    frame = requestAnimationFrame(tick)
+  }
+  onMount(() => (frame = requestAnimationFrame(tick)))
+  onCleanup(() => cancelAnimationFrame(frame))
+  return (
+    <span class={styles.root} data-ready={ready()}>
+      {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- サムネイルでの短い再生 */}
+      <audio
+        ref={audio}
+        src={props.src}
+        muted={!prefs().hoverSound}
+        autoplay
+        loop
+        onPlaying={() => setReady(true)}
+        onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
+        onDurationChange={(e) => setLength(e.currentTarget.duration)}
+      />
+      <Show when={ready()}>
+        <Show when={props.wave && length() > 0 && props.wave}>
+          {(wave) => (
+            <span
+              class={styles.bars}
+              data-fit={props.fit ?? 'center'}
+              style={{
+                'mask-image': `url("${wave()}")`,
+                'clip-path': `inset(0 ${100 - played(at(), length())}% 0 0)`,
+              }}
+            />
+          )}
+        </Show>
+        <Progress at={at()} length={length()} clock={props.clock} track={!props.wave} />
+      </Show>
+    </span>
+  )
 }
 
 export function VideoHover(props: { src: string; fit?: Fit; clock?: boolean }) {
@@ -53,13 +123,13 @@ export function VideoHover(props: { src: string; fit?: Fit; clock?: boolean }) {
   onCleanup(() => cancelAnimationFrame(frame))
   return (
     <span class={styles.root} data-ready={ready()}>
-      {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- 音を消した見本の再生 */}
+      {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- サムネイルでの短い再生 */}
       <video
         ref={video}
         class={styles.video}
         data-fit={props.fit ?? 'center'}
         src={props.src}
-        muted
+        muted={!prefs().hoverSound}
         autoplay
         loop
         playsinline
@@ -67,15 +137,8 @@ export function VideoHover(props: { src: string; fit?: Fit; clock?: boolean }) {
         onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
         onDurationChange={(e) => setLength(e.currentTarget.duration)}
       />
-      <Show when={ready() && length() > 0}>
-        <Show when={props.clock ?? true}>
-          <span class={styles.time}>
-            {clock(at())} / {clock(length())}
-          </span>
-        </Show>
-        <span class={styles.track}>
-          <span class={styles.done} style={{ width: `${Math.min(100, (at() / length()) * 100)}%` }} />
-        </span>
+      <Show when={ready()}>
+        <Progress at={at()} length={length()} clock={props.clock} />
       </Show>
     </span>
   )

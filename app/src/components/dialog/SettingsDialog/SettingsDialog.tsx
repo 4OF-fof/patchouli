@@ -247,13 +247,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
       { value: 'name', label: '名前順' },
       { value: 'kind', label: '種類順' },
     ]),
-    pref(
-      'view',
-      'hoverPreview',
-      'マウスを乗せたときのプレビュー',
-      'toggle',
-      '動画などは、マウスを乗せると中身を再生します',
-    ),
+    pref('view', 'hoverPreview', 'サムネイルでの再生', 'toggle', '動画や音声のサムネイルにマウスを乗せると再生します'),
+    pref('view', 'hoverSound', 'サムネイルでの再生の音声', 'toggle', 'サムネイルで再生するときに音声を出します'),
     pref('note', 'noteFont', '本文の文字の大きさ', SIZES),
     pref('note', 'noteWidth', '本文の幅', [
       { value: 'narrow', label: '狭い' },

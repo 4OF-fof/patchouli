@@ -13,7 +13,10 @@ export interface Prefs {
   tabsAt: TabsAt
   cardSize: 'S' | 'M' | 'L'
   sort: Sort
+  /** 動画や音声のサムネイルにマウスを乗せたときに再生するか */
   hoverPreview: boolean
+  /** サムネイルで再生するときに音を出すか */
+  hoverSound: boolean
   noteFont: 'S' | 'M' | 'L'
   noteWidth: 'narrow' | 'normal' | 'wide'
   /** ノートを開いたときに、見出しのカードを開いておくか */
@@ -28,6 +31,7 @@ export const DEFAULT_PREFS: Prefs = {
   cardSize: 'M',
   sort: 'moved',
   hoverPreview: true,
+  hoverSound: false,
   noteFont: 'M',
   noteWidth: 'normal',
   headsOpen: true,
@@ -44,6 +48,7 @@ const CHOICES: { [K in keyof Prefs]: readonly Prefs[K][] } = {
   cardSize: ['S', 'M', 'L'],
   sort: ['moved', 'name', 'kind'],
   hoverPreview: [true, false],
+  hoverSound: [true, false],
   noteFont: ['S', 'M', 'L'],
   noteWidth: ['narrow', 'normal', 'wide'],
   headsOpen: [true, false],
@@ -66,6 +71,7 @@ const read = (): Prefs => {
       cardSize: pick(saved, 'cardSize'),
       sort: pick(saved, 'sort'),
       hoverPreview: pick(saved, 'hoverPreview'),
+      hoverSound: pick(saved, 'hoverSound'),
       noteFont: pick(saved, 'noteFont'),
       noteWidth: pick(saved, 'noteWidth'),
       headsOpen: pick(saved, 'headsOpen'),

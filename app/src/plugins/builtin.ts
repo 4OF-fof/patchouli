@@ -45,7 +45,7 @@ const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover', 'detai
 const ELEVATED_ONLY: readonly Part[] = ['waveform', 'hover', 'embed', 'link']
 const LINK_PARTS: readonly LinkPart[] = ['thumbnail', 'view', 'embed', 'details']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
-const HOVERS: readonly Hover[] = ['video']
+const HOVERS: readonly Hover[] = ['video', 'audio']
 const EMBEDS: readonly Embed[] = ['view', 'card']
 
 const partsOf = (raw?: string[]) => (raw ?? []).flatMap((p) => PARTS.find((x) => x === p) ?? [])

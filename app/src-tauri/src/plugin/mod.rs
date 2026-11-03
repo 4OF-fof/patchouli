@@ -67,6 +67,7 @@ const LINK_PARTS: [Part; 4] = [Part::Thumbnail, Part::View, Part::Embed, Part::D
 #[serde(rename_all = "lowercase")]
 pub enum Hover {
     Video,
+    Audio,
     #[serde(other)]
     Unknown,
 }
