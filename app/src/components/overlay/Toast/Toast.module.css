@@ -67,6 +67,8 @@
 }
 .x {
   flex: none;
+  display: grid;
+  place-items: center;
   width: 26px;
   margin-left: var(--space-10);
   color: var(--muted);
