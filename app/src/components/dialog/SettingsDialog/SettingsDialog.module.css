@@ -215,32 +215,6 @@
   font: 400 var(--fs-meta) var(--f-mono);
   color: var(--muted);
 }
-.notices {
-  border-top: 1px solid var(--line);
-}
-.notices > summary {
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  min-height: 56px;
-  font-size: var(--fs-body);
-  cursor: pointer;
-  list-style: none;
-}
-.notices > summary::-webkit-details-marker {
-  display: none;
-}
-.notices > summary::before {
-  content: '';
-  width: 0;
-  height: 0;
-  border-block: 4px solid transparent;
-  border-left: 5px solid var(--muted);
-  transition: transform 0.15s;
-}
-.notices[open] > summary::before {
-  transform: rotate(90deg);
-}
 .x {
   position: absolute;
   top: 14px;

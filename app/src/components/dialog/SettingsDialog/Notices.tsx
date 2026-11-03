@@ -1,4 +1,5 @@
-import { For, Show, createSignal } from 'solid-js'
+import { For, Show, createMemo, createSignal } from 'solid-js'
+import { Icon } from '../../base/Icon/Icon'
 import styles from './Notices.module.css'
 
 export interface NoticeEntry {
@@ -19,81 +20,65 @@ export interface Notices {
   groups: NoticeGroup[]
 }
 
-function Group(props: { group: NoticeGroup; texts: Record<string, string> }) {
-  const ids = () => props.group.license.split(' AND ').filter((id) => props.texts[id])
+function List(props: { notices: Notices }) {
+  const copyright = () => props.notices.self.text.split('\n').find((l) => l.startsWith('Copyright'))
+  const entries = createMemo(() =>
+    props.notices.groups
+      .flatMap((g) => g.entries.map((e) => ({ ...e, license: g.license })))
+      .toSorted((a, b) => a.name.localeCompare(b.name)),
+  )
+  const [open, setOpen] = createSignal<string[]>([])
+  const toggle = (id: string) => setOpen(open().includes(id) ? open().filter((k) => k !== id) : [...open(), id])
   return (
     <>
-      <For each={ids()}>
-        {(id) => (
-          <div class={styles.text}>
-            <Show when={ids().length > 1}>
-              <h5>{id}</h5>
-            </Show>
-            <pre>{props.texts[id]}</pre>
+      <div class={styles.row}>
+        <div class={styles.what}>
+          <span class={styles.name}>ライセンス</span>
+          <Show when={copyright()}>{(c) => <span class={styles.hint}>{c()}</span>}</Show>
+        </div>
+        <span class={styles.tag}>{props.notices.self.license}</span>
+      </div>
+      <h4 class={styles.label}>
+        使用しているソフトウェア<em>{entries().length}</em>
+      </h4>
+      <For each={entries()}>
+        {(e) => (
+          <div class={styles.row}>
+            <div class={styles.what}>
+              <span class={styles.name}>
+                {e.name}
+                <small>{e.version}</small>
+              </span>
+              <Show when={e.copyright.length} fallback={<span class={styles.url}>{e.url}</span>}>
+                <span class={styles.hint}>{e.copyright.join('\n')}</span>
+              </Show>
+            </div>
+            <span class={styles.tag}>{e.license}</span>
           </div>
         )}
       </For>
-      <ul>
-        <For each={props.group.entries}>
-          {(e) => (
-            <li>
-              <b>{e.name}</b>
-              <span>{e.version}</span>
-              <div>
-                <Show when={e.copyright.length}>
-                  <small>{e.copyright.join('\n')}</small>
-                </Show>
-                <Show when={e.url}>
-                  <small class={styles.url}>{e.url}</small>
-                </Show>
-              </div>
-            </li>
-          )}
-        </For>
-      </ul>
+      <h4 class={styles.label}>ライセンスの全文</h4>
+      <For each={Object.keys(props.notices.texts)}>
+        {(id) => (
+          <>
+            <button type="button" class={styles.row} aria-expanded={open().includes(id)} onClick={() => toggle(id)}>
+              <span class={styles.name}>{id}</span>
+              <Icon name="chevronDown" class={styles.chev} />
+            </button>
+            <Show when={open().includes(id)}>
+              <pre class={styles.text}>{props.notices.texts[id]}</pre>
+            </Show>
+          </>
+        )}
+      </For>
     </>
   )
 }
 
 export function NoticesView(props: { notices?: Notices }) {
-  // 一覧は長いので、開いたグループだけ描く
-  const [open, setOpen] = createSignal<string[]>([])
   return (
     <Show when={props.notices} fallback={<p class={styles.wait}>読み込み中…</p>}>
-      {(n) => (
-        <div class={styles.root}>
-          <section>
-            <h4>
-              {n().self.name} <small>{n().self.license}</small>
-            </h4>
-            <pre>{n().self.text}</pre>
-          </section>
-          <section>
-            <h4>
-              3rd Party <small>{n().groups.reduce((c, g) => c + g.entries.length, 0)} 件</small>
-            </h4>
-            <div class={styles.groups}>
-              <For each={n().groups}>
-                {(g) => (
-                  <details
-                    onToggle={(ev) =>
-                      setOpen(ev.currentTarget.open ? [...open(), g.license] : open().filter((k) => k !== g.license))
-                    }
-                  >
-                    <summary>
-                      <b>{g.license}</b>
-                      <small>{g.entries.length} 件</small>
-                    </summary>
-                    <Show when={open().includes(g.license)}>
-                      <Group group={g} texts={n().texts} />
-                    </Show>
-                  </details>
-                )}
-              </For>
-            </div>
-          </section>
-        </div>
-      )}
+      {(n) => <List notices={n()} />}
     </Show>
   )
 }

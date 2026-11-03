@@ -1,21 +1,89 @@
-.root {
-  padding: var(--space-12) 0 var(--space-4);
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  width: 100%;
+  min-height: 56px;
+  padding: var(--space-10) 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
 }
-.root h4 {
-  margin: 0 0 var(--space-10);
+button.row {
+  cursor: pointer;
+}
+button.row:hover .name {
+  color: var(--accent);
+}
+.what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.name {
+  flex: 1;
+  min-width: 0;
   font-size: var(--fs-body);
-  font-weight: 600;
+  color: var(--ink);
+  overflow-wrap: anywhere;
 }
-.root h4 small {
-  margin-left: var(--space-6);
+.what .name {
+  flex: none;
+}
+.name small {
+  margin-left: var(--space-8);
   font: 400 var(--fs-meta) var(--f-mono);
   color: var(--muted);
 }
-.root section + section {
-  margin-top: var(--space-24);
+.hint {
+  font-size: var(--fs-meta);
+  color: var(--muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
-.root pre {
+.url {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 var(--fs-meta) var(--f-mono);
+  color: var(--muted);
+  user-select: text;
+}
+.tag {
+  flex: none;
+  padding: 1px var(--space-6);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  font: var(--fs-tiny) var(--f-mono);
+  color: var(--ink-2);
+}
+.label {
   margin: 0;
+  padding: var(--space-28) 0 var(--space-6);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--muted);
+}
+.label em {
+  margin-left: var(--space-6);
+  font: normal 400 var(--fs-tiny) var(--f-mono);
+}
+.chev {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.row[aria-expanded='true'] .chev {
+  transform: rotate(180deg);
+}
+.text {
+  margin: 0 0 var(--space-12);
   padding: var(--space-12) var(--space-14);
   border-radius: var(--radius-md);
   background: var(--side);
@@ -24,101 +92,10 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.groups {
-  border-top: 1px solid var(--line);
-}
-.groups > details {
-  border-bottom: 1px solid var(--line);
-}
-.groups > details > summary {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-8);
-  padding: var(--space-10) var(--space-4);
-  font-size: var(--fs-list);
-  cursor: pointer;
-}
-.groups > details > summary::before {
-  content: '';
-  align-self: center;
-  width: 0;
-  height: 0;
-  border-block: 4px solid transparent;
-  border-left: 5px solid var(--muted);
-  transition: transform 0.15s;
-}
-.groups > details[open] > summary::before {
-  transform: rotate(90deg);
-}
-.groups > details > summary b {
-  font-weight: 600;
-}
-.groups > details > summary small {
-  margin-left: auto;
-  font: 400 var(--fs-meta) var(--f-mono);
-  color: var(--muted);
-}
-.groups > details[open] {
-  padding-bottom: var(--space-20);
-}
-.groups ul {
-  display: grid;
-  grid-template-columns: fit-content(30%) max-content 1fr;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.groups li {
-  display: grid;
-  grid-column: 1 / -1;
-  grid-template-columns: subgrid;
-  align-items: baseline;
-  column-gap: var(--space-16);
-  padding: var(--space-6) var(--space-4);
-  border-top: 1px solid var(--line);
-  font-size: var(--fs-list);
-}
-.groups li:first-child {
-  border-top: none;
-}
-.groups li > b {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-weight: 600;
-}
-.groups li > span {
-  font: 400 var(--fs-tiny) var(--f-mono);
-  color: var(--muted);
-}
-.groups li > div {
-  min-width: 0;
-}
-.groups li small {
-  display: block;
-  font-size: var(--fs-meta);
-  color: var(--muted);
-  white-space: pre-line;
-  overflow-wrap: anywhere;
-}
-.groups li small.url {
-  font: var(--fs-tiny) var(--f-mono);
-  color: var(--muted);
-  user-select: text;
-}
-.text + .text {
-  margin-top: var(--space-16);
-}
-.text + ul {
-  margin-top: var(--space-12);
-}
-.text h5 {
-  margin: 0 0 var(--space-6);
-  font: 600 var(--fs-meta) var(--f-mono);
-  color: var(--ink-2);
-}
 .wait {
   margin: 0;
-  padding: var(--space-8) 0;
-  font-size: var(--fs-meta);
+  padding: var(--space-12) 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-list);
   color: var(--muted);
 }

@@ -110,11 +110,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
   /** 変えられなかったときに増やし、スイッチを渡された値に描き直す。 */
   const [failed, setFailed] = createSignal(0)
   const [query, setQuery] = createSignal('')
-  const [noticesOpen, setNoticesOpen] = createSignal(false)
-  const [notices] = createResource(
-    () => (noticesOpen() && props.loadNotices) || undefined,
-    (load) => load(),
-  )
   const onKey = (e: KeyboardEvent) => {
     if (e.key === 'Escape' && !(e.target instanceof HTMLInputElement)) props.onClose?.()
   }
@@ -447,38 +442,27 @@ export function SettingsDialog(props: SettingsDialogProps) {
           },
         ]
       : []),
-    {
-      page: 'about',
-      words: 'Patchouli 版 バージョン',
-      body: () => (
-        <div class={styles.row}>
-          <span class={styles.name}>Patchouli</span>
-          <span class={styles.value}>{props.version}</span>
-        </div>
-      ),
-    },
-    ...(props.loadNotices
-      ? [
-          {
-            page: 'about' as const,
-            words: '権利表示 ライセンス',
-            body: () => (
-              <details
-                class={styles.notices}
-                open={noticesOpen()}
-                onToggle={(e) => setNoticesOpen(e.currentTarget.open)}
-              >
-                <summary>
-                  <span class={styles.name}>権利表示</span>
-                </summary>
-                <Show when={noticesOpen()}>
-                  <NoticesView notices={notices()} />
-                </Show>
-              </details>
-            ),
-          },
-        ]
-      : []),
+    ...grouped('Patchouli', [
+      {
+        page: 'about',
+        words: 'Patchouli 版 バージョン',
+        body: () => (
+          <div class={styles.row}>
+            <span class={styles.name}>版</span>
+            <span class={styles.value}>{props.version}</span>
+          </div>
+        ),
+      },
+      ...(props.loadNotices
+        ? [
+            {
+              page: 'about' as const,
+              words: '権利表示 ライセンス 使用しているソフトウェア',
+              body: () => <NoticesView notices={notices()} />,
+            },
+          ]
+        : []),
+    ]),
   ]
 
   const PAGES: { id: SettingsPage; label: string }[] = [
@@ -506,6 +490,10 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const current = () => pages().find((p) => p.id === picked()) ?? pages()[0]
   const searching = () => words().length > 0
   const shown = () => (searching() ? pages() : current() ? [current()] : [])
+  const [notices] = createResource(
+    () => (shown().some((p) => p.id === 'about') && props.loadNotices) || undefined,
+    (load) => load(),
+  )
   const groupsOf = (page: SettingsPage) => {
     const out: { name?: string; entries: Entry[] }[] = []
     for (const e of hits()) {
