@@ -11,9 +11,10 @@ import {
 } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType, keymap } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
+import { GFM, parser as markdownParser } from '@lezer/markdown'
 import type { Mounted } from 'pele/lazy'
 import { targetOf } from '../../../model/library'
-import { MathView, blockEnd, inlineMathEnd, mathElement, mathSource } from './math'
+import { MathSyntax, MathView, blockEnd, mathElement, mathSource } from './math'
 import { TableWidget, enterTable } from './table'
 
 export const idOfHref = (href: unknown) => (typeof href === 'string' ? targetOf(href)?.id : undefined)
@@ -209,9 +210,12 @@ class Check extends WidgetType {
   }
 }
 
-const embeds = new Map<string, Promise<Embed | undefined>>()
+/** エディタごとに持つ、読み込んだ埋め込み。 */
+type Embeds = Map<string, Promise<Embed | undefined>>
 /** 埋め込みに描いた中身と、mount で描いたものを消す関数。 */
 const drawn = new WeakMap<HTMLElement, { sig: string; off: (() => void)[] }>()
+/** 片付けた埋め込み。あとから読み終えたものを描かない。 */
+const destroyed = new WeakSet<HTMLElement>()
 
 const unmount = (dom: HTMLElement) => {
   for (const off of drawn.get(dom)?.off ?? []) {
@@ -240,6 +244,7 @@ interface EmbedSpec {
   version: number
   /** カーソルが接しているか。 */
   selected: boolean
+  embeds: Embeds
 }
 
 /** 画像のもとの大きさを、ふだんの大きさを CSS で決めるために渡す。 */
@@ -268,6 +273,7 @@ class EmbedView extends WidgetType {
   readonly scale: number
   readonly version: number
   readonly selected: boolean
+  readonly embeds: Embeds
   readonly hooks: LiveHooks
 
   constructor(spec: EmbedSpec, hooks: LiveHooks) {
@@ -279,6 +285,7 @@ class EmbedView extends WidgetType {
     this.scale = spec.scale
     this.version = spec.version
     this.selected = spec.selected
+    this.embeds = spec.embeds
     this.hooks = hooks
   }
 
@@ -332,10 +339,10 @@ class EmbedView extends WidgetType {
     const { id, name } = this
     if (!id || name === undefined) return
     const key = `${this.version}:${id}`
-    let p = embeds.get(key)
+    let p = this.embeds.get(key)
     if (!p) {
       p = embedOf(id)
-      embeds.set(key, p)
+      this.embeds.set(key, p)
     }
     void p.then((e) => e && this.show(dom, e, name))
   }
@@ -345,15 +352,16 @@ class EmbedView extends WidgetType {
     const of = this.hooks.urlEmbedOf
     if (!of) return
     const key = `url:${image}:${this.src}`
-    let p = embeds.get(key)
+    let p = this.embeds.get(key)
     if (!p) {
       p = of(this.src, image)
-      embeds.set(key, p)
+      this.embeds.set(key, p)
     }
     void p.then((e) => e && this.show(dom, e, this.alt || this.src))
   }
 
   private show(dom: HTMLElement, e: Embed, name: string) {
+    if (!dom.isConnected || destroyed.has(dom)) return
     const { classes } = this.hooks
     const sig = e.kind === 'mount' ? `mount:${e.key}` : JSON.stringify(e)
     if (drawn.get(dom)?.sig === sig) return
@@ -414,6 +422,7 @@ class EmbedView extends WidgetType {
   }
 
   destroy(dom: HTMLElement) {
+    destroyed.add(dom)
     unmount(dom)
   }
 
@@ -500,62 +509,87 @@ class Diagram extends WidgetType {
   }
 }
 
-/** 表のセルの Markdown を、書式を付けた要素にする。 */
+const cellParser = markdownParser.configure([GFM, MathSyntax])
+const MARKS = new Set(['EmphasisMark', 'StrikethroughMark', 'CodeMark', 'LinkMark', 'MathMark', 'URL'])
+
+/** 書式の記号に挟まれたところ。 */
+const inside = (n: SyntaxNode, mark: string) => {
+  const m = n.getChildren(mark)
+  return { from: m[0]?.to ?? n.from, to: m.length > 1 ? (m.at(-1)?.from ?? n.to) : n.to }
+}
+
+/** 表のセルの Markdown を、書式を付けた要素にする。1 つのセルだけの表として読み、見出しやリストにはしない。 */
 function inline(src: string, h: LiveHooks): Node {
   const frag = document.createDocumentFragment()
-  const re =
-    /`([^`]+)`|!?\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)\)|\*\*(.+?)\*\*|__(.+?)__|~~(.+?)~~|\*(.+?)\*|_(.+?)_|\\([!-/:-@[-`{-~])|(\$)/g
-  let at = 0
+  const doc = `|${src}|
+|-|`
+  const cell = cellParser.parse(doc).topNode.getChild('Table')?.getChild('TableHeader')?.getChild('TableCell')
+  if (!cell) {
+    frag.append(src)
+    return frag
+  }
   const c = h.classes
   const mathClasses = { inline: c.math ?? '', block: c.mathBlock ?? '', error: c.mathError ?? '' }
-  const char = (i: number) => (i < src.length ? src.charCodeAt(i) : -1)
-  const wrap = (tag: string, cls: string | undefined, inner: string) => {
+  const text = (from: number, to: number) => doc.slice(from, to)
+  /** from から to のうち、子の要素のないところは文字のまま入れる。 */
+  const fill = (into: Node, n: SyntaxNode, from: number, to: number) => {
+    let at = from
+    for (let k = n.firstChild; k; k = k.nextSibling) {
+      if (k.to <= from || k.from >= to || MARKS.has(k.name)) continue
+      if (k.from > at) into.appendChild(document.createTextNode(text(at, k.from)))
+      into.appendChild(node(k))
+      at = k.to
+    }
+    if (at < to) into.appendChild(document.createTextNode(text(at, to)))
+  }
+  const wrap = (tag: string, cls: string | undefined, n: SyntaxNode, mark: string) => {
     const el = document.createElement(tag)
     if (cls) el.className = cls
-    el.append(inline(inner, h))
+    const r = inside(n, mark)
+    fill(el, n, r.from, r.to)
     return el
   }
-  for (let m = re.exec(src); m; m = re.exec(src)) {
-    const [all, code, label, href, s1, s2, del, e1, e2, esc, dollar] = m
-    let end = m.index + all.length
-    if (dollar !== undefined) {
-      end = inlineMathEnd(char, m.index, src.length)
-      if (end < 0) continue
-      re.lastIndex = end
+  const node = (n: SyntaxNode): Node => {
+    switch (n.name) {
+      case 'StrongEmphasis':
+        return wrap('strong', c.strong, n, 'EmphasisMark')
+      case 'Emphasis':
+        return wrap('em', c.em, n, 'EmphasisMark')
+      case 'Strikethrough':
+        return wrap('del', c.del, n, 'StrikethroughMark')
+      case 'InlineCode': {
+        const el = document.createElement('code')
+        el.className = c.code ?? ''
+        const r = inside(n, 'CodeMark')
+        el.textContent = text(r.from, r.to)
+        return el
+      }
+      case 'InlineMath': {
+        const r = inside(n, 'MathMark')
+        return mathElement(text(r.from, r.to).replace(/\\\|/g, '|').trim(), false, mathClasses)
+      }
+      case 'Escape':
+        return document.createTextNode(text(n.from + 1, n.to))
+      case 'Link':
+      case 'Image': {
+        const url = n.getChild('URL')
+        const m = n.getChildren('LinkMark')
+        if (!url || m.length < 2) return document.createTextNode(text(n.from, n.to))
+        const href = text(url.from, url.to)
+        const label = text(m[0]?.to ?? n.from, m[1]?.from ?? n.from).replace(/\\(.)/g, '$1')
+        const id = idOfHref(href)
+        const el = document.createElement('span')
+        el.className = (id ? (h.nameOf(id) === undefined ? c.missing : c.link) : c.extLink) ?? ''
+        el.textContent = n.name === 'Image' ? label || (id && h.nameOf(id)) || href : label
+        if (id) el.dataset.ref = id
+        else if (WEB.test(href)) el.dataset.href = href
+        return el
+      }
+      default:
+        return document.createTextNode(text(n.from, n.to))
     }
-    if (m.index > at) frag.append(src.slice(at, m.index))
-    at = end
-    if (dollar !== undefined)
-      frag.append(
-        mathElement(
-          src
-            .slice(m.index + 1, end - 1)
-            .replace(/\\\|/g, '|')
-            .trim(),
-          false,
-          mathClasses,
-        ),
-      )
-    else if (code !== undefined) {
-      const el = document.createElement('code')
-      el.className = c.code ?? ''
-      el.textContent = code
-      frag.append(el)
-    } else if (href !== undefined) {
-      const id = idOfHref(href)
-      const text = (label ?? '').replace(/\\(.)/g, '$1')
-      const el = document.createElement('span')
-      el.className = (id ? (h.nameOf(id) === undefined ? c.missing : c.link) : c.extLink) ?? ''
-      el.textContent = all.startsWith('!') ? text || (id && h.nameOf(id)) || href : text
-      if (id) el.dataset.ref = id
-      else if (WEB.test(href)) el.dataset.href = href
-      frag.append(el)
-    } else if (s1 !== undefined || s2 !== undefined) frag.append(wrap('strong', c.strong, s1 ?? s2 ?? ''))
-    else if (del !== undefined) frag.append(wrap('del', c.del, del))
-    else if (e1 !== undefined || e2 !== undefined) frag.append(wrap('em', c.em, e1 ?? e2 ?? ''))
-    else if (esc !== undefined) frag.append(esc)
   }
-  if (at < src.length) frag.append(src.slice(at))
+  fill(frag, cell, cell.from, cell.to)
   return frag
 }
 
@@ -623,7 +657,7 @@ const followViewport = ViewPlugin.define((view) => {
   }
 })
 
-function build(state: EditorState, h: LiveHooks, version: number): Built {
+function build(state: EditorState, h: LiveHooks, version: number, embeds: Embeds): Built {
   const span = state.doc.length <= WHOLE ? { from: 0, to: state.doc.length } : state.field(spanField)
   const spanFrom = state.doc.lineAt(Math.min(span.from, state.doc.length)).from
   const spanTo = state.doc.lineAt(Math.min(span.to, state.doc.length)).to
@@ -750,7 +784,10 @@ function build(state: EditorState, h: LiveHooks, version: number): Built {
             mark('raw', n.from, n.to)
             return undefined
           }
-          const widget = new EmbedView({ id: r.id, src: r.href, alt, name, scale: r.scale, version, selected }, h)
+          const widget = new EmbedView(
+            { id: r.id, src: r.href, alt, name, scale: r.scale, version, selected, embeds },
+            h,
+          )
           out.push(Decoration.replace({ widget }).range(n.from, n.to))
           atoms.push(Decoration.mark({}).range(n.from, n.to))
           return false
@@ -992,14 +1029,34 @@ const intoTable = (forward: boolean) => (view: EditorView) => {
   return table !== undefined && enterTable(view, table, forward ? 'first' : 'last')
 }
 
+/** 表のすぐ上の行から、表の最初のセルの編集に入る。Enter は、空の行にいるときだけ入る。 */
+const tableBelow = (blank: boolean) => (view: EditorView) => {
+  const sel = view.state.selection.main
+  if (!sel.empty) return false
+  const { doc } = view.state
+  const line = doc.lineAt(sel.head)
+  if (line.number >= doc.lines || (blank && line.text.trim())) return false
+  const next = doc.line(line.number + 1)
+  const n = syntaxTree(view.state).resolveInner(next.from, 1)
+  for (let t: SyntaxNode | null = n; t; t = t.parent) {
+    if (t.name === 'Table') return t.from >= next.from && enterTable(view, next.from, 'first')
+  }
+  return false
+}
+
 /** カーソルのない書式は記号を隠し、カーソルのある書式だけ Markdown の書き方を見せる。 */
 export function live(hooks: () => LiveHooks): Extension {
   let version = 0
+  const embeds: Embeds = new Map()
   const field = StateField.define<Built>({
-    create: (s) => build(s, hooks(), version),
+    create: (s) => build(s, hooks(), version, embeds),
     update(built, tr) {
-      if (tr.effects.some((e) => e.is(refresh))) version++
-      if (tr.docChanged || tr.selection || tr.effects.length) return build(tr.state, hooks(), version)
+      if (tr.effects.some((e) => e.is(refresh))) {
+        const old = `${version}:`
+        for (const k of embeds.keys()) if (k.startsWith(old)) embeds.delete(k)
+        version++
+      }
+      if (tr.docChanged || tr.selection || tr.effects.length) return build(tr.state, hooks(), version, embeds)
       return built
     },
     provide: (f) => [
@@ -1008,6 +1065,7 @@ export function live(hooks: () => LiveHooks): Extension {
     ],
   })
   return [
+    ViewPlugin.define(() => ({ destroy: () => embeds.clear() })),
     focusField,
     EditorView.focusChangeEffect.of((_, focusing) => setFocus.of(focusing)),
     spanField,
@@ -1019,6 +1077,8 @@ export function live(hooks: () => LiveHooks): Extension {
       keymap.of([
         { key: 'ArrowDown', run: intoTable(true) },
         { key: 'ArrowUp', run: intoTable(false) },
+        { key: 'Tab', run: tableBelow(false) },
+        { key: 'Enter', run: tableBelow(true) },
         { key: 'Home', run: lineEdge(false, false), shift: lineEdge(false, true) },
         { key: 'End', run: lineEdge(true, false), shift: lineEdge(true, true) },
       ]),

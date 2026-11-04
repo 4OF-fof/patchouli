@@ -159,6 +159,9 @@ pub struct Changes {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub orphans: Option<Vec<Orphan>>,
     pub problems: Vec<String>,
+    /// 名前が変わっていたものの ID と前の名前。
+    #[serde(skip)]
+    pub renamed: HashMap<String, String>,
 }
 
 impl Changes {
@@ -567,6 +570,10 @@ impl Library {
             changes.orphans = Some(scan.orphans);
         }
 
+        let names: HashMap<String, String> = before
+            .values()
+            .map(|b| (b.item.id.clone(), b.item.name.clone()))
+            .collect();
         let mut seen = HashSet::new();
         let mut rows = Vec::new();
         for row in scan.items {
@@ -584,6 +591,11 @@ impl Library {
                 }
                 Some(b) if b.item.id != row.item.id => changes.removed.push(b.item.id.clone()),
                 _ => {}
+            }
+            if let Some(old) = names.get(&row.item.id)
+                && *old != row.item.name
+            {
+                changes.renamed.insert(row.item.id.clone(), old.clone());
             }
             changes.items.push(row.item.clone());
             rows.push(row);
@@ -1130,11 +1142,18 @@ impl Library {
     }
 
     /// ノートのリンクの表示名を、リンク先のいまの名前に書き換える。書き換えたノートを返す。
-    pub fn sync_link_names(&mut self) -> Vec<StoredItem> {
+    /// renamed は、名前を変えたものの ID と前の名前。
+    pub fn sync_link_names(&mut self, renamed: &HashMap<String, String>) -> Vec<StoredItem> {
+        if renamed.is_empty() {
+            return Vec::new();
+        }
         let rows = self.cache.rows();
-        let names: HashMap<&str, &str> = rows
+        let names: HashMap<&str, (&str, &str)> = rows
             .values()
-            .map(|r| (r.item.id.as_str(), r.item.name.as_str()))
+            .filter_map(|r| {
+                let old = renamed.get(&r.item.id)?;
+                Some((r.item.id.as_str(), (old.as_str(), r.item.name.as_str())))
+            })
             .collect();
         // 外で変わったまま読み直していないものは、読み直したあとに回す。更新日時は、書き換えの要るものだけ確かめる
         let stale: Vec<(String, String)> = rows

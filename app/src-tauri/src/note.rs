@@ -91,8 +91,12 @@ pub fn join(front: &str, body: &str) -> String {
 
 pub const LINK_SCHEME: &str = "patchouli:";
 
-/// `[表示名](patchouli:ID)` の表示名を、name_of が返すいまの名前に書き換える。変わらなければ None。
-pub fn rename_links<'a>(body: &str, name_of: impl Fn(&str) -> Option<&'a str>) -> Option<String> {
+/// `[表示名](patchouli:ID)` の表示名が、renamed が返す前の名前のままなら、いまの名前に書き換える。
+/// 表示名を書き換えたリンクは残す。変わらなければ None。
+pub fn rename_links<'a>(
+    body: &str,
+    renamed: impl Fn(&str) -> Option<(&'a str, &'a str)>,
+) -> Option<String> {
     let mut out = String::with_capacity(body.len());
     let mut changed = false;
     let mut fence: Option<&str> = None;
@@ -110,7 +114,7 @@ pub fn rename_links<'a>(body: &str, name_of: impl Fn(&str) -> Option<&'a str>) -
             out.push_str(line);
             continue;
         }
-        changed |= rename_in_line(line, &name_of, &mut out);
+        changed |= rename_in_line(line, &renamed, &mut out);
     }
     changed.then_some(out)
 }
@@ -169,7 +173,7 @@ fn link_at(line: &str, i: usize) -> Option<(usize, &str, &str)> {
 
 fn rename_in_line<'a>(
     line: &str,
-    name_of: &impl Fn(&str) -> Option<&'a str>,
+    renamed: &impl Fn(&str) -> Option<(&'a str, &'a str)>,
     out: &mut String,
 ) -> bool {
     let b = line.as_bytes();
@@ -184,8 +188,9 @@ fn rename_in_line<'a>(
             b'[' => match link_at(line, i) {
                 Some((end, text, target)) => {
                     let id = target.split('?').next().unwrap_or(target);
-                    if let Some(name) = name_of(id)
-                        && unescape(text) != name
+                    if let Some((old, name)) = renamed(id)
+                        && unescape(text) == old
+                        && old != name
                     {
                         out.push_str(&line[copied..i]);
                         out.push_str(&format!("[{}]({LINK_SCHEME}{target})", escape(name)));

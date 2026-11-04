@@ -136,7 +136,7 @@ function render(dom: HTMLElement, src: string, display: boolean, errorClass: str
     return
   }
   try {
-    k.render(src, dom, { displayMode: display, throwOnError: true })
+    k.render(src, dom, { displayMode: display, throwOnError: true, maxSize: 20, maxExpand: 200 })
   } catch (e) {
     dom.classList.add(errorClass)
     dom.title = e instanceof Error ? e.message : String(e)

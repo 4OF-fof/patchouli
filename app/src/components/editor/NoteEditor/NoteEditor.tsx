@@ -218,7 +218,7 @@ export function NoteEditor(props: NoteEditorProps) {
     const { state } = v
     const sel = state.selection.main
     const focused = v.hasFocus
-    const c = !sel.empty && focused ? coords(v, sel.from) : undefined
+    const c = !sel.empty && (focused || !!bar?.contains(document.activeElement)) ? coords(v, sel.from) : undefined
     setSelected(c && { ...c, marks: marksAt(state, sel.from, sel.to) })
     const r = sel.empty && focused ? refAt(state, sel.head) : undefined
     const rc = r && coords(v, r.from)
@@ -241,19 +241,27 @@ export function NoteEditor(props: NoteEditorProps) {
     return undefined
   }
 
-  /** カーソルが出たリンクの表示名を、リンク先のいまの名前にする。 */
+  /**
+   * カーソルが出たリンクの表示名を、リンク先のいまの名前にする。
+   * 入ったときのリンク先の名前と表示名が同じだったものだけ直し、選んだ文字や書き換えた表示名は残す。
+   */
   let left: Ref | undefined
+  let leftName: string | undefined
   const rename = (u: ViewUpdate) => {
     const prev = left && { ...left, from: u.changes.mapPos(left.from), to: u.changes.mapPos(left.to, 1) }
+    const prevName = leftName
     const now =
       u.view.hasFocus && u.state.selection.main.empty ? refAt(u.state, u.state.selection.main.head) : undefined
     left = now
-    if (!prev?.id || (now && now.from === prev.from) || u.view.composing) return
+    const stayed = !!now && !!prev && now.from === prev.from
+    if (!stayed) leftName = now?.id && hooks.nameOf(now.id)
+    if (!prev?.id || stayed || u.view.composing || prevName === undefined) return
     const r = refAt(u.state, prev.from + 1)
     const name = r?.id && hooks.nameOf(r.id)
     if (!r || r.from !== prev.from || !name) return
     const label = escapeLabel(name)
-    if (u.state.sliceDoc(r.label.from, r.label.to) === label) return
+    const shown = u.state.sliceDoc(r.label.from, r.label.to)
+    if (shown === label || shown !== escapeLabel(prevName)) return
     const ev = u.view
     queueMicrotask(() => ev.dispatch({ changes: { from: r.label.from, to: r.label.to, insert: label } }))
   }
@@ -319,7 +327,8 @@ export function NoteEditor(props: NoteEditorProps) {
     if (!slash()) return false
     const n = items().length
     if (key === 'ArrowDown' || key === 'ArrowUp') {
-      if (n) setSlashIdx((slashIdx() + (key === 'ArrowDown' ? 1 : n - 1)) % n)
+      if (!n) return false
+      setSlashIdx((slashIdx() + (key === 'ArrowDown' ? 1 : n - 1)) % n)
       return true
     }
     if (key === 'Enter' || key === 'Tab') {
@@ -345,6 +354,9 @@ export function NoteEditor(props: NoteEditorProps) {
             keymap.of(['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].map((key) => ({ key, run: menuKey(key) }))),
           ),
           keymap.of([
+            { key: 'Mod-Enter', run: openAtCursor },
+            { key: 'Mod-k', run: linkKey },
+            { key: 'Tab', run: toBar },
             { key: 'Mod-b', run: markKeys('**') },
             { key: 'Mod-i', run: markKeys('*') },
             { key: 'Mod-e', run: markKeys('`') },
@@ -448,12 +460,8 @@ export function NoteEditor(props: NoteEditorProps) {
     })
   })
 
-  // 送ってリンクが動いたら、浮かべた表示は元の位置に残さず消す
-  const unhover = () => setHover(undefined)
-  window.addEventListener('scroll', unhover, true)
   const unflush = onFlush(flush)
   onCleanup(() => {
-    window.removeEventListener('scroll', unhover, true)
     unflush()
     flush()
     if (hoverTimer) clearTimeout(hoverTimer)
@@ -488,6 +496,7 @@ export function NoteEditor(props: NoteEditorProps) {
   )
 
   let frame = 0
+  // 送ってリンクが動いたら、浮かべた表示は元の位置に残さず消す
   const onScroll = () => {
     setHover(undefined)
     if (frame) return
@@ -549,11 +558,41 @@ export function NoteEditor(props: NoteEditorProps) {
     if (unlinkAt(v, from, to)) return
     setPicking({ embed: false, from, to, mark: true })
   }
+  /** 選んだ文字をリンクにするか、リンクを解除する。選んでいなければ、カーソルの位置にリンクを入れる。 */
+  const linkKey = (v: EditorView) => {
+    const { from, to, empty } = v.state.selection.main
+    if (!empty) linkSelection()
+    else if (!unlinkAt(v, from, to)) setPicking({ embed: false, from, to })
+    return true
+  }
+  const openAtCursor = (v: EditorView) => {
+    const r = refAt(v.state, v.state.selection.main.head)
+    if (r?.id) props.onOpenRef?.(r.id)
+    else if (r && WEB.test(r.href)) props.onOpenPage?.(r.href)
+    else return false
+    return true
+  }
+  let bar: HTMLDivElement | undefined
+  /** 文字を選んでいるときは、書式バーに移る。 */
+  const toBar = () => {
+    const first = selected() && bar?.querySelector('button')
+    if (!first) return false
+    first.focus()
+    return true
+  }
 
   const [sizing, setSizing] = createSignal(false)
   const activeAt = createMemo(() => active()?.from)
   createEffect(on(activeAt, () => setSizing(false)))
+  // 画像の大きさは読み込んでから分かるので、読み込むたびに数え直す
+  const [loads, setLoads] = createSignal(0)
+  const loaded = (e: Event) => {
+    if (e.target instanceof HTMLImageElement) setLoads(loads() + 1)
+  }
+  onMount(() => root.addEventListener('load', loaded, true))
+  onCleanup(() => root.removeEventListener('load', loaded, true))
   const scales = (r: Ref) => {
+    loads()
     const el =
       r.id && root.querySelector<HTMLElement>(`.${styles.embed}[data-ref="${CSS.escape(r.id)}"][data-selected="true"]`)
     return el ? scalesOf(el, root.clientWidth - EMBED_GAP) : []
@@ -748,12 +787,22 @@ export function NoteEditor(props: NoteEditorProps) {
       <Show when={!picking() && selected()}>
         {(s) => (
           <div
+            ref={bar}
             class={styles.bar}
             role="toolbar"
             tabIndex={-1}
             aria-label="書式"
             style={{ left: `${s().left}px`, top: `${s().top - 8}px` }}
             onMouseDown={(e) => e.preventDefault()}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape') return
+              e.preventDefault()
+              e.stopPropagation()
+              view?.focus()
+            }}
+            onFocusOut={(e) => {
+              if (!(e.relatedTarget instanceof Node && bar?.contains(e.relatedTarget)) && view) place(view, false)
+            }}
           >
             <For each={BAR}>
               {(b) => (

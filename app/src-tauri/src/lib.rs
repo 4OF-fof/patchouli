@@ -402,10 +402,15 @@ fn apply_ran(
         out.failed.extend(r.failed);
     }
     let (thumbs, plugins, cache) = with_session(cur, |s| {
-        let mut renamed = false;
+        let mut renamed: HashMap<String, String> = HashMap::new();
         let mut edited: Vec<String> = Vec::new();
         for a in edits {
-            renamed |= matches!(a, Action::Rename { .. });
+            if let Action::Rename { target, .. } = &a
+                && let Some(id) = ids.get(*target)
+                && let Some(it) = s.lib.stored(id)
+            {
+                renamed.entry(id.clone()).or_insert(it.name);
+            }
             match edit_item(&mut s.lib, ids, a) {
                 Ok(id) if !edited.contains(&id) => edited.push(id),
                 Ok(_) => {}
@@ -413,11 +418,9 @@ fn apply_ran(
             }
         }
         changed.extend(edited.iter().filter_map(|id| s.lib.stored(id)));
-        if renamed {
-            for it in s.lib.sync_link_names() {
-                changed.retain(|x| x.id != it.id);
-                changed.push(it);
-            }
+        for it in s.lib.sync_link_names(&renamed) {
+            changed.retain(|x| x.id != it.id);
+            changed.push(it);
         }
         Ok((s.thumbs.clone(), Arc::clone(&s.plugins), s.lib.cache()))
     })?;
@@ -859,12 +862,6 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
     opened.problems.extend(plugin_problems);
     let runner = Arc::new(Mutex::new(Runner::new(Arc::clone(&plugins))));
     let id = next_session();
-    let mut lib = lib;
-    for it in lib.sync_link_names() {
-        if let Some(x) = opened.items.iter_mut().find(|x| x.id == it.id) {
-            *x = it;
-        }
-    }
     *cur.lock() = Some(Session {
         id,
         lib,
@@ -1023,7 +1020,7 @@ fn check(
         match g.as_mut() {
             Some(s) if s.id == id => {
                 let mut changes = s.lib.apply(fresh, scan);
-                for it in s.lib.sync_link_names() {
+                for it in s.lib.sync_link_names(&changes.renamed) {
                     changes.items.retain(|x| x.id != it.id);
                     changes.items.push(it);
                 }
@@ -2376,7 +2373,9 @@ async fn rename_item(
     name: String,
 ) -> Result<StoredItem, String> {
     let (it, renamed) = with(&cur, |l| {
-        Ok((l.rename_item(&id, &name)?, l.sync_link_names()))
+        let old = l.stored(&id).map(|it| it.name).unwrap_or_default();
+        let it = l.rename_item(&id, &name)?;
+        Ok((it, l.sync_link_names(&HashMap::from([(id.clone(), old)]))))
     })?;
     if !renamed.is_empty() {
         let changes = library::Changes {
