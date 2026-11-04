@@ -288,18 +288,22 @@ fn strings(v: Option<&Value>) -> Vec<String> {
         .unwrap_or_default()
 }
 
+fn unusable(name: &str) -> String {
+    format!("「{name}」は名前として使用できません")
+}
+
+/// ファイル名に使えない文字を含むか。
+fn bad_chars(name: &str) -> bool {
+    name.chars()
+        .any(|c| c.is_control() || r#"/\:*?"<>|"#.contains(c))
+}
+
 pub fn check_name(name: &str) -> Result<(), String> {
     let bad = name.trim().is_empty()
         || name.starts_with('.')
         || name.ends_with(['.', ' '])
-        || name
-            .chars()
-            .any(|c| c.is_control() || r#"/\:*?"<>|"#.contains(c));
-    if bad {
-        Err(format!("「{name}」は名前として使用できません"))
-    } else {
-        Ok(())
-    }
+        || bad_chars(name);
+    if bad { Err(unusable(name)) } else { Ok(()) }
 }
 
 impl Library {
@@ -1051,7 +1055,10 @@ impl Library {
         if name.trim().is_empty() {
             return Err("名前を入れてください".into());
         }
-        check_name(name)?;
+        // 「.」で始まるファイルは、隠しファイルとして読まれなくなる
+        if name.starts_with('.') || bad_chars(name) {
+            return Err(unusable(name));
+        }
         // 生成物は ID で引くので、ID をメタ情報に書いてから動かす
         self.ensure_saved(id)?;
         let from = self.entry(id)?.path.clone();
@@ -1063,9 +1070,11 @@ impl Library {
             Some(ext) => format!("{name}.{}", ext.to_string_lossy()),
             None => name.to_owned(),
         };
-        // メタ情報のファイルと見分けられなくなる
-        if file.to_ascii_lowercase().ends_with(".meta") {
-            return Err(format!("「{name}」は名前として使用できません"));
+        // 拡張子が後ろに付かないと、末尾の空白と「.」は Windows で落ち、.meta で終わるものはメタ情報のファイルと見分けられなくなる
+        if (from.extension().is_none() && name.ends_with(['.', ' ']))
+            || file.to_ascii_lowercase().ends_with(".meta")
+        {
+            return Err(unusable(name));
         }
         let to = from.with_file_name(&file);
         let taken = format!("同じ名前のファイル（{file}）があるため、名前を変えられません");
