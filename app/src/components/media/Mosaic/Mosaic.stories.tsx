@@ -44,7 +44,7 @@ const meta = {
   title: '部品/media/Mosaic',
   component: Mosaic,
   args: {
-    tiles: [{ hue: 205 }, { hue: 20 }, { hue: 150 }, { hue: 40 }, { hue: 260 }],
+    tiles: [{}, {}, {}, {}, {}],
     height: 220,
   },
   decorators: [
@@ -59,7 +59,7 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Five: Story = {}
-export const Three: Story = { args: { tiles: [{ hue: 205 }, { hue: 20 }, { hue: 150 }] } }
+export const Three: Story = { args: { tiles: [{}, {}, {}] } }
 const DIARY = '午前：リファレンス整理。素材を 20 件プロジェクトに入れた。午後は配色を見直し、差し色を一点に絞った。'
 
 export const Notes: Story = {
@@ -74,9 +74,9 @@ export const Notes: Story = {
 export const Mixed: Story = {
   args: {
     tiles: [
-      { hue: 205 },
-      { hue: 20 },
-      { hue: 150 },
+      {},
+      {},
+      {},
       { note: true, title: '配色メモ：秋の企画', excerpt: '彩度を落としたセージと、差し色の朱。' },
       { note: true, title: '進め方', excerpt: '10 月中に配色を決め、11 月にポスターの下書きをつくる。' },
     ],

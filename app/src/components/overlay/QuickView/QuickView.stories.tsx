@@ -19,7 +19,7 @@ type Story = StoryObj<typeof meta>
 export const Note: Story = {}
 
 export const Asset: Story = {
-  args: { name: 'leaf-macro', kind: 'JPG', text: undefined, thumb: { hue: 120, sat: 24, id: 'i3' } },
+  args: { name: 'leaf-macro', kind: 'JPG', text: undefined, thumb: { id: 'i3' } },
 }
 
 export const Missing: Story = { args: { name: undefined, kind: undefined, text: undefined } }

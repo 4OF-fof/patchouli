@@ -8,7 +8,7 @@ const meta = {
   args: {
     name: '秋の企画',
     meta: '32 件',
-    tiles: [{ hue: 30 }, { hue: 15 }, { hue: 45 }, { hue: 200 }, { hue: 0 }],
+    tiles: [{}, {}, {}, {}, {}],
     onClick: () => {},
   },
 } satisfies Meta<typeof PinnedCard>
@@ -26,7 +26,7 @@ export const Tag: Story = {
   args: {
     name: '# 写真',
     meta: '120 件',
-    tiles: [{ hue: 205 }, { hue: 180 }, { hue: 220 }, { hue: 160 }, { hue: 240 }],
+    tiles: [{}, {}, {}, {}, {}],
   },
   decorators: [single],
 }

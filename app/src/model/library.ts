@@ -24,7 +24,6 @@ export interface Item {
   /** 更新した時刻（ミリ秒）。同じ日のものを並べるのに使う */
   mtime?: number
   hue: number
-  sat: number
   ratio: number
   ext: string
   memo: string
@@ -479,7 +478,6 @@ export const emptyNote = (id: string, name: string, place: Place = ROOT): Item =
   moved: 0,
   mtime: Date.now(),
   hue: 210,
-  sat: 14,
   ratio: NOTE_RATIO,
   memo: '',
   body: '',
@@ -602,8 +600,7 @@ export const jacketOf = (it: Item) => (it.waveThumb ? undefined : it.thumb)
 export type CardSize = 'L' | 'M' | 'S' | 'X'
 
 export function thumbOf(it: Item, size: CardSize = 'M') {
-  if (!it.note)
-    return { hue: it.hue, sat: it.sat, src: it.thumb, id: it.id, fit: it.fit, ext: it.ext, failed: it.thumbFailed }
+  if (!it.note) return { src: it.thumb, id: it.id, fit: it.fit, ext: it.ext, failed: it.thumbFailed }
   if (size === 'X') return { note: true, id: it.id, excerpt: it.name }
   const ex = plainText(it.body ?? '')
   const lim = size === 'L' ? 140 : size === 'S' ? 0 : 46

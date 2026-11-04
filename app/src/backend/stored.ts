@@ -108,7 +108,6 @@ export function toItem(
     moved: daysBefore(today, new Date(s.mtime)),
     mtime: s.mtime,
     hue: s.note ? base : (base + (h % 41) - 20 + 360) % 360,
-    sat: s.note ? 16 : 14 + (h % 17),
     ratio: ratioOf(s, formats),
     fit: formats.get(s.ext)?.fit,
     ext: s.ext,

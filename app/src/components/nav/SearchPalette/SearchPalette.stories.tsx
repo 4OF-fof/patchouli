@@ -7,8 +7,8 @@ const recent = () => (
   <>
     <ResultHeading>最近開いた項目</ResultHeading>
     <ResultRow kind="note" title="配色のメモ" sub="秋の企画" selected />
-    <ResultRow kind="asset" title="夕方の港" sub="秋の企画" thumb={{ hue: 205 }} />
-    <ResultRow kind="asset" title="路地の看板" sub="日記" thumb={{ hue: 20 }} />
+    <ResultRow kind="asset" title="夕方の港" sub="秋の企画" thumb={{}} />
+    <ResultRow kind="asset" title="路地の看板" sub="日記" thumb={{}} />
   </>
 )
 
@@ -71,7 +71,7 @@ const tags = () => (
       selected
     />
     <ResultHeading>項目</ResultHeading>
-    <ResultRow kind="asset" title="moodboard-01" sub="秋の企画" thumb={{ hue: 35 }} />
+    <ResultRow kind="asset" title="moodboard-01" sub="秋の企画" thumb={{}} />
   </>
 )
 

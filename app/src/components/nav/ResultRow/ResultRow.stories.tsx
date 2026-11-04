@@ -34,7 +34,7 @@ export const Note: Story = {
   ),
 }
 export const Asset: Story = {
-  args: { kind: 'asset', title: '夕方の港', thumb: { hue: 205 }, kbd: undefined },
+  args: { kind: 'asset', title: '夕方の港', thumb: {}, kbd: undefined },
   render: (args) => (
     <ResultRow
       {...args}
@@ -91,7 +91,7 @@ export const List: Story = {
             本文 …<mark>配色</mark>の参考に…
           </>
         }
-        thumb={{ hue: 20 }}
+        thumb={{}}
       />
       <ResultRow kind="create" title="「配色」というノートを作成" />
     </div>

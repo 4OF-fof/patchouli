@@ -11,7 +11,6 @@ const item = (i: number): Item => ({
   tags: [],
   moved: 0,
   hue: 0,
-  sat: 0,
   ratio: 1,
   ext: 'png',
   memo: '',

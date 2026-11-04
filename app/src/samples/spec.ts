@@ -23,6 +23,8 @@ export const EXAMPLE_PLUGINS: string[] = [
 
 export type SpecItem = Item & {
   media: Media
+  /** 見本の画像や動画を作るときの彩度 */
+  sat: number
   size?: [number, number]
   sec?: number
   jacket?: boolean

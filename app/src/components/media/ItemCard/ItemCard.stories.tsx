@@ -5,7 +5,7 @@ import { ItemCard } from './ItemCard'
 const meta = {
   title: '部品/media/ItemCard',
   component: ItemCard,
-  args: { name: '夕方の港', hue: 205, height: 160, onClick: () => {} },
+  args: { name: '夕方の港', height: 160, onClick: () => {} },
   decorators: [
     (Story) => (
       <div style={{ width: '240px' }}>

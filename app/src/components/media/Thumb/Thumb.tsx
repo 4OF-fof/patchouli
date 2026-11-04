@@ -71,8 +71,6 @@ export const menuBelow = (e: MouseEvent & { currentTarget: HTMLElement }): MenuA
 
 export interface ThumbProps {
   note?: boolean
-  hue?: number
-  sat?: number
   src?: string
   id?: string
   fit?: Fit

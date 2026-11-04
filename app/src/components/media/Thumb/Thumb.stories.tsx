@@ -4,7 +4,7 @@ import { Thumb, ThumbMakingProvider } from './Thumb'
 const meta = {
   title: '部品/media/Thumb',
   component: Thumb,
-  args: { hue: 210, height: 160 },
+  args: { height: 160 },
   decorators: [
     (Story) => (
       <div style={{ width: '240px' }}>
