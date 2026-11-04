@@ -1,0 +1,29 @@
+.root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-10);
+  padding: 0 var(--space-16) 80px;
+  text-align: center;
+}
+.icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--space-6);
+  color: var(--muted);
+}
+.title {
+  font-size: var(--fs-large);
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.reason {
+  max-width: 560px;
+  margin: 0 0 var(--space-6);
+  font-size: var(--fs-list);
+  line-height: 1.7;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
