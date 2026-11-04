@@ -323,27 +323,52 @@ pub fn discard(root: &Path, o: &Orphan) -> Result<(), String> {
 
 /// どの .meta からも、タグの一覧からも指されていないカードのフォルダを、ごみ箱に移す。
 pub fn sweep(root: &Path, problems: &mut Vec<String>) {
+    let metas = listing(root).metas;
     let mut projects = HashSet::new();
-    for m in listing(root).metas {
-        match read_json(&m) {
+    for m in &metas {
+        match read_json(m) {
             Ok(m) => projects.extend(m.and_then(|m| m.get(ID_KEY)?.as_str().map(str::to_owned))),
             Err(_) => return,
         }
     }
+    let projects_dir = root.join(STATE_DIR).join(PROJECTS_DIR);
     let tags_dir = root.join(STATE_DIR).join(TAGS_DIR);
-    let tags: HashSet<String> = match read_json(&tags_dir.join(TAG_INDEX)) {
-        Ok(m) => m
-            .unwrap_or_default()
-            .values()
-            .filter_map(Value::as_str)
-            .map(str::to_owned)
-            .collect(),
+    let index = match read_json(&tags_dir.join(TAG_INDEX)) {
+        Ok(m) => m,
         Err(_) => return,
     };
-    for (dir, keep) in [
-        (root.join(STATE_DIR).join(PROJECTS_DIR), &projects),
-        (tags_dir, &tags),
-    ] {
+    // 指すものが見つからないのは、消えたのではなく読めていないこともあるので、カードがあれば消さない
+    let has_cards = |dir: &Path| {
+        fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .any(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+    };
+    let tags: Option<HashSet<String>> = match index {
+        Some(m) => Some(
+            m.values()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect(),
+        ),
+        None if has_cards(&tags_dir) => {
+            log::warn!(
+                "{} がないので、タグの概要のカードは片付けない",
+                tags_dir.join(TAG_INDEX).display()
+            );
+            None
+        }
+        None => Some(HashSet::new()),
+    };
+    let projects = if metas.is_empty() && has_cards(&projects_dir) {
+        log::warn!("プロジェクトの .meta が見つからないので、プロジェクトのカードは片付けない");
+        None
+    } else {
+        Some(projects)
+    };
+    for (dir, keep) in [(projects_dir, projects), (tags_dir, tags)] {
+        let Some(keep) = keep else { continue };
         let Ok(rd) = fs::read_dir(&dir) else {
             continue;
         };

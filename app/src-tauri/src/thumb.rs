@@ -4,7 +4,7 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::UNIX_EPOCH;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader};
 
@@ -145,8 +145,8 @@ fn place_of(name: &str) -> Option<&str> {
 /// - いまの名前の形でないもの（前の版の形式）
 /// - all_found のとき（ライブラリを残らず読めたとき）は、ライブラリにもうない画像のもの
 ///
-/// 書きかけ（.tmp）には触らない。
-pub fn prune(dir: &Path, current: &[PathBuf], all_found: bool) {
+/// 書きかけ（.tmp）と、since より後に書いたもの（current を作るために読んでいるあいだに取り込んだものなど）には触らない。
+pub fn prune(dir: &Path, current: &[PathBuf], all_found: bool, since: SystemTime) {
     let Ok(rd) = fs::read_dir(dir) else { return };
     let names: HashSet<&str> = current
         .iter()
@@ -158,13 +158,13 @@ pub fn prune(dir: &Path, current: &[PathBuf], all_found: bool) {
         let Some(name) = name.to_str() else { continue };
         if e.file_type().is_ok_and(|t| t.is_dir()) {
             if name == DECODED && all_found {
-                prune_decoded(&e.path(), &places);
+                prune_decoded(&e.path(), &places, since);
             } else if (name == WAVES || name == WAVE_THUMBS) && all_found {
-                prune_gone(&e.path(), &places);
+                prune_gone(&e.path(), &places, since);
             }
             continue;
         }
-        if names.contains(name) || name.ends_with(".tmp") {
+        if names.contains(name) || name.ends_with(".tmp") || newer(&e, since) {
             continue;
         }
         let stale = match place_of(name) {
@@ -177,17 +177,23 @@ pub fn prune(dir: &Path, current: &[PathBuf], all_found: bool) {
     }
 }
 
-fn prune_decoded(dir: &Path, places: &HashSet<&str>) {
+fn newer(e: &fs::DirEntry, since: SystemTime) -> bool {
+    e.metadata()
+        .and_then(|m| m.modified())
+        .is_ok_and(|t| t >= since)
+}
+
+fn prune_decoded(dir: &Path, places: &HashSet<&str>, since: SystemTime) {
     for d in fs::read_dir(dir)
         .into_iter()
         .flatten()
         .filter_map(Result::ok)
     {
-        prune_gone(&d.path(), places);
+        prune_gone(&d.path(), places, since);
     }
 }
 
-fn prune_gone(dir: &Path, places: &HashSet<&str>) {
+fn prune_gone(dir: &Path, places: &HashSet<&str>, since: SystemTime) {
     for e in fs::read_dir(dir)
         .into_iter()
         .flatten()
@@ -195,7 +201,10 @@ fn prune_gone(dir: &Path, places: &HashSet<&str>) {
     {
         let name = e.file_name();
         let Some(name) = name.to_str() else { continue };
-        if name.ends_with(".tmp") || place_of(name).is_some_and(|p| places.contains(p)) {
+        if name.ends_with(".tmp")
+            || place_of(name).is_some_and(|p| places.contains(p))
+            || newer(&e, since)
+        {
             continue;
         }
         if let Err(err) = fs::remove_file(e.path()) {

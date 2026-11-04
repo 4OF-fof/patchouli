@@ -797,6 +797,7 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
         match Library::cached(&root, Arc::clone(&plugins), Arc::clone(&cache)) {
             Some((lib, opened)) => (lib, opened, true),
             None => {
+                let since = std::time::SystemTime::now();
                 let (lib, mut scan) =
                     Library::scan(&root, Arc::clone(&plugins), Arc::clone(&cache));
                 let thumbs_job = plan_thumbs(
@@ -807,7 +808,9 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
                 );
                 let all_found = thumbs_job.2 && scan.problems.is_empty();
                 let opened = lib.opened(scan);
-                spawn_thumbs(&app, &plugins, &cache, &thumbs, thumbs_job, all_found);
+                spawn_thumbs(
+                    &app, &plugins, &cache, &thumbs, thumbs_job, all_found, since,
+                );
                 (lib, opened, false)
             }
         };
@@ -860,6 +863,7 @@ async fn reload_plugins(
     old.stop();
     let (plugins, problems) = Registry::open(&root, &plugin_dir(&app)?, dev_places(&app).as_ref());
     let plugins = Arc::new(plugins);
+    let since = std::time::SystemTime::now();
     let (mut opened, thumbs, cache) = with_session(&cur, |s| {
         s.lib.set_plugins(Arc::clone(&plugins));
         let opened = s.lib.snapshot();
@@ -870,7 +874,7 @@ async fn reload_plugins(
     })?;
     let job = plan_thumbs(&plugins, &thumbs, &cache, &mut opened.items);
     let all_found = job.2;
-    spawn_thumbs(&app, &plugins, &cache, &thumbs, job, all_found);
+    spawn_thumbs(&app, &plugins, &cache, &thumbs, job, all_found, since);
     opened.problems.extend(problems);
     Ok(opened)
 }
@@ -939,6 +943,7 @@ fn spawn_thumbs(
     thumbs: &Path,
     (jobs, current, _): (Vec<thumb::Job>, Vec<PathBuf>, bool),
     all_found: bool,
+    since: std::time::SystemTime,
 ) {
     let (app, plugins, cache, dir) = (
         app.clone(),
@@ -947,7 +952,7 @@ fn spawn_thumbs(
         thumbs.to_owned(),
     );
     std::thread::spawn(move || {
-        thumb::prune(&dir, &current, all_found);
+        thumb::prune(&dir, &current, all_found, since);
         make_thumbs(&app, &plugins, &cache, jobs);
     });
 }
@@ -960,6 +965,7 @@ fn check(
     cache: &Arc<Cache>,
     thumbs: &Path,
 ) {
+    let since = std::time::SystemTime::now();
     let (fresh, mut scan) = Library::scan(root, Arc::clone(plugins), Arc::clone(cache));
     // サムネイルは取り込んだときに作る。アプリの外で足された画像は、見つけた時点で取り込んだものとみなす
     let job = plan_thumbs(
@@ -998,7 +1004,7 @@ fn check(
     if let Some(items) = items {
         content::collect(app, plugins, &items, thumbs);
     }
-    spawn_thumbs(app, plugins, cache, thumbs, job, all_found);
+    spawn_thumbs(app, plugins, cache, thumbs, job, all_found, since);
 }
 
 #[tauri::command]

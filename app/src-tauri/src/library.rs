@@ -1020,19 +1020,10 @@ impl Library {
     }
 
     pub fn rename_item(&mut self, id: &str, name: &str) -> Result<StoredItem, String> {
-        let name = name.trim();
-        if name.is_empty() {
+        if name.trim().is_empty() {
             return Err("名前を入れてください".into());
         }
-        if name.ends_with('.')
-            || name
-                .chars()
-                .any(|c| c.is_control() || r#"\/:*?"<>|"#.contains(c))
-        {
-            return Err(
-                r#"名前に使えない文字（\ / : * ? " < > | と末尾の .）が入っています"#.into(),
-            );
-        }
+        check_name(name)?;
         // 生成物は ID で引くので、ID をメタ情報に書いてから動かす
         self.ensure_saved(id)?;
         let from = self.entry(id)?.path.clone();
@@ -1044,6 +1035,10 @@ impl Library {
             Some(ext) => format!("{name}.{}", ext.to_string_lossy()),
             None => name.to_owned(),
         };
+        // メタ情報のファイルと見分けられなくなる
+        if file.to_ascii_lowercase().ends_with(".meta") {
+            return Err(format!("「{name}」は名前として使用できません"));
+        }
         let to = from.with_file_name(&file);
         let taken = format!("同じ名前のファイル（{file}）があるため、名前を変えられません");
         self.relocate(id, row, &to, taken, |it| it.name = name.to_owned())
