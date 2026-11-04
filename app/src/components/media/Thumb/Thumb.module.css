@@ -9,6 +9,10 @@
   border-radius: var(--radius-sm);
   background: var(--card);
 }
+/* 画像のない仮のサムネイルは、地が置いた場所に溶けないよう枠で囲む */
+.root:not([data-fit], [data-note='true']) {
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
 /* 透けるサムネイル（音声の波形など）は、置いた場所の地を見せる */
 .root[data-fit] {
   background: none;
