@@ -1,4 +1,4 @@
-import { For, type JSX, Show, createEffect, createSignal, on } from 'solid-js'
+import { For, type JSX, Show, createSignal } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Kbd } from '../../components/base/Kbd/Kbd'
@@ -8,6 +8,7 @@ import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { Thumb } from '../../components/media/Thumb/Thumb'
 import { type Item, type Library, type TagCandidate, thumbOf } from '../../model/library'
+import { useTagPicker } from '../useTagPicker'
 import styles from './TidyPanel.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
 
@@ -45,16 +46,13 @@ export function TidyPanel(props: TidyPanelProps) {
       .toSorted((a, b) => Math.abs(a.hue - props.it.hue) - Math.abs(b.hue - props.it.hue))
       .slice(0, 6)
 
-  let addBtn: HTMLButtonElement | undefined
   let picker: HTMLDivElement | undefined
-  const [picking, setPicking] = createSignal(false)
-  // 付けるたびに並びが変わらないよう、開いたときのものを使う
-  const [recent, setRecent] = createSignal<string[]>([])
   const [suggested, setSuggested] = createSignal<string[]>([])
   const [at, setAt] = createSignal<JSX.CSSProperties>({})
   /** 素材画面と同じく、押したボタンの左に、検索欄がボタンの横に来るように出す。 */
   const place = () => {
     const input = picker?.querySelector('input')
+    const addBtn = button()
     if (!addBtn || !picker || !input) return
     const b = addBtn.getBoundingClientRect()
     const field = input.getBoundingClientRect()
@@ -66,28 +64,21 @@ export function TidyPanel(props: TidyPanelProps) {
       'max-height': `${window.innerHeight - top - 8}px`,
     })
   }
-  const togglePicker = () => {
-    if (picking()) {
-      setPicking(false)
-      return
-    }
-    setRecent(props.recentTags ?? [])
-    setSuggested(props.tags.filter((t) => t.conf).map((t) => t.tag))
-    setPicking(true)
-    place()
-  }
-  const closePicker = () => {
-    setPicking(false)
-    addBtn?.focus()
-  }
-  createEffect(
-    on(
-      () => props.it.id,
-      () => setPicking(false),
-      { defer: true },
-    ),
-  )
-  const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
+  const {
+    picking,
+    recent,
+    toggle: togglePicker,
+    close: closePicker,
+    allTags,
+    button,
+    setButton,
+  } = useTagPicker({
+    lib,
+    recentTags: () => props.recentTags,
+    reset: () => props.it.id,
+    onOpen: () => setSuggested(props.tags.filter((t) => t.conf).map((t) => t.tag)),
+    place,
+  })
 
   return (
     <div class={styles.root}>
@@ -126,7 +117,14 @@ export function TidyPanel(props: TidyPanelProps) {
                 </Chip>
               )}
             </For>
-            <Chip ref={addBtn} size="lg" dashed aria-expanded={picking()} aria-haspopup="dialog" onClick={togglePicker}>
+            <Chip
+              ref={setButton}
+              size="lg"
+              dashed
+              aria-expanded={picking()}
+              aria-haspopup="dialog"
+              onClick={togglePicker}
+            >
               <Icon name="plus" size={14} withText />
               追加
             </Chip>
@@ -142,7 +140,7 @@ export function TidyPanel(props: TidyPanelProps) {
               all={allTags()}
               recent={recent()}
               suggested={suggested()}
-              anchor={addBtn}
+              anchor={button()}
               onToggle={(t, v) => props.onTag(t, v)}
               onClose={closePicker}
             />

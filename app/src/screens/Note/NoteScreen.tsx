@@ -1,5 +1,5 @@
 import { Portal } from 'solid-js/web'
-import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { For, Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { PlaceSelect } from '../../components/controls/PlaceSelect/PlaceSelect'
@@ -23,6 +23,7 @@ import {
 } from '../../components/editor/NoteEditor/NoteEditor'
 import { type Item, type Library, type Place, headingsOf, placeOf, refsOf, relDay } from '../../model/library'
 import { prefs } from '../../model/prefs'
+import { useTagPicker } from '../useTagPicker'
 import shared from '../screen.module.css'
 import styles from './NoteScreen.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
@@ -109,23 +110,19 @@ export function NoteScreen(props: NoteScreenProps) {
   }
   onCleanup(() => props.editorRef?.(undefined))
 
-  let addBtn: HTMLButtonElement | undefined
-  const [picking, setPicking] = createSignal(false)
-  const [recent, setRecent] = createSignal<string[]>([])
-  const togglePicker = () => {
-    if (!picking()) setRecent(props.recentTags ?? [])
-    setPicking(!picking())
-  }
-  const closePicker = () => {
-    setPicking(false)
-    addBtn?.focus()
-  }
-  createEffect(on([() => props.noteId, propsOpen], () => setPicking(false), { defer: true }))
+  const {
+    picking,
+    recent,
+    toggle: togglePicker,
+    close: closePicker,
+    allTags,
+    button,
+    setButton,
+  } = useTagPicker({ lib, recentTags: () => props.recentTags, reset: () => [props.noteId, propsOpen()] })
   const [suggested] = createResource(
     () => (picking() ? props.noteId : undefined),
     async (id) => (await props.suggestTags?.(id).catch(() => [])) ?? [],
   )
-  const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
 
   const rename = (el: HTMLInputElement) => {
     const n = note()
@@ -204,7 +201,13 @@ export function NoteScreen(props: NoteScreenProps) {
                         </Chip>
                       )}
                     </For>
-                    <Chip ref={addBtn} dashed aria-expanded={picking()} aria-haspopup="dialog" onClick={togglePicker}>
+                    <Chip
+                      ref={setButton}
+                      dashed
+                      aria-expanded={picking()}
+                      aria-haspopup="dialog"
+                      onClick={togglePicker}
+                    >
                       <Icon name="plus" size={12} withText />
                       追加
                     </Chip>
@@ -215,7 +218,7 @@ export function NoteScreen(props: NoteScreenProps) {
                         all={allTags()}
                         recent={recent()}
                         suggested={suggested.state === 'ready' ? suggested() : undefined}
-                        anchor={addBtn}
+                        anchor={button()}
                         onToggle={(t, add) => props.onTag?.(n().id, t, add)}
                         onClose={closePicker}
                       />

@@ -33,6 +33,7 @@ import { WebPage } from '../../components/media/WebPage/WebPage'
 import type { BrowserActions, LinkShown } from '../../backend/types'
 import type { ItemDetails, ItemView, LinkPart, Part } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
+import { useTagPicker } from '../useTagPicker'
 import shared from '../screen.module.css'
 import styles from './AssetScreen.module.css'
 import { coverPage } from '../../components/media/WebPage/layer'
@@ -324,10 +325,6 @@ export function AssetScreen(props: AssetScreenProps) {
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
   let root!: HTMLElement
-  let addBtn: HTMLButtonElement | undefined
-  const [picking, setPicking] = createSignal(false)
-  // 付けるたびに並びが変わらないよう、開いたときのものを使う
-  const [recent, setRecent] = createSignal<string[]>([])
   const [at, setAt] = createSignal<JSX.CSSProperties>({})
   /**
    * 押したボタンの左に、検索欄がボタンの横に来るように出す。下に入りきらないときは上へずらす。
@@ -335,6 +332,7 @@ export function AssetScreen(props: AssetScreenProps) {
    */
   const place = () => {
     const input = root.querySelector<HTMLElement>('[role="dialog"] input')
+    const addBtn = button()
     if (!addBtn || !input) return
     const s = root.getBoundingClientRect()
     const b = addBtn.getBoundingClientRect()
@@ -349,16 +347,15 @@ export function AssetScreen(props: AssetScreenProps) {
       '--picker-max': `${s.height - top - 18}px`,
     })
   }
-  const togglePicker = () => {
-    if (picking()) {
-      setPicking(false)
-      return
-    }
-    setRecent(props.recentTags ?? [])
-    setPicking(true)
-    place()
-  }
-  createEffect(() => info() || setPicking(false))
+  const {
+    picking,
+    recent,
+    toggle: togglePicker,
+    close: closePicker,
+    allTags,
+    button,
+    setButton,
+  } = useTagPicker({ lib, recentTags: () => props.recentTags, reset: info, place })
   const [suggested] = createResource(
     () => (picking() ? it()?.id : undefined),
     async (id) => (await props.suggestTags?.(id).catch(() => [])) ?? [],
@@ -368,11 +365,6 @@ export function AssetScreen(props: AssetScreenProps) {
     async (id) => (await props.host?.details?.(id).catch(() => null)) ?? null,
   )
   const [fileOpen, setFileOpen] = createSignal(false)
-  const allTags = () => [...lib().tagGroups().keys()].toSorted((x, y) => x.localeCompare(y, 'ja'))
-  const closePicker = () => {
-    setPicking(false)
-    addBtn?.focus()
-  }
   /** 手が止まってしばらくしたら、上の帯や操作を隠す。操作の上にポインタがある間は隠さない */
   const [still, setStill] = createSignal(false)
   let stillTimer = 0
@@ -562,7 +554,13 @@ export function AssetScreen(props: AssetScreenProps) {
                           </Chip>
                         )}
                       </For>
-                      <Chip ref={addBtn} dashed aria-expanded={picking()} aria-haspopup="dialog" onClick={togglePicker}>
+                      <Chip
+                        ref={setButton}
+                        dashed
+                        aria-expanded={picking()}
+                        aria-haspopup="dialog"
+                        onClick={togglePicker}
+                      >
                         <Icon name="plus" size={12} withText />
                         追加
                       </Chip>
@@ -645,7 +643,7 @@ export function AssetScreen(props: AssetScreenProps) {
                   all={allTags()}
                   recent={recent()}
                   suggested={suggested.state === 'ready' ? suggested() : undefined}
-                  anchor={addBtn}
+                  anchor={button()}
                   onToggle={(t, on) => props.onTag?.(a().id, t, on)}
                   onClose={closePicker}
                 />
