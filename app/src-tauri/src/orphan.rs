@@ -12,8 +12,9 @@ use sha2::{Digest, Sha256};
 
 use crate::cache::Row;
 use crate::library::{
-    ID_KEY, NOTE_EXT, PRINT_KEY, PROJECT_TYPE, PROJECTS_DIR, STATE_DIR, TAG_INDEX, TAGS_DIR,
-    TYPE_KEY, check_name, listed_entry, meta_path, name_of, read_json, write_json,
+    DirItem, ID_KEY, NOTE_EXT, PRINT_KEY, PROJECT_TYPE, PROJECTS_DIR, STATE_DIR, TAG_INDEX,
+    TAGS_DIR, TYPE_KEY, check_name, listed_entry, meta_path, name_of, read_entries, read_json,
+    write_json,
 };
 use crate::note;
 
@@ -50,7 +51,7 @@ pub fn group_print(mut ids: Vec<String>) -> String {
 }
 
 fn child_ids(dir: &Path) -> Vec<String> {
-    let l = listing(dir);
+    let l = listing(&read_entries(dir).unwrap_or_default());
     l.files
         .iter()
         .filter_map(|f| {
@@ -149,24 +150,25 @@ struct Listing {
     names: HashSet<OsString>,
 }
 
-fn listing(dir: &Path) -> Listing {
+fn listing(entries: &[DirItem]) -> Listing {
     let mut l = Listing {
         files: vec![],
         dirs: vec![],
         metas: vec![],
         names: HashSet::new(),
     };
-    let Ok(rd) = fs::read_dir(dir) else {
-        return l;
-    };
-    for e in rd.flatten() {
-        let path = e.path();
-        l.names.insert(e.file_name());
-        let name = e.file_name().to_string_lossy().into_owned();
+    for e in entries {
+        let path = e.entry.path();
+        l.names.insert(e.entry.file_name());
+        let name = e.entry.file_name().to_string_lossy().into_owned();
         if name.ends_with(".meta") && !name.starts_with('.') {
             l.metas.push(path);
-        } else if listed_entry(&e) {
-            if e.file_type().is_ok_and(|t| t.is_dir()) {
+        } else if listed_entry(e) {
+            let dir = e.meta.as_ref().map_or_else(
+                || e.entry.file_type().is_ok_and(|t| t.is_dir()),
+                |m| m.file_type().is_dir(),
+            );
+            if dir {
                 l.dirs.push(path);
             } else {
                 l.files.push(path);
@@ -177,14 +179,6 @@ fn listing(dir: &Path) -> Listing {
     l.dirs.sort();
     l.metas.sort();
     l
-}
-
-fn walk(dir: &Path, f: &mut impl FnMut(&Path, &Listing)) {
-    let l = listing(dir);
-    f(dir, &l);
-    for d in &l.dirs {
-        walk(d, f);
-    }
 }
 
 fn owner_of(meta: &Path) -> PathBuf {
@@ -232,35 +226,82 @@ fn place_of(root: &Path, dir: &Path) -> Option<String> {
 }
 
 /// 照合用の値が同じものが、どちらにも 1 つだけあれば、.meta をその名前に変える。
+/// 名前を変えたものがあれば true。
 fn rename_unique(
     lost: &[(&PathBuf, String)],
     fresh: &[(&PathBuf, String)],
     problems: &mut Vec<String>,
-) {
+) -> bool {
+    let mut renamed = false;
     for (m, p) in lost {
         let hits: Vec<_> = fresh.iter().filter(|(_, q)| q == p).collect();
         let rivals = lost.iter().filter(|(_, q)| q == p).count();
-        if let ([(to, _)], 1) = (hits.as_slice(), rivals)
-            && let Err(e) = fs::rename(m, meta_path(to))
-        {
-            problems.push(format!("{}: {e}", m.display()));
+        if let ([(to, _)], 1) = (hits.as_slice(), rivals) {
+            match fs::rename(m, meta_path(to)) {
+                Ok(()) => renamed = true,
+                Err(e) => problems.push(format!("{}: {e}", m.display())),
+            }
         }
     }
+    renamed
 }
 
-/// 写しで同じ中身だったと分かる素材と、直下の ID が同じだと分かるグループが、
-/// 同じフォルダに 1 つだけあれば、.meta をその名前に変える。
-pub fn relink(root: &Path, known: &HashMap<PathBuf, Row>, problems: &mut Vec<String>) {
-    let by_id: HashMap<&str, &Row> = known.values().map(|r| (r.item.id.as_str(), r)).collect();
-    let empty = group_print(vec![]);
-    walk(root, &mut |_, l| {
+/// ライブラリを読むときに、フォルダごとに .meta をつなぎ直し、持ち主のないものを集める。
+pub struct Tend<'a> {
+    root: &'a Path,
+    known: &'a HashMap<PathBuf, Row>,
+    by_id: HashMap<&'a str, &'a Row>,
+    empty: String,
+    pub orphans: Vec<Orphan>,
+}
+
+impl<'a> Tend<'a> {
+    pub fn new(root: &'a Path, known: &'a HashMap<PathBuf, Row>) -> Tend<'a> {
+        Tend {
+            root,
+            known,
+            by_id: known.values().map(|r| (r.item.id.as_str(), r)).collect(),
+            empty: group_print(vec![]),
+            orphans: Vec::new(),
+        }
+    }
+
+    /// dir を読んだ中身を受け取り、つなぎ直したあとの中身を返す。
+    pub fn visit(
+        &mut self,
+        dir: &Path,
+        entries: Vec<DirItem>,
+        problems: &mut Vec<String>,
+    ) -> Vec<DirItem> {
+        let l = listing(&entries);
+        if !self.relink(&l, problems) {
+            self.find(dir, &l);
+            return entries;
+        }
+        let entries = read_entries(dir).unwrap_or_default();
+        self.find(dir, &listing(&entries));
+        entries
+    }
+
+    /// ライブラリとしては読まないフォルダの中も、同じように見ておく。
+    pub fn tree(&mut self, dir: &Path, problems: &mut Vec<String>) {
+        let entries = self.visit(dir, read_entries(dir).unwrap_or_default(), problems);
+        for d in listing(&entries).dirs {
+            self.tree(&d, problems);
+        }
+    }
+
+    /// 写しで同じ中身だったと分かる素材と、直下の ID が同じだと分かるグループが、
+    /// 同じフォルダに 1 つだけあれば、.meta をその名前に変える。
+    fn relink(&self, l: &Listing, problems: &mut Vec<String>) -> bool {
+        let mut renamed = false;
         let lost_dirs: Vec<(&PathBuf, String)> = l
             .metas
             .iter()
             .filter(|m| !owned(l, m))
             .filter_map(|m| {
                 let p = read_json(m).ok()??.get(PRINT_KEY)?.as_str()?.to_owned();
-                (p != empty).then_some((m, p))
+                (p != self.empty).then_some((m, p))
             })
             .collect();
         if !lost_dirs.is_empty() {
@@ -270,22 +311,22 @@ pub fn relink(root: &Path, known: &HashMap<PathBuf, Row>, problems: &mut Vec<Str
                 .filter(|d| !meta_path(d).exists())
                 .map(|d| (d, group_print(child_ids(d))))
                 .collect();
-            rename_unique(&lost_dirs, &fresh, problems);
+            renamed |= rename_unique(&lost_dirs, &fresh, problems);
         }
         let lost: Vec<(&PathBuf, String)> = l
             .metas
             .iter()
             .filter(|m| !owned(l, m))
             .filter_map(|m| {
-                let row = known.get(&owner_of(m)).or_else(|| {
+                let row = self.known.get(&owner_of(m)).or_else(|| {
                     let id = id_of(m)?;
-                    by_id.get(id.as_str()).copied()
+                    self.by_id.get(id.as_str()).copied()
                 })?;
                 Some((m, row.item.print.clone()?))
             })
             .collect();
         if lost.is_empty() {
-            return;
+            return renamed;
         }
         let fresh: Vec<(&PathBuf, String)> = l
             .files
@@ -293,18 +334,16 @@ pub fn relink(root: &Path, known: &HashMap<PathBuf, Row>, problems: &mut Vec<Str
             .filter(|f| !is_note(f) && !meta_path(f).exists())
             .filter_map(|f| Some((f, print(f)?)))
             .collect();
-        rename_unique(&lost, &fresh, problems);
-    });
-}
+        renamed | rename_unique(&lost, &fresh, problems)
+    }
 
-pub fn find(root: &Path) -> Vec<Orphan> {
-    let mut out = vec![];
-    walk(root, &mut |dir, l| {
+    fn find(&mut self, dir: &Path, l: &Listing) {
         for m in l.metas.iter().filter(|m| !owned(l, m)) {
             let map = read_json(m).ok().flatten().unwrap_or_default();
             let kind = if !map.contains_key(PRINT_KEY) && !map.contains_key(TYPE_KEY) {
                 OrphanKind::Asset
-            } else if dir == root && map.get(TYPE_KEY).and_then(Value::as_str) == Some(PROJECT_TYPE)
+            } else if dir == self.root
+                && map.get(TYPE_KEY).and_then(Value::as_str) == Some(PROJECT_TYPE)
             {
                 OrphanKind::Project
             } else {
@@ -323,16 +362,15 @@ pub fn find(root: &Path) -> Vec<Orphan> {
                     .map(|d| name_of(d))
                     .collect()
             };
-            out.push(Orphan {
+            self.orphans.push(Orphan {
                 meta: m.clone(),
                 name: name_of(&owner_of(m)),
-                place: place_of(root, dir),
+                place: place_of(self.root, dir),
                 kind,
                 candidates,
             });
         }
-    });
-    out
+    }
 }
 
 fn cards_dir(root: &Path, id: &str) -> PathBuf {
@@ -365,7 +403,7 @@ pub fn discard(root: &Path, o: &Orphan) -> Result<(), String> {
 
 /// どの .meta からも、タグの一覧からも指されていないカードのフォルダを、ごみ箱に移す。
 pub fn sweep(root: &Path, problems: &mut Vec<String>) {
-    let metas = listing(root).metas;
+    let metas = listing(&read_entries(root).unwrap_or_default()).metas;
     let mut projects = HashSet::new();
     for m in &metas {
         match read_json(m) {

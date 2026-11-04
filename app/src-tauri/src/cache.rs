@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
 use rusqlite::{Connection, OptionalExtension, params};
@@ -64,7 +64,29 @@ pub struct Snapshot {
     pub tag_covers: Map<String, Value>,
 }
 
-pub struct Cache(Mutex<Connection>, AtomicBool);
+pub struct Cache(Mutex<Connection>, AtomicBool, Mutex<Changed>);
+
+/// 項目を書き換えるたびに上げる番号。開き直した写しどうしでも重ならないよう、全体で 1 つ。
+static GENERATION: AtomicU64 = AtomicU64::new(0);
+
+fn next_generation() -> u64 {
+    GENERATION.fetch_add(1, Ordering::Relaxed) + 1
+}
+
+/// since より後に、どの項目がいつ変わったか。
+struct Changed {
+    since: u64,
+    ids: HashMap<String, u64>,
+}
+
+impl Changed {
+    fn fresh() -> Changed {
+        Changed {
+            since: next_generation(),
+            ids: HashMap::new(),
+        }
+    }
+}
 
 fn warn(what: &str, e: impl std::fmt::Display) {
     log::warn!("ライブラリの写しを{what}: {e}");
@@ -246,7 +268,11 @@ impl Cache {
                 let c = Connection::open_in_memory().expect("メモリの中に SQLite を開けない");
                 (c, false)
             });
-        Cache(Mutex::new(c.0), AtomicBool::new(c.1))
+        Cache(
+            Mutex::new(c.0),
+            AtomicBool::new(c.1),
+            Mutex::new(Changed::fresh()),
+        )
     }
 
     /// 波形のサムネイルをジャケットと同じ場所に置いていた版から作り直したか。最初に聞かれたときだけ true を返す。
@@ -293,12 +319,29 @@ impl Cache {
     }
 
     pub fn rows(&self) -> HashMap<PathBuf, Row> {
+        self.query_rows("", [])
+    }
+
+    /// ノートの行だけ。
+    pub fn note_rows(&self) -> HashMap<PathBuf, Row> {
+        self.query_rows("WHERE json_extract(item, '$.note') = 1", [])
+    }
+
+    pub fn row(&self, path: &Path) -> Option<Row> {
+        self.query_rows("WHERE path = ?1", [path.to_string_lossy()])
+            .into_values()
+            .next()
+    }
+
+    fn query_rows<P: rusqlite::Params>(&self, filter: &str, params: P) -> HashMap<PathBuf, Row> {
         self.with("読めない", |c| {
             let mut st = c
-                .prepare("SELECT file_mtime, meta_mtime, saved, item FROM items")
+                .prepare(&format!(
+                    "SELECT file_mtime, meta_mtime, saved, item FROM items {filter}"
+                ))
                 .map_err(|e| e.to_string())?;
             let it = st
-                .query_map([], |r| {
+                .query_map(params, |r| {
                     Ok((
                         Sig {
                             file: r.get(0)?,
@@ -320,32 +363,6 @@ impl Cache {
                 }
             }
             Ok(out)
-        })
-    }
-
-    pub fn row(&self, path: &Path) -> Option<Row> {
-        self.with("読めない", |c| {
-            c.query_row(
-                "SELECT file_mtime, meta_mtime, saved, item FROM items WHERE path = ?1",
-                [path.to_string_lossy()],
-                |r| {
-                    Ok((
-                        Sig {
-                            file: r.get(0)?,
-                            meta: r.get(1)?,
-                        },
-                        r.get::<_, bool>(2)?,
-                        r.get::<_, String>(3)?,
-                    ))
-                },
-            )
-            .optional()
-            .map_err(|e| e.to_string())?
-            .map(|(sig, saved, item)| {
-                let item = serde_json::from_str(&item).map_err(|e| e.to_string())?;
-                Ok(Row { item, saved, sig })
-            })
-            .transpose()
         })
     }
 
@@ -433,17 +450,28 @@ impl Cache {
             put_state(&tx, state)?;
             put_tag_covers(&tx, tag_covers)?;
             tx.commit().map_err(|e| e.to_string())
-        })
+        });
+        *self.2.lock().unwrap_or_else(PoisonError::into_inner) = Changed::fresh();
     }
 
     pub fn update(&self, rows: &[Row], gone: &[PathBuf]) {
         if rows.is_empty() && gone.is_empty() {
             return;
         }
-        self.with("書けない", |c| {
+        let gone_ids = self.with("書けない", |c| {
             let tx = c.transaction().map_err(|e| e.to_string())?;
             put_rows(&tx, rows)?;
+            let mut ids = Vec::new();
             for p in gone {
+                let id = tx
+                    .query_row(
+                        "SELECT json_extract(item, '$.id') FROM items WHERE path = ?1",
+                        [p.to_string_lossy()],
+                        |r| r.get::<_, String>(0),
+                    )
+                    .optional()
+                    .map_err(|e| e.to_string())?;
+                ids.extend(id);
                 for sql in [
                     "DELETE FROM items WHERE path = ?1",
                     "DELETE FROM thumb_reads WHERE path = ?1",
@@ -452,7 +480,30 @@ impl Cache {
                         .map_err(|e| e.to_string())?;
                 }
             }
-            tx.commit().map_err(|e| e.to_string())
+            tx.commit().map_err(|e| e.to_string())?;
+            Ok(ids)
+        });
+        let at = next_generation();
+        let mut g = self.2.lock().unwrap_or_else(PoisonError::into_inner);
+        for id in rows.iter().map(|r| &r.item.id).chain(&gone_ids) {
+            g.ids.insert(id.clone(), at);
+        }
+    }
+
+    /// いまの番号。これより後の書き換えは changed_since で分かる。
+    pub fn generation(&self) -> u64 {
+        GENERATION.load(Ordering::Relaxed)
+    }
+
+    /// generation より後に変わった項目の ID。丸ごと入れ替えたあとなど、分からなければ None。
+    pub fn changed_since(&self, generation: u64) -> Option<Vec<String>> {
+        let g = self.2.lock().unwrap_or_else(PoisonError::into_inner);
+        (generation >= g.since).then(|| {
+            g.ids
+                .iter()
+                .filter(|(_, at)| **at > generation)
+                .map(|(id, _)| id.clone())
+                .collect()
         })
     }
 
@@ -519,6 +570,20 @@ impl Cache {
             }
             .map(drop)
             .map_err(|e| e.to_string())
+        })
+    }
+
+    pub fn thumb_read(&self, path: &Path) -> Option<Reads> {
+        self.with("読めない", |c| {
+            c.query_row(
+                "SELECT reads FROM thumb_reads WHERE path = ?1",
+                [path.to_string_lossy()],
+                |r| r.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|e| e.to_string())?
+            .map(|reads| serde_json::from_str(&reads).map_err(|e| e.to_string()))
+            .transpose()
         })
     }
 

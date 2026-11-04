@@ -95,6 +95,7 @@ import {
 } from './components/nav/SplitView/split'
 import { TabList } from './components/nav/TabList/TabList'
 import type { TabEntry, TabStripProps } from './components/nav/TabStrip/TabStrip'
+import { sorter } from './model/filter'
 import { applyPrefs, prefs, screenStart } from './model/prefs'
 import { flush as flushWrites, persist as queueJob } from './model/persist'
 import { ICON_NAMES, type IconName } from './components/base/Icon/Icon'
@@ -195,7 +196,29 @@ const NO_OWN: OwnApi = {
 const screenIcon = (s: ScreenInfo): IconName => ICON_NAMES.find((n) => n === s.icon) ?? 'plugin'
 
 /** ファイルから読んだ画面を、いまのライブラリとプラグインで開けるものだけにする。 */
-function viewOf(lib: Library, screens: ScreenInfo[], v: unknown): View | undefined {
+const tabsAt = () => prefs().tabsAt
+
+/** 開き直した素材の前後に並べるもの。来た画面の項目を、既定の順に並べる。 */
+function assetList(lib: Library, from: View | undefined, it: Item) {
+  const items =
+    from?.s === 'all'
+      ? lib.items
+      : from?.s === 'project'
+        ? lib.inProject(from.name)
+        : from?.s === 'group'
+          ? lib.inGroup(from.id)
+          : from?.s === 'tag'
+            ? (lib.tagGroups().get(from.tag) ?? [])
+            : lib.items.filter((x) => samePlace(x, it))
+  const ids = items
+    .filter((x) => !x.note)
+    .toSorted(sorter(prefs().sort, (x) => lib.formats.get(x.ext)?.label ?? x.ext))
+    .map((x) => x.id)
+  return ids.includes(it.id) ? ids : [it.id]
+}
+
+/** 保存したタブの 1 段を読む。from は、そのタブで 1 つ前の段。 */
+function viewOf(lib: Library, screens: ScreenInfo[], v: unknown, from?: View): View | undefined {
   if (typeof v !== 'object' || v === null) return undefined
   const x: Record<string, unknown> = Object.fromEntries(Object.entries(v))
   switch (x.s) {
@@ -222,6 +245,12 @@ function viewOf(lib: Library, screens: ScreenInfo[], v: unknown): View | undefin
       return id && lib.byId.get(id)?.note ? { s: 'note', id } : undefined
     }
     case 'asset': {
+      const it = lib.byId.get(str(x.id) ?? '')
+      if (it) {
+        if (it.note) return undefined
+        const list = assetList(lib, from, it)
+        return { s: 'asset', list, index: list.indexOf(it.id) }
+      }
       const list = (Array.isArray(x.list) ? x.list : []).filter(
         (id): id is string => typeof id === 'string' && lib.byId.get(id)?.note === false,
       )
@@ -466,7 +495,6 @@ export function App(props: AppProps) {
     onAction: (id, a) => (a === 'detach' ? detachTab(id) : splitTab(id, a)),
     onMove: moveTab,
   })
-  const tabsAt = () => prefs().tabsAt
   createEffect(() => applyPrefs(prefs()))
   onMount(() => {
     if (typeof matchMedia !== 'function') return
@@ -1225,7 +1253,12 @@ export function App(props: AppProps) {
   const sameView = (a: View | undefined, b: View) => JSON.stringify(a) === JSON.stringify(b)
   const restoreTabs = (s: SavedTabs | undefined) => {
     const made = (Array.isArray(s?.tabs) ? s.tabs : [])
-      .map((vs) => (Array.isArray(vs) ? vs.flatMap((v) => viewOf(lib(), screens(), v) ?? []) : []))
+      .map((vs) =>
+        (Array.isArray(vs) ? vs : []).reduce<View[]>((out, v) => {
+          const view = viewOf(lib(), screens(), v, out.at(-1))
+          return view ? [...out, view] : out
+        }, []),
+      )
       .map((vs) => (vs.length ? makeTab(vs) : undefined))
     const list = made.flatMap((t) => t ?? [])
     const at = typeof s?.current === 'number' ? s.current : 0
@@ -1258,9 +1291,10 @@ export function App(props: AppProps) {
         .then(restoreTabs, failLoad)
         .finally(() => setTabsRead(true)),
   )
-  const savedView = (v: View): View =>
+  // 素材の前後の並びは数千件になることがあるので書かず、開き直すときに来た画面から作り直す
+  const savedView = (v: View): unknown =>
     v.s === 'asset'
-      ? { ...v, index: assetIndex(v) }
+      ? { s: 'asset', id: v.list[assetIndex(v)] }
       : v.s === 'project'
         ? { s: 'project', name: v.name }
         : v.s === 'tidy'

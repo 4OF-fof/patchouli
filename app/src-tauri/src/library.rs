@@ -442,19 +442,18 @@ impl Library {
             .collect();
         let mut f = Found {
             known: &known,
+            tend: orphan::Tend::new(root, &known),
             items: Vec::new(),
             groups: Vec::new(),
             problems: Vec::new(),
         };
         let mut projects = Vec::new();
 
-        // 外で名前を変えた素材とグループに、新しい ID を書く前に .meta を引き継ぐ
-        orphan::relink(root, &known, &mut f.problems);
         for Listed {
             path,
             is_dir,
             times,
-        } in list_dir(root, &mut f.problems)
+        } in list_dir(root, &mut f)
         {
             if !is_dir {
                 let row =
@@ -467,6 +466,7 @@ impl Library {
                 Ok(m) => m,
                 Err(e) => {
                     f.problems.push(format!("{}: {e}", meta.display()));
+                    f.tend.tree(&path, &mut f.problems);
                     continue;
                 }
             };
@@ -501,6 +501,7 @@ impl Library {
             items,
             mut groups,
             mut problems,
+            tend,
             ..
         } = f;
         groups.sort_by(|a, b| a.dir.cmp(&b.dir));
@@ -519,7 +520,7 @@ impl Library {
         };
         let tag_covers = lib.read_tag_covers(&mut problems);
         orphan::sweep(root, &mut problems);
-        let orphans = orphan::find(root);
+        let orphans = tend.orphans;
         lib.orphans = orphans.clone();
         (
             lib,
@@ -680,7 +681,7 @@ impl Library {
             path,
             is_dir,
             times,
-        } in list_dir(dir, &mut f.problems)
+        } in list_dir(dir, f)
         {
             if is_dir {
                 let m = match read_json(&meta_path(&path)) {
@@ -688,6 +689,7 @@ impl Library {
                     Err(e) => {
                         f.problems
                             .push(format!("{}: {e}", meta_path(&path).display()));
+                        f.tend.tree(&path, &mut f.problems);
                         continue;
                     }
                 };
@@ -1130,7 +1132,7 @@ impl Library {
         if let Some(e) = self.entries.get_mut(id) {
             e.path = to.to_owned();
         }
-        let reads = self.cache.thumb_reads().remove(&from).unwrap_or_default();
+        let reads = self.cache.thumb_read(&from).unwrap_or_default();
         row.item.file = to.to_owned();
         change(&mut row.item);
         self.cache.update(std::slice::from_ref(&row), &[from]);
@@ -1147,18 +1149,18 @@ impl Library {
         if renamed.is_empty() {
             return Vec::new();
         }
-        let rows = self.cache.rows();
-        let names: HashMap<&str, (&str, &str)> = rows
-            .values()
-            .filter_map(|r| {
-                let old = renamed.get(&r.item.id)?;
-                Some((r.item.id.as_str(), (old.as_str(), r.item.name.as_str())))
-            })
+        let now: Vec<(&str, &str, String)> = renamed
+            .iter()
+            .filter_map(|(id, old)| Some((id.as_str(), old.as_str(), self.stored(id)?.name)))
             .collect();
+        let names: HashMap<&str, (&str, &str)> = now
+            .iter()
+            .map(|(id, old, new)| (*id, (*old, new.as_str())))
+            .collect();
+        let rows = self.cache.note_rows();
         // 外で変わったまま読み直していないものは、読み直したあとに回す。更新日時は、書き換えの要るものだけ確かめる
         let stale: Vec<(String, String)> = rows
             .values()
-            .filter(|r| r.item.note)
             .filter_map(|r| {
                 let body = r.item.body.as_deref()?;
                 let new = note::rename_links(body, |id| names.get(id).copied())?;
@@ -1579,7 +1581,7 @@ impl Library {
         if !dir.is_dir() {
             return Err(format!("プロジェクト「{name}」が見つかりません"));
         }
-        let rd = fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let rd = read_entries(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let mut moved: Vec<(PathBuf, PathBuf)> = Vec::new();
         let mut put = |from: PathBuf, to: PathBuf| match fs::rename(&from, &to) {
             Ok(()) => {
@@ -1589,7 +1591,7 @@ impl Library {
             Err(e) => Err(format!("{}: {e}", from.display())),
         };
         let mut failed = None;
-        for e in rd.filter_map(Result::ok).filter(listed_entry) {
+        for DirItem { entry: e, .. } in rd.into_iter().filter(listed_entry) {
             let from = e.path();
             let to = free_path(&self.root, &e.file_name(), from.is_dir());
             let meta = meta_path(&from);
@@ -1693,28 +1695,35 @@ pub(crate) fn dunce(p: PathBuf) -> PathBuf {
 }
 
 #[cfg(windows)]
-fn hidden(path: &Path) -> bool {
+fn hidden_meta(m: &fs::Metadata) -> bool {
     use std::os::windows::fs::MetadataExt;
     const HIDDEN: u32 = 0x2;
     const SYSTEM: u32 = 0x4;
-    fs::metadata(path).is_ok_and(|m| m.file_attributes() & (HIDDEN | SYSTEM) != 0)
+    m.file_attributes() & (HIDDEN | SYSTEM) != 0
 }
 
 #[cfg(target_os = "macos")]
-fn hidden(path: &Path) -> bool {
+fn hidden_meta(m: &fs::Metadata) -> bool {
     use std::os::macos::fs::MetadataExt;
     const UF_HIDDEN: u32 = 0x8000;
-    fs::metadata(path).is_ok_and(|m| m.st_flags() & UF_HIDDEN != 0)
+    m.st_flags() & UF_HIDDEN != 0
 }
 
 /// Linux などには隠す属性がなく、名前が「.」で始まるものだけが隠しファイル。
 #[cfg(not(any(windows, target_os = "macos")))]
-fn hidden(_: &Path) -> bool {
+fn hidden_meta(_: &fs::Metadata) -> bool {
     false
+}
+
+const HAS_HIDDEN: bool = cfg!(any(windows, target_os = "macos"));
+
+fn hidden(path: &Path) -> bool {
+    HAS_HIDDEN && fs::metadata(path).is_ok_and(|m| hidden_meta(&m))
 }
 
 struct Found<'a> {
     known: &'a HashMap<PathBuf, Row>,
+    tend: orphan::Tend<'a>,
     items: Vec<Row>,
     groups: Vec<StoredGroup>,
     problems: Vec<String>,
@@ -1749,28 +1758,39 @@ pub(crate) fn listed(path: &Path) -> bool {
     !n.starts_with('.') && !n.ends_with(".meta") && !hidden(path)
 }
 
-/// listed と同じ判定を、フォルダを読んだときに取れた属性で行う。Windows では 1 件ごとに問い合わせると遅い。
-pub(crate) fn listed_entry(e: &fs::DirEntry) -> bool {
-    let n = e.file_name();
+/// フォルダの中の 1 件と、その属性（リンクならリンクそのもの）。
+pub(crate) struct DirItem {
+    pub entry: fs::DirEntry,
+    pub meta: Option<fs::Metadata>,
+}
+
+/// フォルダを読み、属性も 1 件に 1 度だけ取る。Windows ではフォルダを読んだときに届いたものを使う。
+pub(crate) fn read_entries(dir: &Path) -> std::io::Result<Vec<DirItem>> {
+    Ok(fs::read_dir(dir)?
+        .filter_map(Result::ok)
+        .map(|entry| DirItem {
+            meta: entry.metadata().ok(),
+            entry,
+        })
+        .collect())
+}
+
+/// listed と同じ判定を、フォルダを読んだときに取れた属性で行う。
+pub(crate) fn listed_entry(e: &DirItem) -> bool {
+    let n = e.entry.file_name();
     let n = n.to_string_lossy();
     !n.starts_with('.') && !n.ends_with(".meta") && !hidden_entry(e)
 }
 
-#[cfg(windows)]
-fn hidden_entry(e: &fs::DirEntry) -> bool {
-    use std::os::windows::fs::MetadataExt;
-    const HIDDEN: u32 = 0x2;
-    const SYSTEM: u32 = 0x4;
-    match e.metadata() {
-        // リンクは、たどった先の属性で決める
-        Ok(m) if !m.file_type().is_symlink() => m.file_attributes() & (HIDDEN | SYSTEM) != 0,
-        _ => hidden(&e.path()),
+fn hidden_entry(e: &DirItem) -> bool {
+    if !HAS_HIDDEN {
+        return false;
     }
-}
-
-#[cfg(not(windows))]
-fn hidden_entry(e: &fs::DirEntry) -> bool {
-    hidden(&e.path())
+    match &e.meta {
+        // リンクは、たどった先の属性で決める
+        Some(m) if !m.file_type().is_symlink() => hidden_meta(m),
+        _ => hidden(&e.entry.path()),
+    }
 }
 
 struct Listed {
@@ -1780,9 +1800,8 @@ struct Listed {
     times: Option<(f64, f64)>,
 }
 
-/// Windows ではフォルダを読んだときに更新日時も届く。項目の数だけ問い合わせると遅いので、それを使う
-fn entry_mtime(e: &fs::DirEntry) -> Option<f64> {
-    let m = e.metadata().ok().filter(|m| !m.file_type().is_symlink())?;
+fn entry_mtime(e: &DirItem) -> Option<f64> {
+    let m = e.meta.as_ref().filter(|m| !m.file_type().is_symlink())?;
     Some(
         m.modified()
             .ok()
@@ -1791,36 +1810,44 @@ fn entry_mtime(e: &fs::DirEntry) -> Option<f64> {
     )
 }
 
-fn list_dir(dir: &Path, problems: &mut Vec<String>) -> Vec<Listed> {
-    let rd = match fs::read_dir(dir) {
-        Ok(rd) => rd,
+/// フォルダの中身を並べる。読んだついでに、そのフォルダの .meta をつなぎ直し、持ち主のないものを探す。
+fn list_dir(dir: &Path, f: &mut Found) -> Vec<Listed> {
+    let entries = match read_entries(dir) {
+        Ok(entries) => f.tend.visit(dir, entries, &mut f.problems),
         Err(e) => {
-            problems.push(format!("{}: {e}", dir.display()));
+            f.problems.push(format!("{}: {e}", dir.display()));
             return vec![];
         }
     };
-    let entries: Vec<fs::DirEntry> = rd.filter_map(Result::ok).collect();
     let times: HashMap<OsString, Option<f64>> = entries
         .iter()
-        .map(|e| (e.file_name(), entry_mtime(e)))
+        .map(|e| (e.entry.file_name(), entry_mtime(e)))
         .collect();
     let mut out: Vec<Listed> = entries
         .iter()
         .filter(|e| listed_entry(e))
-        .map(|e| {
-            let name = e.file_name();
-            let mut meta = name.clone();
-            meta.push(".meta");
-            let meta = match times.get(&meta) {
-                Some(t) => *t,
-                None => Some(0.0),
-            };
-            Listed {
-                path: e.path(),
-                is_dir: e.file_type().is_ok_and(|t| t.is_dir()),
-                times: times.get(&name).copied().flatten().zip(meta),
-            }
-        })
+        .map(
+            |DirItem {
+                 entry: e,
+                 meta: attrs,
+             }| {
+                let name = e.file_name();
+                let mut meta = name.clone();
+                meta.push(".meta");
+                let meta = match times.get(&meta) {
+                    Some(t) => *t,
+                    None => Some(0.0),
+                };
+                Listed {
+                    path: e.path(),
+                    is_dir: attrs.as_ref().map_or_else(
+                        || e.file_type().is_ok_and(|t| t.is_dir()),
+                        |m| m.file_type().is_dir(),
+                    ),
+                    times: times.get(&name).copied().flatten().zip(meta),
+                }
+            },
+        )
         .collect();
     out.sort_by(|a, b| a.path.cmp(&b.path));
     out

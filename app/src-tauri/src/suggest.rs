@@ -46,7 +46,7 @@ struct SavedWeights {
     bias: f32,
 }
 
-#[derive(PartialEq)]
+#[derive(Clone, PartialEq)]
 struct Entry {
     id: String,
     /// プロジェクトかグループに入っているか
@@ -66,6 +66,8 @@ struct Feat {
 
 struct Model {
     root: PathBuf,
+    /// 作るときに読んだ、写しの番号
+    generation: u64,
     entries: Vec<Entry>,
     tags: Vec<String>,
     tag_sim: Vec<Vec<f32>>,
@@ -460,10 +462,21 @@ fn fit(rows: &[([f32; 6], bool)]) -> Weights {
     (w, b)
 }
 
+/// 候補を作るもとにする項目。
+pub enum Source {
+    All(Vec<StoredItem>),
+    /// 前に作ったときから変わったものだけ。ほかは前のものを使う
+    Changed {
+        items: Vec<StoredItem>,
+        removed: Vec<String>,
+    },
+}
+
 fn build(
     root: &Path,
     thumbs: &Path,
-    items: &[StoredItem],
+    source: &Source,
+    generation: u64,
     run: u64,
 ) -> Result<Option<Model>, String> {
     let path = vectors::path_for(thumbs);
@@ -475,8 +488,32 @@ fn build(
         .ok()
         .and_then(|g| g.clone())
         .filter(|p| p.root == root);
-    let mut entries = Vec::new();
+    let (items, mut entries) = match source {
+        Source::All(items) => (items, Vec::new()),
+        Source::Changed { items, removed } => {
+            let p = prev.as_ref().ok_or("前に作った候補がない")?;
+            let skip: HashSet<&str> = removed
+                .iter()
+                .map(String::as_str)
+                .chain(items.iter().map(|it| it.id.as_str()))
+                .collect();
+            let kept: Vec<Entry> = p
+                .entries
+                .iter()
+                .filter(|e| !skip.contains(e.id.as_str()))
+                .cloned()
+                .collect();
+            (items, kept)
+        }
+    };
     let mut words: HashMap<String, Vec<f32>> = HashMap::new();
+    if let Some(p) = &prev {
+        for (_, w) in entries.iter().flat_map(|e| &e.words) {
+            if let Some(v) = p.words.get(w) {
+                words.entry(w.clone()).or_insert_with(|| v.clone());
+            }
+        }
+    }
     for it in items {
         if stale() {
             return Ok(None);
@@ -537,6 +574,7 @@ fn build(
     }
     let mut m = Model {
         root: root.to_owned(),
+        generation,
         entries,
         tags,
         tag_sim,
@@ -613,14 +651,15 @@ pub fn stop() {
 pub fn refresh(
     root: &Path,
     thumbs: &Path,
-    items: Vec<StoredItem>,
+    source: Source,
+    generation: u64,
     send: impl FnOnce(HashMap<String, Suggestion>) + Send + 'static,
 ) {
     let run = RUN.fetch_add(1, Ordering::Relaxed) + 1;
     let (root, thumbs) = (root.to_owned(), thumbs.to_owned());
     crate::background::spawn(move || {
         let started = Instant::now();
-        match build(&root, &thumbs, &items, run) {
+        match build(&root, &thumbs, &source, generation, run) {
             Ok(Some(m)) => {
                 let s = m.suggest();
                 if RUN.load(Ordering::Relaxed) != run {
@@ -640,6 +679,12 @@ pub fn refresh(
             Err(e) => log::warn!("候補を作れない: {e}"),
         }
     });
+}
+
+/// root で最後に作った候補が、写しのどの番号まで読んだものか。
+pub fn built(root: &Path) -> Option<u64> {
+    let g = last().lock().ok()?;
+    g.as_ref().filter(|m| m.root == root).map(|m| m.generation)
 }
 
 /// タグを付ける欄に出す候補。最後に作ったものから、id にまだ付いていないタグを選ぶ。

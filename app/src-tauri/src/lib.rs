@@ -730,7 +730,7 @@ fn wave_thumb(
     let Some(wave) = thumb::wave_path(thumbs, id, src).and_then(|p| std::fs::read(p).ok()) else {
         return Ok(());
     };
-    let reads = reads_now(plugins, cache.thumb_reads().get(src), ext);
+    let reads = reads_now(plugins, cache.thumb_read(src).as_ref(), ext);
     // プラグインが作ったもの（音声ならジャケット）があれば、そちらをサムネイルにする
     if thumb::path_for(thumbs, id, src, &reads)
         .ok_or_else(err)?
@@ -2157,10 +2157,14 @@ fn cancel_auto_tag_download() {
 }
 
 #[tauri::command]
-fn set_tag_suggest(app: tauri::AppHandle, mode: settings::TagSuggest) -> Result<(), String> {
-    settings::set_tag_suggest(&app, mode)?;
-    refresh_suggestions(&app);
-    Ok(())
+async fn set_tag_suggest(app: tauri::AppHandle, mode: settings::TagSuggest) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        settings::set_tag_suggest(&app, mode)?;
+        refresh_suggestions(&app, false);
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -2203,7 +2207,8 @@ struct Suggestions {
 }
 
 /// いまのライブラリのタグ候補を作り直し、できたら画面に渡す。
-fn refresh_suggestions(app: &tauri::AppHandle) {
+/// all でなければ、前に作ったときから変わった項目だけを読み直す。
+fn refresh_suggestions(app: &tauri::AppHandle, all: bool) {
     if !settings::auto_tag(app).unwrap_or(false) || !embed::installed() {
         return;
     }
@@ -2221,11 +2226,30 @@ fn refresh_suggestions(app: &tauri::AppHandle) {
         return;
     }
     let cur = app.state::<Current>();
-    let Ok((root, thumbs, items)) = with_session(&cur, |s| {
+    let Ok((root, thumbs, generation, source)) = with_session(&cur, |s| {
+        let cache = s.lib.cache();
+        let generation = cache.generation();
+        let changed = suggest::built(s.lib.root())
+            .filter(|_| !all)
+            .and_then(|g| cache.changed_since(g));
+        let source = match changed {
+            Some(ids) => {
+                let (mut items, mut removed) = (Vec::new(), Vec::new());
+                for id in ids {
+                    match s.lib.stored(&id) {
+                        Some(it) => items.push(it),
+                        None => removed.push(id),
+                    }
+                }
+                suggest::Source::Changed { items, removed }
+            }
+            None => suggest::Source::All(s.lib.snapshot().items),
+        };
         Ok((
             s.lib.root().to_owned(),
             s.thumbs.clone(),
-            s.lib.snapshot().items,
+            generation,
+            source,
         ))
     }) else {
         return;
@@ -2235,7 +2259,8 @@ fn refresh_suggestions(app: &tauri::AppHandle) {
     suggest::refresh(
         &root,
         &thumbs,
-        items,
+        source,
+        generation,
         move |s| match settings::tag_suggest(&app).unwrap_or_default() {
             settings::TagSuggest::Off => off(&app),
             mode => {
@@ -2253,34 +2278,47 @@ fn refresh_suggestions(app: &tauri::AppHandle) {
 
 /// 分類の確認で承認した item の判断を残す。chosen は付けたタグ、rejected は外した候補。
 #[tauri::command]
-fn record_tags(
+async fn record_tags(
     app: tauri::AppHandle,
-    cur: State<Current>,
     item: String,
     chosen: Vec<String>,
     rejected: Vec<String>,
 ) -> Result<(), String> {
-    decisions::record(
-        &root_of(&cur)?,
-        &settings::device(&app)?,
-        &item,
-        &chosen,
-        &rejected,
-    )?;
-    refresh_suggestions(&app);
-    Ok(())
+    tauri::async_runtime::spawn_blocking(move || {
+        decisions::record(
+            &root_of(&app.state::<Current>())?,
+            &settings::device(&app)?,
+            &item,
+            &chosen,
+            &rejected,
+        )?;
+        refresh_suggestions(&app, false);
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn undo_tags(app: tauri::AppHandle, cur: State<Current>, item: String) -> Result<(), String> {
-    decisions::undo(&root_of(&cur)?, &settings::device(&app)?, &item)?;
-    refresh_suggestions(&app);
-    Ok(())
+async fn undo_tags(app: tauri::AppHandle, item: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        decisions::undo(
+            &root_of(&app.state::<Current>())?,
+            &settings::device(&app)?,
+            &item,
+        )?;
+        refresh_suggestions(&app, false);
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn suggest_tags(id: String) -> Vec<String> {
-    suggest::suggest_tags(&id)
+async fn suggest_tags(id: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || suggest::suggest_tags(&id))
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
