@@ -1,4 +1,4 @@
-import { For, type JSX, Show, children, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { For, type JSX, Show, children, createEffect, createMemo, createSignal, on } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Spinner } from '../../components/base/Spinner/Spinner'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
@@ -9,6 +9,7 @@ import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
 import { type ItemFilter, NO_FILTER, filtering, matcher, sorter } from '../../model/filter'
 import { type CardSize, type Group, type Item, type Library, facesOf, thumbOf, toggled } from '../../model/library'
+import { useFill } from '../useFill'
 import shared from '../screen.module.css'
 import { type Sort, prefs } from '../../model/prefs'
 import { ListTools, useKindOf } from '../ListTools/ListTools'
@@ -70,26 +71,17 @@ export function DetailScreen(props: DetailScreenProps) {
   const all = createMemo(() => props.items.filter(match()).toSorted(sorter(sort(), kindOf)))
   let scroll!: HTMLDivElement
   let more: HTMLDivElement | undefined
-  const [shown, setShown] = createSignal(FIRST)
+  const { shown, fill } = useFill({
+    scroll: () => scroll,
+    end: () => more,
+    total: () => all().length,
+    first: FIRST,
+    more: MORE,
+  })
   const visible = () => all().slice(0, shown())
-  const fill = () => {
-    const end = more
-    if (!end) return
-    const limit = scroll.getBoundingClientRect().bottom + scroll.clientHeight
-    while (shown() < all().length && end.getBoundingClientRect().top < limit) setShown(shown() + MORE)
-  }
   createEffect(() => {
     void all()
     queueMicrotask(fill)
-  })
-  onMount(() => {
-    const ro = new ResizeObserver(fill)
-    ro.observe(scroll)
-    scroll.addEventListener('scroll', fill, { passive: true })
-    onCleanup(() => {
-      ro.disconnect()
-      scroll.removeEventListener('scroll', fill)
-    })
   })
   const card = (it: Item, size: CardSize, list: () => Item[], clock: boolean) => (
     <ItemCard

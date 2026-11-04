@@ -2,6 +2,7 @@ import { type JSX, createSignal, onCleanup, onMount } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { coverPage } from '../../media/WebPage/layer'
 import styles from './ContextMenu.module.css'
+import { usePopover } from '../usePopover'
 
 export interface ContextMenuProps {
   x: number
@@ -25,9 +26,7 @@ export function ContextMenu(props: ContextMenuProps) {
     setPos({ left, top })
   }
   const close = () => props.onClose()
-  const onOutside = (e: PointerEvent) => {
-    if (e.target instanceof Node && !el.contains(e.target) && !props.anchor?.contains(e.target)) close()
-  }
+  usePopover({ pop: () => el, anchor: () => props.anchor, onClose: close })
   const onKey = (e: KeyboardEvent) => {
     if (e.key !== 'Escape') return
     e.stopPropagation()
@@ -36,13 +35,11 @@ export function ContextMenu(props: ContextMenuProps) {
   onMount(() => {
     const ro = new ResizeObserver(place)
     ro.observe(el)
-    document.addEventListener('pointerdown', onOutside, true)
     window.addEventListener('keydown', onKey, true)
     window.addEventListener('resize', close)
     window.addEventListener('blur', close)
     onCleanup(() => {
       ro.disconnect()
-      document.removeEventListener('pointerdown', onOutside, true)
       window.removeEventListener('keydown', onKey, true)
       window.removeEventListener('resize', close)
       window.removeEventListener('blur', close)

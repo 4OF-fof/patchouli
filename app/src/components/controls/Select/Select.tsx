@@ -1,8 +1,9 @@
-import { For, Show, createSignal, createUniqueId, onCleanup, onMount } from 'solid-js'
+import { For, Show, createSignal, createUniqueId, onMount } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { Icon } from '../../base/Icon/Icon'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import styles from './Select.module.css'
+import { usePopover } from '../../overlay/usePopover'
 
 export interface SelectOption {
   value: string
@@ -94,25 +95,10 @@ export function SelectList(props: SelectListProps) {
   const up = r.bottom + 260 > window.innerHeight && r.top > window.innerHeight - r.bottom
   const pos = { left: r.left, top: up ? r.top - 4 : r.bottom + 4, width: r.width, up }
 
-  const onOutside = (e: PointerEvent) => {
-    const t = e.target
-    if (t instanceof Node && !list.contains(t) && !props.anchor.contains(t)) props.onClose(false)
-  }
-  const onMove = (e: Event) => {
-    if (e.type === 'scroll' && e.target instanceof Node && list.contains(e.target)) return
-    props.onClose(false)
-  }
+  usePopover({ pop: () => list, anchor: () => props.anchor, onClose: () => props.onClose(false), move: true })
   onMount(() => {
-    window.addEventListener('pointerdown', onOutside, true)
-    window.addEventListener('resize', onMove)
-    window.addEventListener('scroll', onMove, true)
     list.focus()
     list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' })
-  })
-  onCleanup(() => {
-    window.removeEventListener('pointerdown', onOutside, true)
-    window.removeEventListener('resize', onMove)
-    window.removeEventListener('scroll', onMove, true)
   })
 
   const choose = (i: number) => {

@@ -4,6 +4,7 @@ import { NoneText } from '../../base/NoneText/NoneText'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Spinner } from '../../base/Spinner/Spinner'
 import styles from './TagPicker.module.css'
+import { usePopover } from '../../overlay/usePopover'
 
 export interface TagPickerProps {
   tags: string[]
@@ -52,19 +53,12 @@ export function TagPicker(props: TagPickerProps) {
     if (!props.tags.includes(t)) props.onToggle(t, true)
     setQ('')
   }
-  const onOutside = (e: PointerEvent) => {
-    const t = e.target
-    if (t instanceof Node && !el.contains(t) && !props.anchor?.contains(t)) props.onClose()
-  }
+  usePopover({ pop: () => el, anchor: () => props.anchor, onClose: () => props.onClose() })
   onMount(() => {
     input.focus()
-    document.addEventListener('pointerdown', onOutside)
     window.addEventListener('keydown', onKey, true)
   })
-  onCleanup(() => {
-    document.removeEventListener('pointerdown', onOutside)
-    window.removeEventListener('keydown', onKey, true)
-  })
+  onCleanup(() => window.removeEventListener('keydown', onKey, true))
 
   const grid = (list: string[]) => (
     <div class={styles.grid}>

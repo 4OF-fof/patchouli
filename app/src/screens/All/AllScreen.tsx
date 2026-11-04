@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, Show, createMemo, createSignal } from 'solid-js'
 import { NoneText } from '../../components/base/NoneText/NoneText'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Spinner } from '../../components/base/Spinner/Spinner'
@@ -12,6 +12,7 @@ import { type ItemFilter, NO_FILTER, filtering, matcher, sorter } from '../../mo
 import { type Item, type Library, facesOf, thumbOf } from '../../model/library'
 import { type Sort, prefs } from '../../model/prefs'
 import { ListTools, useKindOf } from '../ListTools/ListTools'
+import { useFill } from '../useFill'
 import shared from '../screen.module.css'
 import styles from './AllScreen.module.css'
 
@@ -54,7 +55,13 @@ export function AllScreen(props: AllScreenProps) {
     const pins = new Set(lib().pins)
     return all().filter((it) => pins.has(it.id)).length
   })
-  const [shown, setShown] = createSignal(FIRST)
+  const { shown } = useFill({
+    scroll: () => scroll,
+    end: () => more,
+    total: () => all().length,
+    first: FIRST,
+    more: MORE,
+  })
   const visible = () => all().slice(0, shown())
   const itemCard = (it: Item) => (
     <ItemCard
@@ -72,23 +79,6 @@ export function AllScreen(props: AllScreenProps) {
       }
     />
   )
-
-  const fill = () => {
-    const end = more
-    if (!end) return
-    const limit = scroll.getBoundingClientRect().bottom + scroll.clientHeight
-    while (shown() < all().length && end.getBoundingClientRect().top < limit) setShown(shown() + MORE)
-  }
-  onMount(() => {
-    queueMicrotask(fill)
-    const ro = new ResizeObserver(fill)
-    ro.observe(scroll)
-    scroll.addEventListener('scroll', fill, { passive: true })
-    onCleanup(() => {
-      ro.disconnect()
-      scroll.removeEventListener('scroll', fill)
-    })
-  })
 
   return (
     <section class={shared.screen} aria-label="すべて">

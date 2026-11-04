@@ -1,7 +1,8 @@
-import { For, Show, createSignal, onCleanup } from 'solid-js'
+import { For, Show, createSignal } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { Icon } from '../../base/Icon/Icon'
 import styles from './DateField.module.css'
+import { usePopover } from '../../overlay/usePopover'
 
 export interface DateFieldProps {
   /** YYYY-MM-DD。空なら未設定 */
@@ -58,30 +59,16 @@ export function DateField(props: DateFieldProps) {
   }
   const close = (focus = true) => {
     setOpen(false)
-    window.removeEventListener('pointerdown', onOutside, true)
-    window.removeEventListener('resize', onMove)
-    window.removeEventListener('scroll', onMove, true)
     if (focus) button.focus()
   }
-  const onOutside = (e: PointerEvent) => {
-    const t = e.target
-    if (t instanceof Node && !pop?.contains(t) && !button.contains(t)) close(false)
-  }
-  const onMove = (e: Event) => {
-    if (e.type === 'scroll' && e.target instanceof Node && pop?.contains(e.target)) return
-    close(false)
-  }
+  usePopover({ pop: () => pop, anchor: () => button, open, onClose: () => close(false), move: true })
   const show = () => {
     if (props.disabled || open()) return
     place()
     setAt(value() ?? today())
     setOpen(true)
-    window.addEventListener('pointerdown', onOutside, true)
-    window.addEventListener('resize', onMove)
-    window.addEventListener('scroll', onMove, true)
     focusAt()
   }
-  onCleanup(() => close(false))
 
   const choose = (d: Date | undefined) => {
     close()

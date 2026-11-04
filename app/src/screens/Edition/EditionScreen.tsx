@@ -22,6 +22,7 @@ import {
   hasTag,
   thumbOf,
 } from '../../model/library'
+import { useFill } from '../useFill'
 import shared from '../screen.module.css'
 import styles from './EditionScreen.module.css'
 
@@ -110,7 +111,13 @@ export function EditionScreen(props: EditionScreenProps) {
     onCleanup(() => ro.disconnect())
   }
 
-  const [shown, setShown] = createSignal(FIRST)
+  const { shown } = useFill({
+    scroll: () => scroll,
+    end: () => more,
+    total: () => feed().length,
+    first: FIRST,
+    more: MORE,
+  })
   const tiers = createMemo(() => {
     const out: { tier: (typeof TIERS)[number]; n: number; items: Item[] }[] = []
     for (const f of feed().slice(0, shown())) {
@@ -121,26 +128,8 @@ export function EditionScreen(props: EditionScreenProps) {
     return out
   })
 
-  // 下の端から 1 画面分先までを、待たずに埋める。足すと段の最後の行が組み直されるので、見える前に済ませる
-  const fill = () => {
-    const end = more
-    if (!end) return
-    const limit = scroll.getBoundingClientRect().bottom + scroll.clientHeight
-    while (shown() < feed().length && end.getBoundingClientRect().top < limit) setShown(shown() + MORE)
-  }
   onMount(() => {
     if (props.scrollTop) scroll.scrollTop = props.scrollTop
-    // onMount の中で足しても描き直しが後回しになるので、描く前に走るマイクロタスクで埋める
-    queueMicrotask(fill)
-    // 見える・見えないの切り替わりで知らせる IntersectionObserver は、足し終えた位置が見張る範囲の端に重なると
-    // それきり知らせが来なくなるので、スクロールと大きさの変化のたびに確かめる
-    const ro = new ResizeObserver(fill)
-    ro.observe(scroll)
-    scroll.addEventListener('scroll', fill, { passive: true })
-    onCleanup(() => {
-      ro.disconnect()
-      scroll.removeEventListener('scroll', fill)
-    })
   })
 
   return (

@@ -1,8 +1,9 @@
-import { For, Show, createEffect, createSignal, onCleanup } from 'solid-js'
+import { For, Show, createEffect, createSignal } from 'solid-js'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { ProgressBar } from '../../base/ProgressBar/ProgressBar'
 import { Spinner } from '../../base/Spinner/Spinner'
 import styles from './ActivityButton.module.css'
+import { usePopover } from '../../overlay/usePopover'
 
 export interface Activity {
   key: string
@@ -34,14 +35,7 @@ export function ActivityButton(props: ActivityButtonProps) {
   }
 
   let el!: HTMLDivElement
-  const away = (e: PointerEvent) => {
-    if (e.target instanceof Node && !el.contains(e.target)) setOpen(false)
-  }
-  createEffect(() => {
-    if (!open()) return
-    document.addEventListener('pointerdown', away)
-    onCleanup(() => document.removeEventListener('pointerdown', away))
-  })
+  usePopover({ pop: () => el, open, onClose: () => setOpen(false) })
 
   return (
     <div class={styles.root} ref={el}>
