@@ -8,11 +8,12 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 use wasmtime::component::{
     Component, ComponentExportIndex, ComponentNamedList, Instance, InstancePre, Lift, Linker,
     Lower, Resource, ResourceTable, TypedFunc,
 };
-use wasmtime::{Config, Engine, Store, UpdateDeadline};
+use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder, UpdateDeadline};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 use super::{
@@ -33,12 +34,52 @@ const WIT_VERSION: (u64, u64, u64) = (0, 12, 0);
 
 pub const READ_MAX: u32 = 16 << 20;
 
-/// WASM が続けて動いてよい長さ。外部ツールを動かしている時間は数えない。
-const SETTINGS_LIMIT: Duration = Duration::from_secs(2);
-const THUMBNAIL_LIMIT: Duration = Duration::from_secs(10);
-const VIEW_LIMIT: Duration = Duration::from_secs(30);
-const CONTENT_LIMIT: Duration = Duration::from_secs(120);
-const HOOK_LIMIT: Duration = Duration::from_secs(60);
+/// 役割ごとの上限。time は WASM が続けて動いてよい長さで、外部ツールを動かしている時間は数えない。
+/// memory は線形メモリ 1 つの大きさ（バイト）で、超えて増やそうとすると止める。
+#[derive(Debug, Clone, Copy)]
+struct Budget {
+    time: Duration,
+    memory: usize,
+}
+
+const SETTINGS_LIMIT: Budget = Budget {
+    time: Duration::from_secs(2),
+    memory: 64 << 20,
+};
+const THUMBNAIL_LIMIT: Budget = Budget {
+    time: Duration::from_secs(10),
+    memory: 1 << 30,
+};
+const VIEW_LIMIT: Budget = Budget {
+    time: Duration::from_secs(30),
+    memory: 2 << 30,
+};
+const DETAILS_LIMIT: Budget = Budget {
+    time: Duration::from_secs(30),
+    memory: 1 << 30,
+};
+const MENU_LIMIT: Budget = Budget {
+    time: Duration::from_secs(30),
+    memory: 1 << 30,
+};
+const CALL_LIMIT: Budget = Budget {
+    time: Duration::from_secs(30),
+    memory: 1 << 30,
+};
+const CONTENT_LIMIT: Budget = Budget {
+    time: Duration::from_secs(120),
+    memory: 1 << 30,
+};
+const HOOK_LIMIT: Budget = Budget {
+    time: Duration::from_secs(60),
+    memory: 1 << 30,
+};
+
+/// 1 つの Store に入れてよいインスタンス・テーブル・メモリの数。Store にはプラグインをいくつも入れる。
+const STORE_ITEMS: usize = 1000;
+
+/// WASM が返すバイト列（サムネイル・decode・content・call）の上限。
+const OUTPUT_MAX: usize = 256 << 20;
 
 const TICK: Duration = Duration::from_millis(100);
 
@@ -83,9 +124,10 @@ impl std::error::Error for Stopped {}
 
 fn store(state: HostState) -> Store<HostState> {
     let mut store = Store::new(engine(), state);
+    store.limiter(|s| &mut s.limits);
     store.epoch_deadline_callback(|s| {
         let st = s.data();
-        if st.stop.as_ref().is_some_and(|s| s.load(Ordering::Relaxed)) {
+        if st.stopping() {
             return Err(wasmtime::Error::new(Stopped));
         }
         if st.started.elapsed().saturating_sub(st.outside) > st.limit {
@@ -96,9 +138,20 @@ fn store(state: HostState) -> Store<HostState> {
     store
 }
 
-fn start(store: &mut Store<HostState>, limit: Duration) {
+fn limits(memory: usize) -> StoreLimits {
+    StoreLimitsBuilder::new()
+        .memory_size(memory)
+        .instances(STORE_ITEMS)
+        .tables(STORE_ITEMS)
+        .memories(STORE_ITEMS)
+        .trap_on_grow_failure(true)
+        .build()
+}
+
+fn start(store: &mut Store<HostState>, budget: Budget) {
     let st = store.data_mut();
-    st.limit = limit;
+    st.limit = budget.time;
+    st.limits = limits(budget.memory);
     st.started = Instant::now();
     st.outside = Duration::ZERO;
     store.set_epoch_deadline(1);
@@ -241,6 +294,7 @@ pub struct HostState {
     reads: Option<Reads>,
     started: Instant,
     limit: Duration,
+    limits: StoreLimits,
     outside: Duration,
     stop: Option<Arc<AtomicBool>>,
 }
@@ -267,9 +321,18 @@ impl HostState {
             reads: None,
             started: Instant::now(),
             limit: Duration::ZERO,
+            limits: limits(SETTINGS_LIMIT.memory),
             outside: Duration::ZERO,
             stop: None,
         }
+    }
+
+    /// 止めるよう頼まれたか。プラグインを読み直すときは、Registry ごと止める。
+    fn stopping(&self) -> bool {
+        self.stop
+            .as_ref()
+            .is_some_and(|s| s.load(Ordering::Relaxed))
+            || self.reg.as_ref().is_some_and(|r| r.stopped())
     }
 
     fn command(&self, name: &str) -> Result<PathBuf, String> {
@@ -435,11 +498,13 @@ impl patchouli::plugin::commands::Host for HostState {
                 CommandArg::File(f) => Ok(self.path(&f)?.as_os_str().to_owned()),
             })
             .collect::<Result<Vec<_>, String>>()?;
-        let timeout = timeout_ms.map_or(commands::TIMEOUT, |ms| {
-            std::time::Duration::from_millis(u64::from(ms))
-        });
+        let timeout = timeout_ms
+            .map_or(commands::TIMEOUT, |ms| {
+                std::time::Duration::from_millis(u64::from(ms))
+            })
+            .min(commands::TIMEOUT_MAX);
         let begun = Instant::now();
-        let out = commands::run(&path, &args, timeout);
+        let out = commands::run(&path, &args, timeout, || self.stopping());
         self.outside += begun.elapsed();
         let out = out?;
         Ok(CommandOutput {
@@ -718,13 +783,22 @@ fn component(engine: &Engine, wasm: &[u8]) -> Result<Component, String> {
     let mut env = std::hash::DefaultHasher::new();
     std::hash::Hash::hash(&engine.precompile_compatibility_hash(), &mut env);
     let env = std::hash::Hasher::finish(&env);
-    let key = thumb::fnv(&[wasm, &env.to_le_bytes()]);
-    let path = dir.join(format!("{key:016x}.cwasm"));
-    if path.is_file() {
-        // 自分で書いたファイルだけを読む。合わない環境で作ったものは、ここで失敗する
-        match unsafe { Component::deserialize_file(engine, &path) } {
-            Ok(c) => return Ok(c),
-            Err(e) => log::warn!("コンパイル済みの WASM を読めない: {}: {e}", path.display()),
+    // ファイルの頭に鍵を書いておき、別の WASM から作ったものを読まないようにする
+    let key: [u8; 32] = Sha256::new()
+        .chain_update(wasm)
+        .chain_update(env.to_le_bytes())
+        .finalize()
+        .into();
+    let name: String = key[..8].iter().map(|b| format!("{b:02x}")).collect();
+    let path = dir.join(format!("{name}.cwasm"));
+    if let Ok(saved) = fs::read(&path) {
+        match saved.strip_prefix(&key[..]) {
+            // 自分で書いたファイルだけを読む。合わない環境で作ったものは、ここで失敗する
+            Some(body) => match unsafe { Component::deserialize(engine, body) } {
+                Ok(c) => return Ok(c),
+                Err(e) => log::warn!("コンパイル済みの WASM を読めない: {}: {e}", path.display()),
+            },
+            None => log::warn!("コンパイル済みの WASM の鍵が合わない: {}", path.display()),
         }
     }
     let bytes = engine
@@ -732,7 +806,7 @@ fn component(engine: &Engine, wasm: &[u8]) -> Result<Component, String> {
         .map_err(|e| e.to_string())?;
     let tmp = path.with_extension("tmp");
     let saved = fs::create_dir_all(dir)
-        .and_then(|_| fs::write(&tmp, &bytes))
+        .and_then(|_| fs::write(&tmp, [&key[..], &bytes].concat()))
         .and_then(|_| fs::rename(&tmp, &path));
     if let Err(e) = saved {
         log::warn!("コンパイルした WASM を残せない: {}: {e}", path.display());
@@ -973,10 +1047,13 @@ impl Plugin {
         f: &File,
         edge: u32,
     ) -> wasmtime::Result<Result<Option<types::ThumbnailImage>, String>> {
-        let (r,) = self
+        let (r,): (Result<Option<types::ThumbnailImage>, String>,) = self
             .func::<(&str, &File, u32), _>(s, "thumbnail")?
             .call(&mut *s, (fmt, f, edge))?;
-        Ok(r)
+        Ok(r.and_then(|t| {
+            within(t.as_ref().map_or(0, |t| t.png.len()))?;
+            Ok(t)
+        }))
     }
 
     fn call_view(
@@ -997,10 +1074,10 @@ impl Plugin {
         fmt: &str,
         f: &File,
     ) -> wasmtime::Result<Result<Vec<u8>, String>> {
-        let (r,) = self
+        let (r,): (Result<Vec<u8>, String>,) = self
             .func::<(&str, &File), _>(s, "decode")?
             .call(&mut *s, (fmt, f))?;
-        Ok(r)
+        Ok(r.and_then(|b| within(b.len()).map(|()| b)))
     }
 
     fn call_details(
@@ -1022,10 +1099,10 @@ impl Plugin {
         f: &File,
         budget: ContentBudget,
     ) -> wasmtime::Result<Result<Vec<ContentPart>, String>> {
-        let (r,) = self
+        let (r,): (Result<Vec<ContentPart>, String>,) = self
             .func::<(&str, &File, ContentBudget), _>(s, "content")?
             .call(&mut *s, (fmt, f, budget))?;
-        Ok(r)
+        Ok(r.and_then(|ps| within(ps.iter().map(content_size).sum()).map(|()| ps)))
     }
 
     fn call_menu(
@@ -1085,10 +1162,29 @@ impl Plugin {
         method: &str,
         args: &str,
     ) -> wasmtime::Result<Result<String, String>> {
-        let (r,) = self
+        let (r,): (Result<String, String>,) = self
             .func::<(&str, &File, &str, &str), _>(s, "call")?
             .call(&mut *s, (fmt, f, method, args))?;
-        Ok(r)
+        Ok(r.and_then(|x| within(x.len()).map(|()| x)))
+    }
+}
+
+fn within(len: usize) -> Result<(), String> {
+    if len > OUTPUT_MAX {
+        Err(format!(
+            "プラグインが返したデータが大きすぎます（{} MB まで）",
+            OUTPUT_MAX >> 20
+        ))
+    } else {
+        Ok(())
+    }
+}
+
+fn content_size(p: &ContentPart) -> usize {
+    match &p.media {
+        ContentMedia::Images(l) => l.iter().map(Vec::len).sum(),
+        ContentMedia::Audio(b) => b.len(),
+        ContentMedia::Text(t) => t.len(),
     }
 }
 
@@ -1141,7 +1237,7 @@ impl Runner {
         part: Part,
         by: By,
         path: &Path,
-        limit: Duration,
+        limit: Budget,
         f: impl FnOnce(&Plugin, &mut Store<HostState>, &str, File) -> wasmtime::Result<R>,
     ) -> Option<Result<R, String>> {
         let (i, format) = self.reg.slot(ext, part, by)?;
@@ -1155,7 +1251,7 @@ impl Runner {
         format: &str,
         ext: &str,
         path: &Path,
-        limit: Duration,
+        limit: Budget,
         f: impl FnOnce(&Plugin, &mut Store<HostState>, &str, File) -> wasmtime::Result<R>,
     ) -> Result<R, String> {
         self.run_files(i, &[(ext, path)], limit, |p, s, mut files| {
@@ -1168,31 +1264,36 @@ impl Runner {
         &mut self,
         i: usize,
         files: &[(&str, &Path)],
-        limit: Duration,
+        limit: Budget,
         f: impl FnOnce(&Plugin, &mut Store<HostState>, Vec<File>) -> wasmtime::Result<R>,
     ) -> Result<R, String> {
         let id = self.reg.plugins[i].manifest.id.clone();
         start(&mut self.store, limit);
+        // 初期化の中からホストの関数を呼ぶものもあるので、どのプラグインかは起動する前に決める
+        let st = self.store.data_mut();
+        st.files = files.iter().map(|(_, p)| p.to_path_buf()).collect();
+        st.current = id.clone();
+        st.index = i;
         if !self.instances.contains_key(&i) {
             let Some(pre) = self.reg.plugins[i].wasm.as_ref() else {
+                self.store.data_mut().files.clear();
                 return Err(format!("プラグイン「{id}」の plugin.wasm が見つかりません"));
             };
             match pre.instantiate(&mut self.store) {
                 Ok(p) => {
                     self.instances.insert(i, p);
                 }
-                Err(e) if e.is::<TimedOut>() => {
+                Err(e) => {
                     self.reset();
-                    return Err(failed(&id, &e));
+                    return Err(if e.is::<TimedOut>() {
+                        failed(&id, &e)
+                    } else {
+                        format!("プラグイン「{id}」の起動に失敗しました：{e}")
+                    });
                 }
-                Err(e) => return Err(format!("プラグイン「{id}」の起動に失敗しました：{e}")),
             }
         }
         let plugin = &self.instances[&i];
-        let st = self.store.data_mut();
-        st.files = files.iter().map(|(_, p)| p.to_path_buf()).collect();
-        st.current = id.clone();
-        st.index = i;
         let handles = files
             .iter()
             .zip(0u32..)
@@ -1282,7 +1383,7 @@ impl Runner {
             Part::Details,
             By::Sandbox,
             path,
-            VIEW_LIMIT,
+            DETAILS_LIMIT,
             |p, s, fmt, file| p.call_details(s, fmt, &file),
         );
         let ds = r.unwrap_or(Ok(Ok(Vec::new())))??;
@@ -1313,7 +1414,7 @@ impl Runner {
         i: usize,
         files: &[TargetFile],
         context: Context,
-        limit: Duration,
+        limit: Budget,
         f: impl FnOnce(&Plugin, &mut Store<HostState>, Vec<types::Target>) -> wasmtime::Result<R>,
     ) -> Result<(R, Ran), String> {
         let paths: Vec<(&str, &Path)> = files.iter().map(|m| (m.ext, m.path)).collect();
@@ -1368,7 +1469,7 @@ impl Runner {
         files: &[TargetFile],
     ) -> Result<Vec<(String, String)>, String> {
         let i = self.menu_index(plugin, files)?;
-        let (items, _) = self.call_targets(i, files, Context::Menu, VIEW_LIMIT, |p, s, ts| {
+        let (items, _) = self.call_targets(i, files, Context::Menu, MENU_LIMIT, |p, s, ts| {
             p.call_menu(s, Resource::new_borrow(0), &ts)
         })?;
         Ok(items?.into_iter().map(|m| (m.id, m.label)).collect())
@@ -1382,7 +1483,7 @@ impl Runner {
         id: &str,
     ) -> Result<MenuRun, String> {
         let i = self.menu_index(plugin, files)?;
-        let (out, ran) = self.call_targets(i, files, Context::Menu, VIEW_LIMIT, |p, s, ts| {
+        let (out, ran) = self.call_targets(i, files, Context::Menu, MENU_LIMIT, |p, s, ts| {
             p.call_run_menu(s, Resource::new_borrow(0), Resource::new_borrow(0), &ts, id)
         })?;
         let shown = match out? {
@@ -1491,7 +1592,7 @@ impl Runner {
         }
         // 読んだ設定はサムネイルを受け持つプラグインのものとして残すので、依存先が読んだものは残さない
         let reads = target.and_then(|_| self.store.data_mut().reads.take());
-        let r = self.run(i, &format, ext, path, VIEW_LIMIT, |p, s, fmt, file| {
+        let r = self.run(i, &format, ext, path, CALL_LIMIT, |p, s, fmt, file| {
             p.call_call(s, fmt, &file, method, args)
         });
         if reads.is_some() {

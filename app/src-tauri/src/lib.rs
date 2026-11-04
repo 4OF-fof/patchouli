@@ -1092,11 +1092,17 @@ fn install_from(
     cur: &State<Current>,
     source: Source,
     expect: Option<&str>,
+    update: Option<&str>,
     enable: bool,
 ) -> Result<(), String> {
     let root = root_of(cur)?;
-    let (m, hash) =
-        plugin::install::install(&source, &plugin_dir(app)?, &plugin::builtin_ids(), expect)?;
+    let (m, hash) = plugin::install::install(
+        &source,
+        &plugin_dir(app)?,
+        &plugin::builtin_ids(),
+        expect,
+        update,
+    )?;
     record::update(&root, |r| {
         let e = r.plugins.entry(m.id).or_default();
         e.version = Some(m.version);
@@ -1114,7 +1120,7 @@ async fn install_plugin(
     cur: State<'_, Current>,
     source: Source,
 ) -> Result<(), String> {
-    install_from(&app, &cur, source, None, true)
+    install_from(&app, &cur, source, None, None, true)
 }
 
 #[tauri::command]
@@ -1123,12 +1129,13 @@ async fn update_plugin(
     cur: State<'_, Current>,
     id: String,
 ) -> Result<(), String> {
+    plugin::install::check_id(&id)?;
     let recorded = with_session(&cur, |s| Ok(s.plugins.source_of(&id)))?;
     let (source, hash) = recorded.ok_or_else(|| format!("{id} の取得先が記録されていません"))?;
     // 無効にしてあるものは読んでいないので、入っているかはフォルダで確かめる
     let installed = plugin_dir(&app)?.join(&id).join(plugin::MANIFEST).is_file();
     let expect = hash.as_deref().filter(|_| !installed);
-    install_from(&app, &cur, source, expect, false)
+    install_from(&app, &cur, source, expect, Some(&id), false)
 }
 
 #[tauri::command]
@@ -1250,6 +1257,7 @@ async fn remove_plugin(
     cur: State<'_, Current>,
     id: String,
 ) -> Result<(), String> {
+    plugin::install::check_id(&id)?;
     let root = root_of(&cur)?;
     record::update(&root, |r| {
         r.plugins.remove(&id);
@@ -1460,9 +1468,12 @@ async fn plugin_fetch(
     url: String,
 ) -> Result<tauri::ipc::Response, String> {
     let url = web::parse(&url)?;
-    let host = url.host_str().unwrap_or_default();
-    with_session(&cur, |s| s.plugins.may_fetch(plugin.as_deref(), host))?;
-    let out = tauri::async_runtime::spawn_blocking(move || web::fetch(&url))
+    let plugins = with_session(&cur, |s| Ok(Arc::clone(&s.plugins)))?;
+    let allow = move |u: &tauri::Url| {
+        plugins.may_fetch(plugin.as_deref(), u.host_str().unwrap_or_default())
+    };
+    allow(&url)?;
+    let out = tauri::async_runtime::spawn_blocking(move || web::fetch(&url, allow))
         .await
         .map_err(|e| e.to_string())??;
     Ok(tauri::ipc::Response::new(out))

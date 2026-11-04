@@ -9,7 +9,6 @@ use tauri::webview::{NewWindowResponse, WebviewBuilder};
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Rect, Url, Webview, WebviewUrl,
 };
-use ureq::ResponseExt;
 
 /// 本体の画面の WebView。ほかの WebView（外のページ）からは、本体の関数とプラグインのファイルを使わせない。
 pub const MAIN: &str = "main";
@@ -41,19 +40,45 @@ struct Head {
     kind: Option<String>,
 }
 
+/// たどるリダイレクトの数。
+const REDIRECTS: usize = 5;
+
 /// 取ってきたもの。頭の 4 バイトが見出しの JSON の長さで、JSON、中身と続く。
-pub fn fetch(url: &Url) -> Result<Vec<u8>, String> {
+/// リダイレクトは 1 回ずつたどり、行き先ごとに allow で確かめる。
+pub fn fetch(url: &Url, allow: impl Fn(&Url) -> Result<(), String>) -> Result<Vec<u8>, String> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(TIMEOUT))
         .http_status_as_error(false)
+        .max_redirects(0)
         .user_agent(concat!("Patchouli/", env!("CARGO_PKG_VERSION")))
         .build()
         .into();
     let err = |e: ureq::Error| format!("{url}: {e}");
-    let mut res = agent.get(url.as_str()).call().map_err(err)?;
+    let mut at = url.clone();
+    let mut hops = 0;
+    let mut res = loop {
+        let res = agent.get(at.as_str()).call().map_err(err)?;
+        let location = res
+            .status()
+            .is_redirection()
+            .then(|| res.headers().get("location"))
+            .flatten()
+            .and_then(|v| v.to_str().ok());
+        let Some(location) = location else { break res };
+        if hops == REDIRECTS {
+            return Err(format!("{url}: リダイレクトが多すぎます"));
+        }
+        hops += 1;
+        let next = at
+            .join(location)
+            .map_err(|e| format!("{url}: リダイレクト先が正しくありません：{e}"))
+            .and_then(|u| parse(u.as_str()))?;
+        allow(&next).map_err(|e| format!("{url} のリダイレクト先を取りに行けません：{e}"))?;
+        at = next;
+    };
     let head = Head {
         status: res.status().as_u16(),
-        url: res.get_uri().to_string(),
+        url: at.to_string(),
         kind: res
             .headers()
             .get("content-type")

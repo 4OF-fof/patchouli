@@ -204,7 +204,12 @@ fn download(a: &Asset, to: &Path, progress: &mut dyn FnMut(Progress)) -> Result<
         have = 0;
     }
     if have < a.size {
-        let mut req = ureq::get(a.url);
+        // 大きいので全体の長さは区切らず、止まったときに CANCEL を見に戻れるよう、読むごとに区切る
+        let mut req = ureq::get(a.url)
+            .config()
+            .timeout_connect(Some(Duration::from_secs(30)))
+            .timeout_per_read(Some(Duration::from_secs(30)))
+            .build();
         if have > 0 {
             req = req.header("Range", format!("bytes={have}-"));
         }

@@ -24,6 +24,8 @@ const MMPROJ_FILE: &str = "mmproj-embeddinggemma-2-Q8_0.gguf";
 /// 使わないまま、これだけたったら止める。
 const IDLE: Duration = Duration::from_secs(300);
 const START_LIMIT: Duration = Duration::from_secs(90);
+const HEALTH_TIMEOUT: Duration = Duration::from_secs(2);
+const EMBED_TIMEOUT: Duration = Duration::from_secs(120);
 
 static DIR: OnceLock<PathBuf> = OnceLock::new();
 
@@ -222,6 +224,9 @@ fn port() -> Result<u16, String> {
     };
     let start = Instant::now();
     while ureq::get(format!("http://127.0.0.1:{port}/health"))
+        .config()
+        .timeout_global(Some(HEALTH_TIMEOUT))
+        .build()
         .call()
         .is_err()
     {
@@ -265,6 +270,9 @@ pub fn normalize(mut v: Vec<f32>) -> Vec<f32> {
 fn embed(input: Value) -> Result<Vec<f32>, String> {
     let port = port()?;
     let mut res = ureq::post(format!("http://127.0.0.1:{port}/v1/embeddings"))
+        .config()
+        .timeout_global(Some(EMBED_TIMEOUT))
+        .build()
         .send_json(json!({ "model": "embeddinggemma", "input": [input] }))
         .map_err(|e| e.to_string())?;
     let v: Value = res.body_mut().read_json().map_err(|e| e.to_string())?;

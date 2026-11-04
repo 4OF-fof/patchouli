@@ -67,7 +67,7 @@ fn probe_version(path: &Path, probe: &Probe) -> Result<String, String> {
     let re = regex::Regex::new(&probe.pattern)
         .map_err(|e| format!("バージョンを取り出す正規表現が正しくありません：{e}"))?;
     let args: Vec<OsString> = probe.args.iter().map(OsString::from).collect();
-    let out = run(path, &args, TIMEOUT)?;
+    let out = run(path, &args, TIMEOUT, || false)?;
     let text = format!("{}\n{}", String::from_utf8_lossy(&out.stdout), out.stderr);
     let c = re
         .captures(&text)
@@ -105,6 +105,8 @@ pub fn older(a: &str, b: &str) -> bool {
 }
 
 pub const TIMEOUT: Duration = Duration::from_secs(30);
+/// プラグインが指定できる長さの上限。
+pub const TIMEOUT_MAX: Duration = Duration::from_secs(120);
 
 /// コマンドの名前に使えるのは、英数字と「. _ + -」だけ（パスは書けない）。
 pub fn valid(name: &str) -> bool {
@@ -169,7 +171,13 @@ fn drain(r: Option<impl Read + Send + 'static>) -> JoinHandle<Vec<u8>> {
     })
 }
 
-pub fn run(path: &Path, args: &[OsString], timeout: Duration) -> Result<Output, String> {
+/// stopped が true を返したら、子プロセスを止める。
+pub fn run(
+    path: &Path,
+    args: &[OsString],
+    timeout: Duration,
+    stopped: impl Fn() -> bool,
+) -> Result<Output, String> {
     let name = path
         .file_stem()
         .map_or_else(String::new, |s| s.to_string_lossy().into_owned());
@@ -192,11 +200,13 @@ pub fn run(path: &Path, args: &[OsString], timeout: Duration) -> Result<Output, 
     let stdout = drain(child.stdout.take());
     let stderr = drain(child.stderr.take());
     let start = Instant::now();
+    let mut halted = false;
     let status = loop {
         if let Some(s) = child.try_wait().map_err(|e| e.to_string())? {
             break Some(s);
         }
-        if start.elapsed() > timeout {
+        halted = stopped();
+        if halted || start.elapsed() > timeout {
             let _ = child.kill();
             let _ = child.wait();
             break None;
@@ -209,6 +219,9 @@ pub fn run(path: &Path, args: &[OsString], timeout: Duration) -> Result<Output, 
     let stderr = stderr
         .join()
         .map_err(|_| format!("外部ツール「{name}」の出力の読み込みに失敗しました"))?;
+    if halted {
+        return Err(format!("外部ツール「{name}」を止めました"));
+    }
     if status.is_none() {
         return Err(format!(
             "外部ツール「{name}」が {} 秒以内に終了しませんでした",

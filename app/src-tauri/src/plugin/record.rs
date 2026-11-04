@@ -93,10 +93,12 @@ pub struct Stored {
     pub data: Map<String, Value>,
 }
 
-pub fn stored_path(root: &Path, id: &str) -> PathBuf {
-    root.join(".patchouli")
+pub fn stored_path(root: &Path, id: &str) -> Result<PathBuf, String> {
+    super::install::check_id(id)?;
+    Ok(root
+        .join(".patchouli")
         .join("plugins")
-        .join(format!("{id}.json"))
+        .join(format!("{id}.json")))
 }
 
 impl Stored {
@@ -120,7 +122,7 @@ impl Stored {
 }
 
 pub fn forget(root: &Path, id: &str) -> Result<(), String> {
-    let p = stored_path(root, id);
+    let p = stored_path(root, id)?;
     match std::fs::remove_file(&p) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),

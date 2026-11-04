@@ -32,7 +32,7 @@ struct Bx {
 fn boxes(f: &File, from: u64, to: u64) -> Vec<Bx> {
     let mut out = Vec::new();
     let mut pos = from;
-    while pos + 8 <= to {
+    while pos.checked_add(8).is_some_and(|p| p <= to) {
         let Some(h) = at(f, pos, 8) else { break };
         let kind = [h[4], h[5], h[6], h[7]];
         let (size, head) = match be(&h[..4]) {
@@ -46,7 +46,12 @@ fn boxes(f: &File, from: u64, to: u64) -> Vec<Bx> {
         if size < head {
             break;
         }
-        let end = (pos + size).min(to);
+        let Some(end) = pos.checked_add(size).map(|e| e.min(to)) else {
+            break;
+        };
+        if end <= pos {
+            break;
+        }
         out.push(Bx {
             kind,
             body: pos + head,

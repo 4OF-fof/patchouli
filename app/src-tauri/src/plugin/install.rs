@@ -5,10 +5,10 @@ use std::path::{Path, PathBuf};
 use sha2::{Digest, Sha256};
 
 use super::record::Source;
-use super::{MANIFEST, Manifest};
+use super::{MANIFEST, Manifest, commands};
 
 /// id に使えるのは、英小文字・数字と「. _ -」だけ。
-fn check_id(id: &str) -> Result<(), String> {
+pub fn check_id(id: &str) -> Result<(), String> {
     let ok = id
         .bytes()
         .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b".-_".contains(&b))
@@ -20,16 +20,18 @@ fn check_id(id: &str) -> Result<(), String> {
     }
 }
 
+/// update は更新するプラグインの ID。中のものの ID が違うときと、入っているものより版が古いときは入れない。
 pub fn install(
     source: &Source,
     dir: &Path,
     builtin: &[String],
     expect: Option<&str>,
+    update: Option<&str>,
 ) -> Result<(Manifest, String), String> {
     let work = dir.join(format!(".install-{}", uuid::Uuid::new_v4().simple()));
     fs::create_dir_all(&work).map_err(|e| format!("{}: {e}", work.display()))?;
     let r = fetch(source, &work, expect)
-        .and_then(|(root, hash)| Ok((place(&root, dir, builtin)?, hash)));
+        .and_then(|(root, hash)| Ok((place(&root, dir, builtin, update)?, hash)));
     let _ = fs::remove_dir_all(&work);
     r
 }
@@ -78,7 +80,12 @@ fn unzip(bytes: &[u8], out: &Path) -> Result<(), String> {
     z.extract(out).map_err(|e| e.to_string())
 }
 
-fn place(root: &Path, dir: &Path, builtin: &[String]) -> Result<Manifest, String> {
+fn place(
+    root: &Path,
+    dir: &Path,
+    builtin: &[String],
+    update: Option<&str>,
+) -> Result<Manifest, String> {
     let m = Manifest::read(root)?;
     check_id(&m.id)?;
     if builtin.contains(&m.id) {
@@ -88,9 +95,36 @@ fn place(root: &Path, dir: &Path, builtin: &[String]) -> Result<Manifest, String
         ));
     }
     let dest = dir.join(&m.id);
-    if dest.exists() {
-        fs::remove_dir_all(&dest).map_err(|e| format!("{}: {e}", dest.display()))?;
+    if let Some(id) = update {
+        if m.id != id {
+            return Err(format!(
+                "ID が一致しません（更新するもの：{id}、ファイルの中身：{}）",
+                m.id
+            ));
+        }
+        if let Ok(old) = Manifest::read(&dest)
+            && commands::older(&m.version, &old.version)
+        {
+            return Err(format!(
+                "インストール済みのバージョン（{}）より古いバージョン（{}）のため、更新しません",
+                old.version, m.version
+            ));
+        }
     }
-    fs::rename(root, &dest).map_err(|e| format!("{}: {e}", dest.display()))?;
+    // 新しいものを置けなかったときに戻せるよう、古いものは置き終えてから消す
+    let old = dir.join(format!(".old-{}", uuid::Uuid::new_v4().simple()));
+    let had = dest.exists();
+    if had {
+        fs::rename(&dest, &old).map_err(|e| format!("{}: {e}", dest.display()))?;
+    }
+    if let Err(e) = fs::rename(root, &dest) {
+        if had {
+            let _ = fs::rename(&old, &dest);
+        }
+        return Err(format!("{}: {e}", dest.display()));
+    }
+    if had {
+        let _ = fs::remove_dir_all(&old);
+    }
     Ok(m)
 }
