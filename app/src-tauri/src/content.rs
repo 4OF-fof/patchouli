@@ -8,9 +8,9 @@ use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, sync_channel};
 use std::sync::{Arc, Mutex, OnceLock};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tauri::Emitter;
 
 use crate::library::StoredItem;
@@ -320,7 +320,7 @@ fn embed_all(
             started.elapsed().as_secs_f32()
         );
     }
-    for w in by_thumb.into_iter().chain(rx.iter()) {
+    for w in by_thumb.into_iter().chain(received(rx, stop)) {
         if stop.load(Ordering::Relaxed) {
             return false;
         }
@@ -338,7 +338,46 @@ fn embed_all(
             }
         }
     }
-    true
+    !stop.load(Ordering::Relaxed)
+}
+
+/// 画面が区間を返さないまま、これだけ何も届かなければ、残りの頼みを取り下げる。sandbox の 1 件にかかる上限より長くする。
+const STALL: Duration = Duration::from_secs(180);
+
+/// 届いたものを順に渡す。止めたら終える。
+fn received<'a>(rx: &'a Receiver<Work>, stop: &'a AtomicBool) -> impl Iterator<Item = Work> + 'a {
+    let mut last = Instant::now();
+    std::iter::from_fn(move || {
+        loop {
+            if stop.load(Ordering::Relaxed) {
+                return None;
+            }
+            match rx.recv_timeout(Duration::from_secs(1)) {
+                Ok(w) => {
+                    last = Instant::now();
+                    return Some(w);
+                }
+                Err(RecvTimeoutError::Disconnected) => return None,
+                Err(RecvTimeoutError::Timeout) if last.elapsed() >= STALL => {
+                    abandon(stop);
+                    last = Instant::now();
+                }
+                Err(RecvTimeoutError::Timeout) => {}
+            }
+        }
+    })
+}
+
+/// 画面に頼んだもののうち、stop の集めのものを取り下げる。
+fn abandon(stop: &AtomicBool) {
+    if let Ok(mut j) = jobs().lock() {
+        let before = j.len();
+        j.retain(|_, job| !std::ptr::eq(Arc::as_ptr(&job.stop), stop));
+        let n = before - j.len();
+        if n > 0 {
+            log::warn!("区間が返ってこないので、{n} 件をあきらめる");
+        }
+    }
 }
 
 type Embedded = (Option<Vec<f32>>, Vec<vectors::Part>);

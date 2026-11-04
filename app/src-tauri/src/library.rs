@@ -1005,18 +1005,7 @@ impl Library {
 
     /// 直下が変わったフォルダの照合用の値を、裏で書き直す。
     pub(crate) fn reprint(&self, dirs: impl IntoIterator<Item = PathBuf>) {
-        let mut dirs: Vec<PathBuf> = dirs.into_iter().filter(|d| *d != self.root).collect();
-        dirs.dedup();
-        if dirs.is_empty() {
-            return;
-        }
-        crate::background::spawn(move || {
-            for d in dirs {
-                if let Err(e) = orphan::reprint(&d) {
-                    log::warn!("照合用の値を書けない: {e}");
-                }
-            }
-        });
+        orphan::queue_reprint(dirs.into_iter().filter(|d| *d != self.root).collect());
     }
 
     pub fn rename_item(&mut self, id: &str, name: &str) -> Result<StoredItem, String> {
@@ -1555,9 +1544,11 @@ impl Library {
         }
         fs::rename(&dir, &target).map_err(|e| format!("{}: {e}", dir.display()))?;
         let meta = meta_path(&dir);
-        if meta.exists() {
-            fs::rename(&meta, meta_path(&target))
-                .map_err(|e| format!("{}: {e}", meta.display()))?;
+        if meta.exists()
+            && let Err(e) = fs::rename(&meta, meta_path(&target))
+        {
+            let _ = fs::rename(&target, &dir);
+            return Err(format!("{}: {e}", meta.display()));
         }
         Ok(())
     }
@@ -1570,18 +1561,46 @@ impl Library {
             return Err(format!("プロジェクト「{name}」が見つかりません"));
         }
         let rd = fs::read_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let mut moved: Vec<(PathBuf, PathBuf)> = Vec::new();
+        let mut put = |from: PathBuf, to: PathBuf| match fs::rename(&from, &to) {
+            Ok(()) => {
+                moved.push((from, to));
+                Ok(())
+            }
+            Err(e) => Err(format!("{}: {e}", from.display())),
+        };
+        let mut failed = None;
         for e in rd.filter_map(Result::ok).filter(listed_entry) {
             let from = e.path();
             let to = free_path(&self.root, &e.file_name(), from.is_dir());
-            fs::rename(&from, &to).map_err(|e| format!("{}: {e}", from.display()))?;
             let meta = meta_path(&from);
-            if meta.exists() {
-                fs::rename(&meta, meta_path(&to))
-                    .map_err(|e| format!("{}: {e}", meta.display()))?;
+            let r = put(from, to.clone()).and_then(|()| {
+                if meta.exists() {
+                    put(meta, meta_path(&to))
+                } else {
+                    Ok(())
+                }
+            });
+            if let Err(e) = r {
+                failed = Some(e);
+                break;
             }
         }
-        let meta = meta_path(&dir);
-        let mut gone = vec![dir.clone()];
+        let r = match failed {
+            Some(e) => Err(e),
+            None => self.trash_project(&dir),
+        };
+        if r.is_err() {
+            for (from, to) in moved.into_iter().rev() {
+                let _ = fs::rename(&to, &from);
+            }
+        }
+        r
+    }
+
+    fn trash_project(&self, dir: &Path) -> Result<(), String> {
+        let meta = meta_path(dir);
+        let mut gone = vec![dir.to_owned()];
         let cards = read_json(&meta)?
             .as_ref()
             .and_then(|m| m.get(ID_KEY))

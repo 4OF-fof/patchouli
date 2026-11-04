@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
@@ -48,6 +49,27 @@ fn write(app: &AppHandle, m: &Map<String, Value>) -> Result<(), String> {
     write_json(&p, m)
 }
 
+/// 読んでから書くまでのあいだに、ほかの書き換えが入らないようにする。
+fn update<T>(
+    app: &AppHandle,
+    f: impl FnOnce(&mut Map<String, Value>) -> Result<T, String>,
+) -> Result<T, String> {
+    static LOCK: Mutex<()> = Mutex::new(());
+    let _held = LOCK.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut m = read(app)?;
+    let out = f(&mut m)?;
+    write(app, &m)?;
+    Ok(out)
+}
+
+fn set(app: &AppHandle, key: &str, value: impl Serialize) -> Result<(), String> {
+    let v = serde_json::to_value(value).map_err(|e| e.to_string())?;
+    update(app, |m| {
+        m.insert(key.into(), v);
+        Ok(())
+    })
+}
+
 pub fn library(app: &AppHandle) -> Result<Option<PathBuf>, String> {
     Ok(read(app)?
         .get(LIBRARY)
@@ -56,9 +78,7 @@ pub fn library(app: &AppHandle) -> Result<Option<PathBuf>, String> {
 }
 
 pub fn set_library(app: &AppHandle, dir: &Path) -> Result<(), String> {
-    let mut m = read(app)?;
-    m.insert(LIBRARY.into(), json!(dir.to_string_lossy()));
-    write(app, &m)
+    set(app, LIBRARY, dir.to_string_lossy())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,36 +97,41 @@ pub fn recent(app: &AppHandle) -> Result<Vec<Recent>, String> {
         .unwrap_or_default())
 }
 
-fn set_recent(app: &AppHandle, list: &[Recent]) -> Result<(), String> {
-    let mut m = read(app)?;
-    m.insert(
-        RECENT.into(),
-        serde_json::to_value(list).map_err(|e| e.to_string())?,
-    );
-    write(app, &m)
+fn update_recent(app: &AppHandle, f: impl FnOnce(&mut Vec<Recent>)) -> Result<(), String> {
+    update(app, |m| {
+        let mut list: Vec<Recent> = m
+            .get(RECENT)
+            .cloned()
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default();
+        f(&mut list);
+        m.insert(
+            RECENT.into(),
+            serde_json::to_value(list).map_err(|e| e.to_string())?,
+        );
+        Ok(())
+    })
 }
 
 pub fn remember(app: &AppHandle, root: &Path, plugins: Vec<String>) -> Result<(), String> {
     let opened = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0.0, |d| d.as_millis() as f64);
-    let mut list = recent(app)?;
-    list.retain(|r| r.path != root);
-    list.insert(
-        0,
-        Recent {
-            path: root.to_owned(),
-            opened,
-            plugins,
-        },
-    );
-    set_recent(app, &list)
+    update_recent(app, |list| {
+        list.retain(|r| r.path != root);
+        list.insert(
+            0,
+            Recent {
+                path: root.to_owned(),
+                opened,
+                plugins,
+            },
+        );
+    })
 }
 
 pub fn forget(app: &AppHandle, root: &Path) -> Result<(), String> {
-    let mut list = recent(app)?;
-    list.retain(|r| r.path != root);
-    set_recent(app, &list)
+    update_recent(app, |list| list.retain(|r| r.path != root))
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -129,20 +154,21 @@ pub fn auto_tag(app: &AppHandle) -> Result<bool, String> {
 
 /// この端末の ID。端末ごとに分けて同期するファイルの名前に使う。初めて使うときに作る。
 pub fn device(app: &AppHandle) -> Result<String, String> {
-    let mut m = read(app)?;
-    if let Some(id) = m.get(DEVICE).and_then(Value::as_str) {
+    if let Some(id) = read(app)?.get(DEVICE).and_then(Value::as_str) {
         return Ok(id.to_owned());
     }
-    let id = uuid::Uuid::new_v4().to_string();
-    m.insert(DEVICE.into(), json!(id));
-    write(app, &m)?;
-    Ok(id)
+    update(app, |m| {
+        if let Some(id) = m.get(DEVICE).and_then(Value::as_str) {
+            return Ok(id.to_owned());
+        }
+        let id = uuid::Uuid::new_v4().to_string();
+        m.insert(DEVICE.into(), json!(id));
+        Ok(id)
+    })
 }
 
 pub fn set_auto_tag(app: &AppHandle, on: bool) -> Result<(), String> {
-    let mut m = read(app)?;
-    m.insert(AUTO_TAG.into(), json!(on));
-    write(app, &m)
+    set(app, AUTO_TAG, on)
 }
 
 pub fn tag_suggest(app: &AppHandle) -> Result<TagSuggest, String> {
@@ -154,12 +180,7 @@ pub fn tag_suggest(app: &AppHandle) -> Result<TagSuggest, String> {
 }
 
 pub fn set_tag_suggest(app: &AppHandle, s: TagSuggest) -> Result<(), String> {
-    let mut m = read(app)?;
-    m.insert(
-        TAG_SUGGEST.into(),
-        serde_json::to_value(s).map_err(|e| e.to_string())?,
-    );
-    write(app, &m)
+    set(app, TAG_SUGGEST, s)
 }
 
 pub fn content_search(app: &AppHandle) -> Result<bool, String> {
@@ -170,9 +191,7 @@ pub fn content_search(app: &AppHandle) -> Result<bool, String> {
 }
 
 pub fn set_content_search(app: &AppHandle, on: bool) -> Result<(), String> {
-    let mut m = read(app)?;
-    m.insert(CONTENT_SEARCH.into(), json!(on));
-    write(app, &m)
+    set(app, CONTENT_SEARCH, on)
 }
 
 pub fn developer(app: &AppHandle) -> Result<Developer, String> {
@@ -184,12 +203,7 @@ pub fn developer(app: &AppHandle) -> Result<Developer, String> {
 }
 
 pub fn set_developer(app: &AppHandle, d: &Developer) -> Result<(), String> {
-    let mut m = read(app)?;
-    m.insert(
-        DEVELOPER.into(),
-        serde_json::to_value(d).map_err(|e| e.to_string())?,
-    );
-    write(app, &m)
+    set(app, DEVELOPER, d)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -241,10 +255,5 @@ pub fn app_settings(app: &AppHandle) -> Result<AppSettings, String> {
 }
 
 pub fn set_app_settings(app: &AppHandle, s: &AppSettings) -> Result<(), String> {
-    let mut m = read(app)?;
-    m.insert(
-        APP.into(),
-        serde_json::to_value(s).map_err(|e| e.to_string())?,
-    );
-    write(app, &m)
+    set(app, APP, s)
 }

@@ -1,8 +1,10 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, PoisonError};
 
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -62,6 +64,46 @@ fn child_ids(dir: &Path) -> Vec<String> {
         })
         .chain(l.dirs.iter().filter_map(|d| id_of(&meta_path(d))))
         .collect()
+}
+
+/// reprint を裏の 1 本のスレッドで順に行う。待っているものと同じフォルダは足さない。
+pub fn queue_reprint(dirs: Vec<PathBuf>) {
+    static QUEUE: Mutex<VecDeque<PathBuf>> = Mutex::new(VecDeque::new());
+    static WORKING: AtomicBool = AtomicBool::new(false);
+    {
+        let mut q = QUEUE.lock().unwrap_or_else(PoisonError::into_inner);
+        for d in dirs {
+            if !q.contains(&d) {
+                q.push_back(d);
+            }
+        }
+    }
+    if WORKING.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    crate::background::spawn(|| {
+        loop {
+            let next = QUEUE
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .pop_front();
+            let Some(d) = next else {
+                WORKING.store(false, Ordering::Release);
+                // 空と見てから WORKING を戻すまでに入ったものは、ここで拾う
+                let more = !QUEUE
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .is_empty();
+                if more && !WORKING.swap(true, Ordering::AcqRel) {
+                    continue;
+                }
+                return;
+            };
+            if let Err(e) = reprint(&d) {
+                log::warn!("照合用の値を書けない: {e}");
+            }
+        }
+    });
 }
 
 /// フォルダの中身を読み直して、.meta の照合用の値を書き直す。.meta のないフォルダは、次に読むときに書く。

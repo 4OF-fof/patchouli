@@ -22,7 +22,7 @@ mod web;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use cache::Cache;
 use library::{
@@ -40,6 +40,13 @@ use tauri_plugin_dialog::DialogExt;
 
 #[derive(Default)]
 struct Current(Mutex<Option<Session>>);
+
+impl Current {
+    /// 持っていたスレッドが落ちても、ライブラリは開いたままにする。
+    fn lock(&self) -> MutexGuard<'_, Option<Session>> {
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
 
 struct Session {
     /// 素材を読み直すたびに変わる。裏の突き合わせが、読み直す前の結果を持ち込まないようにする。
@@ -136,7 +143,7 @@ fn with_session<T>(
     cur: &State<Current>,
     f: impl FnOnce(&mut Session) -> Result<T, String>,
 ) -> Result<T, String> {
-    let mut g = cur.0.lock().map_err(|e| e.to_string())?;
+    let mut g = cur.lock();
     let s = g.as_mut().ok_or("ライブラリを開いていません")?;
     f(s)
 }
@@ -858,7 +865,7 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
             *x = it;
         }
     }
-    *cur.0.lock().map_err(|e| e.to_string())? = Some(Session {
+    *cur.lock() = Some(Session {
         id,
         lib,
         thumbs: thumbs.clone(),
@@ -1012,9 +1019,7 @@ fn check(
     let all_found = job.2 && scan.problems.is_empty();
     let cur = app.state::<Current>();
     let changes = {
-        let Ok(mut g) = cur.0.lock() else {
-            return;
-        };
+        let mut g = cur.lock();
         match g.as_mut() {
             Some(s) if s.id == id => {
                 let mut changes = s.lib.apply(fresh, scan);
@@ -1282,7 +1287,7 @@ fn close_for_clearing(app: &tauri::AppHandle, cur: &State<Current>) -> Result<()
     if !background::wait(LIMIT) {
         return Err("裏で動いている処理が終わらないため、キャッシュを消せませんでした。少し待ってから、やり直してください".into());
     }
-    let closed = cur.0.lock().map_err(|e| e.to_string())?.take();
+    let closed = cur.lock().take();
     if let Some(s) = closed {
         s.plugins.stop();
     }
@@ -1725,8 +1730,7 @@ async fn sandbox_thumbnail(
     let Some((png, size, reads)) = t.run(|r, ext, path| r.thumbnail(ext, path, edge))? else {
         return Ok(tauri::ipc::Response::new(Vec::new()));
     };
-    if let Ok(mut g) = cur.0.lock()
-        && let Some(s) = g.as_mut()
+    if let Some(s) = cur.lock().as_mut()
         && Arc::ptr_eq(&s.plugins, &t.plugins)
     {
         s.ui_reads.entry(id).or_default().extend(reads);
@@ -1842,8 +1846,7 @@ async fn plugin_call(
     });
     // 呼んでいるあいだにライブラリを開き直していたら、読んだ設定は残さない
     if part == Part::Thumbnail
-        && let Ok(mut g) = cur.0.lock()
-        && let Some(s) = g.as_mut()
+        && let Some(s) = cur.lock().as_mut()
         && Arc::ptr_eq(&s.plugins, &t.plugins)
     {
         s.ui_reads.entry(id).or_default().extend(reads);
