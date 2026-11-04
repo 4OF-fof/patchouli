@@ -27,7 +27,8 @@ export interface PluginsDialogProps {
   report?: PluginReport
   pick?: { id: string; dev: boolean }
   actions?: PluginActions
-  onChanged?: () => void | Promise<void>
+  /** quiet は、読み込み直すあいだの表示を出さなくてよい変更（有効・無効の切り替え）。 */
+  onChanged?: (quiet?: boolean) => void | Promise<void>
   onRefresh?: () => unknown
   /** 外部ツールの名前 → 自分で指定した場所。 */
   commandPaths?: Record<string, string>
@@ -134,10 +135,13 @@ export function PluginsDialog(props: PluginsDialogProps) {
   const [closed, setClosed] = createSignal<string[]>([])
   const [query, setQuery] = createSignal('')
 
-  const run = (label: string, job: () => Promise<boolean | void>, changed = true) =>
+  /** 操作を終えたときの知らせ。次の操作で消える。 */
+  const [info, setInfo] = createSignal<string>()
+  const run = (label: string, job: () => Promise<boolean | void>, changed: boolean | 'quiet' = true) =>
     start(label, async () => {
+      setInfo(undefined)
       if ((await job()) === false) return
-      if (changed) await props.onChanged?.()
+      if (changed) await props.onChanged?.(changed === 'quiet')
       else props.onRefresh?.()
     })
   const a = () => props.actions ?? {}
@@ -246,8 +250,16 @@ export function PluginsDialog(props: PluginsDialogProps) {
     setChoosing(undefined)
     if (c) update(c.p, tag)
   }
-  const follow = (p: PluginStatus, autoUpdate: boolean, prerelease: boolean) =>
-    keep(() => a().setFollow!(p.id, autoUpdate, prerelease))
+  /** 最新のリリースを調べる。新しいものがあれば、一覧を読み直して更新のボタンを出す。 */
+  const checkUpdate = (p: PluginStatus) =>
+    void run(
+      `${p.name} の更新を確認しています`,
+      async () => {
+        const tag = await a().latest!(p.id)
+        if (tag === p.tag) setInfo(`「${p.name}」は最新のバージョンです（${tag}）`)
+      },
+      false,
+    )
 
   const group = (label: string, count: number, body: () => JSX.Element) => {
     const open = () => !closed().includes(label)
@@ -298,7 +310,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 size="sm"
                 variant={p().enabled ? undefined : 'primary'}
                 disabled={busy() !== undefined}
-                onClick={() => void run('', () => a().setEnabled!(p().id, p().dev, !p().enabled))}
+                onClick={() => void run('', () => a().setEnabled!(p().id, p().dev, !p().enabled), 'quiet')}
               >
                 {p().enabled ? '無効化' : '有効化'}
               </Button>
@@ -316,6 +328,11 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 onClick={() => update(p(), p().latest)}
               >
                 {p().latest} に更新
+              </Button>
+            </Show>
+            <Show when={!outdated() && !absent(p()) && !p().latest && fromGithub(p()) && a().latest}>
+              <Button size="sm" disabled={busy() !== undefined} onClick={() => checkUpdate(p())}>
+                更新を確認
               </Button>
             </Show>
             <Show when={absent(p()) && a().prepareUpdate && p().source}>
@@ -481,32 +498,20 @@ export function PluginsDialog(props: PluginsDialogProps) {
             </section>
           )}
         </Show>
-        <Show when={fromGithub(p()) && !absent(p()) && a().setFollow}>
+        <Show when={fromGithub(p()) && !absent(p()) && a().setPrerelease}>
           <section>
             <h4>更新</h4>
             <div class={styles.field}>
               <SettingField
                 setting={{
-                  key: 'autoUpdate',
-                  label: '自動更新',
-                  help: '起動時に新しいリリースを確認し、自動でインストール',
-                  kind: 'toggle',
-                  default: false,
-                  value: !!p().autoUpdate,
-                }}
-                onChange={(v) => follow(p(), v === true, !!p().prerelease)}
-              />
-            </div>
-            <div class={styles.field}>
-              <SettingField
-                setting={{
                   key: 'prerelease',
                   label: 'プレリリースを含める',
+                  help: '更新を確認するときに、プレリリースも対象にする',
                   kind: 'toggle',
                   default: false,
                   value: !!p().prerelease,
                 }}
-                onChange={(v) => follow(p(), !!p().autoUpdate, v === true)}
+                onChange={(v) => keep(() => a().setPrerelease!(p().id, v === true))}
               />
             </div>
           </section>
@@ -708,9 +713,9 @@ export function PluginsDialog(props: PluginsDialogProps) {
       </nav>
       <ScrollArea class={styles.main} viewClass={styles.mainView}>
         <div class={styles.page}>
-          <Show when={busy() || error()}>
+          <Show when={busy() || error() || info()}>
             <p class={styles.status} data-error={!!error()} role="status">
-              {error() ?? `${busy()}…`}
+              {error() ?? (busy() ? `${busy()}…` : info())}
             </p>
           </Show>
           <Show when={props.report}>

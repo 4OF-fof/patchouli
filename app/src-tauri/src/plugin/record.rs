@@ -29,8 +29,6 @@ pub struct Entry {
     #[serde(default, skip_serializing_if = "is_false")]
     pub disabled: bool,
     #[serde(default, skip_serializing_if = "is_false")]
-    pub auto_update: bool,
-    #[serde(default, skip_serializing_if = "is_false")]
     pub prerelease: bool,
 }
 

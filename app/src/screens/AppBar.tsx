@@ -112,7 +112,7 @@ export interface AppBarProps {
   onReopen?: () => void
   loadPlugins?: () => Promise<PluginReport>
   pluginActions?: PluginActions
-  onPluginsChanged?: () => void | Promise<void>
+  onPluginsChanged?: (quiet?: boolean) => void | Promise<void>
   request?: BarRequest
   /** あれば、タイトルバーにタブを並べ、いまの場所はその下の段に出す。 */
   tabs?: TabStripProps
@@ -747,8 +747,8 @@ export function AppBar(props: AppBarProps) {
           actions={props.pluginActions}
           onChanged={
             props.onPluginsChanged &&
-            (async () => {
-              await props.onPluginsChanged!()
+            (async (quiet) => {
+              await props.onPluginsChanged!(quiet)
               await reloadPlugins()
             })
           }

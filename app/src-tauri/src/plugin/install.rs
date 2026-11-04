@@ -63,13 +63,6 @@ impl Risk {
             fetch: new(self.fetch, &before.fetch),
         }
     }
-
-    pub fn is_empty(&self) -> bool {
-        !self.full
-            && self.permissions.is_empty()
-            && self.commands.is_empty()
-            && self.fetch.is_empty()
-    }
 }
 
 /// 取ってきて広げ、まだ置いていないもの。捨てると広げたものも消える。
@@ -95,11 +88,6 @@ impl Drop for Work {
 }
 
 impl Staged {
-    /// 確かめてもらわずに入れてよいか。
-    pub fn quiet(&self) -> bool {
-        !self.first && self.added.is_empty()
-    }
-
     pub fn preview(&self) -> PluginStatus {
         super::idle(&self.manifest, false, true, None, Vec::new())
     }

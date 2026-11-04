@@ -123,7 +123,6 @@ export interface PluginStatus {
   tag?: string
   /** 調べて分かった、最新のリリースのタグ。 */
   latest?: string
-  autoUpdate?: boolean
   prerelease?: boolean
 }
 
@@ -143,22 +142,6 @@ export interface Prepared {
   /** 入っているものより増えたもの。初めて入れるときは全部。 */
   added: Risk
   first: boolean
-}
-
-export interface FoundUpdate {
-  id: string
-  name: string
-  tag: string
-}
-
-export interface UpdateCheck {
-  /** 更新があるもの。 */
-  found: FoundUpdate[]
-  /** 自動で入れたもの。 */
-  installed: FoundUpdate[]
-  /** 権限などが増えたので、確かめてもらうもの。 */
-  confirm: Prepared[]
-  failed: string[]
 }
 
 export interface PluginReport {
@@ -231,8 +214,7 @@ export interface PluginActions {
   cancel?: (token: string) => Promise<void>
   /** GitHub の最新のリリースのタグ。 */
   latest?: (id: string) => Promise<string>
-  checkUpdates?: () => Promise<UpdateCheck>
-  setFollow?: (id: string, autoUpdate: boolean, prerelease: boolean) => Promise<void>
+  setPrerelease?: (id: string, prerelease: boolean) => Promise<void>
   remove?: (id: string) => Promise<void>
   setSetting?: (id: string, key: string, value: SettingValue) => Promise<void>
   setEnabled?: (id: string, dev: boolean, enabled: boolean) => Promise<void>

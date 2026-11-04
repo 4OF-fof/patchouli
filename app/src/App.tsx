@@ -32,7 +32,6 @@ import { MenuResultDialog } from './components/dialog/MenuResultDialog/MenuResul
 import { OrphanDialog } from './components/dialog/OrphanDialog/OrphanDialog'
 import { TagGoneDialog } from './components/dialog/TagGoneDialog/TagGoneDialog'
 import { TagMergeDialog } from './components/dialog/TagMergeDialog/TagMergeDialog'
-import { PluginInstallDialog } from './components/dialog/PluginInstallDialog/PluginInstallDialog'
 import { Toast, type ToastLevel } from './components/overlay/Toast/Toast'
 import { Peek } from './components/overlay/Peek/Peek'
 import { ItemMenu } from './components/overlay/ItemMenu/ItemMenu'
@@ -69,7 +68,7 @@ import {
   withToggledPin,
 } from './model/library'
 import { FormatsProvider } from './plugins/formats'
-import type { MenuGroup, Prepared, ScreenInfo, UpdateCheck } from './plugins/types'
+import type { MenuGroup, ScreenInfo } from './plugins/types'
 import type { NewNote, OpenOptions, OwnApi } from '../plugins/sdk'
 import { ITEMS, REPLY, STATE, type FromWindow, type Reply, type WindowCall, type WindowState } from './window/protocol'
 import { libraryItemOf } from './screens/Plugin/libraryItem'
@@ -1211,9 +1210,10 @@ export function App(props: AppProps) {
       }
     })
   const [plugged, setPlugged] = createSignal(0)
-  const [reloading, setReloading] = createSignal<{ step: 'ask' | 'wait' | 'load'; work?: number }>()
+  const [reloading, setReloading] = createSignal<{ step: 'ask' | 'wait' | 'load'; work?: number; quiet?: boolean }>()
   let answer: ((a: 'wait' | 'stop') => void) | undefined
-  const reloadPlugins = async () => {
+  /** quiet のときは、読み込んでいるあいだの表示を出さない。 */
+  const reloadPlugins = async (quiet?: boolean) => {
     if (!backend.reloadPlugins) {
       reload()
       return
@@ -1227,7 +1227,7 @@ export function App(props: AppProps) {
       answer = undefined
       wait = a === 'wait'
     }
-    setReloading({ step: wait && work > 0 ? 'wait' : 'load' })
+    setReloading({ step: wait && work > 0 ? 'wait' : 'load', quiet })
     const poll = window.setInterval(() => {
       if (reloading()?.step === 'wait')
         void backend
@@ -1334,7 +1334,7 @@ export function App(props: AppProps) {
     setEnabled &&
     (async (p: Blocker) => {
       await setEnabled(p.id, p.dev, true)
-      await reloadPlugins()
+      await reloadPlugins(true)
     })
   const viewHost = backend.itemView && {
     view: backend.itemView,
@@ -1692,93 +1692,6 @@ export function App(props: AppProps) {
     )
   }
 
-  const [updates, setUpdates] = createSignal<UpdateCheck>()
-  const [confirming, setConfirming] = createSignal<Prepared>()
-  onMount(() => {
-    const check = backend.pluginActions?.checkUpdates
-    if (!check) return
-    check().then(
-      (u) => {
-        if (u.failed.length) console.warn('プラグインの更新を確認できなかったもの', u.failed)
-        setUpdates(u)
-      },
-      (e: unknown) => console.warn('プラグインの更新を確認できない', e),
-    )
-  })
-  const patchUpdates = (f: (u: UpdateCheck) => Partial<UpdateCheck>) => {
-    const u = updates()
-    if (u) setUpdates({ ...u, ...f(u) })
-  }
-  const dropConfirm = (r: Prepared, cancel: boolean) => {
-    setConfirming(undefined)
-    patchUpdates((u) => ({ confirm: u.confirm.filter((x) => x.token !== r.token) }))
-    if (cancel) void backend.pluginActions?.cancel?.(r.token)
-  }
-  const installConfirmed = async (r: Prepared) => {
-    dropConfirm(r, false)
-    try {
-      await backend.pluginActions!.commit!(r.token)
-      const done = { id: r.plugin.id, name: r.plugin.name, tag: r.plugin.tag ?? r.plugin.version ?? '' }
-      patchUpdates((u) => ({ installed: [...u.installed, done] }))
-    } catch (e) {
-      notify(`「${r.plugin.name}」の更新に失敗しました：${messageOf(e)}`, 'error')
-    }
-  }
-  const hasUpdates = () => {
-    const u = updates()
-    return !!u && u.confirm.length + u.installed.length + u.found.length > 0
-  }
-  const updateNotice = () => {
-    const u = updates()
-    if (!u) return undefined
-    const [c] = u.confirm
-    if (c)
-      return (
-        <Toast
-          message={`「${c.plugin.name}」の更新には、権限の確認が必要です`}
-          actionLabel="確認"
-          onAction={() => setConfirming(c)}
-          onClose={() => dropConfirm(c, true)}
-        />
-      )
-    const [i, ...moreInstalled] = u.installed
-    if (i)
-      return (
-        <Toast
-          level="success"
-          message={
-            moreInstalled.length
-              ? `${u.installed.length} 件のプラグインを更新しました`
-              : `「${i.name}」を ${i.tag} に更新しました`
-          }
-          actionLabel="再読み込み"
-          onAction={() => {
-            patchUpdates(() => ({ installed: [] }))
-            void reloadPlugins()
-          }}
-          onClose={() => patchUpdates(() => ({ installed: [] }))}
-        />
-      )
-    const [f, ...moreFound] = u.found
-    if (f)
-      return (
-        <Toast
-          message={
-            moreFound.length
-              ? `${u.found.length} 件のプラグインに新しいバージョンがあります`
-              : `「${f.name}」に新しいバージョン（${f.tag}）があります`
-          }
-          actionLabel="表示"
-          onAction={() => {
-            patchUpdates(() => ({ found: [] }))
-            setBarRequest({ state: 'plugins', plugin: { id: f.id, dev: false } })
-          }}
-          onClose={() => patchUpdates(() => ({ found: [] }))}
-        />
-      )
-    return undefined
-  }
-
   const screenOf = (tab: Tab) => {
     const shown = (): View => tab.stack().at(-1) ?? { s: 'edition' }
     return (
@@ -1941,7 +1854,7 @@ export function App(props: AppProps) {
                   }
                   side={tabsAt() === 'left' ? <TabList {...tabStrip()} /> : undefined}
                   toast={
-                    (notice() || broken().length > 0 || clashes().length > 0 || hasUpdates()) && (
+                    (notice() || broken().length > 0 || clashes().length > 0) && (
                       <>
                         <Show when={notice()} keyed>
                           {(n) => (
@@ -1955,7 +1868,6 @@ export function App(props: AppProps) {
                         </Show>
                         {brokenNotice()}
                         {clashNotice()}
-                        {updateNotice()}
                       </>
                     )
                   }
@@ -2057,7 +1969,7 @@ export function App(props: AppProps) {
                       </Peek>
                     )}
                   </Show>
-                  <Show when={reloading()}>
+                  <Show when={reloading()?.step !== 'load' || !reloading()?.quiet ? reloading() : undefined}>
                     {(r) => (
                       <ReloadOverlay
                         step={r().step}
@@ -2106,15 +2018,6 @@ export function App(props: AppProps) {
                           nextGoneTag()
                         }}
                         onClose={nextGoneTag}
-                      />
-                    )}
-                  </Show>
-                  <Show when={confirming()} keyed>
-                    {(r) => (
-                      <PluginInstallDialog
-                        prepared={r}
-                        onInstall={() => void installConfirmed(r)}
-                        onClose={() => dropConfirm(r, true)}
                       />
                     )}
                   </Show>

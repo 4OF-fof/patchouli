@@ -1432,123 +1432,24 @@ async fn plugin_latest(cur: State<'_, Current>, id: String) -> Result<String, St
     Ok(tag)
 }
 
-#[derive(Serialize)]
-struct Found {
-    id: String,
-    name: String,
-    tag: String,
-}
-
-#[derive(Serialize, Default)]
-struct UpdateCheck {
-    /// 更新があるもの。自動で入れたものと、確かめてもらうものは入れない。
-    found: Vec<Found>,
-    /// 自動で入れたもの。
-    installed: Vec<Found>,
-    /// 自動で入れようとしたが、権限などが増えたので確かめてもらうもの。
-    confirm: Vec<Prepared>,
-    failed: Vec<String>,
-}
-
-/// GitHub から入れたものの更新を調べる。自動更新にしてあるものは、取ってきて入れる。
+/// 更新を確認するときに、プレリリースも対象にするか。変えたら、調べた最新のタグは忘れる。
 #[tauri::command]
-async fn check_plugin_updates(
-    app: tauri::AppHandle,
-    cur: State<'_, Current>,
-    staging: State<'_, Staging>,
-) -> Result<UpdateCheck, String> {
-    let root = root_of(&cur)?;
-    let record = record::Record::read(&record::path(&root))?;
-    let dir = plugin_dir(&app, &root)?;
-    let names: HashMap<String, String> = with_session(&cur, |s| {
-        Ok(s.plugins
-            .report()
-            .plugins
-            .into_iter()
-            .map(|p| (p.id, p.name))
-            .collect())
-    })?;
-    let mut out = UpdateCheck::default();
-    for (id, e) in &record.plugins {
-        let Some(Source::Github(repo)) = &e.source else {
-            continue;
-        };
-        if e.disabled {
-            continue;
-        }
-        let tag = match plugin::github::latest(repo, e.prerelease) {
-            Ok(r) => r.tag,
-            Err(err) => {
-                out.failed.push(err);
-                continue;
-            }
-        };
-        remember_latest(&cur, id, e.tag.as_ref(), &tag)?;
-        if e.tag.as_ref() == Some(&tag) {
-            continue;
-        }
-        let found = Found {
-            id: id.clone(),
-            name: names.get(id).cloned().unwrap_or_else(|| id.clone()),
-            tag: tag.clone(),
-        };
-        let installed = dir.join(id).join(plugin::MANIFEST).is_file();
-        if !e.auto_update || !installed {
-            out.found.push(found);
-            continue;
-        }
-        let staged = match stage_recorded(&app, &root, id, Some(tag)) {
-            Ok(s) => s,
-            Err(err) => {
-                out.failed.push(err);
-                out.found.push(found);
-                continue;
-            }
-        };
-        if !staged.quiet() {
-            out.confirm.push(staging.keep(&root, staged, false));
-            continue;
-        }
-        let p = Pending {
-            root: root.clone(),
-            staged,
-            enable: false,
-        };
-        match place_staged(&app, &cur, &p) {
-            Ok(()) => out.installed.push(found),
-            Err(err) => {
-                out.failed.push(err);
-                out.found.push(found);
-            }
-        }
-    }
-    Ok(out)
-}
-
-#[tauri::command]
-async fn set_plugin_follow(
+async fn set_plugin_prerelease(
     cur: State<'_, Current>,
     id: String,
-    auto_update: bool,
     prerelease: bool,
 ) -> Result<(), String> {
     install::check_id(&id)?;
     let root = root_of(&cur)?;
-    let mut changed = false;
     record::update(&root, |r| {
         if let Some(e) = r.plugins.get_mut(&id) {
-            changed = e.prerelease != prerelease;
-            e.auto_update = auto_update;
             e.prerelease = prerelease;
         }
     })?;
-    if changed {
-        with_session(&cur, |s| {
-            s.latest.remove(&id);
-            Ok(())
-        })?;
-    }
-    Ok(())
+    with_session(&cur, |s| {
+        s.latest.remove(&id);
+        Ok(())
+    })
 }
 
 #[tauri::command]
@@ -3026,8 +2927,7 @@ pub fn run() {
             commit_plugin,
             cancel_plugin,
             plugin_latest,
-            check_plugin_updates,
-            set_plugin_follow,
+            set_plugin_prerelease,
             remove_plugin,
             pick_plugin,
             set_plugin_enabled,

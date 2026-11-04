@@ -685,7 +685,6 @@ pub struct Follow {
     /// 調べて分かった、最新のリリースのタグ。
     #[serde(skip_serializing_if = "Option::is_none")]
     pub latest: Option<String>,
-    pub auto_update: bool,
     pub prerelease: bool,
 }
 
@@ -1750,7 +1749,6 @@ impl Registry {
         for p in plugins.iter_mut().filter(|p| !p.builtin && !p.dev) {
             if let Some(e) = self.record.plugins.get(&p.id) {
                 p.follow.tag = e.tag.clone();
-                p.follow.auto_update = e.auto_update;
                 p.follow.prerelease = e.prerelease;
             }
         }
