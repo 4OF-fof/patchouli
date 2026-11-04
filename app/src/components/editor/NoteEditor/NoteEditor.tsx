@@ -174,6 +174,10 @@ const posOf = (v: EditorView, p?: Point) =>
 
 const markKeys = (wrap: string) => (v: EditorView) => toggleWrap(v, wrap)
 
+const revokeThumb = (p: UrlPreview | undefined) => {
+  if (p?.thumb?.startsWith('blob:')) URL.revokeObjectURL(p.thumb)
+}
+
 export function NoteEditor(props: NoteEditorProps) {
   let root!: HTMLDivElement
   let view: EditorView | undefined
@@ -572,6 +576,14 @@ export function NoteEditor(props: NoteEditorProps) {
     () => shown()?.url,
     (url) => props.urlPreviewOf?.(url).catch(() => undefined),
   )
+  createEffect(
+    on(
+      () => preview.latest,
+      (_, prev) => revokeThumb(prev),
+      { defer: true },
+    ),
+  )
+  onCleanup(() => revokeThumb(preview.latest))
 
   return (
     <>

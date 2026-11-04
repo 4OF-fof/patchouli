@@ -519,6 +519,12 @@ export const relDay = (lib: Library, d: number) =>
 const startOfDay = (t: Date) => new Date(t.getFullYear(), t.getMonth(), t.getDate()).getTime()
 
 /** 更新が新しい順。日数が同じなら時刻で比べる */
+/** いちばん新しく動かしたものの moved。大きな配列を Math.min に広げると溢れるので、順に見る。 */
+export const newestMoved = (items: readonly Item[], none = Infinity) => {
+  let m = none
+  for (const it of items) if (it.moved < m) m = it.moved
+  return m
+}
 export const newerFirst = (a: Item, b: Item) => a.moved - b.moved || (b.mtime ?? 0) - (a.mtime ?? 0)
 
 /** 表紙に向く順。サムネイルのある素材、これから作れる素材、ノート、サムネイルを作れない素材 */

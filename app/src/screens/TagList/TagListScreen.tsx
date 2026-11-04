@@ -4,7 +4,7 @@ import { Icon } from '../../components/base/Icon/Icon'
 import { Tabs } from '../../components/controls/Tabs/Tabs'
 import { ThumbStrip } from '../../components/media/ThumbStrip/ThumbStrip'
 import { middleClick } from '../../components/nav/TabPane/newTab'
-import { type Item, type Library, coverOrder, toggled } from '../../model/library'
+import { type Item, type Library, coverOrder, newestMoved, toggled } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './TagListScreen.module.css'
 
@@ -15,7 +15,7 @@ interface Row {
   kids: Row[]
 }
 
-const newest = (r: Row) => Math.min(...r.items.map((i) => i.moved))
+const newest = (r: Row) => newestMoved(r.items)
 
 export interface TagListScreenProps {
   lib: Library

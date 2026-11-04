@@ -29,6 +29,8 @@ export interface TidyPanelProps {
 }
 
 const MIN_PICKER = 280
+/** 分類で選ぶ先に出さないプロジェクト。 */
+const DIARY = '日記'
 
 export function TidyPanel(props: TidyPanelProps) {
   const lib = () => props.lib
@@ -44,6 +46,7 @@ export function TidyPanel(props: TidyPanelProps) {
       .slice(0, 6)
 
   let addBtn: HTMLButtonElement | undefined
+  let picker: HTMLDivElement | undefined
   const [picking, setPicking] = createSignal(false)
   // 付けるたびに並びが変わらないよう、開いたときのものを使う
   const [recent, setRecent] = createSignal<string[]>([])
@@ -51,7 +54,6 @@ export function TidyPanel(props: TidyPanelProps) {
   const [at, setAt] = createSignal<JSX.CSSProperties>({})
   /** 素材画面と同じく、押したボタンの左に、検索欄がボタンの横に来るように出す。 */
   const place = () => {
-    const picker = document.querySelector<HTMLElement>(`.${styles.picker}`)
     const input = picker?.querySelector('input')
     if (!addBtn || !picker || !input) return
     const b = addBtn.getBoundingClientRect()
@@ -108,7 +110,7 @@ export function TidyPanel(props: TidyPanelProps) {
             options={[
               { value: '', label: '指定なし' },
               ...lib()
-                .projects.filter((p) => p.name !== '日記')
+                .projects.filter((p) => p.name !== DIARY)
                 .map((p) => ({ value: p.name, label: p.name })),
             ]}
             onChange={(v) => props.onProject(v)}
@@ -133,6 +135,7 @@ export function TidyPanel(props: TidyPanelProps) {
         <Show when={picking()}>
           <Portal>
             <TagPicker
+              ref={(e) => (picker = e)}
               class={styles.picker}
               style={at()}
               tags={onTags().map((t) => t.tag)}

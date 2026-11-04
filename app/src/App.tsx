@@ -72,7 +72,6 @@ import type { NewNote, OpenOptions, OwnApi } from '../plugins/sdk'
 import { ITEMS, REPLY, STATE, type FromWindow, type Reply, type WindowCall, type WindowState } from './window/protocol'
 import { libraryItemOf } from './screens/Plugin/libraryItem'
 import { type HoverHost, HoverHostProvider } from './components/media/HoverPreview/HoverPreview'
-import { PINNED_PROJECTS, PINNED_TAGS } from './samples/library'
 import type { Activity } from './components/nav/ActivityButton/ActivityButton'
 import type { NavMenuItem } from './components/nav/NavMenu/NavMenu'
 import { asNewTab, inNewTab } from './components/nav/TabPane/newTab'
@@ -489,8 +488,8 @@ export function App(props: AppProps) {
     }
   }
   const selection = createSelection((ids) => setDeleting(ids))
-  const [pinnedProjects, setPinnedProjects] = createSignal(props.pinnedProjects ?? PINNED_PROJECTS)
-  const [pinnedTags, setPinnedTags] = createSignal(props.pinnedTags ?? PINNED_TAGS)
+  const [pinnedProjects, setPinnedProjects] = createSignal(props.pinnedProjects ?? [])
+  const [pinnedTags, setPinnedTags] = createSignal(props.pinnedTags ?? [])
   const [notice, setNotice] = createSignal<{ message: string; level: ToastLevel }>()
   const notify = (message: string, level: ToastLevel) => setNotice({ message, level })
   if (props.notice) notify(props.notice, 'error')
@@ -631,6 +630,9 @@ export function App(props: AppProps) {
   const fail = (e: unknown) => {
     notify(`保存できませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
   }
+  const failLoad = (e: unknown) => {
+    notify(`読み込めませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
+  }
   const persist = (job: () => Promise<void>) => queueJob(job, fail)
   const state = (): LibraryState => ({
     pins: lib().pins,
@@ -653,13 +655,15 @@ export function App(props: AppProps) {
     })
   }
   const [recentTags, setRecentTags] = createSignal<string[]>([])
-  onMount(() => void backend.tagHistory?.().then(setRecentTags, fail))
+  onMount(() => void backend.tagHistory?.().then(setRecentTags, failLoad))
   const OPENED = 20
   const [opened, setOpened] = createSignal<string[]>([])
   // 読み終える前に開いたものは、先頭に残す
   onMount(
     () =>
-      void backend.openHistory?.().then((ids) => setOpened([...new Set([...opened(), ...ids])].slice(0, OPENED)), fail),
+      void backend
+        .openHistory?.()
+        .then((ids) => setOpened([...new Set([...opened(), ...ids])].slice(0, OPENED)), failLoad),
   )
   let saveOpened: ReturnType<typeof setTimeout> | undefined
   // 素材を送って見るたびに書かないよう、少し待ってから残す
@@ -673,6 +677,7 @@ export function App(props: AppProps) {
     clearTimeout(saveOpened)
     saveOpened = setTimeout(() => persist(async () => backend.saveOpenHistory?.(next)), 1000)
   })
+  onCleanup(() => clearTimeout(saveOpened))
   const tagItem = (id: string, tag: string, on: boolean) => {
     const tags = lib().byId.get(id)?.tags ?? []
     if (on) {
@@ -863,7 +868,7 @@ export function App(props: AppProps) {
       ?.items.find((e) => e.id === entry)?.label
     return backend.runItemMenu?.(ids, plugin, entry).then(
       (r) => {
-        if (r.items.length) setLib(withAdded(lib(), r.items))
+        if (r.items.length) setLib(withChanged(lib(), r.items, []))
         if (r.copy !== undefined)
           navigator.clipboard
             .writeText(r.copy)
@@ -1040,6 +1045,10 @@ export function App(props: AppProps) {
   const onWindow = (m: FromWindow) => {
     const w = screenWins.get(m.label)
     if (!w) return
+    if (m.kind === 'closed') {
+      screenWins.delete(m.label)
+      return
+    }
     if (m.kind === 'ready') {
       sendState(m.label)
       return
@@ -1245,7 +1254,7 @@ export function App(props: AppProps) {
     () =>
       void backend
         .tabs?.()
-        .then(restoreTabs, fail)
+        .then(restoreTabs, failLoad)
         .finally(() => setTabsRead(true)),
   )
   const savedView = (v: View): View =>
@@ -1983,19 +1992,22 @@ export function App(props: AppProps) {
                       onClose={() => setOrphansHeld(true)}
                     />
                   </Show>
-                  <Show when={deleting()?.flatMap((id) => lib().byId.get(id) ?? [])} keyed>
-                    {(its) => (
-                      <Show when={its.length}>
-                        <DeleteDialog
-                          items={its}
-                          onDelete={() => {
-                            deleteItems(its.map((it) => it.id))
-                            setDeleting(undefined)
-                          }}
-                          onClose={() => setDeleting(undefined)}
-                        />
-                      </Show>
-                    )}
+                  <Show when={deleting()} keyed>
+                    {(ids) => {
+                      const its = createMemo(() => ids.flatMap((id) => lib().byId.get(id) ?? []))
+                      return (
+                        <Show when={its().length}>
+                          <DeleteDialog
+                            items={its()}
+                            onDelete={() => {
+                              deleteItems(its().map((it) => it.id))
+                              setDeleting(undefined)
+                            }}
+                            onClose={() => setDeleting(undefined)}
+                          />
+                        </Show>
+                      )
+                    }}
                   </Show>
                   <Show when={menuResult()} keyed>
                     {(r) => (

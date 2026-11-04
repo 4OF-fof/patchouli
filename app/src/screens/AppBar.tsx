@@ -724,9 +724,10 @@ export function AppBar(props: AppBarProps) {
               e.preventDefault()
               setIdx(0)
             } else if (e.key === 'Tab') {
-              e.preventDefault()
               const c = sel?.type === 'filter' ? sel : rows().find((r) => r.type === 'filter')
-              if (state() === 'search' && parsed().typing && c?.type === 'filter') commit(c.c)
+              if (state() !== 'search' || !parsed().typing || c?.type !== 'filter') return
+              e.preventDefault()
+              commit(c.c)
             } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
               e.preventDefault()
               const n = shownRows().length

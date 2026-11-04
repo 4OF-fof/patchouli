@@ -319,6 +319,7 @@ export interface Backend {
   seenThumbs?(ids: string[]): void
   checking?(): Promise<boolean>
   reloadPlugins?(wait: boolean): Promise<Opened>
+  /** image の url が blob のときは、使い終わったら呼び出し元で revoke する。 */
   itemView?: (id: string) => Promise<ItemView | null>
   itemDetails?: (id: string) => Promise<ItemDetails>
   revealItem?: (id: string) => Promise<void>
@@ -335,7 +336,7 @@ export interface Backend {
   uiUrl?: (ui: UiRef) => string
   /** url の part を受け持つもの。 */
   linkOf?: (url: string, part: LinkPart) => LinkShown
-  /** URL の素材と同じ作り方のサムネイル（blob の URL）。作れなければ undefined。 */
+  /** URL の素材と同じ作り方のサムネイル（blob の URL）。作れなければ undefined。使い終わったら呼び出し元で revoke する。 */
   linkThumb?: (url: string) => Promise<string | undefined>
   /** URL を既定のアプリで開く。 */
   openUrl?: (url: string) => Promise<void>

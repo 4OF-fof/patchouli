@@ -173,6 +173,10 @@ function bytes(n: number) {
   return `${i === 0 || n >= 10 ? Math.round(n) : n.toFixed(1)} ${UNITS[i]}`
 }
 
+const revokeView = (v: ItemView | null | undefined) => {
+  if (v?.kind === 'image' && v.url?.startsWith('blob:')) URL.revokeObjectURL(v.url)
+}
+
 export function AssetScreen(props: AssetScreenProps) {
   const lib = () => props.lib
   const [i, setI] = createSignal(props.index ?? 0)
@@ -192,6 +196,12 @@ export function AssetScreen(props: AssetScreenProps) {
     () => (props.host && !unsupported() ? it()?.id : undefined),
     async (id) => (await props.host?.view(id).catch(() => null)) ?? null,
   )
+  createEffect<ItemView | null | undefined>((prev) => {
+    const v = view.latest
+    if (prev !== v) revokeView(prev)
+    return v
+  })
+  onCleanup(() => revokeView(view.latest))
   // 波形はサムネイルと一緒にできるので、サムネイルが変わったら読み直す
   const waveOf = createMemo(
     () => {

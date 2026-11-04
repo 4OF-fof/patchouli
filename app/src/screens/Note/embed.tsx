@@ -92,9 +92,10 @@ export async function embedOf(it: Item, host: EmbedHost): Promise<Embed> {
   }
   if (f?.embed === 'card') return card
   const v = await host.view?.(it.id).catch(() => null)
+  if (v?.kind === 'image' && v.url?.startsWith('blob:')) URL.revokeObjectURL(v.url)
   if (v?.kind === 'ui') return { ...card, error: '埋め込みに対応していません' }
   if (v?.kind === 'link') return linkEmbed(v.url, host, it.name, it.thumb)
-  // 読み解いた画像の URL は次に開いた素材で捨てられるので、本文ではサムネイルを使う
+  // 読み解いた画像の URL は、捨てる時を決められないので本文では使わず、サムネイルを使う
   const image = captionOf('image', it.name, label)
   if (v?.kind === 'image' && !v.url && it.src) return { kind: 'image', src: it.src, caption: image }
   if (v?.kind === 'image' && it.thumb) return { kind: 'image', src: it.thumb, caption: image }

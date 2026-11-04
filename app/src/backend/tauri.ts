@@ -229,8 +229,6 @@ export function tauriBackend(): Backend {
   // 前に開いていた画面が出した外のページは、読み直すと持ち主がいなくなる
   void invoke('browser_close_all').catch((e: unknown) => console.warn('外のページを閉じられない', e))
 
-  let decoded: string | undefined
-
   // 落としたもののパスは画面に渡さず、取り込むときまでここで持つ
   let dropped: string[] = []
 
@@ -263,7 +261,8 @@ export function tauriBackend(): Backend {
   /** 素材が指す URL。ui は link を受け持つもの。 */
   const readLink = (item: UiItem, ui: UiRef) => uiLink(pluginUrl(ui.plugin, ui.module), uiApi(item, 'link', ui.plugin))
 
-  const linkThumbs = new Map<string, Promise<string | undefined>>()
+  const linkThumbs = new Map<string, Promise<Blob | undefined>>()
+  const windowListeners = new Set<(m: FromWindow) => void>()
   const linkThumbnail = async (url: string) => {
     const h = handlerOf(links, url)
     if (h?.parts.includes('thumbnail')) return uiLinkThumbnail(pluginUrl(h.plugin, h.module), linkApi(url, h.plugin))
@@ -699,8 +698,6 @@ export function tauriBackend(): Backend {
       setSetting,
     },
     async itemView(id) {
-      if (decoded) URL.revokeObjectURL(decoded)
-      decoded = undefined
       const v = await invoke<TauriView | null>('item_view', { id })
       if (!v) return null
       if (v.kind === 'ui') return { kind: 'ui', plugin: v.plugin, url: pluginUrl(v.plugin, v.module) }
@@ -710,8 +707,7 @@ export function tauriBackend(): Backend {
       }
       if (v.kind !== 'decoded') return { kind: v.kind }
       const png = await invoke<ArrayBuffer>('item_decoded', { id })
-      decoded = URL.createObjectURL(new Blob([png], { type: 'image/png' }))
-      return { kind: 'image', url: decoded }
+      return { kind: 'image', url: URL.createObjectURL(new Blob([png], { type: 'image/png' })) }
     },
     async itemDetails(id) {
       const d = await invoke<ItemDetails & { elevated?: Elevated; link?: Elevated }>('item_details', { id })
@@ -782,12 +778,12 @@ export function tauriBackend(): Backend {
       let t = linkThumbs.get(url)
       if (!t) {
         t = linkThumbnail(url).then((x) =>
-          x ? URL.createObjectURL(x.png instanceof Blob ? x.png : new Blob([new Uint8Array(x.png)])) : undefined,
+          x ? (x.png instanceof Blob ? x.png : new Blob([new Uint8Array(x.png)])) : undefined,
         )
         linkThumbs.set(url, t)
         t.catch(() => linkThumbs.delete(url))
       }
-      return t
+      return t.then((b) => b && URL.createObjectURL(b))
     },
     openUrl: (url) => invoke('open_url', { url }),
     browser: {
@@ -806,18 +802,34 @@ export function tauriBackend(): Backend {
       },
     },
     screenWindows: {
-      open: (s) =>
-        invoke('open_screen_window', {
+      async open(s) {
+        const r = await invoke<{ label: string; existed: boolean }>('open_screen_window', {
           plugin: s.plugin,
           screen: s.id,
           title: s.label,
           width: s.window.width,
           height: s.window.height,
-        }),
+        })
+        if (!r.existed) {
+          const off = listen(
+            'tauri://destroyed',
+            () => {
+              void off.then((f) => f())
+              for (const fn of windowListeners) fn({ label: r.label, kind: 'closed' })
+            },
+            { target: { kind: 'Window', label: r.label } },
+          )
+        }
+        return r
+      },
       send: (label, event, payload) => emitTo(label, event, payload),
       listen: (fn) => {
+        windowListeners.add(fn)
         const off = listen<FromWindow>(FROM_WINDOW, (e) => fn(e.payload))
-        return () => void off.then((f) => f())
+        return () => {
+          windowListeners.delete(fn)
+          void off.then((f) => f())
+        }
       },
       focusMain: () => {
         const w = getCurrentWindow()

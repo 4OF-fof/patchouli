@@ -19,6 +19,7 @@ export interface TagPickerProps {
   anchor?: HTMLElement
   class?: string
   style?: JSX.CSSProperties
+  ref?: (el: HTMLDivElement) => void
 }
 
 const clean = (s: string) => s.trim().replace(/^#\s*/, '')
@@ -90,7 +91,10 @@ export function TagPicker(props: TagPickerProps) {
 
   return (
     <div
-      ref={el}
+      ref={(e) => {
+        el = e
+        props.ref?.(e)
+      }}
       class={`${styles.root} ${props.class ?? ''}`}
       style={props.style}
       role="dialog"

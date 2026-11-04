@@ -1,4 +1,4 @@
-import { For, Index, type JSX, Show, createMemo, createSignal } from 'solid-js'
+import { For, Index, type JSX, Show, createEffect, createMemo, createSignal, on } from 'solid-js'
 import { NoneText } from '../../components/base/NoneText/NoneText'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { middleClick } from '../../components/nav/TabPane/newTab'
@@ -52,6 +52,13 @@ export interface TagScreenProps {
 export function TagScreen(props: TagScreenProps) {
   const lib = () => props.lib
   const [pinned, setPinned] = createSignal(!!props.pinned)
+  createEffect(
+    on(
+      () => props.pinned,
+      (p) => setPinned(!!p),
+      { defer: true },
+    ),
+  )
   const [editing, setEditing] = createSignal(!!props.editing)
   const [addOpen, setAddOpen] = createSignal(!!props.addOpen)
   const [sub, setSub] = createSignal(props.sub ?? '')

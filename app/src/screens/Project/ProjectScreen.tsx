@@ -1,4 +1,4 @@
-import { Index, Show, createSignal } from 'solid-js'
+import { Index, Show, createEffect, createSignal, on } from 'solid-js'
 import { Icon } from '../../components/base/Icon/Icon'
 import { Kbd } from '../../components/base/Kbd/Kbd'
 import { Button } from '../../components/controls/Button/Button'
@@ -31,6 +31,13 @@ export function ProjectScreen(props: ProjectScreenProps) {
   const lib = () => props.lib
   const p = () => lib().projectBy.get(props.name)
   const [pinned, setPinned] = createSignal(!!props.pinned)
+  createEffect(
+    on(
+      () => props.pinned,
+      (v) => setPinned(!!v),
+      { defer: true },
+    ),
+  )
   const [editing, setEditing] = createSignal(!!props.editing)
   const [addOpen, setAddOpen] = createSignal(!!props.addOpen)
   const [draft, setDraft] = createSignal(props.name)

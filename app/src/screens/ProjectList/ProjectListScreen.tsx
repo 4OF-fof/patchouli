@@ -6,7 +6,7 @@ import { Tabs } from '../../components/controls/Tabs/Tabs'
 import { Mosaic } from '../../components/media/Mosaic/Mosaic'
 import { middleClick } from '../../components/nav/TabPane/newTab'
 import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
-import { type Library, type Project, coverOf, coverTile, dueLabel, nextDue } from '../../model/library'
+import { type Library, type Project, coverOf, coverTile, dueLabel, newestMoved, nextDue } from '../../model/library'
 import shared from '../screen.module.css'
 import styles from './ProjectListScreen.module.css'
 
@@ -29,7 +29,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
   const recency = (p: Project) => {
     if (p.touched.startsWith('今日')) return 0
     const l = lib().inProject(p.name)
-    return l.length ? Math.min(...l.map((i) => i.moved)) : 999
+    return newestMoved(l, 999)
   }
   const sorted = () => {
     const count = (p: Project) => lib().inProject(p.name).length

@@ -36,7 +36,11 @@ export type WindowCall =
   | { method: 'setBody' | 'rename'; args: [string, string] }
   | { method: 'setTags'; args: [string, string[]] }
 
-export type FromWindow = { label: string } & ({ kind: 'ready' } | ({ kind: 'call'; req: number } & WindowCall))
+export type FromWindow = { label: string } & (
+  | { kind: 'ready' }
+  | { kind: 'closed' }
+  | ({ kind: 'call'; req: number } & WindowCall)
+)
 
 /** 頼まれたことの結果。返すものがあれば、頼みに合わせてどれか 1 つに入れる。 */
 export interface Reply {

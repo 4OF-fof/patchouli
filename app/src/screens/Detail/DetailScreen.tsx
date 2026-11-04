@@ -1,4 +1,4 @@
-import { For, type JSX, Show, children, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, type JSX, Show, children, createEffect, createMemo, createSignal, on, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Spinner } from '../../components/base/Spinner/Spinner'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
@@ -50,6 +50,13 @@ export function DetailScreen(props: DetailScreenProps) {
   const side = children(() => props.side)
   const hasSide = () => side.toArray().some((x) => x != null)
   const [pins, setPins] = createSignal(props.pins ?? [])
+  createEffect(
+    on(
+      () => props.pins,
+      (p) => setPins(p ?? []),
+      { defer: true },
+    ),
+  )
   const pinned = createMemo(() => {
     const here = new Map((props.pinFrom ?? props.items).map((i) => [i.id, i]))
     return pins()
