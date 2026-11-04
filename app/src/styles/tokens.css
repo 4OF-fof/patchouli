@@ -1,6 +1,6 @@
 /*
  * Patchouli トークン。本文の背景（--paper）を起点に、OKLCH の明るさの差で面と線を、コントラストの目標から文字と色の明るさを決める。
- * data-theme="light" でライト。
+ * data-theme="light" でライト。配色で変えられる色の値は、model/colorScheme.ts の STANDARD と合わせる。
  */
 :root {
   --stage: oklch(0.19 0 0);

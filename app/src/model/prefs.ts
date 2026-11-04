@@ -1,4 +1,5 @@
 import { createSignal } from 'solid-js'
+import { applyScheme, schemes } from './colorScheme'
 
 export type TabsAt = 'top' | 'left'
 export type Sort = 'moved' | 'name' | 'kind'
@@ -12,6 +13,8 @@ export interface Prefs {
   /** ノートのリンクを押したときの開き方 */
   openLink: 'peek' | 'here' | 'tab'
   theme: 'system' | 'light' | 'dark'
+  /** 使う配色の id。standard なら標準。 */
+  scheme: string
   tabsAt: TabsAt
   cardSize: 'S' | 'M' | 'L'
   sort: Sort
@@ -29,6 +32,7 @@ export const DEFAULT_PREFS: Prefs = {
   start: 'last',
   openLink: 'peek',
   theme: 'dark',
+  scheme: 'standard',
   tabsAt: 'top',
   cardSize: 'M',
   sort: 'moved',
@@ -46,6 +50,7 @@ const CHOICES: { [K in keyof Prefs]: readonly Prefs[K][] } = {
   start: ['last', 'home'],
   openLink: ['peek', 'here', 'tab'],
   theme: ['system', 'light', 'dark'],
+  scheme: ['standard'],
   tabsAt: ['top', 'left'],
   cardSize: ['S', 'M', 'L'],
   sort: ['moved', 'name', 'kind'],
@@ -73,6 +78,7 @@ const read = (): Prefs => {
       start: isScreenStart(saved.start) ? saved.start : pick(saved, 'start'),
       openLink: pick(saved, 'openLink'),
       theme: pick(saved, 'theme'),
+      scheme: typeof saved.scheme === 'string' ? saved.scheme : DEFAULT_PREFS.scheme,
       tabsAt: pick(saved, 'tabsAt'),
       cardSize: pick(saved, 'cardSize'),
       sort: pick(saved, 'sort'),
@@ -110,10 +116,16 @@ const SCALE = { S: 0.85, M: 1, L: 1.2 } as const
 export const cardScale = () => SCALE[prefs().cardSize]
 const NOTE_WIDTH = { narrow: 640, normal: 880, wide: 1080 } as const
 
-/** 設定を、ページ全体のテーマと CSS 変数に写す。設定や OS のテーマが変わるたびに呼ぶ。 */
+/** 設定を、ページ全体のテーマと配色と CSS 変数に写す。設定や OS のテーマが変わるたびに呼ぶ。 */
 export const applyPrefs = (p: Prefs, root = document.documentElement) => {
-  if (themeOf(p) === 'light') root.dataset.theme = 'light'
+  const theme = themeOf(p)
+  if (theme === 'light') root.dataset.theme = 'light'
   else delete root.dataset.theme
+  applyScheme(
+    schemes().find((s) => s.id === p.scheme),
+    theme,
+    root,
+  )
   root.style.setProperty('--card-scale', String(SCALE[p.cardSize]))
   root.style.setProperty('--note-scale', String(SCALE[p.noteFont]))
   root.style.setProperty('--note-width', `${NOTE_WIDTH[p.noteWidth]}px`)

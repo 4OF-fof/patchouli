@@ -9,18 +9,20 @@ import type {
   TagSuggest,
   UnusedPlugin,
 } from '../../../backend/types'
-import { DEFAULT_PREFS, type Prefs, type ScreenStart } from '../../../model/prefs'
+import type { ColorScheme } from '../../../model/colorScheme'
+import { DEFAULT_PREFS, type Prefs, type ScreenStart, themeOf } from '../../../model/prefs'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
 import { type Notices, NoticesView } from './Notices'
+import { SchemeEditor } from './SchemeEditor'
 import { DialogFrame } from '../DialogFrame/DialogFrame'
 import styles from './SettingsDialog.module.css'
 import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 import { createBusy, message } from '../../../model/busy'
 
-export type SettingsPage = 'general' | 'view' | 'note' | 'developer' | 'about'
+export type SettingsPage = 'general' | 'view' | 'colors' | 'note' | 'developer' | 'about'
 
 export interface SettingsDialogProps {
   version: string
@@ -30,6 +32,11 @@ export interface SettingsDialogProps {
   onPrefsChange?: (patch: Partial<Prefs>) => void
   /** 起動時に開く画面に選べる、プラグインの画面。 */
   screens?: { value: ScreenStart; label: string }[]
+  /** 自分で作った配色。 */
+  schemes?: ColorScheme[]
+  onSchemesChange?: (list: ColorScheme[]) => void
+  /** ファイルに書き出し、書き出した場所を返す。選ぶのをやめたら undefined。 */
+  onExportFile?: (name: string, data: string) => Promise<string | undefined>
   /** いま開いているライブラリの場所。 */
   library?: string
   onOpenLibraries?: () => void
@@ -108,6 +115,7 @@ const grouped = (group: string, list: Entry[]) => list.map((e) => ({ ...e, group
 export function SettingsDialog(props: SettingsDialogProps) {
   const { busy, error, setError, run } = createBusy()
   const [query, setQuery] = createSignal('')
+  const [done, setDone] = createSignal<string>()
 
   const [switching, setSwitching] = createSignal(false)
   const changeAutoTag = async (change: (on: boolean) => Promise<void>, on: boolean) => {
@@ -209,6 +217,28 @@ export function SettingsDialog(props: SettingsDialogProps) {
       { value: 'light', label: 'ライト' },
       { value: 'dark', label: 'ダーク' },
     ]),
+    ...(props.onSchemesChange
+      ? [
+          {
+            page: 'colors' as const,
+            words: '配色 カラースキーマ 色 新規作成 複製 読み込み 書き出し JSON',
+            body: () => (
+              <SchemeEditor
+                schemes={props.schemes ?? []}
+                value={prefs().scheme}
+                theme={themeOf(prefs())}
+                onSelect={(scheme) => props.onPrefsChange?.({ scheme })}
+                onSchemesChange={props.onSchemesChange!}
+                onExport={props.onExportFile}
+                onMessage={(m) => {
+                  setError(m.error)
+                  setDone(m.done)
+                }}
+              />
+            ),
+          },
+        ]
+      : []),
     pref(
       'view',
       'tabsAt',
@@ -462,6 +492,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const PAGES: { id: SettingsPage; label: string }[] = [
     { id: 'general', label: '一般' },
     { id: 'view', label: '表示' },
+    { id: 'colors', label: '配色' },
     { id: 'note', label: 'ノート' },
     { id: 'developer', label: '開発者モード' },
     { id: 'about', label: '情報' },
@@ -729,9 +760,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
         </ScrollArea>
       </nav>
       <ScrollArea class={styles.main} viewClass={styles.mainView}>
-        <Show when={busy() || error()}>
+        <Show when={busy() || error() || done()}>
           <p class={styles.status} data-error={!!error()} role="status">
-            {error() ?? `${busy()}…`}
+            {error() ?? (busy() ? `${busy()}…` : done())}
           </p>
         </Show>
         <For each={shown()}>

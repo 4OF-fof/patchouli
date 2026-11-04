@@ -1839,6 +1839,7 @@ export function App(props: AppProps) {
                       tidy={backend.tidy}
                       developer={backend.developer}
                       appSettings={backend.appSettings}
+                      exportFile={backend.exportFile}
                       autoTag={backend.autoTag}
                       contentSearch={backend.contentSearch}
                       onReopen={reload}

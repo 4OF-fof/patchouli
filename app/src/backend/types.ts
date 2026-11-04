@@ -324,6 +324,8 @@ export interface Backend {
   itemDetails?: (id: string) => Promise<ItemDetails>
   revealItem?: (id: string) => Promise<void>
   openItemDefault?: (id: string) => Promise<void>
+  /** 保存先を選んでもらってファイルに書き出し、書き出した場所を返す。選ぶのをやめたら undefined。 */
+  exportFile?: (name: string, data: string) => Promise<string | undefined>
   itemPath?: (id: string) => Promise<string>
   /** プラグインが右クリックメニューに足す項目。ids は選んでいるものすべて。項目のないプラグインは含めない。 */
   itemMenu?: (ids: string[]) => Promise<MenuGroup[]>

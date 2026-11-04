@@ -37,6 +37,7 @@ import { GRACE, OPEN_DELAY, type Point, graceArea, inside } from '../components/
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
 import { TabStrip, type TabStripProps } from '../components/nav/TabStrip/TabStrip'
 import type { Library } from '../model/library'
+import { schemes, setSchemes } from '../model/colorScheme'
 import { type ScreenStart, prefs, setPrefs, themeOf } from '../model/prefs'
 import { builtinReport } from '../plugins/builtin'
 import type { PluginActions, PluginReport } from '../plugins/types'
@@ -117,6 +118,8 @@ export interface AppBarProps {
   /** あれば、タイトルバーにタブを並べ、いまの場所はその下の段に出す。 */
   tabs?: TabStripProps
   appSettings?: AppSettingsActions
+  /** ファイルに書き出し、書き出した場所を返す。選ぶのをやめたら undefined。 */
+  exportFile?: (name: string, data: string) => Promise<string | undefined>
   /** いまの場所の行の右端に、画面ごとのボタンを置く所。 */
   toolsRef?: (el: HTMLElement) => void
   screens?: ScreenPlace[]
@@ -795,6 +798,9 @@ export function AppBar(props: AppBarProps) {
           prefs={prefs()}
           onPrefsChange={setPrefs}
           screens={props.screens?.map((s) => ({ value: s.place, label: s.label }))}
+          schemes={schemes()}
+          onSchemesChange={setSchemes}
+          onExportFile={props.exportFile}
           library={props.library}
           onOpenLibraries={
             props.libraries ? () => setState('libraries') : props.onChooseLibrary && (() => void onMenu('library'))

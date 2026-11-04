@@ -715,6 +715,10 @@ export function tauriBackend(): Backend {
     },
     revealItem: (id) => invoke('reveal_item', { id }),
     openItemDefault: (id) => invoke('open_item_default', { id }),
+    exportFile: async (name, data) =>
+      (await invoke<string | null>('export_data', new TextEncoder().encode(data), {
+        headers: { name: asciiJson(name) },
+      })) ?? undefined,
     itemPath: (id) => invoke('item_path', { id }),
     async itemMenu(ids) {
       const groups = await invoke<(MenuGroup & { elevated?: Elevated })[]>('item_menu', { ids })

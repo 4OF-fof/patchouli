@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
+import { createEffect, createSignal, onCleanup } from 'solid-js'
 import { expect, fn, waitFor } from 'storybook/test'
+import { type ColorScheme, applyScheme } from '../../../model/colorScheme'
+import { DEFAULT_PREFS, type Prefs, themeOf } from '../../../model/prefs'
 import { SettingsDialog } from './SettingsDialog'
 
 const wait = () => new Promise<void>((r) => setTimeout(r, 600))
@@ -175,5 +178,46 @@ export const About: Story = {
         },
       ],
     }),
+  },
+}
+
+const FOREST: ColorScheme = {
+  id: 'forest',
+  name: '森',
+  dark: {
+    paper: 'oklch(0.24 0.012 155)',
+    side: 'oklch(0.215 0.012 155)',
+    accent: 'oklch(0.68 0.08 155)',
+    muted: '#5e5e5e',
+  },
+  light: { accent: '#4f7d5c' },
+}
+
+export const Schemes: Story = {
+  name: '配色',
+  args: { page: 'colors' },
+  render: (args) => {
+    const root = document.documentElement
+    // テーマは Storybook のツールバーで切り替える
+    const theme = root.dataset.theme === 'light' ? 'light' : 'dark'
+    const [prefs, setPrefs] = createSignal<Prefs>({ ...DEFAULT_PREFS, theme, scheme: FOREST.id })
+    const [schemes, setSchemes] = createSignal([FOREST])
+    createEffect(() =>
+      applyScheme(
+        schemes().find((x) => x.id === prefs().scheme),
+        themeOf(prefs()),
+        root,
+      ),
+    )
+    onCleanup(() => applyScheme(undefined, 'dark', root))
+    return (
+      <SettingsDialog
+        {...args}
+        prefs={prefs()}
+        onPrefsChange={(p) => setPrefs({ ...prefs(), ...p })}
+        schemes={schemes()}
+        onSchemesChange={setSchemes}
+      />
+    )
   },
 }
