@@ -506,12 +506,6 @@ export function withChanged(
   )
 }
 
-export const retaggedItems = (before: Library, after: Library) =>
-  after.items.filter((i) => {
-    const old = before.byId.get(i.id)
-    return !!old && (old.tags.length !== i.tags.length || old.tags.some((t, k) => t !== i.tags[k]))
-  })
-
 const DAY = 864e5
 
 export const monthDay = (lib: Library, d: number) => {

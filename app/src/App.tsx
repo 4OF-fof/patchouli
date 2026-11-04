@@ -48,7 +48,6 @@ import {
   noteRefs,
   placeOf,
   retag,
-  retaggedItems,
   samePlace,
   tagClash,
   type TagCoverPart,
@@ -97,6 +96,7 @@ import {
 import { TabList } from './components/nav/TabList/TabList'
 import type { TabEntry, TabStripProps } from './components/nav/TabStrip/TabStrip'
 import { applyPrefs, prefs, screenStart } from './model/prefs'
+import { flush as flushWrites, persist as queueJob } from './model/persist'
 import { ICON_NAMES, type IconName } from './components/base/Icon/Icon'
 import { SelectionProvider, createSelection } from './components/media/Selection/Selection'
 import {
@@ -294,6 +294,9 @@ function progress() {
   return { ids, done: () => seen() - ids().size, total: seen, update }
 }
 type Progress = ReturnType<typeof progress>
+
+/** 待っている書き込みを終えてから読み込み直す。 */
+const reload = () => void flushWrites().finally(() => window.location.reload())
 
 export function App(props: AppProps) {
   const backend = props.backend ?? sampleBackend()
@@ -625,13 +628,10 @@ export function App(props: AppProps) {
     else setStack([{ s: to === 'all' ? 'all' : to === 'tags' ? 'tlist' : to === 'projects' ? 'plist' : 'edition' }])
   }
 
-  let queue = Promise.resolve()
   const fail = (e: unknown) => {
     notify(`保存できませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
   }
-  const persist = (job: () => Promise<void>) => {
-    queue = queue.then(job).catch(fail)
-  }
+  const persist = (job: () => Promise<void>) => queueJob(job, fail)
   const state = (): LibraryState => ({
     pins: lib().pins,
     pinnedProjects: pinnedProjects(),
@@ -734,7 +734,7 @@ export function App(props: AppProps) {
       ),
     )
     selection.clear()
-    queue = queue.then(async () => {
+    persist(async () => {
       const failed: Item[] = []
       for (const it of its) {
         try {
@@ -797,7 +797,7 @@ export function App(props: AppProps) {
     const del = backend.deleteItem
     const its = ids.flatMap((id) => lib().byId.get(id) ?? [])
     if (!del || !its.length) return
-    queue = queue.then(async () => {
+    persist(async () => {
       const failed: { it: Item; e: unknown }[] = []
       let pinned = false
       for (const it of its) {
@@ -1076,18 +1076,10 @@ export function App(props: AppProps) {
   }
   const renameTag = (from: string, to: string, keepFrom = false) => {
     const re = retag(from, to)
-    const before = lib()
-    const after = withRenamedTag(before, from, to, keepFrom)
-    setLib(after)
+    setLib(withRenamedTag(lib(), from, to, keepFrom))
     setPinnedTags([...new Set(pinnedTags().map(re))])
     eachStack((s) => s.map((v) => (v.s === 'tag' ? { ...v, tag: re(v.tag) } : v)))
     persist(() => backend.renameTag(from, to, keepFrom))
-    for (const it of retaggedItems(before, after)) {
-      const old = before.byId.get(it.id)?.tags ?? []
-      saveItem(it.id, {
-        tags: { add: it.tags.filter((t) => !old.includes(t)), remove: old.filter((t) => !it.tags.includes(t)) },
-      })
-    }
     saveState()
   }
   const [merging, setMerging] = createSignal<{ from: string; to: string }>()
@@ -1166,6 +1158,7 @@ export function App(props: AppProps) {
     backend.chooseLibrary &&
     (async () => {
       try {
+        await flushWrites()
         if (await backend.chooseLibrary?.()) window.location.reload()
       } catch (e) {
         notify(`ライブラリを切り替えられませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
@@ -1175,7 +1168,10 @@ export function App(props: AppProps) {
   const [reloading, setReloading] = createSignal<{ step: 'ask' | 'wait' | 'load'; work?: number }>()
   let answer: ((a: 'wait' | 'stop') => void) | undefined
   const reloadPlugins = async () => {
-    if (!backend.reloadPlugins) return window.location.reload()
+    if (!backend.reloadPlugins) {
+      reload()
+      return
+    }
     if (reloading()) return
     const work = workCount(await backend.pluginWork?.())
     let wait = true
@@ -1769,7 +1765,7 @@ export function App(props: AppProps) {
                       appSettings={backend.appSettings}
                       autoTag={backend.autoTag}
                       contentSearch={backend.contentSearch}
-                      onReopen={() => window.location.reload()}
+                      onReopen={reload}
                       loadPlugins={() => backend.plugins()}
                       pluginActions={backend.pluginActions}
                       onPluginsChanged={reloadPlugins}

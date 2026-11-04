@@ -28,6 +28,7 @@ import { Thumb, menuBelow, useItemMenu } from '../../components/media/Thumb/Thum
 import { type Blocker, Unsupported } from '../../components/media/Unsupported/Unsupported'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
 import { type Item, type Library, type Place, jacketOf, relDay, thumbOf } from '../../model/library'
+import { onFlush } from '../../model/persist'
 import { WebPage } from '../../components/media/WebPage/WebPage'
 import type { BrowserActions, LinkShown } from '../../backend/types'
 import type { ItemDetails, ItemView, LinkPart, Part } from '../../plugins/types'
@@ -93,6 +94,7 @@ function MemoField(props: { value: string; onChange: (memo: string) => void }) {
     if (document.activeElement === el) return
     el.value = saved = v
   })
+  onCleanup(onFlush(flush))
   onCleanup(flush)
   return (
     <textarea

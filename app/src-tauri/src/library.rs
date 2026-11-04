@@ -1428,7 +1428,7 @@ impl Library {
         Ok(())
     }
 
-    /// 下の階層のタグも合わせて付け替える。変えた先の名前がすでにあれば、keep_from のときは元の概要を、
+    /// 下の階層のタグも合わせて、項目と概要を付け替える。変えた先の名前がすでにあれば、keep_from のときは元の概要を、
     /// そうでなければ変えた先の概要を残し、残さないほうのカードはごみ箱に移す。
     pub fn rename_tag(&mut self, from: &str, to: &str, keep_from: bool) -> Result<(), String> {
         let re = |t: &str| {
@@ -1440,6 +1440,53 @@ impl Library {
                     .map(|rest| format!("{to}{rest}"))
             }
         };
+        let retagged: Vec<(String, ListDiff)> = self
+            .cache
+            .rows()
+            .into_values()
+            .filter_map(|r| {
+                let old = r.item.tags;
+                let mut next: Vec<String> = Vec::new();
+                for t in &old {
+                    let t = re(t).unwrap_or_else(|| t.clone());
+                    if !next.contains(&t) {
+                        next.push(t);
+                    }
+                }
+                (next != old).then(|| {
+                    let diff = ListDiff {
+                        add: next.iter().filter(|t| !old.contains(t)).cloned().collect(),
+                        remove: old.iter().filter(|t| !next.contains(t)).cloned().collect(),
+                    };
+                    (r.item.id, diff)
+                })
+            })
+            .collect();
+        let mut failed = Vec::new();
+        for (id, diff) in retagged {
+            let patch = ItemPatch {
+                tags: Some(diff),
+                ..ItemPatch::default()
+            };
+            if let Err(e) = self.save_item(&id, &patch) {
+                failed.push(e);
+            }
+        }
+        self.rename_tag_covers(&re, keep_from)?;
+        match failed.first() {
+            Some(e) => Err(format!(
+                "{} 件の素材のタグを変えられませんでした：{e}",
+                failed.len()
+            )),
+            None => Ok(()),
+        }
+    }
+
+    fn rename_tag_covers(
+        &mut self,
+        re: &dyn Fn(&str) -> Option<String>,
+        keep_from: bool,
+    ) -> Result<(), String> {
         let rekey = |m: Map<String, Value>| {
             let (moved, kept): (Vec<_>, Vec<_>) = m.into_iter().partition(|(t, _)| re(t).is_some());
             let mut next: Map<String, Value> = kept.into_iter().collect();

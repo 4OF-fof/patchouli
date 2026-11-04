@@ -7,6 +7,7 @@ import { GFM } from '@lezer/markdown'
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
 import { hostOf } from '../../../plugins/links'
 import { EMBED_SCALES, type Item, type Library, type Place, hrefOf, plainText, thumbOf } from '../../../model/library'
+import { onFlush } from '../../../model/persist'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { LinkPicker } from '../../nav/LinkPicker/LinkPicker'
@@ -446,8 +447,10 @@ export function NoteEditor(props: NoteEditorProps) {
   // 送ってリンクが動いたら、浮かべた表示は元の位置に残さず消す
   const unhover = () => setHover(undefined)
   window.addEventListener('scroll', unhover, true)
+  const unflush = onFlush(flush)
   onCleanup(() => {
     window.removeEventListener('scroll', unhover, true)
+    unflush()
     flush()
     if (hoverTimer) clearTimeout(hoverTimer)
     view?.destroy()
