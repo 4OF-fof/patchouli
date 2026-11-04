@@ -280,25 +280,16 @@ impl Cache {
         self.1.swap(false, Ordering::Relaxed)
     }
 
-    fn with<T: Default>(
+    fn with<T>(
         &self,
         what: &str,
         f: impl FnOnce(&mut Connection) -> Result<T, String>,
-    ) -> T {
-        let mut g = match self.0.lock() {
-            Ok(g) => g,
-            Err(e) => {
-                warn(what, e);
-                return T::default();
-            }
-        };
-        f(&mut g).unwrap_or_else(|e| {
-            warn(what, e);
-            T::default()
-        })
+    ) -> Result<T, String> {
+        let mut g = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        f(&mut g).map_err(|e| format!("ライブラリの写しを{what}: {e}"))
     }
 
-    pub fn load(&self) -> Option<Snapshot> {
+    pub fn load(&self) -> Result<Option<Snapshot>, String> {
         let state = self.with("読めない", |c| {
             let s: Option<String> = c
                 .query_row("SELECT state FROM state WHERE id = 0", [], |r| r.get(0))
@@ -307,33 +298,41 @@ impl Cache {
             s.map(|s| serde_json::from_str::<LibraryState>(&s).map_err(|e| e.to_string()))
                 .transpose()
         })?;
-        let mut rows: Vec<Row> = self.rows().into_values().collect();
+        let Some(state) = state else {
+            return Ok(None);
+        };
+        let mut rows: Vec<Row> = self.rows()?.into_values().collect();
         rows.sort_by(|a, b| a.item.file.cmp(&b.item.file));
-        Some(Snapshot {
+        Ok(Some(Snapshot {
             rows,
-            projects: self.projects(),
-            groups: self.groups(),
+            projects: self.projects()?,
+            groups: self.groups()?,
             state,
-            tag_covers: self.tag_covers(),
-        })
+            tag_covers: self.tag_covers()?,
+        }))
     }
 
-    pub fn rows(&self) -> HashMap<PathBuf, Row> {
+    pub fn rows(&self) -> Result<HashMap<PathBuf, Row>, String> {
         self.query_rows("", [])
     }
 
     /// ノートの行だけ。
-    pub fn note_rows(&self) -> HashMap<PathBuf, Row> {
+    pub fn note_rows(&self) -> Result<HashMap<PathBuf, Row>, String> {
         self.query_rows("WHERE json_extract(item, '$.note') = 1", [])
     }
 
-    pub fn row(&self, path: &Path) -> Option<Row> {
-        self.query_rows("WHERE path = ?1", [path.to_string_lossy()])
+    pub fn row(&self, path: &Path) -> Result<Option<Row>, String> {
+        Ok(self
+            .query_rows("WHERE path = ?1", [path.to_string_lossy()])?
             .into_values()
-            .next()
+            .next())
     }
 
-    fn query_rows<P: rusqlite::Params>(&self, filter: &str, params: P) -> HashMap<PathBuf, Row> {
+    fn query_rows<P: rusqlite::Params>(
+        &self,
+        filter: &str,
+        params: P,
+    ) -> Result<HashMap<PathBuf, Row>, String> {
         self.with("読めない", |c| {
             let mut st = c
                 .prepare(&format!(
@@ -366,7 +365,7 @@ impl Cache {
         })
     }
 
-    pub fn projects(&self) -> Vec<StoredProject> {
+    pub fn projects(&self) -> Result<Vec<StoredProject>, String> {
         self.with("読めない", |c| {
             let mut st = c
                 .prepare("SELECT project FROM projects ORDER BY name")
@@ -383,15 +382,19 @@ impl Cache {
         })
     }
 
-    pub fn groups(&self) -> Vec<StoredGroup> {
+    pub fn groups(&self) -> Result<Vec<StoredGroup>, String> {
         self.groups_where("", [])
     }
 
-    pub fn group(&self, id: &str) -> Option<StoredGroup> {
-        self.groups_where("WHERE id = ?1", [id]).pop()
+    pub fn group(&self, id: &str) -> Result<Option<StoredGroup>, String> {
+        Ok(self.groups_where("WHERE id = ?1", [id])?.pop())
     }
 
-    fn groups_where<P: rusqlite::Params>(&self, filter: &str, p: P) -> Vec<StoredGroup> {
+    fn groups_where<P: rusqlite::Params>(
+        &self,
+        filter: &str,
+        p: P,
+    ) -> Result<Vec<StoredGroup>, String> {
         self.with("読めない", |c| {
             let mut st = c
                 .prepare(&format!("SELECT grp FROM groups {filter} ORDER BY dir"))
@@ -408,7 +411,7 @@ impl Cache {
         })
     }
 
-    pub fn state(&self) -> LibraryState {
+    pub fn state(&self) -> Result<LibraryState, String> {
         self.with("読めない", |c| {
             let s: Option<String> = c
                 .query_row("SELECT state FROM state WHERE id = 0", [], |r| r.get(0))
@@ -419,7 +422,7 @@ impl Cache {
         })
     }
 
-    pub fn tag_covers(&self) -> Map<String, Value> {
+    pub fn tag_covers(&self) -> Result<Map<String, Value>, String> {
         self.with("読めない", |c| {
             let s: Option<String> = c
                 .query_row("SELECT covers FROM tag_covers WHERE id = 0", [], |r| {
@@ -439,7 +442,8 @@ impl Cache {
         groups: &[StoredGroup],
         state: &LibraryState,
         tag_covers: &Map<String, Value>,
-    ) {
+    ) -> Result<(), String> {
+        *self.2.lock().unwrap_or_else(PoisonError::into_inner) = Changed::fresh();
         self.with("書けない", |c| {
             let tx = c.transaction().map_err(|e| e.to_string())?;
             tx.execute_batch("DELETE FROM items; DELETE FROM projects; DELETE FROM groups;")
@@ -450,13 +454,12 @@ impl Cache {
             put_state(&tx, state)?;
             put_tag_covers(&tx, tag_covers)?;
             tx.commit().map_err(|e| e.to_string())
-        });
-        *self.2.lock().unwrap_or_else(PoisonError::into_inner) = Changed::fresh();
+        })
     }
 
-    pub fn update(&self, rows: &[Row], gone: &[PathBuf]) {
+    pub fn update(&self, rows: &[Row], gone: &[PathBuf]) -> Result<(), String> {
         if rows.is_empty() && gone.is_empty() {
-            return;
+            return Ok(());
         }
         let gone_ids = self.with("書けない", |c| {
             let tx = c.transaction().map_err(|e| e.to_string())?;
@@ -482,12 +485,13 @@ impl Cache {
             }
             tx.commit().map_err(|e| e.to_string())?;
             Ok(ids)
-        });
+        })?;
         let at = next_generation();
         let mut g = self.2.lock().unwrap_or_else(PoisonError::into_inner);
         for id in rows.iter().map(|r| &r.item.id).chain(&gone_ids) {
             g.ids.insert(id.clone(), at);
         }
+        Ok(())
     }
 
     /// いまの番号。これより後の書き換えは changed_since で分かる。
@@ -507,13 +511,13 @@ impl Cache {
         })
     }
 
-    pub fn put_project(&self, project: &StoredProject) {
+    pub fn put_project(&self, project: &StoredProject) -> Result<(), String> {
         self.with("書けない", |c| {
             put_projects(c, std::slice::from_ref(project))
         })
     }
 
-    pub fn replace_projects(&self, projects: &[StoredProject]) {
+    pub fn replace_projects(&self, projects: &[StoredProject]) -> Result<(), String> {
         self.with("書けない", |c| {
             let tx = c.transaction().map_err(|e| e.to_string())?;
             tx.execute("DELETE FROM projects", [])
@@ -523,13 +527,13 @@ impl Cache {
         })
     }
 
-    pub fn put_group(&self, group: &StoredGroup) {
+    pub fn put_group(&self, group: &StoredGroup) -> Result<(), String> {
         self.with("書けない", |c| {
             put_groups(c, std::slice::from_ref(group))
         })
     }
 
-    pub fn replace_groups(&self, groups: &[StoredGroup]) {
+    pub fn replace_groups(&self, groups: &[StoredGroup]) -> Result<(), String> {
         self.with("書けない", |c| {
             let tx = c.transaction().map_err(|e| e.to_string())?;
             tx.execute("DELETE FROM groups", [])
@@ -539,24 +543,30 @@ impl Cache {
         })
     }
 
-    pub fn put_state(&self, state: &LibraryState) {
+    pub fn put_state(&self, state: &LibraryState) -> Result<(), String> {
         self.with("書けない", |c| put_state(c, state))
     }
 
-    pub fn put_tag_covers(&self, covers: &Map<String, Value>) {
+    pub fn put_tag_covers(&self, covers: &Map<String, Value>) -> Result<(), String> {
         self.with("書けない", |c| put_tag_covers(c, covers))
     }
 
-    pub fn set_thumb(&self, src: &Path, thumb: &Path, (width, height): (u32, u32), reads: &Reads) {
-        let Some(mut row) = self.row(src) else {
-            return;
+    pub fn set_thumb(
+        &self,
+        src: &Path,
+        thumb: &Path,
+        (width, height): (u32, u32),
+        reads: &Reads,
+    ) -> Result<(), String> {
+        let Some(mut row) = self.row(src)? else {
+            return Ok(());
         };
         row.item.thumb = Some(thumb.to_owned());
         row.item.wave_thumb = crate::thumb::is_wave_thumb(thumb);
         if row.item.width.is_none() {
             (row.item.width, row.item.height) = (Some(width), Some(height));
         }
-        self.update(&[row], &[]);
+        self.update(&[row], &[])?;
         self.with("書けない", |c| {
             let path = src.to_string_lossy();
             if reads.is_empty() {
@@ -573,7 +583,7 @@ impl Cache {
         })
     }
 
-    pub fn thumb_read(&self, path: &Path) -> Option<Reads> {
+    pub fn thumb_read(&self, path: &Path) -> Result<Option<Reads>, String> {
         self.with("読めない", |c| {
             c.query_row(
                 "SELECT reads FROM thumb_reads WHERE path = ?1",
@@ -587,7 +597,7 @@ impl Cache {
         })
     }
 
-    pub fn thumb_reads(&self) -> HashMap<PathBuf, Reads> {
+    pub fn thumb_reads(&self) -> Result<HashMap<PathBuf, Reads>, String> {
         self.with("読めない", |c| {
             let mut st = c
                 .prepare("SELECT path, reads FROM thumb_reads")

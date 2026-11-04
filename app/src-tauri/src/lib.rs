@@ -246,7 +246,7 @@ fn env_of(app: &tauri::AppHandle, thumbs: &Path) -> Arc<Env> {
         ai: embed::installed() && settings::auto_tag(app).unwrap_or(false),
         thumbs: thumbs.to_owned(),
         info: Arc::new(move |id| {
-            with_session(&a.state::<Current>(), |s| Ok(s.lib.stored(id)))
+            with_session(&a.state::<Current>(), |s| s.lib.stored(id))
                 .ok()
                 .flatten()
                 .map(info_of)
@@ -263,7 +263,9 @@ fn run_menu_of<T>(
 ) -> Result<T, String> {
     let first = ts.first().ok_or("素材を選んでいません")?;
     let infos: Vec<Option<ItemInfo>> = with(cur, |l| {
-        Ok(ts.iter().map(|t| l.stored(&t.id).map(info_of)).collect())
+        ts.iter()
+            .map(|t| Ok(l.stored(&t.id)?.map(info_of)))
+            .collect()
     })?;
     let files: Vec<TargetFile> = ts
         .iter()
@@ -383,7 +385,9 @@ fn apply_ran(
     let mut changed: Vec<StoredItem> = Vec::new();
     let place = with_session(cur, |s| {
         let place = first
-            .and_then(|id| s.lib.stored(id))
+            .map(|id| s.lib.stored(id))
+            .transpose()?
+            .flatten()
             .map(|it| Place {
                 project: it.project,
                 group: it.group,
@@ -408,7 +412,7 @@ fn apply_ran(
         for a in edits {
             if let Action::Rename { target, .. } = &a
                 && let Some(id) = ids.get(*target)
-                && let Some(it) = s.lib.stored(id)
+                && let Some(it) = s.lib.stored(id)?
             {
                 renamed.entry(id.clone()).or_insert(it.name);
             }
@@ -418,7 +422,12 @@ fn apply_ran(
                 Err(e) => out.failed.push(e),
             }
         }
-        changed.extend(edited.iter().filter_map(|id| s.lib.stored(id)));
+        // 書き換えは済んでいるので、読めなかったものは次に確かめたときに知らせる
+        changed.extend(
+            edited
+                .iter()
+                .filter_map(|id| s.lib.stored(id).ok().flatten()),
+        );
         for it in s.lib.sync_link_names(&renamed) {
             changed.retain(|x| x.id != it.id);
             changed.push(it);
@@ -470,7 +479,7 @@ fn edit_item(lib: &mut Library, ids: &[String], a: Action) -> Result<String, Str
         }
         Action::Tags { target, tags } => {
             let id = id_of(target)?;
-            let old = lib.stored(&id).map(|it| it.tags).unwrap_or_default();
+            let old = lib.stored(&id)?.map(|it| it.tags).unwrap_or_default();
             let patch = ItemPatch {
                 tags: Some(ListDiff {
                     add: tags.iter().filter(|t| !old.contains(t)).cloned().collect(),
@@ -632,7 +641,14 @@ fn plan_thumbs<'a>(
     cache: &Cache,
     items: impl IntoIterator<Item = &'a mut StoredItem>,
 ) -> (Vec<thumb::Job>, Vec<PathBuf>, bool) {
-    let reads = cache.thumb_reads();
+    let reads = match cache.thumb_reads() {
+        Ok(reads) => reads,
+        // 前に読んだ値が分からないと場所を決められないので、写しにある場所のまま、作りも片付けもしない
+        Err(e) => {
+            log::warn!("{e}");
+            return (Vec::new(), Vec::new(), false);
+        }
+    };
     let mixed = cache.take_mixed_thumbs();
     let mut made = Present::default();
     let mut stats = Stats::default();
@@ -731,7 +747,7 @@ fn wave_thumb(
     let Some(wave) = thumb::wave_path(thumbs, id, src).and_then(|p| std::fs::read(p).ok()) else {
         return Ok(());
     };
-    let reads = reads_now(plugins, cache.thumb_read(src).as_ref(), ext);
+    let reads = reads_now(plugins, cache.thumb_read(src)?.as_ref(), ext);
     // プラグインが作ったもの（音声ならジャケット）があれば、そちらをサムネイルにする
     if thumb::path_for(thumbs, id, src, &reads)
         .ok_or_else(err)?
@@ -770,7 +786,9 @@ fn tell_thumb(
     (width, height): (u32, u32),
     reads: &Reads,
 ) {
-    cache.set_thumb(src, file, (width, height), reads);
+    if let Err(e) = cache.set_thumb(src, file, (width, height), reads) {
+        log::warn!("{e}");
+    }
     let _ = app.emit(
         "thumbnail",
         ThumbReady {
@@ -845,7 +863,7 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
             None => {
                 let since = std::time::SystemTime::now();
                 let (lib, mut scan) =
-                    Library::scan(&root, Arc::clone(&plugins), Arc::clone(&cache));
+                    Library::scan(&root, Arc::clone(&plugins), Arc::clone(&cache))?;
                 let thumbs_job = plan_thumbs(
                     &plugins,
                     &thumbs,
@@ -906,7 +924,7 @@ async fn reload_plugins(
     let since = std::time::SystemTime::now();
     let (mut opened, thumbs, cache) = with_session(&cur, |s| {
         s.lib.set_plugins(Arc::clone(&plugins));
-        let opened = s.lib.snapshot();
+        let opened = s.lib.snapshot()?;
         s.plugins = Arc::clone(&plugins);
         s.runner = Arc::new(Mutex::new(Runner::new(Arc::clone(&plugins))));
         s.ui_reads.clear();
@@ -1006,7 +1024,13 @@ fn check(
     thumbs: &Path,
 ) {
     let since = std::time::SystemTime::now();
-    let (fresh, mut scan) = Library::scan(root, Arc::clone(plugins), Arc::clone(cache));
+    let (fresh, mut scan) = match Library::scan(root, Arc::clone(plugins), Arc::clone(cache)) {
+        Ok(r) => r,
+        Err(e) => {
+            log::warn!("ライブラリを確かめられない: {e}");
+            return;
+        }
+    };
     // サムネイルは取り込んだときに作る。アプリの外で足された画像は、見つけた時点で取り込んだものとみなす
     let job = plan_thumbs(
         plugins,
@@ -1020,7 +1044,13 @@ fn check(
         let mut g = cur.lock();
         match g.as_mut() {
             Some(s) if s.id == id => {
-                let mut changes = s.lib.apply(fresh, scan);
+                let mut changes = match s.lib.apply(fresh, scan) {
+                    Ok(changes) => changes,
+                    Err(e) => {
+                        log::warn!("ライブラリを確かめられない: {e}");
+                        return;
+                    }
+                };
                 for it in s.lib.sync_link_names(&changes.renamed) {
                     changes.items.retain(|x| x.id != it.id);
                     changes.items.push(it);
@@ -1036,7 +1066,13 @@ fn check(
     }
     let items = settings::auto_tag(app)
         .unwrap_or(false)
-        .then(|| with_session(&cur, |s| Ok((s.id == id).then(|| s.lib.snapshot().items))))
+        .then(|| {
+            with_session(&cur, |s| {
+                (s.id == id)
+                    .then(|| s.lib.snapshot().map(|o| o.items))
+                    .transpose()
+            })
+        })
         .and_then(Result::ok)
         .flatten();
     if let Some(items) = items {
@@ -1381,12 +1417,12 @@ async fn set_plugin_setting(
             log::warn!("詳細用の画像を消せない: {}: {e}", dir.display());
         }
     }
-    let reads = cache.thumb_reads();
+    let reads = cache.thumb_reads()?;
     if !reads.values().any(|r| r.contains_key(&key)) {
         return Ok(Vec::new());
     }
     let mut items: Vec<StoredItem> = cache
-        .rows()
+        .rows()?
         .into_values()
         .map(|r| r.item)
         .filter(|it| {
@@ -2139,7 +2175,7 @@ async fn set_auto_tag(app: tauri::AppHandle, on: bool) -> Result<(), String> {
         let open = with_session(&cur, |s| {
             Ok((
                 Arc::clone(&s.plugins),
-                s.lib.snapshot().items,
+                s.lib.snapshot()?.items,
                 s.thumbs.clone(),
             ))
         });
@@ -2237,14 +2273,14 @@ fn refresh_suggestions(app: &tauri::AppHandle, all: bool) {
             Some(ids) => {
                 let (mut items, mut removed) = (Vec::new(), Vec::new());
                 for id in ids {
-                    match s.lib.stored(&id) {
+                    match s.lib.stored(&id)? {
                         Some(it) => items.push(it),
                         None => removed.push(id),
                     }
                 }
                 suggest::Source::Changed { items, removed }
             }
-            None => suggest::Source::All(s.lib.snapshot().items),
+            None => suggest::Source::All(s.lib.snapshot()?.items),
         };
         Ok((
             s.lib.root().to_owned(),
@@ -2412,7 +2448,7 @@ async fn rename_item(
     name: String,
 ) -> Result<StoredItem, String> {
     let (it, renamed) = with(&cur, |l| {
-        let old = l.stored(&id).map(|it| it.name).unwrap_or_default();
+        let old = l.stored(&id)?.map(|it| it.name).unwrap_or_default();
         let it = l.rename_item(&id, &name)?;
         Ok((it, l.sync_link_names(&HashMap::from([(id.clone(), old)]))))
     })?;

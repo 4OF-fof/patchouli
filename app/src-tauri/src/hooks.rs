@@ -134,7 +134,7 @@ fn run(app: &tauri::AppHandle, runner: &mut Option<Runner>, job: &Job) {
         let Ok(t) = Target::any(&cur, &job.id) else {
             break;
         };
-        let info = with_session(&cur, |s| Ok(s.lib.stored(&job.id)))
+        let info = with_session(&cur, |s| s.lib.stored(&job.id))
             .ok()
             .flatten()
             .map(info_of);

@@ -315,15 +315,18 @@ impl Library {
         self.plugins = plugins;
     }
 
-    pub fn snapshot(&self) -> Opened {
-        let snap = self.cache.load().unwrap_or_else(|| crate::cache::Snapshot {
-            rows: Vec::new(),
-            projects: Vec::new(),
-            groups: Vec::new(),
-            state: LibraryState::default(),
-            tag_covers: Map::new(),
-        });
-        Opened {
+    pub fn snapshot(&self) -> Result<Opened, String> {
+        let snap = self
+            .cache
+            .load()?
+            .unwrap_or_else(|| crate::cache::Snapshot {
+                rows: Vec::new(),
+                projects: Vec::new(),
+                groups: Vec::new(),
+                state: LibraryState::default(),
+                tag_covers: Map::new(),
+            });
+        Ok(Opened {
             root: self.root.clone(),
             items: snap.rows.into_iter().map(|r| r.item).collect(),
             projects: snap.projects,
@@ -335,7 +338,7 @@ impl Library {
             links: self.plugins.links(),
             screens: self.plugins.screens(),
             problems: vec![],
-        }
+        })
     }
 
     fn new(root: PathBuf, plugins: Arc<Registry>, cache: Arc<Cache>) -> Library {
@@ -393,7 +396,12 @@ impl Library {
         plugins: Arc<Registry>,
         cache: Arc<Cache>,
     ) -> Option<(Library, Opened)> {
-        let snap = cache.load()?;
+        // 読めなければ、写しを使わずに初めから読む
+        let snap = cache
+            .load()
+            .inspect_err(|e| log::warn!("{e}"))
+            .ok()
+            .flatten()?;
         let mut lib = Library::new(root.to_owned(), plugins, cache);
         let items = snap
             .rows
@@ -432,8 +440,13 @@ impl Library {
         ))
     }
 
-    pub fn scan(root: &Path, plugins: Arc<Registry>, cache: Arc<Cache>) -> (Library, Scan) {
-        let known = cache.rows();
+    /// 写しを読めないときは、つなぎ直しや片付けを空の写しで決めてしまわないよう、読まずに Err を返す。
+    pub fn scan(
+        root: &Path,
+        plugins: Arc<Registry>,
+        cache: Arc<Cache>,
+    ) -> Result<(Library, Scan), String> {
+        let known = cache.rows()?;
         let mut lib = Library::new(root.to_owned(), plugins, cache);
         lib.owners = known
             .iter()
@@ -522,7 +535,7 @@ impl Library {
         orphan::sweep(root, &mut problems);
         let orphans = tend.orphans;
         lib.orphans = orphans.clone();
-        (
+        Ok((
             lib,
             Scan {
                 items,
@@ -533,17 +546,17 @@ impl Library {
                 orphans,
                 problems,
             },
-        )
+        ))
     }
 
     pub fn opened(&self, scan: Scan) -> Opened {
-        self.cache.replace(
+        logged(self.cache.replace(
             &scan.items,
             &scan.projects,
             &scan.groups,
             &scan.state,
             &scan.tag_covers,
-        );
+        ));
         Opened {
             root: self.root.clone(),
             items: scan.items.into_iter().map(|r| r.item).collect(),
@@ -559,9 +572,14 @@ impl Library {
         }
     }
 
-    pub fn apply(&mut self, fresh: Library, scan: Scan) -> Changes {
+    /// 写しを読めないときは、比べられないので何も変えずに Err を返す。
+    pub fn apply(&mut self, fresh: Library, scan: Scan) -> Result<Changes, String> {
+        let before = self.cache.rows()?;
+        let was_projects = self.cache.projects()?;
+        let was_groups = self.cache.groups()?;
+        let was_state = self.cache.state()?;
+        let was_covers = self.cache.tag_covers()?;
         let touched = self.touched.take().unwrap_or_default();
-        let before = self.cache.rows();
         let mut changes = Changes {
             problems: scan.problems,
             ..Changes::default()
@@ -608,7 +626,7 @@ impl Library {
                 gone.push(path);
             }
         }
-        self.cache.update(&rows, &gone);
+        logged(self.cache.update(&rows, &gone));
 
         let mut entries = fresh.entries;
         entries.retain(|_, e| !touched.contains(&e.path));
@@ -619,7 +637,7 @@ impl Library {
         }
         self.entries = entries;
 
-        let was = self.cache.projects();
+        let was = was_projects;
         let kept = |name: &str| touched.contains(&self.root.join(name));
         let mut projects: Vec<StoredProject> = scan
             .projects
@@ -629,11 +647,11 @@ impl Library {
             .collect();
         projects.sort_by(|a, b| a.name.cmp(&b.name));
         if serde_json::to_value(&projects).ok() != serde_json::to_value(&was).ok() {
-            self.cache.replace_projects(&projects);
+            logged(self.cache.replace_projects(&projects));
             changes.projects = Some(projects);
         }
 
-        let mut was = self.cache.groups();
+        let mut was = was_groups;
         was.sort_by(|a, b| a.dir.cmp(&b.dir));
         let mut groups: Vec<StoredGroup> = scan
             .groups
@@ -643,23 +661,22 @@ impl Library {
             .collect();
         groups.sort_by(|a, b| a.dir.cmp(&b.dir));
         if serde_json::to_value(&groups).ok() != serde_json::to_value(&was).ok() {
-            self.cache.replace_groups(&groups);
+            logged(self.cache.replace_groups(&groups));
             changes.groups = Some(groups);
         }
 
         if !touched.contains(&self.state_path())
-            && serde_json::to_value(&scan.state).ok()
-                != serde_json::to_value(self.cache.state()).ok()
+            && serde_json::to_value(&scan.state).ok() != serde_json::to_value(was_state).ok()
         {
-            self.cache.put_state(&scan.state);
+            logged(self.cache.put_state(&scan.state));
             changes.state = Some(scan.state);
         }
 
-        if !touched.contains(&self.tags_dir()) && scan.tag_covers != self.cache.tag_covers() {
-            self.cache.put_tag_covers(&scan.tag_covers);
+        if !touched.contains(&self.tags_dir()) && scan.tag_covers != was_covers {
+            logged(self.cache.put_tag_covers(&scan.tag_covers));
             changes.tag_covers = Some(scan.tag_covers);
         }
-        changes
+        Ok(changes)
     }
 
     fn mark(&mut self, path: &Path) {
@@ -867,11 +884,16 @@ impl Library {
         })
     }
 
+    /// 書き終えた項目を読み直して写しに入れる。ファイルは書けているので、写しを読めなくても失敗にはしない。
     fn refresh(&mut self, id: &str) -> Option<StoredItem> {
         let e = self.entry(id).ok()?;
         let (path, note) = (e.path.clone(), e.note);
         self.mark(&path);
-        let mut row = self.cache.row(&path)?;
+        let mut row = self
+            .cache
+            .row(&path)
+            .inspect_err(|e| log::warn!("{e}"))
+            .ok()??;
         let read = if note {
             read_note(&path)
         } else {
@@ -883,13 +905,13 @@ impl Library {
         it.mtime = mtime_of(&path);
         row.saved = true;
         row.sig = Sig::of(&path, note);
-        self.cache.update(std::slice::from_ref(&row), &[]);
+        logged(self.cache.update(std::slice::from_ref(&row), &[]));
         Some(row.item)
     }
 
     pub(crate) fn remember(&mut self, row: &Row) {
         self.mark(&row.item.file);
-        self.cache.update(std::slice::from_ref(row), &[]);
+        logged(self.cache.update(std::slice::from_ref(row), &[]));
     }
 
     fn entry(&self, id: &str) -> Result<&Entry, String> {
@@ -911,8 +933,11 @@ impl Library {
     }
 
     /// 覚えている項目の情報。
-    pub fn stored(&self, id: &str) -> Option<StoredItem> {
-        Some(self.cache.row(&self.entry(id).ok()?.path)?.item)
+    pub fn stored(&self, id: &str) -> Result<Option<StoredItem>, String> {
+        let Ok(e) = self.entry(id) else {
+            return Ok(None);
+        };
+        Ok(self.cache.row(&e.path)?.map(|r| r.item))
     }
 
     /// 素材とノートのパス・拡張子（小文字）・ノートか。
@@ -933,7 +958,7 @@ impl Library {
         let changed = patch.has_text()
             && self
                 .cache
-                .row(&path)
+                .row(&path)?
                 .is_some_and(|r| r.sig != Sig::of(&path, note));
         let stripped;
         let patch = if changed {
@@ -990,7 +1015,7 @@ impl Library {
         if let Some(id) = &place.group {
             let g = self
                 .cache
-                .group(id)
+                .group(id)?
                 .ok_or_else(|| format!("ID「{id}」のグループが見つかりません"))?;
             if !g.dir.is_dir() {
                 return Err(format!("グループ「{}」が見つかりません", g.name));
@@ -1094,13 +1119,13 @@ impl Library {
             self.owners.remove(id);
         }
         self.reprint(path.parent().map(Path::to_owned));
-        self.cache.update(&[], &[path]);
+        logged(self.cache.update(&[], &[path]));
         Ok(())
     }
 
     fn row_of(&self, path: &Path) -> Result<Row, String> {
         self.cache
-            .row(path)
+            .row(path)?
             .ok_or_else(|| format!("{} が見つかりません", path.display()))
     }
 
@@ -1122,6 +1147,7 @@ impl Library {
         if other(&from, to) || (has_meta && other(&meta_from, &meta_to)) {
             return Err(taken);
         }
+        let reads = self.cache.thumb_read(&from)?.unwrap_or_default();
         fs::rename(&from, to).map_err(|e| format!("{}: {e}", from.display()))?;
         if has_meta && let Err(e) = fs::rename(&meta_from, &meta_to) {
             let _ = fs::rename(to, &from);
@@ -1132,13 +1158,12 @@ impl Library {
         if let Some(e) = self.entries.get_mut(id) {
             e.path = to.to_owned();
         }
-        let reads = self.cache.thumb_read(&from).unwrap_or_default();
         row.item.file = to.to_owned();
         change(&mut row.item);
-        self.cache.update(std::slice::from_ref(&row), &[from]);
+        logged(self.cache.update(std::slice::from_ref(&row), &[from]));
         if let Some(t) = &row.item.thumb {
             let size = row.item.width.zip(row.item.height).unwrap_or_default();
-            self.cache.set_thumb(to, t, size, &reads);
+            logged(self.cache.set_thumb(to, t, size, &reads));
         }
         Ok(row.item)
     }
@@ -1151,13 +1176,22 @@ impl Library {
         }
         let now: Vec<(&str, &str, String)> = renamed
             .iter()
-            .filter_map(|(id, old)| Some((id.as_str(), old.as_str(), self.stored(id)?.name)))
+            .filter_map(|(id, old)| {
+                let it = self.stored(id).inspect_err(|e| log::warn!("{e}")).ok()??;
+                Some((id.as_str(), old.as_str(), it.name))
+            })
             .collect();
         let names: HashMap<&str, (&str, &str)> = now
             .iter()
             .map(|(id, old, new)| (*id, (*old, new.as_str())))
             .collect();
-        let rows = self.cache.note_rows();
+        let rows = match self.cache.note_rows() {
+            Ok(rows) => rows,
+            Err(e) => {
+                log::warn!("{e}");
+                return Vec::new();
+            }
+        };
         // 外で変わったまま読み直していないものは、読み直したあとに回す。更新日時は、書き換えの要るものだけ確かめる
         let stale: Vec<(String, String)> = rows
             .values()
@@ -1178,7 +1212,7 @@ impl Library {
                     Ok(Some(it)) => Some(it),
                     Ok(None) => {
                         let path = self.entry(&id).ok()?.path.clone();
-                        self.cache.row(&path).map(|r| r.item)
+                        self.cache.row(&path).ok().flatten().map(|r| r.item)
                     }
                     Err(e) => {
                         log::warn!("リンクの表示名を書き換えられない: {e}");
@@ -1211,7 +1245,7 @@ impl Library {
         m.extend(s);
         write_json(&path, &m)?;
         self.mark(&path);
-        self.cache.put_state(state);
+        logged(self.cache.put_state(state));
         Ok(())
     }
 
@@ -1332,7 +1366,7 @@ impl Library {
             mtime: mtime_of(&meta),
         };
         self.mark(&dir);
-        self.cache.put_project(&p);
+        logged(self.cache.put_project(&p));
         Ok(p)
     }
 
@@ -1366,7 +1400,7 @@ impl Library {
             mtime: mtime_of(&meta),
         };
         self.mark(&dir);
-        self.cache.put_group(&g);
+        logged(self.cache.put_group(&g));
         self.reprint([parent]);
         Ok(g)
     }
@@ -1391,11 +1425,14 @@ impl Library {
         let cards = self.cards_dir(&id);
         cover::write(&cards, &cover)?;
         self.mark(&dir);
-        if let Some(mut p) = self.cache.projects().into_iter().find(|p| p.name == name) {
+        logged(self.cache.projects().and_then(|ps| {
+            let Some(mut p) = ps.into_iter().find(|p| p.name == name) else {
+                return Ok(());
+            };
             p.cover = cover;
             p.mtime = p.mtime.max(mtime_of(&cards.join(cover::LAYOUT)));
-            self.cache.put_project(&p);
-        }
+            self.cache.put_project(&p)
+        }));
         Ok(())
     }
 
@@ -1416,9 +1453,10 @@ impl Library {
         check_name(&id)?;
         cover::write(&dir.join(&id), &cover)?;
         self.mark(&dir);
-        let mut covers = self.cache.tag_covers();
-        covers.insert(tag.to_owned(), cover);
-        self.cache.put_tag_covers(&covers);
+        self.edit_covers(|mut c| {
+            c.insert(tag.to_owned(), cover);
+            c
+        });
         Ok(())
     }
 
@@ -1436,7 +1474,7 @@ impl Library {
         };
         let retagged: Vec<(String, ListDiff)> = self
             .cache
-            .rows()
+            .rows()?
             .into_values()
             .filter_map(|r| {
                 let old = r.item.tags;
@@ -1516,7 +1554,7 @@ impl Library {
             trash::delete_all(&gone).map_err(|e| format!("{}: {e}", dir.display()))?;
         }
         self.mark(&dir);
-        self.cache.put_tag_covers(&rekey(self.cache.tag_covers()).0);
+        self.edit_covers(|c| rekey(c).0);
         Ok(())
     }
 
@@ -1537,10 +1575,20 @@ impl Library {
             trash::delete(&cards).map_err(|e| format!("{}: {e}", cards.display()))?;
         }
         self.mark(&dir);
-        let mut covers = self.cache.tag_covers();
-        covers.remove(tag);
-        self.cache.put_tag_covers(&covers);
+        self.edit_covers(|mut c| {
+            c.remove(tag);
+            c
+        });
         Ok(())
+    }
+
+    /// 写しのタグの概要を書き換える。ファイルは書けているので、写しを読み書きできなくても失敗にはしない。
+    fn edit_covers(&self, f: impl FnOnce(Map<String, Value>) -> Map<String, Value>) {
+        logged(
+            self.cache
+                .tag_covers()
+                .and_then(|c| self.cache.put_tag_covers(&f(c))),
+        );
     }
 
     /// フォルダと .meta の名前を変える。中の項目は、次に突き合わせたときに読み直す。
@@ -1661,6 +1709,13 @@ fn free_path(dir: &Path, name: &OsStr, is_dir: bool) -> PathBuf {
 }
 
 /// base が使われていれば、使われていない名前になるまで「base 2」「base 3」と番号を付ける。
+/// 写しに書けなかったことを残す。読んだものやファイルは正しいので、処理は続ける（写しは次に確かめるときに書き直す）。
+fn logged(r: Result<(), String>) {
+    if let Err(e) = r {
+        log::warn!("{e}");
+    }
+}
+
 pub(crate) fn numbered(base: &str, taken: impl Fn(&str) -> bool) -> String {
     let mut name = base.to_owned();
     for n in 2.. {
