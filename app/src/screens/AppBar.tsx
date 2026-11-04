@@ -752,7 +752,7 @@ export function AppBar(props: AppBarProps) {
               await reloadPlugins()
             })
           }
-          onRefresh={() => void reloadPlugins()}
+          onRefresh={reloadPlugins}
           commandPaths={app.latest?.commandPaths}
           onPickCommand={props.appSettings && ((name) => props.appSettings!.pickCommand(name))}
           onCommandPathChange={

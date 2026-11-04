@@ -24,7 +24,7 @@ export interface PluginsDialogProps {
   pick?: { id: string; dev: boolean }
   actions?: PluginActions
   onChanged?: () => void | Promise<void>
-  onRefresh?: () => void
+  onRefresh?: () => unknown
   /** 外部ツールの名前 → 自分で指定した場所。 */
   commandPaths?: Record<string, string>
   /** 外部ツールの場所を選ぶ。選ばなかったときは undefined。 */
@@ -188,7 +188,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
     setError(undefined)
     try {
       await a().setSetting!(id, name, v)
-      props.onRefresh?.()
+      await props.onRefresh?.()
     } catch (e) {
       setError(message(e))
     }
@@ -431,11 +431,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
             <Index each={p().settings}>
               {(s) => (
                 <div class={styles.field}>
-                  <SettingField
-                    setting={s()}
-                    disabled={!a().setSetting}
-                    onChange={(v) => void save(p().id, s().key, v)}
-                  />
+                  <SettingField setting={s()} disabled={!a().setSetting} onChange={(v) => save(p().id, s().key, v)} />
                 </div>
               )}
             </Index>

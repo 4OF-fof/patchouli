@@ -6,7 +6,8 @@ import styles from './SettingField.module.css'
 
 export interface SettingFieldProps {
   setting: Setting
-  onChange?: (value: SettingValue) => void
+  /** 返した Promise が終わったら、渡された value に描き直す（変えられなかったときに、押した見た目のまま残さないため） */
+  onChange?: (value: SettingValue) => void | Promise<unknown>
   disabled?: boolean
 }
 
@@ -17,6 +18,7 @@ export function SettingField(props: SettingFieldProps) {
     const x = s()
     return x.kind === 'number' ? x : undefined
   }
+  const change = (v: SettingValue, sync: () => void) => void Promise.resolve(props.onChange?.(v)).finally(sync)
   const choices = () => {
     const x = s()
     return x.kind === 'choice' ? x.choices : []
@@ -37,7 +39,10 @@ export function SettingField(props: SettingFieldProps) {
             type="checkbox"
             checked={s().value === true}
             disabled={props.disabled}
-            onChange={(e) => props.onChange?.(e.currentTarget.checked)}
+            onChange={(e) => {
+              const el = e.currentTarget
+              change(el.checked, () => (el.checked = s().value === true))
+            }}
           />
         </Match>
         <Match when={range()}>
@@ -49,7 +54,7 @@ export function SettingField(props: SettingFieldProps) {
               max={r().max ?? undefined}
               step={r().step ?? undefined}
               disabled={props.disabled}
-              onChange={(n) => props.onChange?.(n)}
+              onChange={props.onChange}
             />
           )}
         </Match>
@@ -60,7 +65,10 @@ export function SettingField(props: SettingFieldProps) {
             type="text"
             value={String(s().value)}
             disabled={props.disabled}
-            onChange={(e) => props.onChange?.(e.currentTarget.value)}
+            onChange={(e) => {
+              const el = e.currentTarget
+              change(el.value, () => (el.value = String(s().value)))
+            }}
           />
         </Match>
         <Match when={s().kind === 'choice'}>

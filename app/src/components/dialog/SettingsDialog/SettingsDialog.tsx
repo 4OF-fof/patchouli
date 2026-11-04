@@ -106,9 +106,7 @@ interface Entry {
 const grouped = (group: string, list: Entry[]) => list.map((e) => ({ ...e, group }))
 
 export function SettingsDialog(props: SettingsDialogProps) {
-  /** 変えられなかったときに増やし、スイッチを渡された値に描き直す。 */
-  const [failed, setFailed] = createSignal(0)
-  const { busy, error, setError, run } = createBusy(() => setFailed(failed() + 1))
+  const { busy, error, setError, run } = createBusy()
   const [query, setQuery] = createSignal('')
 
   const [switching, setSwitching] = createSignal(false)
@@ -119,7 +117,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
       await change(on)
     } catch (e) {
       setError(message(e))
-      setFailed(failed() + 1)
     } finally {
       setSwitching(false)
     }
@@ -185,7 +182,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const setApp = (patch: Partial<AppSettings>, label: string) => {
     const a = props.app
     const change = props.onAppChange
-    if (a && change) void run(label, () => change({ ...a, ...patch }))
+    return a && change ? run(label, () => change({ ...a, ...patch })) : undefined
   }
 
   const entries = (): Entry[] => [
@@ -269,32 +266,28 @@ export function SettingsDialog(props: SettingsDialogProps) {
               body: () => (
                 <Show when={props.app} fallback={<p class={styles.loading}>読み込み中…</p>}>
                   {(a) => (
-                    <For each={[failed()]}>
-                      {() => (
-                        <div class={styles.field}>
-                          <SettingField
-                            setting={{
-                              key: 'importMode',
-                              label: 'ファイルを取り込むとき',
-                              kind: 'choice',
-                              choices: [
-                                { value: 'copy', label: 'コピーする' },
-                                { value: 'move', label: '移動する' },
-                              ],
-                              default: 'copy',
-                              value: a().importMode,
-                              help:
-                                a().importMode === 'move'
-                                  ? 'ライブラリの外から落としたファイルを、ライブラリへ移します。元の場所からはなくなります'
-                                  : 'ライブラリの外から落としたファイルを、ライブラリへコピーします',
-                            }}
-                            onChange={(v) =>
-                              setApp({ importMode: v === 'move' ? 'move' : 'copy' }, '取り込み方を変えています')
-                            }
-                          />
-                        </div>
-                      )}
-                    </For>
+                    <div class={styles.field}>
+                      <SettingField
+                        setting={{
+                          key: 'importMode',
+                          label: 'ファイルを取り込むとき',
+                          kind: 'choice',
+                          choices: [
+                            { value: 'copy', label: 'コピーする' },
+                            { value: 'move', label: '移動する' },
+                          ],
+                          default: 'copy',
+                          value: a().importMode,
+                          help:
+                            a().importMode === 'move'
+                              ? 'ライブラリの外から落としたファイルを、ライブラリへ移します。元の場所からはなくなります'
+                              : 'ライブラリの外から落としたファイルを、ライブラリへコピーします',
+                        }}
+                        onChange={(v) =>
+                          setApp({ importMode: v === 'move' ? 'move' : 'copy' }, '取り込み方を変えています')
+                        }
+                      />
+                    </div>
                   )}
                 </Show>
               ),
@@ -305,35 +298,28 @@ export function SettingsDialog(props: SettingsDialogProps) {
               body: () => (
                 <Show when={props.app}>
                   {(a) => (
-                    <For each={[failed()]}>
-                      {() => (
-                        <div class={styles.field}>
-                          <SettingField
-                            setting={{
-                              key: 'linkOpen',
-                              label: 'URL を開くとき',
-                              kind: 'choice',
-                              choices: [
-                                { value: 'default', label: '既定のアプリ' },
-                                { value: 'builtin', label: '内蔵ブラウザ' },
-                              ],
-                              default: 'default',
-                              value: a().linkOpen,
-                              help:
-                                a().linkOpen === 'builtin'
-                                  ? 'ノートのリンクを Ctrl+クリックしたとき、新しい画面としてアプリの中に開きます'
-                                  : 'ノートのリンクを Ctrl+クリックしたとき、既定のブラウザなどで開きます',
-                            }}
-                            onChange={(v) =>
-                              setApp(
-                                { linkOpen: v === 'builtin' ? 'builtin' : 'default' },
-                                'URL の開き方を変更しています',
-                              )
-                            }
-                          />
-                        </div>
-                      )}
-                    </For>
+                    <div class={styles.field}>
+                      <SettingField
+                        setting={{
+                          key: 'linkOpen',
+                          label: 'URL を開くとき',
+                          kind: 'choice',
+                          choices: [
+                            { value: 'default', label: '既定のアプリ' },
+                            { value: 'builtin', label: '内蔵ブラウザ' },
+                          ],
+                          default: 'default',
+                          value: a().linkOpen,
+                          help:
+                            a().linkOpen === 'builtin'
+                              ? 'ノートのリンクを Ctrl+クリックしたとき、新しい画面としてアプリの中に開きます'
+                              : 'ノートのリンクを Ctrl+クリックしたとき、既定のブラウザなどで開きます',
+                        }}
+                        onChange={(v) =>
+                          setApp({ linkOpen: v === 'builtin' ? 'builtin' : 'default' }, 'URL の開き方を変更しています')
+                        }
+                      />
+                    </div>
                   )}
                 </Show>
               ),
@@ -360,32 +346,25 @@ export function SettingsDialog(props: SettingsDialogProps) {
               body: () => (
                 <Show when={props.app}>
                   {(a) => (
-                    <For each={[failed()]}>
-                      {() => (
-                        <div class={styles.field}>
-                          <SettingField
-                            setting={{
-                              key: 'thumbSize',
-                              label: 'サムネイルの大きさ',
-                              kind: 'choice',
-                              choices: [
-                                { value: 'standard', label: '標準' },
-                                { value: 'large', label: '高精細' },
-                              ],
-                              default: 'standard',
-                              value: a().thumbSize,
-                              help: '変えると、サムネイルを作り直します。高精細は、キャッシュがおよそ 4 倍になります',
-                            }}
-                            onChange={(v) =>
-                              setApp(
-                                { thumbSize: v === 'large' ? 'large' : 'standard' },
-                                'サムネイルを作り直しています',
-                              )
-                            }
-                          />
-                        </div>
-                      )}
-                    </For>
+                    <div class={styles.field}>
+                      <SettingField
+                        setting={{
+                          key: 'thumbSize',
+                          label: 'サムネイルの大きさ',
+                          kind: 'choice',
+                          choices: [
+                            { value: 'standard', label: '標準' },
+                            { value: 'large', label: '高精細' },
+                          ],
+                          default: 'standard',
+                          value: a().thumbSize,
+                          help: '変えると、サムネイルを作り直します。高精細は、キャッシュがおよそ 4 倍になります',
+                        }}
+                        onChange={(v) =>
+                          setApp({ thumbSize: v === 'large' ? 'large' : 'standard' }, 'サムネイルを作り直しています')
+                        }
+                      />
+                    </div>
                   )}
                 </Show>
               ),
@@ -524,26 +503,22 @@ export function SettingsDialog(props: SettingsDialogProps) {
     <Show when={props.autoTag} fallback={<p class={styles.loading}>読み込み中…</p>}>
       {(a) => (
         <>
-          <For each={[failed()]}>
-            {() => (
-              <div class={styles.field}>
-                <SettingField
-                  setting={{
-                    key: 'autoTag',
-                    label: 'AI 機能を有効化',
-                    kind: 'toggle',
-                    default: false,
-                    value: a().enabled || downloading(),
-                    help: a().installed
-                      ? '自動分類と AI 検索に使用します'
-                      : `自動分類と AI 検索に使用します。有効にすると、モデルと llama.cpp（${bytesLabel(a().need)}）をダウンロードします`,
-                  }}
-                  disabled={downloading()}
-                  onChange={(v) => void changeAutoTag(change, v === true)}
-                />
-              </div>
-            )}
-          </For>
+          <div class={styles.field}>
+            <SettingField
+              setting={{
+                key: 'autoTag',
+                label: 'AI 機能を有効化',
+                kind: 'toggle',
+                default: false,
+                value: a().enabled || downloading(),
+                help: a().installed
+                  ? '自動分類と AI 検索に使用します'
+                  : `自動分類と AI 検索に使用します。有効にすると、モデルと llama.cpp（${bytesLabel(a().need)}）をダウンロードします`,
+              }}
+              disabled={downloading()}
+              onChange={(v) => changeAutoTag(change, v === true)}
+            />
+          </div>
           <Show when={a().gpus}>
             {(g) => (
               <div class={`${styles.row} ${styles.sub}`}>
@@ -555,50 +530,46 @@ export function SettingsDialog(props: SettingsDialogProps) {
             )}
           </Show>
           <Show when={a().enabled && a().installed && !downloading()}>
-            <For each={[failed()]}>
-              {() => (
-                <>
-                  <Show when={props.onSuggestChange}>
-                    {(set) => (
-                      <div class={`${styles.field} ${styles.sub}`}>
-                        <SettingField
-                          setting={{
-                            key: 'tagSuggest',
-                            label: '自動分類',
-                            kind: 'choice',
-                            choices: SUGGEST.map(({ value, label }) => ({ value, label })),
-                            default: 'confirm',
-                            value: a().suggest,
-                            help: SUGGEST.find((s) => s.value === a().suggest)?.help,
-                          }}
-                          onChange={(v) => {
-                            const mode = SUGGEST.find((s) => s.value === v)?.value
-                            if (mode) void run('自動分類を切り替えています', () => set()(mode))
-                          }}
-                        />
-                      </div>
-                    )}
-                  </Show>
-                  <Show when={props.onSearchChange}>
-                    {(set) => (
-                      <div class={`${styles.field} ${styles.sub}`}>
-                        <SettingField
-                          setting={{
-                            key: 'contentSearch',
-                            label: 'AI 検索',
-                            kind: 'toggle',
-                            default: true,
-                            value: a().search,
-                            help: '検索バーで Tab を押すと、内容で検索できます',
-                          }}
-                          onChange={(v) => void run('AI 検索を切り替えています', () => set()(v === true))}
-                        />
-                      </div>
-                    )}
-                  </Show>
-                </>
-              )}
-            </For>
+            <>
+              <Show when={props.onSuggestChange}>
+                {(set) => (
+                  <div class={`${styles.field} ${styles.sub}`}>
+                    <SettingField
+                      setting={{
+                        key: 'tagSuggest',
+                        label: '自動分類',
+                        kind: 'choice',
+                        choices: SUGGEST.map(({ value, label }) => ({ value, label })),
+                        default: 'confirm',
+                        value: a().suggest,
+                        help: SUGGEST.find((s) => s.value === a().suggest)?.help,
+                      }}
+                      onChange={(v) => {
+                        const mode = SUGGEST.find((s) => s.value === v)?.value
+                        return mode && run('自動分類を切り替えています', () => set()(mode))
+                      }}
+                    />
+                  </div>
+                )}
+              </Show>
+              <Show when={props.onSearchChange}>
+                {(set) => (
+                  <div class={`${styles.field} ${styles.sub}`}>
+                    <SettingField
+                      setting={{
+                        key: 'contentSearch',
+                        label: 'AI 検索',
+                        kind: 'toggle',
+                        default: true,
+                        value: a().search,
+                        help: '検索バーで Tab を押すと、内容で検索できます',
+                      }}
+                      onChange={(v) => run('AI 検索を切り替えています', () => set()(v === true))}
+                    />
+                  </div>
+                )}
+              </Show>
+            </>
           </Show>
           <Show when={downloading() && !a().installed}>
             <div class={`${styles.row} ${styles.sub}`}>
@@ -645,27 +616,23 @@ export function SettingsDialog(props: SettingsDialogProps) {
     <Show when={props.developer} fallback={<p class={styles.loading}>読み込み中…</p>}>
       {(d) => (
         <>
-          <For each={[failed()]}>
-            {() => (
-              <div class={styles.field}>
-                <SettingField
-                  setting={{
-                    key: 'enabled',
-                    label: '開発者モードを有効化',
-                    kind: 'toggle',
-                    default: false,
-                    value: d().enabled,
-                  }}
-                  disabled={busy() !== undefined}
-                  onChange={(v) =>
-                    void run(v ? '開発者モードを有効にしています' : '開発者モードを無効にしています', () =>
-                      change({ ...d(), enabled: v === true }),
-                    )
-                  }
-                />
-              </div>
-            )}
-          </For>
+          <div class={styles.field}>
+            <SettingField
+              setting={{
+                key: 'enabled',
+                label: '開発者モードを有効化',
+                kind: 'toggle',
+                default: false,
+                value: d().enabled,
+              }}
+              disabled={busy() !== undefined}
+              onChange={(v) =>
+                run(v ? '開発者モードを有効にしています' : '開発者モードを無効にしています', () =>
+                  change({ ...d(), enabled: v === true }),
+                )
+              }
+            />
+          </div>
           <Show when={props.onReload && d().enabled}>
             <div class={styles.row}>
               <span class={styles.name}>プラグインを再読み込み</span>

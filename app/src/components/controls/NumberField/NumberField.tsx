@@ -6,7 +6,8 @@ export interface NumberFieldProps {
   min?: number
   max?: number
   step?: number
-  onChange?: (value: number) => void
+  /** 返した Promise が終わったら、渡された value に描き直す */
+  onChange?: (value: number) => void | Promise<unknown>
   id?: string
   'aria-label'?: string
   disabled?: boolean
@@ -22,7 +23,7 @@ export function NumberField(props: NumberFieldProps) {
   const set = (n: number) => {
     const v = clamp(n)
     input.value = String(v)
-    if (v !== props.value) props.onChange?.(v)
+    if (v !== props.value) void Promise.resolve(props.onChange?.(v)).finally(() => (input.value = String(props.value)))
   }
   const bump = (dir: 1 | -1) =>
     set(Number((props.value + dir * step()).toFixed(Math.max(decimals(step()), decimals(props.value)))))
