@@ -44,6 +44,7 @@ const WEIGHT: Record<string, number> = {
   'BSD-3-Clause': 1,
   'Unicode-3.0': 1,
   'Unicode-DFS-2016': 1,
+  'CDLA-Permissive-2.0': 1,
   'Apache-2.0': 2,
   'OFL-1.1': 2,
   'MPL-2.0': 3,
@@ -61,6 +62,7 @@ const KIND_OF_TEXT: [string, RegExp][] = [
   ['Unicode-DFS-2016', /UNICODE LICENSE|Unicode, Inc/i],
   ['MPL-2.0', /Mozilla Public License/i],
   ['OFL-1.1', /SIL Open Font License/i],
+  ['CDLA-Permissive-2.0', /Community Data License Agreement - Permissive/i],
 ]
 
 function choose(expr: string): string[] {
@@ -254,6 +256,6 @@ const raw = all.filter((e) => e.notices.some((n) => !isStandard(n)))
 console.log(`${target}: ${all.length} 件、${groups.length} グループ、標準の文面 ${texts.size} 種類`)
 if (raw.length) console.log(`標準と違う文面なので、先を出すもの: ${raw.map((e) => `${e.name}@${e.version}`).join(', ')}`)
 const missing = all.filter((e) => !e.notices.length)
-if (missing.length) console.warn(`文面が見つからないもの: ${missing.map((e) => `${e.name}@${e.version}`).join(', ')}`)
+if (missing.length) console.log(`文面を同梱していないので、先を出すもの: ${missing.map((e) => `${e.name}@${e.version}`).join(', ')}`)
 const unknown = all.filter((e) => e.license.split(' AND ').some((id) => weightOf(id) === UNKNOWN))
 if (unknown.length) console.warn(`扱いを決めていないライセンス: ${unknown.map((e) => `${e.name} (${e.license})`).join(', ')}`)
