@@ -122,8 +122,6 @@ export function Thumb(props: ThumbProps) {
       data-mark={mark()}
       onContextMenu={onContextMenu}
       style={{
-        '--h': props.hue ?? 210,
-        '--s': props.sat != null ? `${props.sat}%` : undefined,
         height: props.height ? `${props.height}px` : undefined,
       }}
     >

@@ -26,7 +26,6 @@
   --scrim: rgba(0, 0, 0, 0.5);
   --float: var(--side);
   --glyph: rgba(255, 255, 255, 0.8);
-  --tl: 64%;
   --overlay: oklch(0.19 0 0 / 0.72);
   --overlay-ink: oklch(0.93 0 0);
   --overlay-track: rgba(255, 255, 255, 0.24);
@@ -101,7 +100,6 @@
   --scrim: rgba(0, 0, 0, 0.3);
   --float: var(--paper);
   --glyph: rgba(255, 255, 255, 0.88);
-  --tl: 74%;
   --stage: oklch(0.945 0 0);
   --overlay: oklch(0.99 0 0 / 0.8);
   --overlay-ink: var(--ink);
