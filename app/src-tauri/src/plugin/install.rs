@@ -9,11 +9,7 @@ use super::{MANIFEST, Manifest, commands};
 
 /// id に使えるのは、英小文字・数字と「. _ -」だけ。
 pub fn check_id(id: &str) -> Result<(), String> {
-    let ok = id
-        .bytes()
-        .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b".-_".contains(&b))
-        && id.bytes().next().is_some_and(|b| b.is_ascii_alphanumeric());
-    if ok {
+    if super::rules().id_ok(id) {
         Ok(())
     } else {
         Err(format!("プラグイン ID「{id}」の形式が正しくありません"))

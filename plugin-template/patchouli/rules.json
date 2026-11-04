@@ -1,0 +1,6 @@
+{
+  "id": "^[a-z0-9][a-z0-9._-]*$",
+  "screenId": "^[A-Za-z0-9_-]+$",
+  "fetchHost": "^[^.]+(\\.[^.]+)+$",
+  "permissions": ["library", "clipboard", "notes", "edit", "assets", "export", "embed"]
+}

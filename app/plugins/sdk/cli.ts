@@ -11,7 +11,7 @@ import { createRequire } from 'node:module'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import zlib from 'node:zlib'
-import type { Manifest } from './manifest.ts'
+import { checkManifest, type Manifest } from './manifest.ts'
 
 type Esbuild = typeof import('esbuild')
 
@@ -32,7 +32,11 @@ function readManifest(dir: string): Manifest {
     throw missing('formats・links・screens・menu・hooks のいずれか')
   if (elevated !== undefined && !elevated.endsWith('.js'))
     throw new Error(`${file}: 「elevated」には .js のパスを指定してください（${elevated}）`)
-  return { ...m, id, name, version }
+  const manifest = { ...m, id, name, version }
+  const { errors, warnings } = checkManifest(manifest)
+  for (const w of warnings) console.warn(`${file}: ${w}`)
+  if (errors.length) throw new Error(errors.map((e) => `${file}: ${e}`).join('\n'))
+  return manifest
 }
 
 /** esbuild を、プラグインのフォルダから、なければこのファイルの場所から探す。 */

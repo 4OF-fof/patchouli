@@ -25,15 +25,20 @@ mod frame;
 
 struct Image;
 
+/// 本体が読めない形式は、ffmpeg があればそちらで縮める。
+fn shrink(f: &File, edge: u32) -> Result<Vec<u8>, String> {
+    match host::image_thumbnail(f, edge) {
+        Ok(png) => Ok(png),
+        Err(e) if commands::available("ffmpeg") => {
+            frame::frame(f, 0.0, edge).map_err(|e2| format!("{e} / {e2}"))
+        }
+        Err(e) => Err(e),
+    }
+}
+
 impl role::thumbnail::Guest for Image {
     fn thumbnail(_format: String, f: File, edge: u32) -> Result<Option<ThumbnailImage>, String> {
-        let png = match host::image_thumbnail(&f, edge) {
-            Ok(png) => png,
-            Err(e) if commands::available("ffmpeg") => {
-                frame::frame(&f, 0.0, edge).map_err(|e2| format!("{e} / {e2}"))?
-            }
-            Err(e) => return Err(e),
-        };
+        let png = shrink(&f, edge)?;
         Ok(Some(ThumbnailImage {
             png,
             size: host::image_size(&f),
@@ -69,13 +74,7 @@ impl role::content::Guest for Image {
         f: File,
         budget: ContentBudget,
     ) -> Result<Vec<ContentPart>, String> {
-        let png = match host::image_thumbnail(&f, budget.edge) {
-            Ok(png) => png,
-            Err(e) if commands::available("ffmpeg") => {
-                frame::frame(&f, 0.0, budget.edge).map_err(|e2| format!("{e} / {e2}"))?
-            }
-            Err(e) => return Err(e),
-        };
+        let png = shrink(&f, budget.edge)?;
         Ok(vec![ContentPart {
             start: None,
             end: None,

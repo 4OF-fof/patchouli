@@ -222,7 +222,7 @@ pub fn collect(
                     );
                 }
             }
-            None => by_thumb.push(work),
+            Some(By::Unknown) | None => by_thumb.push(work),
         }
     }
     log::info!(

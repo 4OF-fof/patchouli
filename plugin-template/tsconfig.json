@@ -6,6 +6,7 @@
     "lib": ["ES2023", "DOM"],
     "types": [],
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,

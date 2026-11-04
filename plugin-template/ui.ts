@@ -1,4 +1,4 @@
-// 組み込み UI。アプリの画面の中で動き、詳細の表示とサムネイルを描く。ビルドすると ui.js（plugin.json の ui）になる。
+// elevated。アプリの画面と同じ WebView で動き、詳細の表示とサムネイルを描く。ビルドすると ui.js（plugin.json の elevated）になる。
 // 簡単のため、CSV の引用符は扱わない。
 import { definePlugin } from '@patchouli/plugin'
 

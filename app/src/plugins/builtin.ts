@@ -61,9 +61,10 @@ export const readManifest = (raw: RawManifest): Manifest => ({
   ),
   formats: Object.fromEntries(
     Object.entries(raw.formats ?? {}).map(([ext, d]) => [
-      ext,
+      ext.toLowerCase(),
       {
         ...d,
+        extends: d.extends?.toLowerCase(),
         fit: FITS.find((f) => f === d.fit),
         hover: HOVERS.find((h) => h === d.hover),
         embed: EMBEDS.find((e) => e === d.embed),
@@ -87,25 +88,37 @@ export interface Resolved {
  * 形式ごとに受け持つプラグインを決め、引き継ぎをたどる。src-tauri/src/plugin/mod.rs と同じ決まり。
  * 処理の部分や組み込み UI が本当にあるかは確かめない。
  */
-export function resolveFormats(manifests: Manifest[]): Resolved {
+export function resolveFormats(
+  manifests: Manifest[],
+  builtin: (m: Manifest) => boolean = (m) => BUILTIN_MANIFESTS.includes(m),
+): Resolved {
   const problems = new Map<string, Problem[]>(manifests.map((m) => [m.id, []]))
-  const add = (id: string, text: string) => problems.get(id)?.push({ level: 'error', text })
+  const add = (id: string, text: string, level: Problem['level'] = 'error') => problems.get(id)?.push({ level, text })
   const claims = new Map<string, Manifest[]>()
   for (const m of manifests)
     for (const ext of Object.keys(m.formats ?? {})) claims.set(ext, [...(claims.get(ext) ?? []), m])
   const claim = new Map<string, Manifest>()
   const conflicts: Conflict[] = []
   for (const [ext, by] of [...claims].toSorted(([a], [b]) => (a < b ? -1 : 1))) {
-    const [only, ...more] = by
-    if (only && !more.length) {
-      claim.set(ext, only)
-      continue
+    let owner: Manifest | undefined
+    for (const side of [by.filter((m) => !builtin(m)), by.filter(builtin)]) {
+      if (!side.length) continue
+      if (owner) {
+        for (const m of side) add(m.id, `「.${ext}」は「${owner.name}」が対応しているため、使用していません`, 'warning')
+        continue
+      }
+      const [only, ...more] = side
+      if (only && !more.length) {
+        owner = only
+        continue
+      }
+      for (const m of side) {
+        const others = side.filter((o) => o !== m).map((o) => `「${o.name}」`)
+        add(m.id, `「.${ext}」は${others.join('')}も対応しているため、使用していません`)
+      }
+      conflicts.push({ ext, plugins: side.map((m) => m.id) })
     }
-    for (const m of by) {
-      const others = by.filter((o) => o !== m).map((o) => `「${o.name}」`)
-      add(m.id, `「.${ext}」は${others.join('')}も対応しているため、使用していません`)
-    }
-    conflicts.push({ ext, plugins: by.map((m) => m.id) })
+    if (owner) claim.set(ext, owner)
   }
   const formats = new Map<string, FormatInfo>()
   for (const [ext, owner] of claim) {

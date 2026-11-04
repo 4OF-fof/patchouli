@@ -7,6 +7,7 @@ use crate::patchouli::plugin::types::{ContentBudget, ContentMedia, ContentPart};
 const TIMEOUT: u32 = 60_000;
 
 /// secs を len 秒ずつに分けた区間の始まり。max より多ければ、全体から均等に max 個選ぶ。
+/// WASM を呼ばずに WebView だけでコマを取ることもあるので、video/ui/frame.ts の starts と同じにする。
 pub fn starts(secs: f64, len: f64, max: u32) -> Vec<f64> {
     let n = ((secs / len).ceil() as u64).max(1);
     let max = u64::from(max.max(1));

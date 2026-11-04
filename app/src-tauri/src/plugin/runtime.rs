@@ -17,8 +17,7 @@ use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder, UpdateDea
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 use super::{
-    By, Choice, Manifest, PERMISSIONS, Part, Reads, Registry, SettingDecl, SettingKind, UiRef,
-    commands,
+    By, Choice, Manifest, Part, Reads, Registry, SettingDecl, SettingKind, UiRef, commands,
 };
 use crate::{embed, library, search, thumb};
 
@@ -941,7 +940,7 @@ impl Prepared {
                         .into(),
                 );
             }
-            if PERMISSIONS.contains(&iface) && !has(iface) {
+            if super::rules().permitted(iface) && !has(iface) {
                 missing.push(iface.to_owned());
             }
         }

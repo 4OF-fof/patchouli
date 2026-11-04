@@ -86,7 +86,10 @@ async function grab(url: string, edge: number) {
   }
 }
 
-/** secs を SPAN 秒ずつに分けた区間の始まり。max より多ければ、全体から均等に max 個選ぶ。 */
+/**
+ * secs を SPAN 秒ずつに分けた区間の始まり。max より多ければ、全体から均等に max 個選ぶ。
+ * WASM を呼ばずにコマを取ることもあるのでここにも置き、plugins/shared/content.rs の starts と同じにする。
+ */
 const starts = (secs: number, max: number) => {
   const n = Math.max(1, Math.ceil(secs / SPAN))
   const picked = n <= max ? [...Array(n).keys()] : [...Array(max).keys()].map((i) => Math.floor((i * n) / max))

@@ -88,6 +88,8 @@ pub enum Fit {
 pub enum By {
     Sandbox,
     Elevated,
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -201,10 +203,52 @@ pub fn host_key(h: &str) -> String {
     h.trim_end_matches('.').to_ascii_lowercase()
 }
 
+/// plugin.json の決まり。SDK の CLI も同じファイルを読んで確かめる。
+pub struct Rules {
+    id: regex::Regex,
+    screen_id: regex::Regex,
+    fetch_host: regex::Regex,
+    /// permissions に書けるもの。WIT の interface の名前と同じ。
+    pub permissions: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RulesJson {
+    id: String,
+    screen_id: String,
+    fetch_host: String,
+    permissions: Vec<String>,
+}
+
+pub fn rules() -> &'static Rules {
+    static R: std::sync::OnceLock<Rules> = std::sync::OnceLock::new();
+    R.get_or_init(|| {
+        let j: RulesJson = serde_json::from_str(include_str!("../../../plugins/sdk/rules.json"))
+            .expect("SDK の rules.json が読めない");
+        let re = |s: &str| regex::Regex::new(s).expect("SDK の rules.json の正規表現が正しくない");
+        Rules {
+            id: re(&j.id),
+            screen_id: re(&j.screen_id),
+            fetch_host: re(&j.fetch_host),
+            permissions: j.permissions,
+        }
+    })
+}
+
+impl Rules {
+    pub fn id_ok(&self, id: &str) -> bool {
+        self.id.is_match(id)
+    }
+
+    pub fn permitted(&self, x: &str) -> bool {
+        self.permissions.iter().any(|p| p == x)
+    }
+}
+
 /// fetch に書けるホスト名か。「com」のようにトップレベルドメインだけのものは書けない。
 pub fn fetch_host_ok(pattern: &str) -> bool {
-    let h = host_key(pattern);
-    h.contains('.') && !h.split('.').any(str::is_empty)
+    rules().fetch_host.is_match(&host_key(pattern))
 }
 
 /// pattern がホスト名 host か、その上のドメインか。
@@ -265,7 +309,7 @@ pub struct Manifest {
     #[serde(default)]
     pub optional: Deps,
     pub elevated: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "lowercase_formats")]
     pub formats: BTreeMap<String, FormatDecl>,
     #[serde(default)]
     pub links: BTreeMap<String, LinkDecl>,
@@ -281,16 +325,18 @@ pub struct Manifest {
     pub fetch: Vec<String>,
 }
 
-/// permissions に書けるもの。WIT の interface の名前と同じ。
-pub const PERMISSIONS: [&str; 7] = [
-    "library",
-    "clipboard",
-    "notes",
-    "edit",
-    "assets",
-    "export",
-    "embed",
-];
+/// 拡張子は小文字で探すので、formats のキーと extends は読むときに小文字にそろえる。
+fn lowercase_formats<'de, D: serde::Deserializer<'de>>(
+    d: D,
+) -> Result<BTreeMap<String, FormatDecl>, D::Error> {
+    Ok(BTreeMap::<String, FormatDecl>::deserialize(d)?
+        .into_iter()
+        .map(|(ext, mut f)| {
+            f.extends = f.extends.map(|e| e.to_ascii_lowercase());
+            (ext.to_ascii_lowercase(), f)
+        })
+        .collect())
+}
 
 pub const MANIFEST: &str = "plugin.json";
 pub const WASM: &str = "plugin.wasm";
@@ -353,7 +399,7 @@ impl Manifest {
                 part: Part::Menu,
                 by: m.by,
             }))
-            .filter(|c| c.part != Part::Unknown)
+            .filter(|c| c.part != Part::Unknown && c.by != By::Unknown)
             .collect();
         out.sort();
         out.dedup();
@@ -590,6 +636,8 @@ pub struct FormatInfo {
 pub enum State {
     Active,
     Missing,
+    /// フォルダはあるが、plugin.json を読めない。
+    Broken,
     Blocked,
     Disabled,
 }
@@ -776,7 +824,7 @@ impl Registry {
                     others.push(idle(&manifest, false, true, Some(entry), vec![w]));
                 }
                 Ok(manifest) => plugins.push(load_external(manifest, at, entry)),
-                Err(_) => others.push(PluginStatus {
+                Err(e) => others.push(PluginStatus {
                     id: id.clone(),
                     name: id.clone(),
                     version: None,
@@ -786,7 +834,11 @@ impl Registry {
                     builtin: false,
                     dev: false,
                     enabled: !entry.disabled,
-                    state: State::Missing,
+                    state: if at.exists() {
+                        State::Broken
+                    } else {
+                        State::Missing
+                    },
                     required: Deps::default(),
                     optional: Deps::default(),
                     via: Vec::new(),
@@ -798,7 +850,11 @@ impl Registry {
                     elevated: false,
                     fetch: Vec::new(),
                     settings: Vec::new(),
-                    problems: vec![error("この端末にインストールされていません".into())],
+                    problems: vec![error(if at.exists() {
+                        format!("plugin.json を読み込めません：{e}")
+                    } else {
+                        "この端末にインストールされていません".into()
+                    })],
                 }),
             }
         }
@@ -850,28 +906,53 @@ impl Registry {
         let mut claim: HashMap<String, usize> = HashMap::new();
         let mut conflicts = Vec::new();
         for (ext, by) in claims {
-            if let [only] = by[..] {
-                claim.insert(ext, only);
-                continue;
+            // 外部のプラグインを組み込みより先に使う。同じ側に複数あるものは、どれも使わない
+            let (outside, inside): (Vec<usize>, Vec<usize>) =
+                by.iter().partition(|&&i| !self.plugins[i].builtin);
+            let mut owner = None;
+            for side in [outside, inside] {
+                if side.is_empty() {
+                    continue;
+                }
+                if let Some(o) = owner {
+                    let text = format!(
+                        "「.{ext}」は「{}」が対応しているため、使用していません",
+                        self.name(o)
+                    );
+                    for &i in &side {
+                        self.plugins[i].problems.push(Problem {
+                            level: Level::Warning,
+                            text: text.clone(),
+                        });
+                    }
+                    continue;
+                }
+                if let [only] = side[..] {
+                    owner = Some(only);
+                    continue;
+                }
+                for &i in &side {
+                    let others: Vec<String> = side
+                        .iter()
+                        .filter(|&&j| j != i)
+                        .map(|&j| format!("「{}」", self.name(j)))
+                        .collect();
+                    self.plugins[i].problems.push(error(format!(
+                        "「.{ext}」は{}も対応しているため、使用していません",
+                        others.join("")
+                    )));
+                }
+                conflicts.push(Conflict {
+                    ext: ext.clone(),
+                    plugins: side
+                        .iter()
+                        .map(|&i| self.plugins[i].manifest.id.clone())
+                        .collect(),
+                });
             }
-            for &i in &by {
-                let others: Vec<String> = by
-                    .iter()
-                    .filter(|&&j| j != i)
-                    .map(|&j| format!("「{}」", self.name(j)))
-                    .collect();
-                self.plugins[i].problems.push(error(format!(
-                    "「.{ext}」は{}も対応しているため、使用していません",
-                    others.join("")
-                )));
+            if let Some(o) = owner {
+                claim.insert(ext, o);
             }
-            conflicts.push(Conflict {
-                ext,
-                plugins: by
-                    .iter()
-                    .map(|&i| self.plugins[i].manifest.id.clone())
-                    .collect(),
-            });
         }
         self.conflicts = conflicts;
         self.resolve_links();
@@ -941,6 +1022,7 @@ impl Registry {
             parts.retain(|&(_, by), h| match by {
                 By::Sandbox => self.plugins[h.plugin].wasm.is_some(),
                 By::Elevated => self.plugins[h.plugin].elevated.is_some(),
+                By::Unknown => false,
             });
             formats.insert(
                 ext.clone(),
@@ -973,6 +1055,7 @@ impl Registry {
                     ));
                 }
             }
+            p.problems.extend(misspelled(&p.manifest));
             if let Some(MenuDecl {
                 formats: MenuFormats::Every(MenuEvery::Unknown),
                 ..
@@ -989,7 +1072,7 @@ impl Registry {
                             .into(),
                     ));
                 }
-                if h.by == By::Elevated {
+                if h.by != By::Sandbox {
                     p.problems.push(error(
                         "hooks の added の by には sandbox しか書けません".into(),
                     ));
@@ -1004,11 +1087,11 @@ impl Registry {
                 .manifest
                 .permissions
                 .iter()
-                .filter(|x| !PERMISSIONS.contains(&x.as_str()))
+                .filter(|x| !rules().permitted(x))
             {
                 p.problems.push(error(format!(
                     "permissions の「{x}」は使えません（{} のどれか）",
-                    PERMISSIONS.join("・")
+                    rules().permissions.join("・")
                 )));
             }
             for id in p.manifest.screens.keys().filter(|id| !screen_id_ok(id)) {
@@ -1061,7 +1144,7 @@ impl Registry {
                 for part in decl.elevated {
                     if LINK_PARTS.contains(&part) {
                         parts.push(part);
-                    } else {
+                    } else if part != Part::Unknown {
                         bad.push(error(format!(
                             "「{host}」の links では {} を受け持てません",
                             format!("{part:?}").to_lowercase()
@@ -1172,6 +1255,7 @@ impl Registry {
                         plugin: p.manifest.id.clone(),
                         module: p.elevated.clone()?,
                     }),
+                    By::Unknown => return None,
                 };
                 Some(MenuSide {
                     plugin: p.manifest.id.clone(),
@@ -1792,18 +1876,55 @@ fn idle(
     }
 }
 
+/// 書けない値を書いたところ。読み込みでは捨てて続けるので、ここで知らせる。
+fn misspelled(m: &Manifest) -> Vec<Problem> {
+    let mut out = Vec::new();
+    for (ext, d) in &m.formats {
+        if d.fit == Some(Fit::Unknown) {
+            out.push(error(format!(
+                "「.{ext}」の fit には center・top・contain のどれかを書きます"
+            )));
+        }
+        if d.hover == Some(Hover::Unknown) {
+            out.push(error(format!(
+                "「.{ext}」の hover には video・audio のどちらかを書きます"
+            )));
+        }
+        if d.embed == Some(Embed::Unknown) {
+            out.push(error(format!(
+                "「.{ext}」の embed には view・card のどちらかを書きます"
+            )));
+        }
+        if d.elevated.contains(&Part::Unknown) {
+            out.push(error(format!(
+                "「.{ext}」の elevated に、受け持てないものが書かれています"
+            )));
+        }
+    }
+    for (host, d) in &m.links {
+        if d.elevated.contains(&Part::Unknown) {
+            out.push(error(format!(
+                "「{host}」の links の elevated に、受け持てないものが書かれています"
+            )));
+        }
+    }
+    if m.menu.as_ref().is_some_and(|x| x.by == By::Unknown) {
+        out.push(error(
+            "menu の by には sandbox・elevated のどちらかを書きます".into(),
+        ));
+    }
+    out
+}
+
 fn screen_id_ok(id: &str) -> bool {
-    !id.is_empty()
-        && id
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    rules().screen_id.is_match(id)
 }
 
 fn permissions_of(m: &Manifest) -> Vec<String> {
     let mut out: Vec<String> = m
         .permissions
         .iter()
-        .filter(|x| PERMISSIONS.contains(&x.as_str()))
+        .filter(|x| rules().permitted(x))
         .cloned()
         .collect();
     out.sort();

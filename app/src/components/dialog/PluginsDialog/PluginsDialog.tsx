@@ -71,9 +71,13 @@ const keyOf = (p: PluginStatus) => (p.dev ? DEV : '') + p.id
 
 const STATE_LABEL: Partial<Record<PluginStatus['state'], string>> = {
   missing: '未導入',
+  broken: '読み込み不可',
   blocked: '使用不可',
   disabled: '無効',
 }
+
+/** 入れ直すまで使えないもの。 */
+const absent = (p: PluginStatus) => p.state === 'missing' || p.state === 'broken'
 
 const sourceLabel = (s: PluginSource) => s.local
 
@@ -253,7 +257,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
             </Show>
           </div>
           <div class={styles.actions}>
-            <Show when={p().state !== 'missing' && a().setEnabled}>
+            <Show when={!absent(p()) && a().setEnabled}>
               <Button
                 size="sm"
                 variant={p().enabled ? undefined : 'primary'}
@@ -273,7 +277,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 {p().recorded} に更新
               </Button>
             </Show>
-            <Show when={p().state === 'missing' && a().update && p().source}>
+            <Show when={absent(p()) && a().update && p().source}>
               <Button
                 size="sm"
                 variant="primary"
@@ -304,7 +308,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
             <For each={p().problems}>{(x) => <li data-level={x.level}>{x.text}</li>}</For>
           </ul>
         </Show>
-        <Show when={p().state !== 'missing'}>
+        <Show when={!absent(p())}>
           <Show when={p().formats.length}>
             <section>
               <h4>対応形式</h4>
@@ -523,7 +527,12 @@ export function PluginsDialog(props: PluginsDialogProps) {
                   {(u) => (
                     <div class={styles.row}>
                       <div class={styles.what}>
-                        <button type="button" class={styles.link} data-tip={u.p.id} onClick={() => setPicked(u.p.id)}>
+                        <button
+                          type="button"
+                          class={styles.link}
+                          data-tip={u.p.id}
+                          onClick={() => setPicked(keyOf(u.p))}
+                        >
                           {u.p.name}
                         </button>
                         <Show when={u.description}>

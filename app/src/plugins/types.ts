@@ -89,7 +89,7 @@ export type Setting = {
   | { kind: 'choice'; choices: { value: string; label: string }[] }
 )
 
-export type PluginState = 'active' | 'missing' | 'blocked' | 'disabled'
+export type PluginState = 'active' | 'missing' | 'broken' | 'blocked' | 'disabled'
 
 export interface PluginStatus {
   id: string

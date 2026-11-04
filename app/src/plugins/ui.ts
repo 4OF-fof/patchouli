@@ -18,6 +18,7 @@ import type {
   MenuOutput,
   PluginModule,
   RunMenuApi,
+  Thumbnail,
   ThumbnailApi,
   ToastLevel,
 } from '../../plugins/sdk'
@@ -94,22 +95,26 @@ export const loadUi = (url: string): Promise<UiModule> => {
   return m
 }
 
-export async function uiThumbnail(
-  url: string,
-  api: Omit<ThumbnailApi, 'edge'>,
-): Promise<{ png: Uint8Array; width?: number; height?: number } | null> {
-  const mod = await loadUi(url)
-  if (!mod.thumbnail) throw new Error('サムネイル生成の関数（thumbnail）が見つかりません')
+type MadeThumbnail = { png: Uint8Array; width?: number; height?: number }
+
+/** making が作り終えるのを、mod の上限の時間まで待つ。 */
+async function made(mod: UiModule, making: Promise<Thumbnail | null>): Promise<MadeThumbnail | null> {
   const limit = limitOf(mod)
   let timer = 0
   const late = new Promise<never>((_, reject) => {
     timer = window.setTimeout(() => reject(new ThumbnailTimeout(limit)), limit)
   })
-  const t = await Promise.race([mod.thumbnail({ ...api, edge: EDGE }), late]).finally(() => clearTimeout(timer))
+  const t = await Promise.race([making, late]).finally(() => clearTimeout(timer))
   if (!t) return null
   const png =
     t.png instanceof Uint8Array ? t.png : new Uint8Array(t.png instanceof Blob ? await t.png.arrayBuffer() : t.png)
   return { png, width: t.width, height: t.height }
+}
+
+export async function uiThumbnail(url: string, api: Omit<ThumbnailApi, 'edge'>): Promise<MadeThumbnail | null> {
+  const mod = await loadUi(url)
+  if (!mod.thumbnail) throw new Error('サムネイル生成の関数（thumbnail）が見つかりません')
+  return made(mod, mod.thumbnail({ ...api, edge: EDGE }))
 }
 
 export async function uiWaveform(url: string, api: UiApi, limit: number): Promise<Uint8Array | null> {
@@ -200,23 +205,11 @@ export async function uiLink(url: string, api: Api): Promise<string | undefined>
   return typeof u === 'string' && /^https?:\/\//i.test(u) ? u : undefined
 }
 
-export async function uiLinkThumbnail(
-  url: string,
-  api: Omit<LinkThumbnailApi, 'edge'>,
-): Promise<{ png: Uint8Array; width?: number; height?: number } | null> {
+export async function uiLinkThumbnail(url: string, api: Omit<LinkThumbnailApi, 'edge'>): Promise<MadeThumbnail | null> {
   const mod = await loadUi(url)
   const links = mod.links
   if (!links?.thumbnail) throw new Error('URL のサムネイルを作る関数（links.thumbnail）が見つかりません')
-  const limit = limitOf(mod)
-  let timer = 0
-  const late = new Promise<never>((_, reject) => {
-    timer = window.setTimeout(() => reject(new ThumbnailTimeout(limit)), limit)
-  })
-  const t = await Promise.race([links.thumbnail({ ...api, edge: EDGE }), late]).finally(() => clearTimeout(timer))
-  if (!t) return null
-  const png =
-    t.png instanceof Uint8Array ? t.png : new Uint8Array(t.png instanceof Blob ? await t.png.arrayBuffer() : t.png)
-  return { png, width: t.width, height: t.height }
+  return made(mod, links.thumbnail({ ...api, edge: EDGE }))
 }
 
 export async function uiLinkDetails(url: string, api: LinkApi): Promise<Detail[]> {

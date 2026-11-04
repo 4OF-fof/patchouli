@@ -1,4 +1,5 @@
 /* plugin.json の形。 */
+import rules from './rules.json' with { type: 'json' }
 
 /**
  * 形式ごとに受け持つもの。details はファイルの詳細に足す行、content は内容で探したり分けたりするときに読む区間。
@@ -152,4 +153,38 @@ export interface Manifest {
   permissions?: Permission[]
   /** api.fetch で取りに行けるホスト名。サブドメインも含む。「com」のようなトップレベルドメインだけのものは書けない。 */
   fetch?: string[]
+}
+
+/** permissions に書けるもの。 */
+export const PERMISSIONS: readonly string[] = rules.permissions
+
+/** plugin.json からの相対パスで、外に出ないもの。 */
+const inside = (rel: string) =>
+  rel !== '' && !/^([\\/]|[A-Za-z]:)/.test(rel) && rel.split(/[\\/]/).every((c) => c !== '' && c !== '.' && c !== '..')
+
+/**
+ * アプリが読み込むときと同じ決まり（rules.json）で plugin.json を確かめる。
+ * errors はアプリが問題として報告するもの、warnings は読めるが直したほうがよいもの。
+ */
+export function checkManifest(m: Manifest): { errors: string[]; warnings: string[] } {
+  const errors: string[] = []
+  const warnings: string[] = []
+  if (!new RegExp(rules.id).test(m.id)) errors.push(`プラグイン ID「${m.id}」の形式が正しくありません`)
+  for (const x of m.permissions ?? [])
+    if (!PERMISSIONS.includes(x))
+      errors.push(`permissions の「${x}」は使えません（${PERMISSIONS.join('・')} のどれか）`)
+  for (const id of Object.keys(m.screens ?? {}))
+    if (!new RegExp(rules.screenId).test(id))
+      errors.push(`画面の ID「${id}」には、英数字・ハイフン・下線しか使えません`)
+  for (const h of m.fetch ?? [])
+    if (!new RegExp(rules.fetchHost).test(h.replace(/\.+$/, '').toLowerCase()))
+      errors.push(`fetch の「${h}」は使えません（「example.com」のように、ドメイン名まで書きます）`)
+  if (m.elevated !== undefined && !inside(m.elevated))
+    errors.push(`elevated のファイル（${m.elevated}）は、plugin.json のあるフォルダの中に置きます`)
+  for (const [ext, d] of Object.entries(m.formats ?? {})) {
+    if (ext !== ext.toLowerCase()) warnings.push(`formats の「${ext}」は、小文字にそろえて読みます`)
+    if (d.extends && d.extends !== d.extends.toLowerCase())
+      warnings.push(`「${ext}」の extends の「${d.extends}」は、小文字にそろえて読みます`)
+  }
+  return { errors, warnings }
 }
