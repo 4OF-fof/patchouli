@@ -1,8 +1,9 @@
-import { Index, Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
+import { Index, Show, createSignal, onCleanup, onMount } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
 import { TabMenu } from '../TabMenu/TabMenu'
-import type { TabEntry, TabStripProps } from '../TabStrip/TabStrip'
-import { createTabUnits, faceOf } from '../TabStrip/units'
+import type { TabStripProps } from '../TabStrip/TabStrip'
+import { TabUnitView } from '../TabStrip/TabUnitView'
+import { createTabUnits } from '../TabStrip/units'
 import styles from './TabList.module.css'
 
 /** カーソルが窓の左端に来たときに出す幅（px）。 */
@@ -16,31 +17,6 @@ export function TabList(props: TabStripProps) {
   let list!: HTMLDivElement
   const [open, setOpen] = createSignal(false)
   const u = createTabUnits(props, 'y', () => list)
-  const seg = (t: () => TabEntry) => (
-    <div class={styles.seg} data-current={t().id === props.current} onContextMenu={(e) => u.openMenu(t(), e)}>
-      <button
-        type="button"
-        role="tab"
-        class={styles.main}
-        aria-selected={t().id === props.current}
-        data-tip={t().label}
-        onClick={() => props.onSelect(t().id)}
-        onMouseDown={(e) => e.button === 1 && e.preventDefault()}
-        onAuxClick={(e) => e.button === 1 && props.onClose(t().id)}
-      >
-        <Icon name={t().icon} size={14} />
-        <span class={styles.label}>{t().label}</span>
-      </button>
-      <button
-        type="button"
-        class={styles.close}
-        aria-label={`「${t().label}」を閉じる`}
-        onClick={() => props.onClose(t().id)}
-      >
-        <Icon name="close" size={14} />
-      </button>
-    </div>
-  )
   let inside = false
   let timer = 0
   const show = () => {
@@ -93,59 +69,7 @@ export function TabList(props: TabStripProps) {
         data-dragging={u.dragging() !== undefined || undefined}
       >
         <Index each={u.units()}>
-          {(g, i) => {
-            let el!: HTMLDivElement
-            const current = () => g().tabs.some((t) => t.id === props.current)
-            const folded = () => g().group && !current()
-            const face = () => faceOf(g())
-            createEffect(() => {
-              if (current()) el.scrollIntoView({ block: 'nearest' })
-            })
-            return (
-              <div
-                ref={el}
-                class={styles.tab}
-                data-unit
-                data-current={current()}
-                data-group={g().group ? (folded() ? 'folded' : 'open') : undefined}
-                style={{ transform: u.shift(i) }}
-                data-dragged={u.dragging() === i || undefined}
-                onPointerDown={(e) => u.startDrag(i, e)}
-              >
-                <Show when={folded()} fallback={<Index each={g().tabs}>{seg}</Index>}>
-                  <div class={styles.seg}>
-                    <button
-                      type="button"
-                      role="tab"
-                      class={styles.main}
-                      aria-selected={false}
-                      data-tip={g()
-                        .tabs.map((t) => t.label)
-                        .join('、')}
-                      onClick={() => {
-                        const f = face()
-                        if (f) props.onSelect(f.id)
-                      }}
-                      onMouseDown={(e) => e.button === 1 && e.preventDefault()}
-                      onAuxClick={(e) => e.button === 1 && u.closeAll(g())}
-                    >
-                      <Icon name="splitRight" size={14} />
-                      <span class={styles.label}>{face()?.label}</span>
-                      <span class={styles.count}>{g().tabs.length}</span>
-                    </button>
-                    <button
-                      type="button"
-                      class={styles.close}
-                      aria-label={`「${face()?.label ?? ''}」など ${g().tabs.length} 件のタブを閉じる`}
-                      onClick={() => u.closeAll(g())}
-                    >
-                      <Icon name="close" size={14} />
-                    </button>
-                  </div>
-                </Show>
-              </div>
-            )
-          }}
+          {(g, i) => <TabUnitView unit={g} index={i} units={u} tabs={props} classes={styles} axis="y" />}
         </Index>
       </div>
       <Show when={u.menu()} keyed>

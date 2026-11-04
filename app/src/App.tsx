@@ -1255,8 +1255,8 @@ export function App(props: AppProps) {
     const made = (Array.isArray(s?.tabs) ? s.tabs : [])
       .map((vs) =>
         (Array.isArray(vs) ? vs : []).reduce<View[]>((out, v) => {
-          const view = viewOf(lib(), screens(), v, out.at(-1))
-          return view ? [...out, view] : out
+          const read = viewOf(lib(), screens(), v, out.at(-1))
+          return read ? [...out, read] : out
         }, []),
       )
       .map((vs) => (vs.length ? makeTab(vs) : undefined))

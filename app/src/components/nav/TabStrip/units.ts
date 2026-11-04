@@ -145,3 +145,5 @@ export function createTabUnits(props: TabStripProps, axis: 'x' | 'y', list: () =
   }
   return { units, menu, setMenu, openMenu, startDrag, shift, dragging, closeAll }
 }
+
+export type TabUnits = ReturnType<typeof createTabUnits>

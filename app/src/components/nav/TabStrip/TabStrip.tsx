@@ -1,7 +1,8 @@
-import { Index, Show, createEffect } from 'solid-js'
+import { Index, Show } from 'solid-js'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { type TabAction, TabMenu } from '../TabMenu/TabMenu'
-import { createTabUnits, faceOf } from './units'
+import { TabUnitView } from './TabUnitView'
+import { createTabUnits } from './units'
 import styles from './TabStrip.module.css'
 
 export interface TabEntry {
@@ -31,31 +32,6 @@ export interface TabStripProps {
 export function TabStrip(props: TabStripProps) {
   let list!: HTMLDivElement
   const s = createTabUnits(props, 'x', () => list)
-  const seg = (t: () => TabEntry) => (
-    <div class={styles.seg} data-current={t().id === props.current} onContextMenu={(e) => s.openMenu(t(), e)}>
-      <button
-        type="button"
-        role="tab"
-        class={styles.main}
-        aria-selected={t().id === props.current}
-        data-tip={t().label}
-        onClick={() => props.onSelect(t().id)}
-        onMouseDown={(e) => e.button === 1 && e.preventDefault()}
-        onAuxClick={(e) => e.button === 1 && props.onClose(t().id)}
-      >
-        <Icon name={t().icon} size={14} />
-        <span class={styles.label}>{t().label}</span>
-      </button>
-      <button
-        type="button"
-        class={styles.close}
-        aria-label={`「${t().label}」を閉じる`}
-        onClick={() => props.onClose(t().id)}
-      >
-        <Icon name="close" size={14} />
-      </button>
-    </div>
-  )
   return (
     <div class={styles.root}>
       <div
@@ -66,59 +42,19 @@ export function TabStrip(props: TabStripProps) {
         data-dragging={s.dragging() !== undefined || undefined}
       >
         <Index each={s.units()}>
-          {(u, i) => {
-            let el!: HTMLDivElement
-            const current = () => u().tabs.some((t) => t.id === props.current)
-            const folded = () => u().group && !current()
-            const face = () => faceOf(u())
-            createEffect(() => {
-              if (current()) el.scrollIntoView({ block: 'nearest', inline: 'nearest' })
-            })
-            return (
-              <div
-                ref={el}
-                class={styles.tab}
-                style={{ '--panes': folded() ? 1 : u().tabs.length, transform: s.shift(i) }}
-                data-unit
-                data-current={current()}
-                data-group={u().group ? (folded() ? 'folded' : 'open') : undefined}
-                data-dragged={s.dragging() === i || undefined}
-                onPointerDown={(e) => s.startDrag(i, e)}
-              >
-                <Show when={folded()} fallback={<Index each={u().tabs}>{seg}</Index>}>
-                  <div class={styles.seg}>
-                    <button
-                      type="button"
-                      role="tab"
-                      class={styles.main}
-                      aria-selected={false}
-                      data-tip={u()
-                        .tabs.map((t) => t.label)
-                        .join('、')}
-                      onClick={() => {
-                        const f = face()
-                        if (f) props.onSelect(f.id)
-                      }}
-                      onMouseDown={(e) => e.button === 1 && e.preventDefault()}
-                      onAuxClick={(e) => e.button === 1 && s.closeAll(u())}
-                    >
-                      <Icon name="splitRight" size={14} />
-                      <span class={styles.label}>{face()?.label}</span>
-                      <span class={styles.count}>{u().tabs.length}</span>
-                    </button>
-                    <button
-                      type="button"
-                      class={styles.close}
-                      aria-label={`「${face()?.label ?? ''}」など ${u().tabs.length} 件のタブを閉じる`}
-                      onClick={() => s.closeAll(u())}
-                    >
-                      <Icon name="close" size={14} />
-                    </button>
-                  </div>
-                </Show>
-              </div>
-            )
-          }}
+          {(u, i) => (
+            <TabUnitView
+              unit={u}
+              index={i}
+              units={s}
+              tabs={props}
+              classes={styles}
+              style={{
+                '--panes': u().group && !u().tabs.some((t) => t.id === props.current) ? 1 : u().tabs.length,
+              }}
+              axis="x"
+            />
+          )}
         </Index>
       </div>
       <Show when={s.menu()} keyed>
