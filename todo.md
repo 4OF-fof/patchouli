@@ -12,7 +12,6 @@
 
 ### まだ作っていないもの
 
-- GitHub のリリースから入れる流れを、実際のリポジトリ（`patchouli-plugin-template`）で確かめる
 - 組み込み UI のサムネイル作りに失敗したときの作り直し（今は失敗や時間切れのあと、次に開くまで作らない）
 - ショートカットの macOS（.webloc）と Linux（.desktop の Type=Link）。今は Windows の .url だけ
 - 内蔵ブラウザの戻る・進むの macOS（WKWebView）と Linux（WebKitGTK）。今は Windows の WebView2 だけが履歴を読み、ほかはいつも押せてページの中で history.back() を呼ぶ。ページを読み込み直さない移動では URL の表示も追いつかない
