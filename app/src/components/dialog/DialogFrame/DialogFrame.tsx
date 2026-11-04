@@ -39,6 +39,7 @@ export interface DialogFrameProps {
  */
 export function DialogFrame(props: DialogFrameProps) {
   let el!: HTMLDivElement
+  let overlay!: HTMLDivElement
   const before = [...focused]
   const trap = (e: KeyboardEvent) => {
     const all = [...el.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((x) => x.checkVisibility())
@@ -72,6 +73,8 @@ export function DialogFrame(props: DialogFrameProps) {
   }
   onMount(() => {
     open.push(el)
+    // 幕はどれも同じ重なりの順なので、あとから開いたものを上に描き、キーを受けるものと見た目をそろえる
+    if (open.length > 1) overlay.style.zIndex = `calc(var(--z-dialog) + ${open.length - 1})`
     document.addEventListener('keydown', onKey)
     const first = props.focus?.() ?? el
     first.focus()
@@ -79,10 +82,15 @@ export function DialogFrame(props: DialogFrameProps) {
   onCleanup(() => {
     open.splice(open.indexOf(el), 1)
     document.removeEventListener('keydown', onKey)
-    queueMicrotask(() => before.findLast((x) => x.isConnected)?.focus())
+    // 下にまだダイアログがあるときは、その外へは戻さない
+    queueMicrotask(() => {
+      const under = open.at(-1)
+      ;(before.findLast((x) => x.isConnected && (!under || under.contains(x))) ?? under)?.focus()
+    })
   })
   return (
     <div
+      ref={overlay}
       class={props.overlayClass}
       role="presentation"
       onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}
