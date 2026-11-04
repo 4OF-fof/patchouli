@@ -114,49 +114,171 @@ fn touch(p: &Path) -> std::io::Result<()> {
         .set_modified(SystemTime::now())
 }
 
-impl Library {
-    /// フォルダは、中のフォルダも含めてグループとして取り込む。mv なら、元の場所から移す。
-    pub fn import(
-        &mut self,
-        paths: &[PathBuf],
-        place: &Place,
-        mv: bool,
-    ) -> Result<Imported, String> {
-        let root = self.root().to_owned();
-        let (dest, project, group) = self.place_dir(place)?;
-        let at = Place { project, group };
-        let mut out = Imported::default();
-        for p in paths {
-            let p = match fs::canonicalize(p) {
-                Ok(p) => dunce(p),
-                Err(e) => {
-                    out.failed.push(format!("{}: {e}", p.display()));
-                    continue;
-                }
-            };
-            if p.starts_with(&root) {
-                out.skipped += 1;
-            } else if p.is_dir() {
-                self.copy_dir(&p, &at, mv, &mut out);
-            } else if listed(&p) {
-                self.copy_in(&p, &dest, &at, mv, &mut out);
-            } else {
-                out.skipped += 1;
+/// 取り込むものを、ライブラリを触らずに読んだもの。
+pub struct Gathered {
+    root: PathBuf,
+    files: Vec<PathBuf>,
+    folders: Vec<Folder>,
+    out: Imported,
+}
+
+struct Folder {
+    path: PathBuf,
+    files: Vec<PathBuf>,
+    folders: Vec<Folder>,
+}
+
+/// 置き場所とグループを決めたもの。
+pub struct Planned {
+    root: PathBuf,
+    jobs: Vec<Job>,
+    dirs: Vec<PathBuf>,
+    emptied: Vec<PathBuf>,
+    out: Imported,
+}
+
+struct Job {
+    src: PathBuf,
+    dir: PathBuf,
+    place: Place,
+}
+
+/// 置き場所の中へ、仮の名前で入れたもの。
+pub struct Staged {
+    src: PathBuf,
+    tmp: PathBuf,
+    dir: PathBuf,
+    place: Place,
+}
+
+/// 取り込みは gather・plan_import・stage・finish_import の順に行う。
+/// ファイルを読む・動かす gather と stage はライブラリのロックの外で呼べる。
+pub fn gather(paths: &[PathBuf], root: &Path) -> Gathered {
+    let mut g = Gathered {
+        root: root.to_owned(),
+        files: Vec::new(),
+        folders: Vec::new(),
+        out: Imported::default(),
+    };
+    for p in paths {
+        let p = match fs::canonicalize(p) {
+            Ok(p) => dunce(p),
+            Err(e) => {
+                g.out.failed.push(format!("{}: {e}", p.display()));
+                continue;
+            }
+        };
+        if p.starts_with(root) {
+            g.out.skipped += 1;
+        } else if p.is_dir() {
+            g.folders.push(folder(p));
+        } else if listed(&p) {
+            g.files.push(p);
+        } else {
+            g.out.skipped += 1;
+        }
+    }
+    g
+}
+
+fn folder(path: PathBuf) -> Folder {
+    let mut f = Folder {
+        files: Vec::new(),
+        folders: Vec::new(),
+        path,
+    };
+    for (p, is_dir) in entries(&f.path) {
+        if is_dir {
+            f.folders.push(folder(p));
+        } else {
+            f.files.push(p);
+        }
+    }
+    f
+}
+
+/// 別のドライブへは rename できないので、コピーしてから消す
+fn move_file(from: &Path, to: &Path) -> std::io::Result<()> {
+    fs::rename(from, to).or_else(|_| fs::copy(from, to).and_then(|_| fs::remove_file(from)))
+}
+
+/// mv なら元の場所から移す。うまくいかなかったものは out.failed に入れる。
+pub fn stage(p: &mut Planned, mv: bool) -> Vec<Staged> {
+    let mut staged = Vec::new();
+    for job in std::mem::take(&mut p.jobs) {
+        let tmp = job
+            .dir
+            .join(format!(".{}.importing", uuid::Uuid::new_v4().simple()));
+        let put = if mv {
+            move_file(&job.src, &tmp)
+        } else {
+            fs::copy(&job.src, &tmp).map(|_| ())
+        };
+        match put.and_then(|()| touch(&tmp)) {
+            Ok(()) => staged.push(Staged {
+                src: job.src,
+                tmp,
+                dir: job.dir,
+                place: job.place,
+            }),
+            Err(e) => {
+                let _ = fs::remove_file(&tmp);
+                p.out.failed.push(format!("{}: {e}", job.src.display()));
             }
         }
-        self.reprint([dest]);
-        Ok(out)
+    }
+    staged
+}
+
+/// 取り込みきれなかったものを元に戻す。
+pub fn unstage(staged: Vec<Staged>, mv: bool) {
+    for s in staged {
+        let _ = if mv {
+            move_file(&s.tmp, &s.src)
+        } else {
+            fs::remove_file(&s.tmp)
+        };
+    }
+}
+
+impl Library {
+    /// フォルダは、中のフォルダも含めてグループとして取り込む。
+    pub fn plan_import(&mut self, g: Gathered, place: &Place) -> Result<Planned, String> {
+        if g.root != self.root() {
+            return Err("取り込むあいだに、ライブラリが切り替わりました".into());
+        }
+        let (dest, project, group) = self.place_dir(place)?;
+        let at = Place { project, group };
+        let mut p = Planned {
+            root: g.root,
+            jobs: Vec::new(),
+            dirs: vec![dest.clone()],
+            emptied: Vec::new(),
+            out: g.out,
+        };
+        for src in g.files {
+            p.jobs.push(Job {
+                src,
+                dir: dest.clone(),
+                place: at.clone(),
+            });
+        }
+        for f in g.folders {
+            self.plan_folder(f, &at, &mut p);
+        }
+        Ok(p)
     }
 
-    fn copy_dir(&mut self, src: &Path, place: &Place, mv: bool, out: &mut Imported) {
-        let base = src
+    fn plan_folder(&mut self, f: Folder, place: &Place, p: &mut Planned) {
+        let base = f
+            .path
             .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("取り込んだフォルダ");
         let g = match self.create_group(base, place) {
             Ok(g) => g,
             Err(e) => {
-                out.failed.push(format!("{}: {e}", src.display()));
+                p.out.failed.push(format!("{}: {e}", f.path.display()));
                 return;
             }
         };
@@ -164,41 +286,57 @@ impl Library {
             project: g.project.clone(),
             group: Some(g.id.clone()),
         };
-        let dir = g.dir.clone();
-        out.groups.push(g);
-        for (p, is_dir) in entries(src) {
-            if is_dir {
-                self.copy_dir(&p, &inner, mv, out);
-            } else {
-                self.copy_in(&p, &dir, &inner, mv, out);
+        p.dirs.push(g.dir.clone());
+        for src in f.files {
+            p.jobs.push(Job {
+                src,
+                dir: g.dir.clone(),
+                place: inner.clone(),
+            });
+        }
+        p.out.groups.push(g);
+        for sub in f.folders {
+            self.plan_folder(sub, &inner, p);
+        }
+        p.emptied.push(f.path);
+    }
+
+    /// 取り込めなかったときは staged を残すので、呼び出し元が unstage で戻す。
+    pub fn finish_import(
+        &mut self,
+        p: Planned,
+        staged: &mut Vec<Staged>,
+        mv: bool,
+    ) -> Result<Imported, String> {
+        if p.root != self.root() {
+            return Err("取り込むあいだに、ライブラリが切り替わりました".into());
+        }
+        let mut out = p.out;
+        for s in std::mem::take(staged) {
+            let name = s
+                .src
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or_default();
+            match self.put_in(name, &s.dir, &s.place, |to| fs::rename(&s.tmp, to)) {
+                Ok((item, problems)) => {
+                    out.items.extend(item);
+                    out.failed.extend(problems);
+                }
+                Err(e) => {
+                    out.failed.push(format!("{}: {e}", s.src.display()));
+                    unstage(vec![s], mv);
+                }
             }
         }
         // 取り込まなかったファイルが残っていれば、フォルダは消えない
         if mv {
-            let _ = fs::remove_dir(src);
-        }
-        self.reprint([dir]);
-    }
-
-    fn copy_in(&mut self, src: &Path, dir: &Path, place: &Place, mv: bool, out: &mut Imported) {
-        let name = src.file_name().and_then(|n| n.to_str()).unwrap_or_default();
-        // 別のドライブへは rename できないので、コピーしてから消す
-        let put = |to: &Path| {
-            if mv {
-                fs::rename(src, to)
-                    .or_else(|_| fs::copy(src, to).and_then(|_| fs::remove_file(src)))?;
-            } else {
-                fs::copy(src, to)?;
+            for d in &p.emptied {
+                let _ = fs::remove_dir(d);
             }
-            touch(to)
-        };
-        match self.put_in(name, dir, place, put) {
-            Ok((item, problems)) => {
-                out.items.extend(item);
-                out.failed.extend(problems);
-            }
-            Err(e) => out.failed.push(format!("{}: {e}", src.display())),
         }
+        self.reprint(p.dirs);
+        Ok(out)
     }
 
     /// file_name の名前で dir に書き、項目として読む。同じ名前があれば番号を付ける。

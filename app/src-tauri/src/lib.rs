@@ -372,7 +372,7 @@ fn apply_ran(
     }
     let first = ids.first().map(String::as_str);
     let mut changed: Vec<StoredItem> = Vec::new();
-    let (thumbs, plugins, cache) = with_session(cur, |s| {
+    let place = with_session(cur, |s| {
         let place = first
             .and_then(|id| s.lib.stored(id))
             .map(|it| Place {
@@ -386,11 +386,14 @@ fn apply_ran(
                 Err(e) => out.failed.push(e),
             }
         }
-        if !assets.is_empty() {
-            let r = s.lib.import(&assets, &place, true)?;
-            out.added.extend(r.items);
-            out.failed.extend(r.failed);
-        }
+        Ok(place)
+    })?;
+    if !assets.is_empty() {
+        let r = import_paths(cur, &assets, &place, true)?;
+        out.added.extend(r.items);
+        out.failed.extend(r.failed);
+    }
+    let (thumbs, plugins, cache) = with_session(cur, |s| {
         let mut renamed = false;
         let mut edited: Vec<String> = Vec::new();
         for a in edits {
@@ -1043,11 +1046,24 @@ async fn inspect_drop(
     cur: State<'_, Current>,
     paths: Vec<PathBuf>,
 ) -> Result<import::DropInfo, String> {
-    let g = cur.0.lock().map_err(|e| e.to_string())?;
-    Ok(match g.as_ref() {
-        Some(s) => import::inspect(&paths, Some(s.lib.root())),
-        None => import::inspect(&paths, None),
-    })
+    let root = with_session(&cur, |s| Ok(s.lib.root().to_owned())).ok();
+    Ok(import::inspect(&paths, root.as_deref()))
+}
+
+/// ファイルのコピーはロックの外で行い、ロックは置き場所を決めるときと、項目を覚えるときだけ取る。
+fn import_paths(
+    cur: &State<Current>,
+    paths: &[PathBuf],
+    place: &Place,
+    mv: bool,
+) -> Result<import::Imported, String> {
+    let root = with_session(cur, |s| Ok(s.lib.root().to_owned()))?;
+    let found = import::gather(paths, &root);
+    let mut plan = with_session(cur, |s| s.lib.plan_import(found, place))?;
+    let mut staged = import::stage(&mut plan, mv);
+    let r = with_session(cur, |s| s.lib.finish_import(plan, &mut staged, mv));
+    import::unstage(staged, mv);
+    r
 }
 
 #[tauri::command]
@@ -1058,13 +1074,9 @@ async fn import_files(
     place: Place,
 ) -> Result<import::Imported, String> {
     let mv = settings::app_settings(&app)?.import_mode == settings::ImportMode::Move;
-    let (mut out, thumbs, plugins, cache) = with_session(&cur, |s| {
-        Ok((
-            s.lib.import(&paths, &place, mv)?,
-            s.thumbs.clone(),
-            Arc::clone(&s.plugins),
-            s.lib.cache(),
-        ))
+    let mut out = import_paths(&cur, &paths, &place, mv)?;
+    let (thumbs, plugins, cache) = with_session(&cur, |s| {
+        Ok((s.thumbs.clone(), Arc::clone(&s.plugins), s.lib.cache()))
     })?;
     let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut out.items);
     hooks::queue(&app, &out.items);
