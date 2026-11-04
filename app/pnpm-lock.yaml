@@ -206,6 +206,12 @@ importers:
       '@codemirror/view':
         specifier: 6.43.14
         version: 6.43.14
+      '@fontsource-variable/noto-sans-jp':
+        specifier: 5.3.1
+        version: 5.3.1
+      '@fontsource/ibm-plex-mono':
+        specifier: 5.3.0
+        version: 5.3.0
       '@lezer/common':
         specifier: 1.5.4
         version: 1.5.4
@@ -652,6 +658,12 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@fontsource-variable/noto-sans-jp@5.3.1':
+    resolution: {integrity: sha512-/anGvJFc5y36f8DJ+3TSh2+KAvaRLA9PaLUMvneeY5s4j8m+8X4F3lE/sjTuG9YI5BX4sykvCk4TuJMG7ecMRQ==}
+
+  '@fontsource/ibm-plex-mono@5.3.0':
+    resolution: {integrity: sha512-eTgnZjZEGk1QtD3ZstF+Vclo2HLAni8YMy34/DxllwZvyz1lR/1RF/xTiAquOBO7MvqBx8D2Ig2WCPMVfdZu7Q==}
 
   '@jridgewell/gen-mapping@0.3.13':
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -3067,6 +3079,10 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.2':
     optional: true
+
+  '@fontsource-variable/noto-sans-jp@5.3.1': {}
+
+  '@fontsource/ibm-plex-mono@5.3.0': {}
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:

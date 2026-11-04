@@ -76,7 +76,7 @@
   --note-h6: calc(14px * var(--note-scale, 1));
   --note-body: calc(16px * var(--note-scale, 1));
   --title-bar: 36px;
-  --f-sans: 'Noto Sans JP', 'Hiragino Sans', 'Yu Gothic', system-ui, sans-serif;
+  --f-sans: 'Noto Sans JP Variable', 'Hiragino Sans', 'Yu Gothic', system-ui, sans-serif;
   --f-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
   color-scheme: dark;
 }

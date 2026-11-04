@@ -45,6 +45,7 @@ const WEIGHT: Record<string, number> = {
   'Unicode-3.0': 1,
   'Unicode-DFS-2016': 1,
   'Apache-2.0': 2,
+  'OFL-1.1': 2,
   'MPL-2.0': 3,
 }
 const UNKNOWN = 9
@@ -59,6 +60,7 @@ const KIND_OF_TEXT: [string, RegExp][] = [
   ['Unicode-3.0', /UNICODE LICENSE|Unicode, Inc/i],
   ['Unicode-DFS-2016', /UNICODE LICENSE|Unicode, Inc/i],
   ['MPL-2.0', /Mozilla Public License/i],
+  ['OFL-1.1', /SIL Open Font License/i],
 ]
 
 function choose(expr: string): string[] {
@@ -77,7 +79,19 @@ const TITLE = /^(the )?mit license( \(mit\))?\s*/i
 
 const readText = (file: string) => fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n').trim()
 
+/** OFL の文面の書き出し。フォントによっては、前に「Copyright」で始まらない権利者の行だけを置くので、ここより前をすべて権利表示とする。 */
+const OFL_START = /^This Font Software is licensed under the SIL Open Font License/m
+
 function split(raw: string, kind?: string): Notice {
+  const start = kind === 'OFL-1.1' ? raw.search(OFL_START) : -1
+  if (start > 0) {
+    const copyright = raw
+      .slice(0, start)
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+    return { kind, copyright, body: raw.slice(start).trim() }
+  }
   const lines = raw.split('\n')
   const copyright: string[] = []
   let i = 0
@@ -119,14 +133,14 @@ function entry(name: string, version: string, license: string, dir: string, url?
 
 const run = (cmd: string) => execSync(cmd, { cwd: app, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 })
 
-/** JS のファイルがない（型だけの）パッケージは、アプリに入らない。 */
-const hasScript = (dir: string): boolean =>
+/** JS も CSS もフォントもない（型だけの）パッケージは、アプリに入らない。 */
+const shipped = (dir: string): boolean =>
   fs
     .readdirSync(dir, { withFileTypes: true })
     .some((d) =>
       d.isDirectory()
-        ? d.name !== 'node_modules' && hasScript(path.join(dir, d.name))
-        : /\.(c|m)?js$/.test(d.name),
+        ? d.name !== 'node_modules' && shipped(path.join(dir, d.name))
+        : /\.((c|m)?js|css|woff2?)$/.test(d.name),
     )
 
 function npm(): Entry[] {
@@ -139,7 +153,7 @@ function npm(): Entry[] {
     .flatMap((p) =>
       p.versions.flatMap((v, i) => {
         const dir = p.paths[i] ?? ''
-        return hasScript(dir) ? entry(p.name, v, p.license, dir, p.homepage) : []
+        return shipped(dir) ? entry(p.name, v, p.license, dir, p.homepage) : []
       }),
     )
 }
