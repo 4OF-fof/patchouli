@@ -1,0 +1,28 @@
+.root {
+  --dialog-width: 480px;
+}
+.url {
+  width: 100%;
+  margin-top: var(--space-12);
+  padding: var(--space-6) var(--space-8);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: var(--fs-body);
+}
+.url:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.local {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-12);
+  margin-top: var(--space-16);
+  padding-top: var(--space-12);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--fs-meta);
+}

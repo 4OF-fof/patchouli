@@ -381,3 +381,24 @@
   right: 14px;
   z-index: 1;
 }
+.versions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  margin: var(--space-14) 0 0;
+  padding: var(--space-10) var(--space-12);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  font-size: var(--fs-body);
+}
+.versions legend {
+  padding: 0 var(--space-4);
+  color: var(--muted);
+  font-size: var(--fs-meta);
+}
+.versions label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  cursor: pointer;
+}

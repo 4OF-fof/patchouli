@@ -3,18 +3,22 @@ import type {
   CommandStatus,
   Deps,
   CapPart,
-  Permission,
   PluginActions,
   PluginReport,
-  PluginSource,
   PluginStatus,
+  Prepared,
   SettingValue,
 } from '../../../plugins/types'
+import { FULL_ACCESS, PERMISSION, sourceLabel } from '../../../plugins/labels'
 import { Icon } from '../../base/Icon/Icon'
+import { Kbd } from '../../base/Kbd/Kbd'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
+import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
 import { DialogFrame } from '../DialogFrame/DialogFrame'
+import { PluginAddDialog } from '../PluginAddDialog/PluginAddDialog'
+import { PluginInstallDialog } from '../PluginInstallDialog/PluginInstallDialog'
 import styles from './PluginsDialog.module.css'
 import { IconButton } from '../../controls/IconButton/IconButton'
 import { createBusy, message } from '../../../model/busy'
@@ -46,16 +50,6 @@ const PART: Record<CapPart, string> = {
   link: 'URL の読み取り',
 }
 
-const PERMISSION: Record<Permission, string> = {
-  library: 'ライブラリの情報を読む',
-  clipboard: 'クリップボードにコピー',
-  notes: 'ノートを作成・書き換え',
-  edit: '名前とタグを変更',
-  assets: '素材を登録・置き換え',
-  export: 'ファイルを書き出し',
-  embed: '文章を AI で解析',
-}
-
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [
   { label: 'ファイル形式', has: (p) => !p.dev && p.formats.length > 0 },
   { label: 'URL', has: (p) => !p.dev && p.formats.length === 0 && !!p.links?.length },
@@ -81,7 +75,11 @@ const STATE_LABEL: Partial<Record<PluginStatus['state'], string>> = {
 /** 入れ直すまで使えないもの。 */
 const absent = (p: PluginStatus) => p.state === 'missing' || p.state === 'broken'
 
-const sourceLabel = (s: PluginSource) => s.local
+const fromGithub = (p: PluginStatus) => !!p.source && 'github' in p.source
+
+/** 確かめてもらわずに入れてよいか。 */
+const quiet = (r: Prepared) =>
+  !r.first && !r.added.full && !r.added.permissions.length && !r.added.commands.length && !r.added.fetch.length
 
 const errors = (p: PluginStatus) => p.problems.filter((x) => x.level === 'error').length
 
@@ -112,9 +110,7 @@ const need = (d: { need: string; min?: string; from?: string }) =>
 const perms = (p: PluginStatus) => {
   const full = p.elevated || p.caps.some((c) => c.by === 'elevated')
   return [
-    ...(full
-      ? [{ label: 'フルアクセス', text: 'アプリの画面上で直接動作し、すべての機能にアクセス可能', full: true }]
-      : []),
+    ...(full ? [{ ...FULL_ACCESS, full: true }] : []),
     ...(!full && p.formats.length
       ? [{ label: 'ファイルの読み取り', text: '対応形式のファイルのみ', full: false }]
       : []),
@@ -184,17 +180,74 @@ export function PluginsDialog(props: PluginsDialogProps) {
     )
 
   /** 設定を保存する。入力中の欄を止めないよう、ほかの操作は止めない。 */
-  const save = async (id: string, name: string, v: SettingValue) => {
+  const keep = async (job: () => Promise<void>) => {
     setError(undefined)
     try {
-      await a().setSetting!(id, name, v)
+      await job()
       await props.onRefresh?.()
     } catch (e) {
       setError(message(e))
     }
   }
+  const save = (id: string, name: string, v: SettingValue) => keep(() => a().setSetting!(id, name, v))
 
-  const install = () => void run('', () => a().install!())
+  const [adding, setAdding] = createSignal(false)
+  const [prepared, setPrepared] = createSignal<Prepared>()
+  const [choosing, setChoosing] = createSignal<{ p: PluginStatus; latest: string }>()
+
+  /** 取ってきて、権限などが増えていなければそのまま入れ、増えていれば確かめてもらう。 */
+  const stage = async (job: () => Promise<Prepared>) => {
+    const r = await job()
+    if (!quiet(r)) {
+      setPrepared(r)
+      return false
+    }
+    await a().commit!(r.token)
+    return true
+  }
+  const offer = (label: string, job: () => Promise<Prepared>) => void run(label, () => stage(job))
+  const commit = () => {
+    const r = prepared()
+    if (!r) return
+    setPrepared(undefined)
+    void run(`${r.plugin.name} を${r.first ? 'インストール' : '更新'}しています`, () => a().commit!(r.token))
+  }
+  const cancel = () => {
+    const r = prepared()
+    setPrepared(undefined)
+    if (r) void a().cancel?.(r.token)
+  }
+  const fromUrl = (url: string) => {
+    setAdding(false)
+    offer('プラグインを取得しています', () => a().prepare!({ github: url }))
+  }
+  const fromZip = async () => {
+    setAdding(false)
+    const local = await a().pickZip!()
+    if (local) offer('プラグインを読み込んでいます', () => a().prepare!({ local }))
+  }
+  const update = (p: PluginStatus, tag?: string) =>
+    offer(`${p.name} を取得しています`, () => a().prepareUpdate!(p.id, tag))
+  /** 記録した版と最新の版が違えば、どちらを入れるか選んでもらう。 */
+  const reinstall = (p: PluginStatus) => {
+    if (!fromGithub(p) || !p.tag || !a().latest) {
+      update(p, p.tag)
+      return
+    }
+    void run(`${p.name} を取得しています`, async () => {
+      const tag = await a().latest!(p.id)
+      if (tag === p.tag) return stage(() => a().prepareUpdate!(p.id, p.tag))
+      setChoosing({ p, latest: tag })
+      return false
+    })
+  }
+  const choose = (tag: string) => {
+    const c = choosing()
+    setChoosing(undefined)
+    if (c) update(c.p, tag)
+  }
+  const follow = (p: PluginStatus, autoUpdate: boolean, prerelease: boolean) =>
+    keep(() => a().setFollow!(p.id, autoUpdate, prerelease))
 
   const group = (label: string, count: number, body: () => JSX.Element) => {
     const open = () => !closed().includes(label)
@@ -250,23 +303,23 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 {p().enabled ? '無効化' : '有効化'}
               </Button>
             </Show>
-            <Show when={outdated() && a().update && p().source}>
-              <Button
-                size="sm"
-                variant="primary"
-                disabled={busy() !== undefined}
-                onClick={() => void run(`${p().name} を更新しています`, () => a().update!(p().id))}
-              >
+            <Show when={outdated() && a().prepareUpdate && p().source}>
+              <Button size="sm" variant="primary" disabled={busy() !== undefined} onClick={() => update(p(), p().tag)}>
                 {p().recorded} に更新
               </Button>
             </Show>
-            <Show when={absent(p()) && a().update && p().source}>
+            <Show when={!outdated() && !absent(p()) && p().latest && a().prepareUpdate}>
               <Button
                 size="sm"
                 variant="primary"
                 disabled={busy() !== undefined}
-                onClick={() => void run(`${p().name} をインストールしています`, () => a().update!(p().id))}
+                onClick={() => update(p(), p().latest)}
               >
+                {p().latest} に更新
+              </Button>
+            </Show>
+            <Show when={absent(p()) && a().prepareUpdate && p().source}>
+              <Button size="sm" variant="primary" disabled={busy() !== undefined} onClick={() => reinstall(p())}>
                 インストール
               </Button>
             </Show>
@@ -421,9 +474,42 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 <span class={styles.path} data-tip={sourceLabel(s())}>
                   {sourceLabel(s())}
                 </span>
+                <Show when={p().tag}>
+                  <span class={styles.mono}>{p().tag}</span>
+                </Show>
               </div>
             </section>
           )}
+        </Show>
+        <Show when={fromGithub(p()) && !absent(p()) && a().setFollow}>
+          <section>
+            <h4>更新</h4>
+            <div class={styles.field}>
+              <SettingField
+                setting={{
+                  key: 'autoUpdate',
+                  label: '自動更新',
+                  help: '起動時に新しいリリースを確認し、自動でインストール',
+                  kind: 'toggle',
+                  default: false,
+                  value: !!p().autoUpdate,
+                }}
+                onChange={(v) => follow(p(), v === true, !!p().prerelease)}
+              />
+            </div>
+            <div class={styles.field}>
+              <SettingField
+                setting={{
+                  key: 'prerelease',
+                  label: 'プレリリースを含める',
+                  kind: 'toggle',
+                  default: false,
+                  value: !!p().prerelease,
+                }}
+                onChange={(v) => follow(p(), !!p().autoUpdate, v === true)}
+              />
+            </div>
+          </section>
         </Show>
         <Show when={p().state === 'active' && p().settings.length}>
           <section>
@@ -606,9 +692,14 @@ export function PluginsDialog(props: PluginsDialogProps) {
             </Show>
           </Show>
         </ScrollArea>
-        <Show when={a().install}>
+        <Show when={a().prepare}>
           <div class={styles.foot}>
-            <Button class={styles.addButton} variant="primary" disabled={busy() !== undefined} onClick={install}>
+            <Button
+              class={styles.addButton}
+              variant="primary"
+              disabled={busy() !== undefined}
+              onClick={() => setAdding(true)}
+            >
               <Icon name="plus" size={14} withText />
               プラグインを追加
             </Button>
@@ -629,6 +720,57 @@ export function PluginsDialog(props: PluginsDialogProps) {
           </Show>
         </div>
       </ScrollArea>
+      <Show when={adding()}>
+        <PluginAddDialog
+          onGithub={fromUrl}
+          onZip={a().pickZip && (() => void fromZip())}
+          onClose={() => setAdding(false)}
+        />
+      </Show>
+      <Show when={prepared()} keyed>
+        {(r) => <PluginInstallDialog prepared={r} onInstall={commit} onClose={cancel} />}
+      </Show>
+      <Show when={choosing()} keyed>
+        {(c) => {
+          const [tag, setTag] = createSignal(c.latest)
+          return (
+            <ConfirmDialog
+              label="インストールするバージョン"
+              title="インストールするバージョンを選択"
+              onClose={() => setChoosing(undefined)}
+              onEnter={() => choose(tag())}
+              footer={
+                <>
+                  <Button variant="ghost" onClick={() => setChoosing(undefined)}>
+                    キャンセル <Kbd>Esc</Kbd>
+                  </Button>
+                  <Button variant="primary" onClick={() => choose(tag())}>
+                    インストール <Kbd>Enter</Kbd>
+                  </Button>
+                </>
+              }
+            >
+              <p>ライブラリに記録されたバージョンと、最新のリリースが異なります。</p>
+              <fieldset class={styles.versions}>
+                <legend>インストールするバージョン</legend>
+                <For
+                  each={[
+                    { value: c.latest, label: `最新のリリース（${c.latest}）` },
+                    { value: c.p.tag!, label: `ライブラリに記録されたバージョン（${c.p.tag}）` },
+                  ]}
+                >
+                  {(o) => (
+                    <label>
+                      <input type="radio" name="version" checked={tag() === o.value} onChange={() => setTag(o.value)} />
+                      {o.label}
+                    </label>
+                  )}
+                </For>
+              </fieldset>
+            </ConfirmDialog>
+          )
+        }}
+      </Show>
     </DialogFrame>
   )
 }

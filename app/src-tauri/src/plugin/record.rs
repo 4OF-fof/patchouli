@@ -10,6 +10,8 @@ use crate::library::{read_json, write_json};
 #[serde(rename_all = "camelCase")]
 pub enum Source {
     Local(PathBuf),
+    /// GitHub のリポジトリ（owner/name）。リリースに付いた zip を入れる。
+    Github(String),
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -19,10 +21,17 @@ pub struct Entry {
     pub version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<Source>,
+    /// GitHub から入れたときの、リリースのタグ。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hash: Option<String>,
     #[serde(default, skip_serializing_if = "is_false")]
     pub disabled: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub auto_update: bool,
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub prerelease: bool,
 }
 
 fn is_false(b: &bool) -> bool {

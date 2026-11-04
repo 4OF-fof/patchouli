@@ -2,7 +2,14 @@ import { createSignal } from 'solid-js'
 import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { expect, fn } from 'storybook/test'
 import { builtinReport } from '../../../plugins/builtin'
-import type { CommandStatus, PluginReport, PluginStatus, SettingValue } from '../../../plugins/types'
+import type {
+  CommandStatus,
+  PluginActions,
+  PluginReport,
+  PluginStatus,
+  Prepared,
+  SettingValue,
+} from '../../../plugins/types'
 import { sampleReport } from '../../../samples/plugins'
 import { PluginsDialog } from './PluginsDialog'
 
@@ -83,6 +90,39 @@ const external: PluginReport = {
       settings: [],
       problems: [{ level: 'error', text: 'この端末にインストールされていません' }],
     },
+    {
+      ...text,
+      id: 'example.web',
+      name: 'Web ページ',
+      version: '0.3.0',
+      recorded: '0.3.0',
+      source: { github: 'owner/patchouli-web' },
+      tag: 'v0.3.0',
+      latest: 'v0.4.0',
+      autoUpdate: false,
+      prerelease: false,
+      optional: none,
+      settings: [],
+    },
+    {
+      id: 'example.feed',
+      name: 'example.feed',
+      recorded: '0.2.0',
+      source: { github: 'owner/patchouli-feed' },
+      tag: 'v0.2.0',
+      description: '',
+      builtin: false,
+      dev: false,
+      enabled: true,
+      state: 'missing',
+      required: none,
+      optional: none,
+      via: [],
+      caps: [],
+      formats: [],
+      settings: [],
+      problems: [{ level: 'error', text: 'この端末にインストールされていません' }],
+    },
   ],
 }
 
@@ -132,12 +172,28 @@ const troubled: PluginReport = {
 }
 
 const wait = () => new Promise<void>((r) => setTimeout(r, 600))
-const actions = {
-  install: async () => {
+const prepared = (first: boolean): Prepared => ({
+  token: 'token',
+  plugin: { ...text, source: { github: 'owner/patchouli-text' }, tag: 'v0.2.0', version: '0.2.0' },
+  first,
+  added: first
+    ? { full: true, permissions: ['library'], commands: ['pandoc'], fetch: [] }
+    : { full: false, permissions: [], commands: [], fetch: ['example.com'] },
+})
+const actions: PluginActions = {
+  pickZip: async () => 'D:\\plugins\\text.zip',
+  prepare: async () => {
     await wait()
-    return true
+    return prepared(true)
   },
-  update: wait,
+  prepareUpdate: async () => {
+    await wait()
+    return prepared(false)
+  },
+  latest: async () => 'v0.4.0',
+  commit: wait,
+  cancel: async () => {},
+  setFollow: wait,
   remove: wait,
   setSetting: wait,
   setEnabled: wait,
@@ -217,9 +273,9 @@ export const Failed: Story = {
   args: {
     actions: {
       ...actions,
-      install: async () => {
+      prepare: async () => {
         await wait()
-        throw new Error('plugin.json が見つかりません')
+        throw new Error('owner/name: リリースが見つかりません')
       },
     },
   },

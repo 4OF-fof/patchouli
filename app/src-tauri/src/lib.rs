@@ -29,6 +29,7 @@ use cache::Cache;
 use library::{
     ItemPatch, Library, LibraryState, ListDiff, Opened, Place, StoredItem, StoredProject,
 };
+use plugin::install;
 use plugin::record::{self, Source};
 use plugin::{
     Action, By, Env, ItemInfo, MenuRun, MenuShown, Part, Ran, Reads, Registry, Runner, TargetFile,
@@ -58,6 +59,8 @@ struct Session {
     /// 詳細の表示に使う。プラグインが長く動いてもほかの操作を止めないよう、Session のロックを放してから使う。
     runner: Arc<Mutex<Runner>>,
     ui_reads: HashMap<String, Reads>,
+    /// GitHub から入れたプラグインの、調べて分かった最新のリリースのタグ。
+    latest: HashMap<String, String>,
 }
 
 #[cfg(debug_assertions)]
@@ -72,18 +75,47 @@ fn dev_path(var: &str, dir: &str) -> PathBuf {
     )
 }
 
-fn plugin_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+/// プラグインの置き場。同期するライブラリには入れず、アプリのデータフォルダにライブラリごとに置く。
+/// 開発中は、どのライブラリも同じところを使う。
+fn plugin_dir(app: &tauri::AppHandle, root: &Path) -> Result<PathBuf, String> {
     #[cfg(debug_assertions)]
     {
-        let _ = app;
+        let _ = (app, root);
         Ok(dev_path("PATCHOULI_PLUGIN_DIR", "dev-plugins"))
     }
     #[cfg(not(debug_assertions))]
+    Ok(plugins_home(app)?.join(format!(
+        "{:016x}",
+        thumb::fnv(&[root.as_os_str().as_encoded_bytes()])
+    )))
+}
+
+#[cfg(not(debug_assertions))]
+fn plugins_home(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     Ok(app
         .path()
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join("plugins"))
+}
+
+/// ライブラリごとの置き場に置く、どのライブラリのものかの印。
+#[cfg(not(debug_assertions))]
+const OWNER: &str = ".library";
+
+/// 置き場を作り、どのライブラリのものかを書いておく。
+fn make_plugin_dir(app: &tauri::AppHandle, root: &Path) -> Result<PathBuf, String> {
+    let dir = plugin_dir(app, root)?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    #[cfg(not(debug_assertions))]
+    {
+        let owner = dir.join(OWNER);
+        if !owner.is_file() {
+            std::fs::write(&owner, root.to_string_lossy().as_bytes())
+                .map_err(|e| format!("{}: {e}", owner.display()))?;
+        }
+    }
+    Ok(dir)
 }
 
 fn next_session() -> u64 {
@@ -836,7 +868,7 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
     let root = library::canonical(&library_root(&app)?)?;
     lock_library(&root)?;
     let (plugins, plugin_problems) =
-        Registry::open(&root, &plugin_dir(&app)?, dev_places(&app).as_ref());
+        Registry::open(&root, &plugin_dir(&app, &root)?, dev_places(&app).as_ref());
     let plugins = Arc::new(plugins);
     if let Err(e) = settings::remember(&app, &root, plugin_ids(&root).unwrap_or_default()) {
         log::warn!("開いたライブラリを覚えられない: {e}");
@@ -888,6 +920,7 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
         plugins: Arc::clone(&plugins),
         runner,
         ui_reads: HashMap::new(),
+        latest: HashMap::new(),
     });
     // キャッシュから開いたときは、確かめ終えてから作る
     if !checking && settings::auto_tag(&app).unwrap_or(false) {
@@ -919,7 +952,8 @@ async fn reload_plugins(
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
     old.stop();
-    let (plugins, problems) = Registry::open(&root, &plugin_dir(&app)?, dev_places(&app).as_ref());
+    let (plugins, problems) =
+        Registry::open(&root, &plugin_dir(&app, &root)?, dev_places(&app).as_ref());
     let plugins = Arc::new(plugins);
     let since = std::time::SystemTime::now();
     let (mut opened, thumbs, cache) = with_session(&cur, |s| {
@@ -1169,62 +1203,352 @@ struct ThumbReady<'a> {
 
 #[tauri::command]
 async fn plugins(cur: State<'_, Current>) -> Result<plugin::PluginReport, String> {
-    with_session(&cur, |s| Ok(s.plugins.report()))
+    with_session(&cur, |s| {
+        let mut r = s.plugins.report();
+        for p in &mut r.plugins {
+            p.follow.latest = s.latest.get(&p.id).cloned();
+        }
+        Ok(r)
+    })
 }
 
 fn root_of(cur: &State<Current>) -> Result<PathBuf, String> {
     with(cur, |l| Ok(l.root().to_owned()))
 }
 
-fn install_from(
-    app: &tauri::AppHandle,
-    cur: &State<Current>,
-    source: Source,
-    expect: Option<&str>,
-    update: Option<&str>,
+/// 取ってきて、入れるかを確かめてもらっているもの。
+#[derive(Default)]
+struct Staging(Mutex<HashMap<String, Pending>>);
+
+struct Pending {
+    root: PathBuf,
+    staged: install::Staged,
     enable: bool,
-) -> Result<(), String> {
-    let root = root_of(cur)?;
-    let (m, hash) = plugin::install::install(
+}
+
+/// 入れる前に見せるもの。
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Prepared {
+    token: String,
+    plugin: plugin::PluginStatus,
+    /// 入っているものより増えたもの。初めて入れるときは全部。
+    added: install::Risk,
+    first: bool,
+}
+
+impl Staging {
+    fn keep(&self, root: &Path, staged: install::Staged, enable: bool) -> Prepared {
+        let mut plugin = staged.preview();
+        plugin.source = Some(staged.source.clone());
+        plugin.follow.tag = staged.tag.clone();
+        let prepared = Prepared {
+            token: uuid::Uuid::new_v4().simple().to_string(),
+            plugin,
+            added: staged.added.clone(),
+            first: staged.first,
+        };
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(
+                prepared.token.clone(),
+                Pending {
+                    root: root.to_owned(),
+                    staged,
+                    enable,
+                },
+            );
+        prepared
+    }
+
+    fn take(&self, token: &str) -> Option<Pending> {
+        self.0
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(token)
+    }
+}
+
+/// 記録したプラグインを、記録した取得先から取ってくる。tag がなければ最新のリリースを取る。
+fn stage_recorded(
+    app: &tauri::AppHandle,
+    root: &Path,
+    id: &str,
+    tag: Option<String>,
+) -> Result<install::Staged, String> {
+    install::check_id(id)?;
+    let r = record::Record::read(&record::path(root))?;
+    let e = r
+        .plugins
+        .get(id)
+        .ok_or_else(|| format!("プラグイン「{id}」はライブラリに記録されていません"))?;
+    let source = e
+        .source
+        .clone()
+        .ok_or_else(|| format!("プラグイン「{id}」の取得先が記録されていません"))?;
+    let dir = make_plugin_dir(app, root)?;
+    // 無効にしてあるものは読んでいないので、入っているかはフォルダで確かめる
+    let installed = dir.join(id).join(plugin::MANIFEST).is_file();
+    let (want, expect) = match (&source, tag) {
+        (Source::Local(_), _) => (
+            install::Want::Latest { prerelease: false },
+            e.hash.as_deref().filter(|_| !installed),
+        ),
+        (Source::Github(_), Some(t)) => {
+            let same = e.tag.as_deref() == Some(t.as_str());
+            (install::Want::Tag(t), e.hash.as_deref().filter(|_| same))
+        }
+        (Source::Github(_), None) => (
+            install::Want::Latest {
+                prerelease: e.prerelease,
+            },
+            None,
+        ),
+    };
+    install::stage(
         &source,
-        &plugin_dir(app)?,
+        &want,
+        &dir,
         &plugin::builtin_ids(),
         expect,
-        update,
-    )?;
-    record::update(&root, |r| {
-        let e = r.plugins.entry(m.id).or_default();
-        e.version = Some(m.version);
-        e.source = Some(source);
-        e.hash = Some(hash);
-        if enable {
+        Some(id),
+    )
+}
+
+fn place_staged(app: &tauri::AppHandle, cur: &State<Current>, p: &Pending) -> Result<(), String> {
+    if root_of(cur)? != p.root {
+        return Err("ライブラリが切り替わったため、インストールを中止しました".into());
+    }
+    let s = &p.staged;
+    install::place(s, &plugin_dir(app, &p.root)?)?;
+    record::update(&p.root, |r| {
+        let e = r.plugins.entry(s.manifest.id.clone()).or_default();
+        e.version = Some(s.manifest.version.clone());
+        e.source = Some(s.source.clone());
+        e.tag = s.tag.clone();
+        e.hash = Some(s.hash.clone());
+        if p.enable {
             e.disabled = false;
         }
+    })?;
+    with_session(cur, |ss| {
+        if ss.latest.get(&s.manifest.id) == s.tag.as_ref() {
+            ss.latest.remove(&s.manifest.id);
+        }
+        Ok(())
     })
 }
 
+/// 新しく入れるものを取ってくる。GitHub は最新のリリースを取る。
 #[tauri::command]
-async fn install_plugin(
+async fn prepare_plugin(
     app: tauri::AppHandle,
     cur: State<'_, Current>,
+    staging: State<'_, Staging>,
     source: Source,
-) -> Result<(), String> {
-    install_from(&app, &cur, source, None, None, true)
+) -> Result<Prepared, String> {
+    let source = match source {
+        Source::Github(url) => Source::Github(plugin::github::repo_of(&url)?),
+        s => s,
+    };
+    let root = root_of(&cur)?;
+    let dir = make_plugin_dir(&app, &root)?;
+    let staged = install::stage(
+        &source,
+        &install::Want::Latest { prerelease: false },
+        &dir,
+        &plugin::builtin_ids(),
+        None,
+        None,
+    )?;
+    Ok(staging.keep(&root, staged, true))
+}
+
+/// 記録したプラグインを、入れ直すか更新するために取ってくる。
+#[tauri::command]
+async fn prepare_update(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    staging: State<'_, Staging>,
+    id: String,
+    tag: Option<String>,
+) -> Result<Prepared, String> {
+    let root = root_of(&cur)?;
+    let staged = stage_recorded(&app, &root, &id, tag)?;
+    Ok(staging.keep(&root, staged, false))
 }
 
 #[tauri::command]
-async fn update_plugin(
+async fn commit_plugin(
     app: tauri::AppHandle,
     cur: State<'_, Current>,
-    id: String,
+    staging: State<'_, Staging>,
+    token: String,
 ) -> Result<(), String> {
-    plugin::install::check_id(&id)?;
-    let recorded = with_session(&cur, |s| Ok(s.plugins.source_of(&id)))?;
-    let (source, hash) = recorded.ok_or_else(|| format!("{id} の取得先が記録されていません"))?;
-    // 無効にしてあるものは読んでいないので、入っているかはフォルダで確かめる
-    let installed = plugin_dir(&app)?.join(&id).join(plugin::MANIFEST).is_file();
-    let expect = hash.as_deref().filter(|_| !installed);
-    install_from(&app, &cur, source, expect, Some(&id), false)
+    let p = staging
+        .take(&token)
+        .ok_or("取得したプラグインが見つかりません")?;
+    place_staged(&app, &cur, &p)
+}
+
+#[tauri::command]
+fn cancel_plugin(staging: State<'_, Staging>, token: String) {
+    staging.take(&token);
+}
+
+fn remember_latest(
+    cur: &State<Current>,
+    id: &str,
+    recorded: Option<&String>,
+    tag: &str,
+) -> Result<(), String> {
+    with_session(cur, |s| {
+        if recorded.is_some_and(|r| r == tag) {
+            s.latest.remove(id);
+        } else {
+            s.latest.insert(id.to_owned(), tag.to_owned());
+        }
+        Ok(())
+    })
+}
+
+/// GitHub の最新のリリースのタグ。
+#[tauri::command]
+async fn plugin_latest(cur: State<'_, Current>, id: String) -> Result<String, String> {
+    let root = root_of(&cur)?;
+    let r = record::Record::read(&record::path(&root))?;
+    let e = r
+        .plugins
+        .get(&id)
+        .ok_or_else(|| format!("プラグイン「{id}」はライブラリに記録されていません"))?;
+    let Some(Source::Github(repo)) = &e.source else {
+        return Err(format!(
+            "プラグイン「{id}」は GitHub からインストールしたものではありません"
+        ));
+    };
+    let tag = plugin::github::latest(repo, e.prerelease)?.tag;
+    remember_latest(&cur, &id, e.tag.as_ref(), &tag)?;
+    Ok(tag)
+}
+
+#[derive(Serialize)]
+struct Found {
+    id: String,
+    name: String,
+    tag: String,
+}
+
+#[derive(Serialize, Default)]
+struct UpdateCheck {
+    /// 更新があるもの。自動で入れたものと、確かめてもらうものは入れない。
+    found: Vec<Found>,
+    /// 自動で入れたもの。
+    installed: Vec<Found>,
+    /// 自動で入れようとしたが、権限などが増えたので確かめてもらうもの。
+    confirm: Vec<Prepared>,
+    failed: Vec<String>,
+}
+
+/// GitHub から入れたものの更新を調べる。自動更新にしてあるものは、取ってきて入れる。
+#[tauri::command]
+async fn check_plugin_updates(
+    app: tauri::AppHandle,
+    cur: State<'_, Current>,
+    staging: State<'_, Staging>,
+) -> Result<UpdateCheck, String> {
+    let root = root_of(&cur)?;
+    let record = record::Record::read(&record::path(&root))?;
+    let dir = plugin_dir(&app, &root)?;
+    let names: HashMap<String, String> = with_session(&cur, |s| {
+        Ok(s.plugins
+            .report()
+            .plugins
+            .into_iter()
+            .map(|p| (p.id, p.name))
+            .collect())
+    })?;
+    let mut out = UpdateCheck::default();
+    for (id, e) in &record.plugins {
+        let Some(Source::Github(repo)) = &e.source else {
+            continue;
+        };
+        if e.disabled {
+            continue;
+        }
+        let tag = match plugin::github::latest(repo, e.prerelease) {
+            Ok(r) => r.tag,
+            Err(err) => {
+                out.failed.push(err);
+                continue;
+            }
+        };
+        remember_latest(&cur, id, e.tag.as_ref(), &tag)?;
+        if e.tag.as_ref() == Some(&tag) {
+            continue;
+        }
+        let found = Found {
+            id: id.clone(),
+            name: names.get(id).cloned().unwrap_or_else(|| id.clone()),
+            tag: tag.clone(),
+        };
+        let installed = dir.join(id).join(plugin::MANIFEST).is_file();
+        if !e.auto_update || !installed {
+            out.found.push(found);
+            continue;
+        }
+        let staged = match stage_recorded(&app, &root, id, Some(tag)) {
+            Ok(s) => s,
+            Err(err) => {
+                out.failed.push(err);
+                out.found.push(found);
+                continue;
+            }
+        };
+        if !staged.quiet() {
+            out.confirm.push(staging.keep(&root, staged, false));
+            continue;
+        }
+        let p = Pending {
+            root: root.clone(),
+            staged,
+            enable: false,
+        };
+        match place_staged(&app, &cur, &p) {
+            Ok(()) => out.installed.push(found),
+            Err(err) => {
+                out.failed.push(err);
+                out.found.push(found);
+            }
+        }
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+async fn set_plugin_follow(
+    cur: State<'_, Current>,
+    id: String,
+    auto_update: bool,
+    prerelease: bool,
+) -> Result<(), String> {
+    install::check_id(&id)?;
+    let root = root_of(&cur)?;
+    let mut changed = false;
+    record::update(&root, |r| {
+        if let Some(e) = r.plugins.get_mut(&id) {
+            changed = e.prerelease != prerelease;
+            e.auto_update = auto_update;
+            e.prerelease = prerelease;
+        }
+    })?;
+    if changed {
+        with_session(&cur, |s| {
+            s.latest.remove(&id);
+            Ok(())
+        })?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1372,7 +1696,7 @@ async fn remove_plugin(
     cur: State<'_, Current>,
     id: String,
 ) -> Result<(), String> {
-    plugin::install::check_id(&id)?;
+    install::check_id(&id)?;
     let root = root_of(&cur)?;
     record::update(&root, |r| {
         r.plugins.remove(&id);
@@ -2382,18 +2706,64 @@ async fn clear_cache(
     remove_plugins(unused)
 }
 
+/// プラグインの置き場と、そこを使うライブラリ。最近開いたものにないライブラリは、使っていないことにする。
+fn plugin_places(
+    app: &tauri::AppHandle,
+    current: Option<&Path>,
+    recent: &[settings::Recent],
+) -> Result<Vec<(PathBuf, Vec<PathBuf>)>, String> {
+    #[cfg(debug_assertions)]
+    {
+        let mut users: Vec<PathBuf> = current.map(Path::to_owned).into_iter().collect();
+        users.extend(recent.iter().map(|r| r.path.clone()));
+        Ok(vec![(plugin_dir(app, Path::new(""))?, users)])
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        let Ok(rd) = std::fs::read_dir(plugins_home(app)?) else {
+            return Ok(Vec::new());
+        };
+        Ok(rd
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .map(|dir| {
+                let owner = std::fs::read_to_string(dir.join(OWNER))
+                    .ok()
+                    .map(PathBuf::from)
+                    .filter(|o| {
+                        current == Some(o.as_path()) || recent.iter().any(|r| &r.path == o)
+                    });
+                (dir, owner.into_iter().collect())
+            })
+            .collect())
+    }
+}
+
 fn unused_plugins_of(
     app: &tauri::AppHandle,
     cur: &State<Current>,
 ) -> Result<Vec<(tidy::Unused, PathBuf)>, String> {
-    let mut used: HashSet<String> = HashSet::new();
-    if let Some(ids) = root_of(cur).ok().and_then(|r| plugin_ids(&r)) {
-        used.extend(ids);
+    let current = root_of(cur).ok();
+    let recent = settings::recent(app)?;
+    let mut out = Vec::new();
+    for (dir, users) in plugin_places(app, current.as_deref(), &recent)? {
+        let used: HashSet<String> = users
+            .iter()
+            .flat_map(|u| {
+                plugin_ids(u).unwrap_or_else(|| {
+                    recent
+                        .iter()
+                        .find(|r| &r.path == u)
+                        .map(|r| r.plugins.clone())
+                        .unwrap_or_default()
+                })
+            })
+            .collect();
+        out.extend(tidy::unused(&dir, &used));
     }
-    for r in settings::recent(app)? {
-        used.extend(plugin_ids(&r.path).unwrap_or(r.plugins));
-    }
-    Ok(tidy::unused(&plugin_dir(app)?, &used))
+    out.sort_by(|a, b| a.0.name.cmp(&b.0.name));
+    Ok(out)
 }
 
 #[tauri::command]
@@ -2418,6 +2788,13 @@ async fn remove_unused_plugins(
 fn remove_plugins(plugins: Vec<(tidy::Unused, PathBuf)>) -> Result<(), String> {
     for (u, path) in plugins {
         std::fs::remove_dir_all(&path).map_err(|e| format!("{}: {e}", u.name))?;
+        // ライブラリの置き場が印だけになったら、置き場ごと消す
+        #[cfg(not(debug_assertions))]
+        if let Some(dir) = path.parent()
+            && std::fs::read_dir(dir).is_ok_and(|rd| rd.flatten().all(|e| e.file_name() == OWNER))
+        {
+            let _ = std::fs::remove_dir_all(dir);
+        }
     }
     Ok(())
 }
@@ -2644,8 +3021,13 @@ pub fn run() {
             relink_meta,
             discard_meta,
             plugins,
-            install_plugin,
-            update_plugin,
+            prepare_plugin,
+            prepare_update,
+            commit_plugin,
+            cancel_plugin,
+            plugin_latest,
+            check_plugin_updates,
+            set_plugin_follow,
             remove_plugin,
             pick_plugin,
             set_plugin_enabled,
@@ -2720,6 +3102,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Current::default())
+        .manage(Staging::default())
         .manage(web::Pages::default())
         .register_uri_scheme_protocol("plugin", |ctx, req| {
             if !web::ours(ctx.webview_label()) {

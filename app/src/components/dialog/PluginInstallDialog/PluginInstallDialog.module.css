@@ -1,0 +1,49 @@
+.root {
+  --dialog-width: 460px;
+}
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-4) var(--space-12);
+  margin: 0 0 var(--space-12);
+  font-size: var(--fs-meta);
+}
+.facts dt {
+  color: var(--muted);
+}
+.facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink-2);
+}
+.root h3 {
+  margin: var(--space-16) 0 var(--space-6);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--muted);
+}
+.risks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.risks li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-8) 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-body);
+}
+.risks small {
+  color: var(--muted);
+  font-size: var(--fs-meta);
+}
+.risks li[data-full='true'],
+.risks li[data-full='true'] small {
+  color: var(--warm-ink);
+}
+.none {
+  margin-top: var(--space-12) !important;
+}

@@ -1,6 +1,7 @@
 mod builtin;
 pub mod commands;
 pub mod files;
+pub mod github;
 pub mod install;
 pub mod record;
 mod runtime;
@@ -671,6 +672,21 @@ pub struct PluginStatus {
     pub fetch: Vec<String>,
     pub settings: Vec<SettingStatus>,
     pub problems: Vec<Problem>,
+    #[serde(flatten)]
+    pub follow: Follow,
+}
+
+/// GitHub から入れたものの、追っているリリースと更新の仕方。
+#[derive(Debug, Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Follow {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    /// 調べて分かった、最新のリリースのタグ。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latest: Option<String>,
+    pub auto_update: bool,
+    pub prerelease: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -855,6 +871,7 @@ impl Registry {
                     } else {
                         "この端末にインストールされていません".into()
                     })],
+                    follow: Follow::default(),
                 }),
             }
         }
@@ -1427,11 +1444,6 @@ impl Registry {
         }
     }
 
-    pub fn source_of(&self, id: &str) -> Option<(Source, Option<String>)> {
-        let e = self.record.plugins.get(id)?;
-        Some((e.source.clone()?, e.hash.clone()))
-    }
-
     fn setting(&self, i: usize, key: &str) -> Option<Value> {
         let p = &self.plugins[i];
         let decl = p.settings.iter().find(|s| s.key == key)?;
@@ -1730,10 +1742,18 @@ impl Registry {
                     fetch: fetch_of(m),
                     settings,
                     problems,
+                    follow: Follow::default(),
                 }
             })
             .collect();
         plugins.extend(self.others.iter().cloned());
+        for p in plugins.iter_mut().filter(|p| !p.builtin && !p.dev) {
+            if let Some(e) = self.record.plugins.get(&p.id) {
+                p.follow.tag = e.tag.clone();
+                p.follow.auto_update = e.auto_update;
+                p.follow.prerelease = e.prerelease;
+            }
+        }
         PluginReport {
             plugins,
             commands,
@@ -1873,6 +1893,7 @@ fn idle(
         fetch: fetch_of(m),
         settings: Vec::new(),
         problems,
+        follow: Follow::default(),
     }
 }
 

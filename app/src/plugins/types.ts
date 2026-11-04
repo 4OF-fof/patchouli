@@ -74,7 +74,8 @@ export interface Problem {
   text: string
 }
 
-export type PluginSource = { local: string }
+/** github はリポジトリ（owner/name）。入れるときは URL も渡せる。 */
+export type PluginSource = { local: string } | { github: string }
 
 export type Setting = {
   key: string
@@ -118,6 +119,46 @@ export interface PluginStatus {
   fetch?: string[]
   settings: Setting[]
   problems: Problem[]
+  /** GitHub から入れたときの、リリースのタグ。 */
+  tag?: string
+  /** 調べて分かった、最新のリリースのタグ。 */
+  latest?: string
+  autoUpdate?: boolean
+  prerelease?: boolean
+}
+
+/** 入れる前に見せる、プラグインができること。 */
+export interface Risk {
+  /** 本体と同じ権限で動く。 */
+  full: boolean
+  permissions: Permission[]
+  commands: string[]
+  fetch: string[]
+}
+
+/** 取ってきて、入れるかを確かめてもらっているもの。 */
+export interface Prepared {
+  token: string
+  plugin: PluginStatus
+  /** 入っているものより増えたもの。初めて入れるときは全部。 */
+  added: Risk
+  first: boolean
+}
+
+export interface FoundUpdate {
+  id: string
+  name: string
+  tag: string
+}
+
+export interface UpdateCheck {
+  /** 更新があるもの。 */
+  found: FoundUpdate[]
+  /** 自動で入れたもの。 */
+  installed: FoundUpdate[]
+  /** 権限などが増えたので、確かめてもらうもの。 */
+  confirm: Prepared[]
+  failed: string[]
 }
 
 export interface PluginReport {
@@ -180,8 +221,18 @@ export type ItemView =
   | { kind: 'link'; url: string; ui?: { plugin: string; url: string } }
 
 export interface PluginActions {
-  install?: () => Promise<boolean>
-  update?: (id: string) => Promise<void>
+  /** ZIP ファイルを選ぶ。選ばなかったときは undefined。 */
+  pickZip?: () => Promise<string | undefined>
+  /** 新しく入れるものを取ってくる。GitHub は最新のリリース。 */
+  prepare?: (source: PluginSource) => Promise<Prepared>
+  /** 記録したものを、記録した取得先から取ってくる。tag がなければ最新のリリース。 */
+  prepareUpdate?: (id: string, tag?: string) => Promise<Prepared>
+  commit?: (token: string) => Promise<void>
+  cancel?: (token: string) => Promise<void>
+  /** GitHub の最新のリリースのタグ。 */
+  latest?: (id: string) => Promise<string>
+  checkUpdates?: () => Promise<UpdateCheck>
+  setFollow?: (id: string, autoUpdate: boolean, prerelease: boolean) => Promise<void>
   remove?: (id: string) => Promise<void>
   setSetting?: (id: string, key: string, value: SettingValue) => Promise<void>
   setEnabled?: (id: string, dev: boolean, enabled: boolean) => Promise<void>
