@@ -198,7 +198,7 @@ export function AppBar(props: AppBarProps) {
       : []),
     { type: 'cmd', icon: 'plugin', label: 'プラグインを開く', key: '', run: () => setState('plugins') },
     { type: 'cmd', icon: 'settings', label: '設定を開く', key: '', run: () => openSettings() },
-    { type: 'cmd', icon: 'keyboard', label: 'ショートカット一覧', key: '?', run: () => setState('help') },
+    { type: 'cmd', icon: 'keyboard', label: 'ショートカット一覧', key: '', run: () => setState('help') },
     { type: 'cmd', icon: 'theme', label: 'テーマを切り替え', key: '', run: toggleTheme },
   ]
   const parsed = createMemo(() => parseQuery(query()))
@@ -459,7 +459,7 @@ export function AppBar(props: AppBarProps) {
     { id: 'plugins', icon: 'plugin', label: 'プラグイン' },
     'separator',
     { id: 'theme', icon: 'theme', label: 'テーマを切り替え' },
-    { id: 'keys', icon: 'keyboard', label: 'ショートカット一覧', kbd: '?' },
+    { id: 'keys', icon: 'keyboard', label: 'ショートカット一覧' },
     { id: 'settings', icon: 'settings', label: '設定' },
   ]
   const [drop, setDrop] = createSignal(props.crumbMenu)

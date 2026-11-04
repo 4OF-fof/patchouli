@@ -99,7 +99,7 @@ export interface Dropped {
 export type FileDrag =
   | { type: 'enter'; dropped: Dropped }
   | { type: 'over'; x: number; y: number }
-  | { type: 'drop'; x: number; y: number }
+  | { type: 'drop'; x: number; y: number; dropped: Dropped }
   | { type: 'leave' }
 
 export interface Imported {

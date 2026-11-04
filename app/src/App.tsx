@@ -641,20 +641,16 @@ export function App(props: AppProps) {
     const s = state()
     persist(() => backend.saveState(s))
   }
-  // 文章が外で変わっていて書かなかったときは、読み直したものに替える
-  const saveItem = (id: string, patch: ItemPatch) =>
-    persist(async () => {
-      const it = await backend.saveItem(id, patch)
-      if (!it) return
-      setLib(withChanged(lib(), [it], []))
-      notify('外で変更されたので読み込み直しました', 'info')
-    })
-
+  // 文章が外で変わっていて書かなかったときは、読み直したものに替える。書けなかったときは元に戻す
   const editItem = (id: string, change: Partial<Item>, patch: ItemPatch) => {
     const it = lib().byId.get(id)
     if (!it) return
-    setLib(withChanged(lib(), [{ ...it, ...change }], []))
-    saveItem(id, patch)
+    const undo: Partial<Item> = Object.fromEntries(Object.entries(it).filter(([k]) => k in change))
+    changeFile(id, change, undo, async () => {
+      const read = await backend.saveItem(id, patch)
+      if (read) notify('外で変更されたので読み込み直しました', 'info')
+      return read
+    })
   }
   const [recentTags, setRecentTags] = createSignal<string[]>([])
   onMount(() => void backend.tagHistory?.().then(setRecentTags, fail))
@@ -793,6 +789,17 @@ export function App(props: AppProps) {
       return [{ ...v, list, index: cur === id ? Math.min(at, list.length - 1) : list.indexOf(cur ?? '') }]
     })
   // 先に頼んだ保存が、ごみ箱に移動したあとでメタ情報を書き直さないよう、保存と同じ順番に並べる
+  /** 消えた項目を、タブ・Peek・選択から外す。 */
+  const forget = (ids: string[]) => {
+    for (const id of ids) {
+      eachStack((s) => {
+        const rest = withoutItem(s, id)
+        return rest.length ? rest : [{ s: 'edition' }]
+      })
+      if (peek() === id) setPeek(undefined)
+    }
+    selection.set(selection.ids().filter((id) => lib().byId.has(id)))
+  }
   const deleteItems = (ids: string[]) => {
     const del = backend.deleteItem
     const its = ids.flatMap((id) => lib().byId.get(id) ?? [])
@@ -809,14 +816,9 @@ export function App(props: AppProps) {
         }
         pinned ||= lib().pins.includes(it.id)
         setLib(withChanged(lib(), [], [it.id]))
-        eachStack((s) => {
-          const rest = withoutItem(s, it.id)
-          return rest.length ? rest : [{ s: 'edition' }]
-        })
-        if (peek() === it.id) setPeek(undefined)
+        forget([it.id])
       }
       if (pinned) saveState()
-      selection.set(selection.ids().filter((id) => lib().byId.has(id)))
       const done = its.length - failed.length
       const one = its.length === 1 ? its[0] : undefined
       if (one && failed[0]) notify(`削除に失敗しました：${messageOf(failed[0].e)}`, 'error')
@@ -1208,6 +1210,9 @@ export function App(props: AppProps) {
   }
   // 前に開いていたタブを戻してから、変わるたびに書き出す
   const [tabsRead, setTabsRead] = createSignal(!backend.tabs)
+  const firstTab = tabs()[0]
+  const firstStack = firstTab?.stack()
+  const sameView = (a: View | undefined, b: View) => JSON.stringify(a) === JSON.stringify(b)
   const restoreTabs = (s: SavedTabs | undefined) => {
     const made = (Array.isArray(s?.tabs) ? s.tabs : [])
       .map((vs) => (Array.isArray(vs) ? vs.flatMap((v) => viewOf(lib(), screens(), v) ?? []) : []))
@@ -1215,7 +1220,7 @@ export function App(props: AppProps) {
     const list = made.flatMap((t) => t ?? [])
     const at = typeof s?.current === 'number' ? s.current : 0
     const shown = made[at] ?? list[Math.min(Math.max(0, at), list.length - 1)]
-    if (!shown || prefs().start !== 'last') return
+    if (!shown) return
     const used = new Set<number>()
     const groups = (Array.isArray(s?.splits) ? s.splits : []).flatMap((v) => {
       const n = parseSplit(v, (i) => made[i]?.id)
@@ -1223,9 +1228,17 @@ export function App(props: AppProps) {
       for (const id of leaves(n)) used.add(id)
       return [n]
     })
+    // 読み終える前にタブを操作していたら、そのタブは後ろに残して、表に出したままにする
+    const touched = tabs().length > 1 || currentTab() !== firstTab || firstTab?.stack() !== firstStack
     batch(() => {
+      if (touched) {
+        setLayout([...list, ...tabs()], [...groups, ...splits()])
+        return
+      }
       setLayout(list, groups)
       setCurrentTab(shown)
+      const home = startView()
+      if (prefs().start !== 'last' && !sameView(shown.stack().at(-1), home)) shown.setStack([...shown.stack(), home])
     })
   }
   onMount(
@@ -1336,9 +1349,14 @@ export function App(props: AppProps) {
       (e.target.isContentEditable || e.target.closest('input, textarea, select, [role="dialog"], [role="menu"]'))
     )
       return
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'u') {
+    if (!(e.ctrlKey || e.metaKey)) return
+    const k = e.key.toLowerCase()
+    if (k === 'u') {
       e.preventDefault()
       go({ s: 'tidy' })
+    } else if (k === 'n' && !e.shiftKey && !e.altKey) {
+      e.preventDefault()
+      void createNote()
     }
   }
   onMount(() => window.addEventListener('keydown', onKey))
@@ -1382,7 +1400,16 @@ export function App(props: AppProps) {
   const stopChanged =
     backend.onChanged?.((c) => {
       const s = c.state
+      const open = new Set(
+        tabs().flatMap((t) => {
+          const v = t.stack().at(-1)
+          return v?.s === 'note' ? [v.id] : []
+        }),
+      )
+      const rewritten = c.items.filter((it) => open.has(it.id) && it.body !== lib().byId.get(it.id)?.body)
       setLib(withChanged(lib(), c.items, c.removed, c.projects, c.tagCovers, s?.pins, c.groups))
+      for (const it of rewritten) notify(`「${it.name}」が外で変更されたので読み込み直しました`, 'info')
+      if (c.removed.length) forget(c.removed)
       if (s?.pinnedProjects) setPinnedProjects(s.pinnedProjects)
       if (s?.pinnedTags) setPinnedTags(s.pinnedTags)
       if (c.orphans) {
@@ -1448,10 +1475,9 @@ export function App(props: AppProps) {
       if (e.type === 'enter') setDrag(e.dropped)
       else if (e.type === 'over') into?.editor.dropAt(e)
       else if (e.type === 'drop') {
-        const d = drag()
         setDrag(undefined)
         into?.editor.dropAt(undefined)
-        if (!d?.files) return
+        if (!e.dropped.files) return
         const at = { x: e.x, y: e.y }
         if (into) void importDropped(into.place).then((items) => into.editor.insertItems(items, at))
         else void importDropped()

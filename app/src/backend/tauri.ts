@@ -626,16 +626,28 @@ export function tauriBackend(): Backend {
     },
     onFileDrag(cb) {
       const send = (e: FileDrag) => cb(e)
+      let turn = 0
+      let inspecting: Promise<Dropped> | undefined
       const off = getCurrentWebview().onDragDropEvent(async (e) => {
         const p = e.payload
         if (p.type === 'enter') {
+          const mine = ++turn
           dropped = p.paths
-          send({ type: 'enter', dropped: await invoke<Dropped>('inspect_drop', { paths: p.paths }) })
+          inspecting = invoke<Dropped>('inspect_drop', { paths: p.paths })
+          const info = await inspecting
+          if (mine === turn) send({ type: 'enter', dropped: info })
         } else if (p.type === 'over') send({ type: 'over', ...at(p.position) })
         else if (p.type === 'drop') {
+          turn++
           dropped = p.paths
-          send({ type: 'drop', ...at(p.position) })
-        } else send({ type: 'leave' })
+          const info = await (inspecting ?? invoke<Dropped>('inspect_drop', { paths: p.paths }))
+          inspecting = undefined
+          send({ type: 'drop', ...at(p.position), dropped: info })
+        } else {
+          turn++
+          inspecting = undefined
+          send({ type: 'leave' })
+        }
       })
       return () => void off.then((f) => f())
     },
