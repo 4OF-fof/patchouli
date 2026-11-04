@@ -115,11 +115,11 @@ export function TidyScreen(props: TidyScreenProps) {
     if (last.before) props.onUndo?.(last.before)
   }
   // 候補にないタグは、外したら候補にも残さない
-  const toggleTag = (it: Item, tag: string, on: boolean) => {
+  const toggleTag = (it: Item, tag: string, checked: boolean) => {
     const k = draft[it.id]?.tags.findIndex((t) => t.tag === tag) ?? -1
     if (k < 0) {
-      if (on) setDraft(it.id, 'tags', (ts) => [...ts, { tag, conf: '', on: true }])
-    } else if (on || draft[it.id]?.tags[k]?.conf) setDraft(it.id, 'tags', k, 'on', on)
+      if (checked) setDraft(it.id, 'tags', (ts) => [...ts, { tag, conf: '', on: true }])
+    } else if (checked || draft[it.id]?.tags[k]?.conf) setDraft(it.id, 'tags', k, 'on', checked)
     else setDraft(it.id, 'tags', (ts) => ts.filter((_, i) => i !== k))
   }
 
@@ -233,7 +233,7 @@ export function TidyScreen(props: TidyScreenProps) {
                 later={later().includes(it().id)}
                 recentTags={props.recentTags}
                 aside={back()}
-                onTag={(tag, on) => toggleTag(it(), tag, on)}
+                onTag={(tag, checked) => toggleTag(it(), tag, checked)}
                 onProject={(name) => setDraft(it().id, 'project', name)}
                 onPutOff={() => putOff(it())}
                 onApprove={() => approve(it())}

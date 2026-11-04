@@ -326,6 +326,8 @@ type Progress = ReturnType<typeof progress>
 
 /** 待っている書き込みを終えてから読み込み直す。 */
 const reload = () => void flushWrites().finally(() => window.location.reload())
+const showPrefs = () => applyPrefs(prefs())
+const openWith = (opts: OpenOptions | undefined, open: () => void) => (opts?.newTab ? asNewTab(open) : open())
 
 export function App(props: AppProps) {
   const backend = props.backend ?? sampleBackend()
@@ -495,13 +497,12 @@ export function App(props: AppProps) {
     onAction: (id, a) => (a === 'detach' ? detachTab(id) : splitTab(id, a)),
     onMove: moveTab,
   })
-  createEffect(() => applyPrefs(prefs()))
+  createEffect(showPrefs)
   onMount(() => {
     if (typeof matchMedia !== 'function') return
     const mq = matchMedia('(prefers-color-scheme: dark)')
-    const follow = () => applyPrefs(prefs())
-    mq.addEventListener('change', follow)
-    onCleanup(() => mq.removeEventListener('change', follow))
+    mq.addEventListener('change', showPrefs)
+    onCleanup(() => mq.removeEventListener('change', showPrefs))
   })
   const tabEntry = (t: Tab): TabEntry => {
     const v = t.stack().at(-1) ?? { s: 'edition' }
@@ -955,7 +956,6 @@ export function App(props: AppProps) {
     const remove = old.filter((t) => !tags.includes(t))
     if (add.length || remove.length) editItem(id, { tags }, { tags: { add, remove } })
   }
-  const openWith = (opts: OpenOptions | undefined, open: () => void) => (opts?.newTab ? asNewTab(open) : open())
   const pluginScreen = (v: View & { s: 'screen' }) => {
     const s = screenOfView(v)
     return (

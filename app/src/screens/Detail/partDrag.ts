@@ -8,8 +8,8 @@ const cardsOf = (el: Element) => {
  * つまみを押したまま動かすあいだ、掴んだカードを指に付けて、ほかのカードを空く場所へずらす。
  * 離したら、何枚ぶん動いたかを onMove に渡す。並びは DOM の兄弟の [data-part] から読む。
  */
-export function dragPart(e: PointerEvent, onMove: (by: number) => void) {
-  const handle = e.currentTarget as HTMLElement
+export function dragPart(e: PointerEvent & { currentTarget: HTMLElement }, onMove: (by: number) => void) {
+  const handle = e.currentTarget
   const { card, cards, i } = cardsOf(handle)
   if (!card || e.button !== 0) return
   e.preventDefault()
@@ -46,9 +46,9 @@ export function dragPart(e: PointerEvent, onMove: (by: number) => void) {
 }
 
 /** ↑↓ キーで 1 枚ぶん動かす。動かしたあとも、同じカードのつまみにフォーカスを残す。 */
-export function nudgePart(e: KeyboardEvent, onMove: (by: number) => void) {
+export function nudgePart(e: KeyboardEvent & { currentTarget: Element }, onMove: (by: number) => void) {
   const by = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0
-  const { cards, i } = cardsOf(e.currentTarget as Element)
+  const { cards, i } = cardsOf(e.currentTarget)
   if (!by || i + by < 0 || i + by >= cards.length) return
   e.preventDefault()
   onMove(by)
