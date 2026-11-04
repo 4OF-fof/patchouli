@@ -832,6 +832,8 @@ export function App(props: AppProps) {
     for (const id of ids) {
       eachStack((s) => {
         const rest = withoutItem(s, id)
+        // 変わらないタブはそのままにする。タブを戻す前に呼ばれても、操作されたと見なさないように
+        if (rest.length === s.length && rest.every((v, i) => v === s[i])) return s
         return rest.length ? rest : [{ s: 'edition' }]
       })
       if (peek() === id) setPeek(undefined)
