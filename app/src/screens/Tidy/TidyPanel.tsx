@@ -30,8 +30,6 @@ export interface TidyPanelProps {
 }
 
 const MIN_PICKER = 280
-/** 分類で選ぶ先に出さないプロジェクト。 */
-const DIARY = '日記'
 
 export function TidyPanel(props: TidyPanelProps) {
   const lib = () => props.lib
@@ -100,9 +98,7 @@ export function TidyPanel(props: TidyPanelProps) {
             value={props.project}
             options={[
               { value: '', label: '指定なし' },
-              ...lib()
-                .projects.filter((p) => p.name !== DIARY)
-                .map((p) => ({ value: p.name, label: p.name })),
+              ...lib().projects.map((p) => ({ value: p.name, label: p.name })),
             ]}
             onChange={(v) => props.onProject(v)}
           />
