@@ -491,17 +491,11 @@ pub fn put(job: u64, body: &[u8], error: Option<&str>, ms: f64) -> Result<(), St
         let _ = tx.send(work);
         return Ok(());
     }
-    let len = body
-        .first_chunk::<4>()
-        .map(|b| u32::from_le_bytes(*b) as usize)
-        .ok_or("区間の形がありません")?;
-    let sent: Vec<SentPart> = body
-        .get(4..4 + len)
-        .ok_or("区間の形が足りません")
-        .and_then(|b| serde_json::from_slice(b).map_err(|_| "区間の形を読めません"))?;
-    let mut at = 4 + len;
+    let (sent, rest): (Vec<SentPart>, _) =
+        crate::framed::split(body).map_err(|e| format!("区間の{e}"))?;
+    let mut at = 0;
     let mut take = |n: usize| -> Result<Vec<u8>, String> {
-        let b = body
+        let b = rest
             .get(at..at + n)
             .ok_or("区間の中身が足りません")?
             .to_vec();

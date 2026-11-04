@@ -185,9 +185,7 @@ export interface Library {
   groupBy: Map<string, Group>
   tagCovers: Map<string, TagCoverPart[]>
   pins: string[]
-  linksOf: (note: Item) => Item[]
   backOf: (it: Item) => Item[]
-  linkCount: (it: Item) => number
   /** プロジェクトの中の項目。グループの中のものも含む */
   inProject: (name: string) => Item[]
   /** グループの中の項目。下のグループの中のものも含む */
@@ -265,24 +263,20 @@ export function buildLibrary(
   }
   // サムネイルが届くたびに作り直すので、重いものは使うときに 1 度だけ作る
   const linked = once(() => {
-    const links = new Map<string, Item[]>()
     const back = new Map<string, Item[]>()
     for (const n of items) {
       if (!n.note || !n.body) continue
-      const to = noteRefs(n)
-        .map((r) => byId.get(r))
-        .filter((x): x is Item => !!x && x !== n)
-      links.set(n.id, to)
-      for (const t of to) {
+      for (const r of noteRefs(n)) {
+        const t = byId.get(r)
+        if (!t || t === n) continue
         const b = back.get(t.id)
         if (b) b.push(n)
         else back.set(t.id, [n])
       }
     }
-    return { links, back }
+    return back
   })
-  const linksOf = (n: Item) => linked().links.get(n.id) ?? []
-  const backOf = (it: Item) => linked().back.get(it.id) ?? []
+  const backOf = (it: Item) => linked().get(it.id) ?? []
   const byProject = once(() => bucket(items, (i) => i.project))
   const byTag = once(() => {
     const m = new Map<string, Item[]>()
@@ -306,9 +300,7 @@ export function buildLibrary(
     groupBy,
     tagCovers,
     pins,
-    linksOf,
     backOf,
-    linkCount: (it) => (it.note ? linksOf(it).length : 0) + backOf(it).length,
     inProject: (name) => byProject().get(name) ?? [],
     inGroup: (id) => {
       let got = inGroups.get(id)
@@ -602,13 +594,6 @@ export function dueLabel(lib: Library, date: string) {
     left: d > 0 ? `あと ${d} 日` : d === 0 ? '今日まで' : `${-d} 日超過`,
     late: d < 0,
   }
-}
-
-export function whyOf(lib: Library, it: Item) {
-  if (it.note && it.moved === 0) return '編集 | 今日'
-  const n = lib.linkCount(it)
-  if (n >= 2) return `リンク ${n} | ${relDay(lib, it.moved)}`
-  return `${it.note ? '編集' : '更新'} | ${relDay(lib, it.moved)}`
 }
 
 /** 音声のジャケット。音声のサムネイルは、波形から描いたものでなければジャケット */

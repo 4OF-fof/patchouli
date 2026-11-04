@@ -91,12 +91,7 @@ pub fn fetch(url: &Url, allow: impl Fn(&Url) -> Result<(), String>) -> Result<Ve
         .limit(LIMIT)
         .read_to_vec()
         .map_err(err)?;
-    let head = serde_json::to_vec(&head).map_err(|e| e.to_string())?;
-    let mut out = Vec::with_capacity(4 + head.len() + body.len());
-    out.extend_from_slice(&(head.len() as u32).to_le_bytes());
-    out.extend_from_slice(&head);
-    out.extend_from_slice(&body);
-    Ok(out)
+    crate::framed::join(&head, &body)
 }
 
 /// タブの中に出す外のページの位置と大きさ（CSS の px）。

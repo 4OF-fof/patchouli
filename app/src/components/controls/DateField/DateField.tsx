@@ -161,7 +161,7 @@ export function DateField(props: DateFieldProps) {
                 <Icon name="chevron" size={14} />
               </button>
             </div>
-            <div class={styles.grid} role="grid">
+            <div class={styles.grid} role="group">
               <For each={WEEK}>{(w) => <span class={styles.week}>{w}</span>}</For>
               <For each={days()}>
                 {(d) => (

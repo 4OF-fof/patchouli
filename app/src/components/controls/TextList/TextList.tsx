@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from 'solid-js'
+import { Index, Show, createSignal } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
 import { Button } from '../Button/Button'
 import { IconButton } from '../IconButton/IconButton'
@@ -71,27 +71,27 @@ export function TextList(props: TextListProps) {
 
   return (
     <div ref={root} class={`${styles.root} ${props.class ?? ''}`}>
-      <For each={props.values}>
+      <Index each={props.values}>
         {(v, i) => (
           <div class={styles.row}>
             <input
               type="text"
               class={styles.input}
-              value={v}
-              aria-label={`${props.name} ${i() + 1}`}
-              onKeyDown={(e) => onRowKey(e, i())}
-              onBlur={(e) => commit(i(), e.currentTarget)}
+              value={v()}
+              aria-label={`${props.name} ${i + 1}`}
+              onKeyDown={(e) => onRowKey(e, i)}
+              onBlur={(e) => commit(i, e.currentTarget)}
             />
             <IconButton
               class={styles.remove}
-              label={`${props.name}「${v}」を削除`}
-              onClick={() => props.onChange(props.values.filter((_, k) => k !== i()))}
+              label={`${props.name}「${v()}」を削除`}
+              onClick={() => props.onChange(props.values.filter((_, k) => k !== i))}
             >
               <Icon name="close" size={12} />
             </IconButton>
           </div>
         )}
-      </For>
+      </Index>
       <Show
         when={adding()}
         fallback={

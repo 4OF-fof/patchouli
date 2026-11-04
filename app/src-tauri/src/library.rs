@@ -359,7 +359,7 @@ impl Library {
     }
 
     fn cards_dir(&self, id: &str) -> PathBuf {
-        self.root.join(STATE_DIR).join(PROJECTS_DIR).join(id)
+        cards_dir(&self.root, id)
     }
 
     fn tags_dir(&self) -> PathBuf {
@@ -1266,14 +1266,7 @@ impl Library {
         check_name(name)?;
         let (dir, project, group) = self.place_dir(place)?;
         // 画面の知らないファイルがあっても作れるよう、かぶったら番号を付ける
-        let base = name;
-        let mut name = base.to_owned();
-        for k in 2.. {
-            if !dir.join(format!("{name}.{NOTE_EXT}")).exists() {
-                break;
-            }
-            name = format!("{base} {k}");
-        }
+        let name = numbered(name, |n| dir.join(format!("{n}.{NOTE_EXT}")).exists());
         let path = dir.join(format!("{name}.{NOTE_EXT}"));
         let id = new_id();
         let mut front = String::new();
@@ -1351,14 +1344,10 @@ impl Library {
     ) -> Result<StoredGroup, String> {
         check_name(base)?;
         let (parent, project, group) = self.place_dir(place)?;
-        let mut name = base.to_owned();
-        for k in 2.. {
-            let d = parent.join(&name);
-            if !d.exists() && !meta_path(&d).exists() {
-                break;
-            }
-            name = format!("{base} {k}");
-        }
+        let name = numbered(base, |n| {
+            let d = parent.join(n);
+            d.exists() || meta_path(&d).exists()
+        });
         let dir = parent.join(&name);
         fs::create_dir(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let id = new_id();
@@ -1663,14 +1652,29 @@ fn free_path(dir: &Path, name: &OsStr, is_dir: bool) -> PathBuf {
         ),
         _ => (name.to_string_lossy().into_owned(), String::new()),
     };
-    let mut to = dir.join(name);
-    for k in 2.. {
-        if !to.exists() && !meta_path(&to).exists() {
+    dir.join(
+        numbered(&stem, |n| {
+            let to = dir.join(format!("{n}{ext}"));
+            to.exists() || meta_path(&to).exists()
+        }) + &ext,
+    )
+}
+
+/// base が使われていれば、使われていない名前になるまで「base 2」「base 3」と番号を付ける。
+pub(crate) fn numbered(base: &str, taken: impl Fn(&str) -> bool) -> String {
+    let mut name = base.to_owned();
+    for n in 2.. {
+        if !taken(&name) {
             break;
         }
-        to = dir.join(format!("{stem} {k}{ext}"));
+        name = format!("{base} {n}");
     }
-    to
+    name
+}
+
+/// プロジェクトの概要のカードを置くフォルダ。
+pub(crate) fn cards_dir(root: &Path, id: &str) -> PathBuf {
+    root.join(STATE_DIR).join(PROJECTS_DIR).join(id)
 }
 
 pub fn canonical(root: &Path) -> Result<PathBuf, String> {

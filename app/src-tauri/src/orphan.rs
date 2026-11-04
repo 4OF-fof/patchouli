@@ -13,8 +13,8 @@ use sha2::{Digest, Sha256};
 use crate::cache::Row;
 use crate::library::{
     DirItem, ID_KEY, NOTE_EXT, PRINT_KEY, PROJECT_TYPE, PROJECTS_DIR, STATE_DIR, TAG_INDEX,
-    TAGS_DIR, TYPE_KEY, check_name, listed_entry, meta_path, name_of, read_entries, read_json,
-    write_json,
+    TAGS_DIR, TYPE_KEY, cards_dir, check_name, listed_entry, meta_path, name_of, read_entries,
+    read_json, write_json,
 };
 use crate::note;
 
@@ -371,10 +371,6 @@ impl<'a> Tend<'a> {
             });
         }
     }
-}
-
-fn cards_dir(root: &Path, id: &str) -> PathBuf {
-    root.join(STATE_DIR).join(PROJECTS_DIR).join(id)
 }
 
 pub fn relink_to(root: &Path, o: &Orphan, to: &str) -> Result<(), String> {

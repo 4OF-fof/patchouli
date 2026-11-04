@@ -5,7 +5,7 @@ use std::time::SystemTime;
 use serde::Serialize;
 
 use crate::library::{
-    Library, Place, StoredGroup, StoredItem, check_name, dunce, listed, meta_path,
+    Library, Place, StoredGroup, StoredItem, check_name, dunce, listed, meta_path, numbered,
 };
 
 #[derive(Debug, Serialize)]
@@ -94,17 +94,6 @@ pub fn inspect(paths: &[PathBuf], root: Option<&Path>) -> DropInfo {
         folders,
         loose,
     }
-}
-
-fn numbered(base: &str, taken: impl Fn(&str) -> bool) -> String {
-    let mut name = base.to_owned();
-    for n in 2.. {
-        if !taken(&name) {
-            break;
-        }
-        name = format!("{base} {n}");
-    }
-    name
 }
 
 fn touch(p: &Path) -> std::io::Result<()> {

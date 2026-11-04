@@ -40,7 +40,8 @@ export const Crumbs: Story = {
 }
 export const Places: Story = {
   name: 'いまの場所から画面を選ぶ',
-  render: () => bar({ crumbMenu: 0 }),
+  render: () => bar(),
+  play: ({ canvasElement }) => canvasElement.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.click(),
 }
 export const Menu: Story = { name: 'メニュー', render: () => bar({ initial: 'menu' }) }
 const recent = sampleLibrary()
@@ -115,7 +116,6 @@ export const Working: Story = {
     return <ThumbMakingProvider value={(id) => making.has(id)}>{bar({ activities: working })}</ThumbMakingProvider>
   },
 }
-export const ReadOnly: Story = { name: '書き込めない保存先', render: () => bar({ readOnly: true }) }
 
 const developer: AppBarProps['developer'] = {
   get: async () => ({ enabled: true, pluginDirs: ['D:\\dev\\patchouli-plugins'], repos: [] }),

@@ -4,6 +4,7 @@ mod content;
 mod cover;
 mod decisions;
 mod embed;
+mod framed;
 mod hooks;
 pub mod import;
 pub mod library;

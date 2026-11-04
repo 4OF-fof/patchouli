@@ -123,26 +123,6 @@
   gap: var(--space-2);
   padding-right: var(--space-6);
 }
-.ro {
-  display: flex;
-  align-items: center;
-  gap: var(--space-10);
-  padding: 0 var(--space-12);
-  font-size: var(--fs-meta);
-  white-space: nowrap;
-}
-.ro b {
-  color: var(--warm-ink);
-  font-weight: 600;
-}
-.ro button {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent);
-  font-size: inherit;
-  cursor: pointer;
-}
 .preparing {
   display: flex;
   align-items: center;

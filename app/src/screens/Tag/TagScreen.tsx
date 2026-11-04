@@ -2,11 +2,10 @@ import { For, Index, type JSX, Show, createEffect, createMemo, createSignal, on 
 import { NoneText } from '../../components/base/NoneText/NoneText'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { middleClick } from '../../components/nav/TabPane/newTab'
-import { Icon } from '../../components/base/Icon/Icon'
 import { Button } from '../../components/controls/Button/Button'
-import { IconButton } from '../../components/controls/IconButton/IconButton'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
 import { ProgressBar } from '../../components/base/ProgressBar/ProgressBar'
+import { counted } from '../../model/filter'
 import { type Library, type TagCoverPart, hasTag, newCardId } from '../../model/library'
 import { AddPart } from '../Detail/AddPart'
 import { DetailPart } from '../Detail/DetailPart'
@@ -27,12 +26,6 @@ const emptyTagPart = (type: TagCoverPart['type']): TagCoverPart =>
   type === 'desc' ? { id: newCardId(), type, text: '' } : { id: type, type }
 
 const near = (tag: string, t: string) => t === tag || t.startsWith(tag + '/') || tag.startsWith(t + '/')
-
-const count = (xs: string[]) => {
-  const m = new Map<string, number>()
-  for (const x of xs) m.set(x, (m.get(x) ?? 0) + 1)
-  return [...m].toSorted((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ja'))
-}
 
 export interface TagScreenProps {
   lib: Library
@@ -81,10 +74,10 @@ export function TagScreen(props: TagScreenProps) {
       .map((t) => ({ tag: t, n: all().filter((i) => hasTag(i, t)).length }))
       .toSorted((a, b) => b.n - a.n || a.tag.localeCompare(b.tag, 'ja')),
   )
-  const exts = createMemo(() => count(shown().map((i) => i.ext)))
+  const exts = createMemo(() => counted(shown().map((i) => i.ext)))
   const most = () => exts()[0]?.[1] ?? 1
   const together = createMemo(() =>
-    count(shown().flatMap((i) => [...new Set(i.tags)].filter((t) => !near(props.tag, t)))).slice(0, 6),
+    counted(shown().flatMap((i) => [...new Set(i.tags)].filter((t) => !near(props.tag, t)))).slice(0, 6),
   )
 
   const body = (c: TagCoverPart, i: number): JSX.Element => {
@@ -180,9 +173,6 @@ export function TagScreen(props: TagScreenProps) {
           <Button pressed={editing()} onClick={toggleEdit}>
             {editing() ? '編集を完了' : '概要を編集'}
           </Button>
-          <IconButton label="その他">
-            <Icon name="more" />
-          </IconButton>
         </>
       }
       sideLabel="概要"

@@ -90,10 +90,8 @@ export interface AppBarProps {
   onCrumb?: (i: number) => void
   siblingsOf?: (i: number) => NavMenuEntry[] | undefined
   onSibling?: (i: number, id: string) => void
-  crumbMenu?: number
   initial?: BarState
   query?: string
-  readOnly?: boolean
   activities?: Activity[]
   onGo?: (to: Place) => void
   onOpenProject?: (name: string) => void
@@ -462,7 +460,7 @@ export function AppBar(props: AppBarProps) {
     { id: 'keys', icon: 'keyboard', label: 'ショートカット一覧' },
     { id: 'settings', icon: 'settings', label: '設定' },
   ]
-  const [drop, setDrop] = createSignal(props.crumbMenu)
+  const [drop, setDrop] = createSignal<number>()
   const [clicked, setClicked] = createSignal(false)
   const crumbEls: HTMLElement[] = []
   let dropEl: HTMLDivElement | undefined
@@ -637,12 +635,6 @@ export function AppBar(props: AppBarProps) {
           <span class={styles.end}>
             <Show when={!props.tabs}>
               <span class={styles.tools} ref={(el) => props.toolsRef?.(el)} />
-            </Show>
-            <Show when={props.readOnly}>
-              <span class={styles.ro} role="status" data-tip="保存先に書き込めないため、読み取り専用になっています">
-                <b>読み取り専用</b>
-                <button type="button">編集を有効にする</button>
-              </span>
             </Show>
             <ActivityButton activities={props.activities ?? []} />
             <button
