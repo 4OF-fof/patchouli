@@ -641,7 +641,7 @@ export function App(props: AppProps) {
     <WebScreen
       url={url}
       browser={backend.browser}
-      onOpenDefault={backend.openUrl && ((u) => void backend.openUrl?.(u).catch(fail))}
+      onOpenDefault={backend.openUrl && ((u) => void backend.openUrl?.(u).catch(failOpen))}
     />
   )
   createEffect(() => {
@@ -662,6 +662,9 @@ export function App(props: AppProps) {
   }
   const failLoad = (e: unknown) => {
     notify(`読み込めませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
+  }
+  const failOpen = (e: unknown) => {
+    notify(`開けませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
   }
   const persist = (job: () => Promise<void>) => queueJob(job, fail)
   const state = (): LibraryState => ({
@@ -913,7 +916,7 @@ export function App(props: AppProps) {
         if (r.output && 'screen' in r.output) {
           const { id, window } = r.output.screen
           const s = screens().find((x) => x.plugin === plugin && x.id === id)
-          if (s) void openScreen(s, ids, window === true).catch(fail)
+          if (s) void openScreen(s, ids, window === true).catch(failOpen)
           else notify(`プラグインの画面「${id}」が見つかりません`, 'error')
         }
       },
@@ -1112,7 +1115,7 @@ export function App(props: AppProps) {
   const openUrl = async (url: string) => {
     const s = await backend.appSettings?.get().catch(() => undefined)
     if (s?.linkOpen === 'builtin' || !backend.openUrl) go({ s: 'web', url })
-    else await backend.openUrl(url).catch(fail)
+    else await backend.openUrl(url).catch(failOpen)
   }
   const renameTag = (from: string, to: string, keepFrom = false) => {
     const re = retag(from, to)
@@ -1337,7 +1340,7 @@ export function App(props: AppProps) {
     details: backend.itemDetails,
     linkOf: backend.linkOf,
     browser: backend.browser,
-    openUrl: backend.openUrl && ((url: string) => void backend.openUrl?.(url).catch(fail)),
+    openUrl: backend.openUrl && ((url: string) => void backend.openUrl?.(url).catch(failOpen)),
     openLink: (url: string) => void openUrl(url),
   }
   const { uiApi, uiUrl } = backend
@@ -1956,7 +1959,7 @@ export function App(props: AppProps) {
                           setPeekUrl(undefined)
                           openBeside(side, () => go({ s: 'web', url }))
                         }}
-                        onOpenDefault={backend.openUrl && (() => void backend.openUrl?.(url).catch(fail))}
+                        onOpenDefault={backend.openUrl && (() => void backend.openUrl?.(url).catch(failOpen))}
                         onClose={() => setPeekUrl(undefined)}
                       >
                         {webScreen(url)}
@@ -2076,8 +2079,8 @@ export function App(props: AppProps) {
                             revealLabel={REVEAL_LABEL}
                             onOpen={() => one() && openItem(one()!)}
                             onOpenInTab={() => one() && asNewTab(() => openItem(one()!))}
-                            onOpenDefault={openDefault && (() => one() && void openDefault(one()!).catch(fail))}
-                            onReveal={reveal && (() => one() && void reveal(one()!).catch(fail))}
+                            onOpenDefault={openDefault && (() => one() && void openDefault(one()!).catch(failOpen))}
+                            onReveal={reveal && (() => one() && void reveal(one()!).catch(failOpen))}
                             onMove={(to) => moveItems(ids(), to)}
                             onTag={(tag, on) => tagItems(ids(), tag, on)}
                             onPin={(on) => pinItems(ids(), on)}
