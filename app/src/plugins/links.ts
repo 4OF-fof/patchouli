@@ -123,39 +123,70 @@ export async function imageThumbnail(src: string, fetch: Fetch, edge: number): P
 const ICON_RATIO = 1.91
 
 /** SVG と ICO も読めるよう、img で読む。 */
-async function loadImage(f: Fetched) {
+async function loadImage(src: string) {
+  const img = new Image()
+  img.src = src
+  await img.decode()
+  return img
+}
+
+async function loadIcon(src: string, fetch: Fetch) {
+  if (src.startsWith('data:')) return loadImage(src)
+  const f = await fetch(src)
+  if (f.status >= 400) throw new Error(`${f.status}`)
   const url = URL.createObjectURL(new Blob([f.body], { type: f.type }))
   try {
-    const img = new Image()
-    img.src = url
-    await img.decode()
-    return img
+    return await loadImage(url)
   } finally {
     URL.revokeObjectURL(url)
   }
 }
 
-/** OGP の画像がないページの、サイトのアイコンとホスト名を並べたサムネイル。アイコンが読めなければ null。 */
+/** ページに書いてあるアイコン、なければ /favicon.ico。どちらも読めなければ undefined。 */
+async function siteIcon(page: Page, fetch: Fetch) {
+  for (const src of new Set([page.icon, absolute('/favicon.ico', page.url)])) {
+    const img = src && (await loadIcon(src, fetch).catch(() => undefined))
+    if (img) return img
+  }
+  return undefined
+}
+
+/** サイトのアイコンがないときに描く、地球の印（lucide の globe）。24 の枠で描く。 */
+const GLOBE = ['M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20', 'M2 12h20']
+
+/** OGP の画像がないページの、サイトのアイコンとホスト名を並べたサムネイル。アイコンが読めなければ地球の印を描く。 */
 export async function iconThumbnail(page: Page, fetch: Fetch, edge: number): Promise<Thumbnail | null> {
-  const src = page.icon ?? absolute('/favicon.ico', page.url)
-  const f = src ? await fetch(src) : undefined
-  if (!f || f.status >= 400) return null
-  const img = await loadImage(f).catch(() => undefined)
-  if (!img) return null
+  const img = await siteIcon(page, fetch)
   const [w, h] = [edge, Math.round(edge / ICON_RATIO)]
   const canvas = new OffscreenCanvas(w, h)
   const g = canvas.getContext('2d')
   if (!g) return null
-  const natural = Math.max(img.naturalWidth, img.naturalHeight)
+  const natural = img ? Math.max(img.naturalWidth, img.naturalHeight) : 0
   const full = Math.round(h * 0.3)
   // 小さいアイコンは、引き伸ばしすぎてぼやけないようにする
   const size = natural && natural < full / 2 ? natural * 2 : full
   const font = Math.round(h * 0.075)
   const gap = Math.round(h * 0.06)
   const top = Math.round((h - size - gap - font) / 2)
-  g.drawImage(img, (w - size) / 2, top, size, size)
-  // 背景は透かし、暗い地にも明るい地にも見える中間の灰色（tokens.css の --muted）で書く
-  g.fillStyle = '#8e929a'
+  const left = (w - size) / 2
+  // 背景は透かし、暗い地にも明るい地にも見える中間の灰色（tokens.css の --muted）で描く
+  const gray = '#8e929a'
+  if (img) g.drawImage(img, left, top, size, size)
+  else {
+    g.save()
+    g.translate(left, top)
+    g.scale(size / 24, size / 24)
+    g.strokeStyle = gray
+    g.lineWidth = 1.5
+    g.lineCap = 'round'
+    g.lineJoin = 'round'
+    g.beginPath()
+    g.arc(12, 12, 10, 0, Math.PI * 2)
+    g.stroke()
+    for (const d of GLOBE) g.stroke(new Path2D(d))
+    g.restore()
+  }
+  g.fillStyle = gray
   g.font = `${font}px 'Noto Sans JP Variable', system-ui, sans-serif`
   g.textAlign = 'center'
   g.textBaseline = 'top'
