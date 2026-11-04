@@ -1,3 +1,4 @@
+mod background;
 pub mod cache;
 mod content;
 mod cover;
@@ -422,7 +423,7 @@ fn apply_ran(
     );
     if !jobs.is_empty() {
         let app = app.clone();
-        std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
+        background::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
     if !changed.is_empty() {
         let changes = library::Changes {
@@ -817,7 +818,7 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
     let cache = Arc::new(Cache::open(&cache_path));
     {
         let (dir, root) = (cache_dir.clone(), root.clone());
-        std::thread::spawn(move || cache::sweep(&dir, &root));
+        background::spawn(move || cache::sweep(&dir, &root));
     }
     let thumbs = thumb::dir_for(&cache_dir, &root);
     std::fs::create_dir_all(&thumbs).map_err(|e| format!("{}: {e}", thumbs.display()))?;
@@ -871,7 +872,7 @@ async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<
     }
     if checking {
         CHECKING.fetch_add(1, Ordering::Relaxed);
-        std::thread::spawn(move || {
+        background::spawn(move || {
             check(&app, id, &root, &plugins, &cache, &thumbs);
             CHECKING.fetch_sub(1, Ordering::Relaxed);
         });
@@ -985,7 +986,7 @@ fn spawn_thumbs(
         Arc::clone(cache),
         thumbs.to_owned(),
     );
-    std::thread::spawn(move || {
+    background::spawn(move || {
         thumb::prune(&dir, &current, all_found, since);
         make_thumbs(&app, &plugins, &cache, jobs);
     });
@@ -1081,7 +1082,7 @@ async fn import_files(
     let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut out.items);
     hooks::queue(&app, &out.items);
     if !jobs.is_empty() {
-        std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
+        background::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
     Ok(out)
 }
@@ -1113,7 +1114,7 @@ async fn import_data(
     let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut items);
     hooks::queue(&app, &items);
     if !jobs.is_empty() {
-        std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
+        background::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
     items.pop().ok_or_else(|| "取り込みに失敗しました".into())
 }
@@ -1256,12 +1257,38 @@ async fn set_app_settings(
     settings: settings::AppSettings,
 ) -> Result<(), String> {
     let before = settings::app_settings(&app)?;
+    let resize = before.thumb_size != settings.thumb_size;
+    let root = if resize {
+        let root = root_of(&cur)?;
+        close_for_clearing(&app, &cur)?;
+        Some(root)
+    } else {
+        None
+    };
     settings::set_app_settings(&app, &settings)?;
     apply_app_settings(&settings);
-    if before.thumb_size != settings.thumb_size {
-        let root = root_of(&cur)?;
-        drop(cur.0.lock().map_err(|e| e.to_string())?.take());
+    if let Some(root) = root {
         tidy::clear(&cache_dir(&app)?, &root, tidy::Kind::Thumbs)?;
+    }
+    Ok(())
+}
+
+/// キャッシュを消す前に、裏の仕事を止めて終わるのを待ち、ライブラリを閉じる。
+fn close_for_clearing(app: &tauri::AppHandle, cur: &State<Current>) -> Result<(), String> {
+    const LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
+    thumb::stop();
+    content::stop(app);
+    suggest::stop();
+    if !background::wait(LIMIT) {
+        return Err("裏で動いている処理が終わらないため、キャッシュを消せませんでした。少し待ってから、やり直してください".into());
+    }
+    let closed = cur.0.lock().map_err(|e| e.to_string())?.take();
+    if let Some(s) = closed {
+        s.plugins.stop();
+    }
+    // 閉じる前に始まったものを待つ。閉じたあとは、新しく始まらない
+    if !background::wait(LIMIT) {
+        log::warn!("裏の処理が終わらないまま、キャッシュを消す");
     }
     Ok(())
 }
@@ -1376,7 +1403,7 @@ async fn set_plugin_setting(
         it.thumb.is_none() && plugins.handles(&it.ext, Part::Thumbnail) == Some(By::Elevated)
     });
     if !jobs.is_empty() {
-        std::thread::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
+        background::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
     Ok(items)
 }
@@ -2275,7 +2302,7 @@ async fn clear_cache(
         tidy::Kind::All => unused_plugins_of(&app, &cur)?,
         _ => Vec::new(),
     };
-    drop(cur.0.lock().map_err(|e| e.to_string())?.take());
+    close_for_clearing(&app, &cur)?;
     tidy::clear(&cache_dir(&app)?, &root, kind)?;
     remove_plugins(unused)
 }
@@ -2462,7 +2489,7 @@ fn recheck(app: &tauri::AppHandle) -> Result<(), String> {
     })?;
     let app = app.clone();
     CHECKING.fetch_add(1, Ordering::Relaxed);
-    std::thread::spawn(move || {
+    background::spawn(move || {
         check(&app, id, &root, &plugins, &cache, &thumbs);
         CHECKING.fetch_sub(1, Ordering::Relaxed);
     });

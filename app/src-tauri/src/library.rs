@@ -1010,7 +1010,7 @@ impl Library {
         if dirs.is_empty() {
             return;
         }
-        std::thread::spawn(move || {
+        crate::background::spawn(move || {
             for d in dirs {
                 if let Err(e) = orphan::reprint(&d) {
                     log::warn!("照合用の値を書けない: {e}");

@@ -127,7 +127,12 @@ pub fn path_of(dir: &Path, id: &str, m: &fs::Metadata, reads: &Reads) -> Option<
     } else {
         serde_json::to_vec(reads).ok()?
     };
-    let version = fnv(&[&t.to_le_bytes(), &m.len().to_le_bytes(), &settings]);
+    // 大きさを変えたあと、前の大きさのものを作り済みとみなさないよう名前に入れる。標準の大きさは、入れる前の名前と同じにする
+    let size = match edge() {
+        512 => Vec::new(),
+        e => e.to_le_bytes().to_vec(),
+    };
+    let version = fnv(&[&t.to_le_bytes(), &m.len().to_le_bytes(), &settings, &size]);
     Some(dir.join(format!("{place:016x}-{version:016x}.png")))
 }
 

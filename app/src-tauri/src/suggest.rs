@@ -604,6 +604,11 @@ fn last() -> &'static Mutex<Option<Arc<Model>>> {
     L.get_or_init(|| Mutex::new(None))
 }
 
+/// 作りかけの候補を捨てる。
+pub fn stop() {
+    RUN.fetch_add(1, Ordering::Relaxed);
+}
+
 /// 候補を作り直し、できたら send で渡す。新しく始めると、前のものは捨てる。
 pub fn refresh(
     root: &Path,
@@ -613,7 +618,7 @@ pub fn refresh(
 ) {
     let run = RUN.fetch_add(1, Ordering::Relaxed) + 1;
     let (root, thumbs) = (root.to_owned(), thumbs.to_owned());
-    std::thread::spawn(move || {
+    crate::background::spawn(move || {
         let started = Instant::now();
         match build(&root, &thumbs, &items, run) {
             Ok(Some(m)) => {

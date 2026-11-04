@@ -235,7 +235,7 @@ pub fn collect(
     {
         let stop = Arc::clone(&stop);
         let app = app.clone();
-        std::thread::spawn(move || {
+        crate::background::spawn(move || {
             if embed_all(&mut store, texts, by_thumb, &rx, &stop) {
                 crate::refresh_suggestions(&app);
             }
@@ -259,7 +259,7 @@ pub fn collect(
         );
     }
     let plugins = Arc::clone(plugins);
-    std::thread::spawn(move || {
+    crate::background::spawn(move || {
         let mut runner = Runner::new(plugins);
         runner.set_stop(Arc::clone(&stop));
         for (ext, file, mut work) in sandbox {
