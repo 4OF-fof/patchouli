@@ -6,6 +6,8 @@ const app = path.resolve(import.meta.dirname, '..', 'app')
 const out = path.join(app, 'src', 'notices', 'third-party.json')
 const target =
   process.argv[2] ??
+  // tauri build から呼ばれたときは、ビルド先に合わせて数え直す
+  process.env.TAURI_ENV_TARGET_TRIPLE ??
   /^host: (.+)$/m.exec(execSync('rustc -vV', { encoding: 'utf8' }))?.[1] ??
   (() => {
     throw new Error('ビルド先のターゲットがわからない')
@@ -252,6 +254,7 @@ const self = { name: 'Patchouli', license: 'MIT', text: readText(path.join(app, 
 const groups = group(all)
 fs.mkdirSync(path.dirname(out), { recursive: true })
 fs.writeFileSync(out, JSON.stringify({ self, target, texts: Object.fromEntries(texts), groups }) + '\n')
+run(`pnpm exec vp fmt ${path.relative(app, out)}`)
 const raw = all.filter((e) => e.notices.some((n) => !isStandard(n)))
 console.log(`${target}: ${all.length} 件、${groups.length} グループ、標準の文面 ${texts.size} 種類`)
 if (raw.length) console.log(`標準と違う文面なので、先を出すもの: ${raw.map((e) => `${e.name}@${e.version}`).join(', ')}`)
