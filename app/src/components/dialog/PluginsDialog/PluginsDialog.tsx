@@ -1,4 +1,4 @@
-import { For, Index, type JSX, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, Index, type JSX, Show, createMemo, createSignal } from 'solid-js'
 import type {
   CommandStatus,
   Deps,
@@ -14,8 +14,10 @@ import { Icon } from '../../base/Icon/Icon'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
+import { DialogFrame } from '../DialogFrame/DialogFrame'
 import styles from './PluginsDialog.module.css'
 import { IconButton } from '../../controls/IconButton/IconButton'
+import { createBusy, message } from '../../../model/busy'
 
 export interface PluginsDialogProps {
   report?: PluginReport
@@ -81,8 +83,6 @@ const absent = (p: PluginStatus) => p.state === 'missing' || p.state === 'broken
 
 const sourceLabel = (s: PluginSource) => s.local
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
-
 const errors = (p: PluginStatus) => p.problems.filter((x) => x.level === 'error').length
 
 const describe = (d: object) => ('description' in d && typeof d.description === 'string' ? d.description : undefined)
@@ -133,34 +133,17 @@ const perms = (p: PluginStatus) => {
 const latest = <T,>(f: () => T | undefined) => createMemo<T>((prev) => f() ?? prev, f()!)
 
 export function PluginsDialog(props: PluginsDialogProps) {
-  let el!: HTMLDivElement
-  const [busy, setBusy] = createSignal<string>()
-  const [error, setError] = createSignal<string>()
+  const { busy, error, setError, run: start } = createBusy()
   const [picked, setPicked] = createSignal(props.pick && (props.pick.dev ? DEV : '') + props.pick.id)
   const [closed, setClosed] = createSignal<string[]>([])
   const [query, setQuery] = createSignal('')
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && !(e.target instanceof HTMLInputElement)) props.onClose?.()
-  }
-  onMount(() => {
-    el.focus()
-    window.addEventListener('keydown', onKey)
-  })
-  onCleanup(() => window.removeEventListener('keydown', onKey))
 
-  const run = async (label: string, job: () => Promise<boolean | void>, changed = true) => {
-    setBusy(label)
-    setError(undefined)
-    try {
+  const run = (label: string, job: () => Promise<boolean | void>, changed = true) =>
+    start(label, async () => {
       if ((await job()) === false) return
       if (changed) await props.onChanged?.()
       else props.onRefresh?.()
-    } catch (e) {
-      setError(message(e))
-    } finally {
-      setBusy(undefined)
-    }
-  }
+    })
   const a = () => props.actions ?? {}
   const plugins = () => props.report?.plugins ?? []
   const commands = () => props.report?.commands ?? []
@@ -551,102 +534,105 @@ export function PluginsDialog(props: PluginsDialogProps) {
   }
 
   return (
-    <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
-      <div class={styles.root} role="dialog" aria-label="プラグイン" tabIndex={-1} ref={el}>
-        <Show when={props.onClose}>
-          <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
-            <Icon name="close" />
-          </IconButton>
-        </Show>
-        <nav class={styles.side}>
-          <h2>プラグイン</h2>
-          <label class={styles.search}>
-            <Icon name="search" size={14} withText />
-            <input
-              type="search"
-              placeholder="検索"
-              aria-label="プラグインと外部ツールを検索"
-              value={query()}
-              onInput={(e) => setQuery(e.currentTarget.value)}
-            />
-          </label>
-          <ScrollArea class={styles.list} viewClass={styles.listView}>
-            <Show when={props.report} fallback={<p class={styles.none}>読み込み中…</p>}>
-              <For each={GROUPS}>
-                {(g) => (
-                  <Show when={shown(g).length}>
-                    {(n) =>
-                      group(g.label, n(), () => (
-                        <For each={shown(g)}>
-                          {(p) => (
-                            <button
-                              type="button"
-                              class={styles.item}
-                              aria-current={current() === p}
-                              data-missing={p.state !== 'active'}
-                              onClick={() => setPicked(keyOf(p))}
-                            >
-                              <span>{p.name}</span>
-                              <Show when={p.problems.length}>
-                                <i data-level={errors(p) ? 'error' : 'warning'}>{p.problems.length}</i>
-                              </Show>
-                            </button>
-                          )}
-                        </For>
-                      ))
-                    }
-                  </Show>
-                )}
-              </For>
-              <Show when={shownCommands().length}>
-                {group(TOOLS, shownCommands().length, () => (
-                  <For each={shownCommands()}>
-                    {(c) => (
-                      <button
-                        type="button"
-                        class={styles.item}
-                        aria-current={current() === c}
-                        data-missing={!c.path}
-                        onClick={() => setPicked(CMD + c.name)}
-                      >
-                        <span>{c.name}</span>
-                        <Show when={!c.path}>
-                          <i data-level={users(c.name).some((u) => u.need === '必須') ? 'error' : 'warning'}>未検出</i>
-                        </Show>
-                      </button>
-                    )}
-                  </For>
-                ))}
-              </Show>
-              <Show when={!GROUPS.some((g) => shown(g).length) && !shownCommands().length}>
-                <p class={styles.none}>見つかりません</p>
-              </Show>
+    <DialogFrame label="プラグイン" overlayClass={styles.ov} class={styles.root} onClose={props.onClose}>
+      <Show when={props.onClose}>
+        <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
+          <Icon name="close" />
+        </IconButton>
+      </Show>
+      <nav class={styles.side}>
+        <h2>プラグイン</h2>
+        <label class={styles.search}>
+          <Icon name="search" size={14} withText />
+          <input
+            type="search"
+            placeholder="検索"
+            aria-label="プラグインと外部ツールを検索"
+            value={query()}
+            onInput={(e) => setQuery(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape' || !query()) return
+              e.preventDefault()
+              setQuery('')
+            }}
+          />
+        </label>
+        <ScrollArea class={styles.list} viewClass={styles.listView}>
+          <Show when={props.report} fallback={<p class={styles.none}>読み込み中…</p>}>
+            <For each={GROUPS}>
+              {(g) => (
+                <Show when={shown(g).length}>
+                  {(n) =>
+                    group(g.label, n(), () => (
+                      <For each={shown(g)}>
+                        {(p) => (
+                          <button
+                            type="button"
+                            class={styles.item}
+                            aria-current={current() === p}
+                            data-missing={p.state !== 'active'}
+                            onClick={() => setPicked(keyOf(p))}
+                          >
+                            <span>{p.name}</span>
+                            <Show when={p.problems.length}>
+                              <i data-level={errors(p) ? 'error' : 'warning'}>{p.problems.length}</i>
+                            </Show>
+                          </button>
+                        )}
+                      </For>
+                    ))
+                  }
+                </Show>
+              )}
+            </For>
+            <Show when={shownCommands().length}>
+              {group(TOOLS, shownCommands().length, () => (
+                <For each={shownCommands()}>
+                  {(c) => (
+                    <button
+                      type="button"
+                      class={styles.item}
+                      aria-current={current() === c}
+                      data-missing={!c.path}
+                      onClick={() => setPicked(CMD + c.name)}
+                    >
+                      <span>{c.name}</span>
+                      <Show when={!c.path}>
+                        <i data-level={users(c.name).some((u) => u.need === '必須') ? 'error' : 'warning'}>未検出</i>
+                      </Show>
+                    </button>
+                  )}
+                </For>
+              ))}
             </Show>
-          </ScrollArea>
-          <Show when={a().install}>
-            <div class={styles.foot}>
-              <Button class={styles.addButton} variant="primary" disabled={busy() !== undefined} onClick={install}>
-                <Icon name="plus" size={14} withText />
-                プラグインを追加
-              </Button>
-            </div>
+            <Show when={!GROUPS.some((g) => shown(g).length) && !shownCommands().length}>
+              <p class={styles.none}>見つかりません</p>
+            </Show>
           </Show>
-        </nav>
-        <ScrollArea class={styles.main} viewClass={styles.mainView}>
-          <div class={styles.page}>
-            <Show when={busy() || error()}>
-              <p class={styles.status} data-error={!!error()} role="status">
-                {error() ?? `${busy()}…`}
-              </p>
-            </Show>
-            <Show when={props.report}>
-              <Show when={key()} keyed>
-                {(k) => (k.startsWith(CMD) ? command(latest(pickedCommand)) : detail(latest(pickedPlugin)))}
-              </Show>
-            </Show>
-          </div>
         </ScrollArea>
-      </div>
-    </div>
+        <Show when={a().install}>
+          <div class={styles.foot}>
+            <Button class={styles.addButton} variant="primary" disabled={busy() !== undefined} onClick={install}>
+              <Icon name="plus" size={14} withText />
+              プラグインを追加
+            </Button>
+          </div>
+        </Show>
+      </nav>
+      <ScrollArea class={styles.main} viewClass={styles.mainView}>
+        <div class={styles.page}>
+          <Show when={busy() || error()}>
+            <p class={styles.status} data-error={!!error()} role="status">
+              {error() ?? `${busy()}…`}
+            </p>
+          </Show>
+          <Show when={props.report}>
+            <Show when={key()} keyed>
+              {(k) => (k.startsWith(CMD) ? command(latest(pickedCommand)) : detail(latest(pickedPlugin)))}
+            </Show>
+          </Show>
+        </div>
+      </ScrollArea>
+    </DialogFrame>
   )
 }

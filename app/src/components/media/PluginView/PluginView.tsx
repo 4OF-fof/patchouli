@@ -3,6 +3,7 @@ import type { LinkApi, ScreenApi } from '../../../../plugins/sdk'
 import { type UiApi, loadUi } from '../../../plugins/ui'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { SelectList } from '../../controls/Select/Select'
+import { message } from '../../../model/busy'
 import styles from './PluginView.module.css'
 
 export type PluginViewProps = {
@@ -19,8 +20,6 @@ export type PluginViewProps = {
   /** screens の mount で、画面を描く */
   | { api: ScreenApi; link?: false; screen: string }
 )
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 /** 素の select が一覧を開くキー。 */
 const OPEN_KEYS = new Set([' ', 'Enter', 'F4'])

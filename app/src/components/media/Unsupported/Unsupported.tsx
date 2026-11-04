@@ -1,7 +1,8 @@
-import { Show, createSignal } from 'solid-js'
+import { Show } from 'solid-js'
 import type { PluginStatus } from '../../../plugins/types'
 import { Icon } from '../../base/Icon/Icon'
 import { Button } from '../../controls/Button/Button'
+import { createBusy } from '../../../model/busy'
 import styles from './Unsupported.module.css'
 
 /** conflict は、同じ形式に対応していて、どれも使っていないプラグインの名前。 */
@@ -21,22 +22,10 @@ export interface UnsupportedProps {
   class?: string
 }
 
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
-
 export function Unsupported(props: UnsupportedProps) {
-  const [busy, setBusy] = createSignal(false)
-  const [error, setError] = createSignal<string>()
-  const run = async (job: () => Promise<void>) => {
-    setBusy(true)
-    setError(undefined)
-    try {
-      await job()
-    } catch (e) {
-      setError(message(e))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const { busy: working, error, run: start } = createBusy()
+  const busy = () => working() !== undefined
+  const run = (job: () => Promise<void>) => start('', job)
   const text = () => {
     if (props.decoder) return 'このファイルの形式（コーデック）にこの環境が対応していないため、表示できません'
     const b = props.blocker

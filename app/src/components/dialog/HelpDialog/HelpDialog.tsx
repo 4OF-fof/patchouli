@@ -1,5 +1,6 @@
-import { For, Show, onCleanup, onMount } from 'solid-js'
+import { For, Show } from 'solid-js'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
+import { DialogFrame } from '../DialogFrame/DialogFrame'
 import styles from './HelpDialog.module.css'
 import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
@@ -28,36 +29,32 @@ export interface HelpDialogProps {
 
 export function HelpDialog(props: HelpDialogProps) {
   let el!: HTMLDivElement
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') props.onClose?.()
-  }
-  onMount(() => {
-    el.focus()
-    window.addEventListener('keydown', onKey)
-  })
-  onCleanup(() => window.removeEventListener('keydown', onKey))
   return (
-    <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
-      <div class={styles.frame} role="dialog" aria-label="ショートカット">
-        <Show when={props.onClose}>
-          <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
-            <Icon name="close" />
-          </IconButton>
-        </Show>
-        <ScrollArea class={styles.root} viewClass={styles.body} tabIndex={-1} ref={el}>
-          <h2>ショートカット</h2>
-          <dl>
-            <For each={SHORTCUTS}>
-              {([k, d]) => (
-                <>
-                  <dt>{k}</dt>
-                  <dd>{d}</dd>
-                </>
-              )}
-            </For>
-          </dl>
-        </ScrollArea>
-      </div>
-    </div>
+    <DialogFrame
+      label="ショートカット"
+      overlayClass={styles.ov}
+      class={styles.frame}
+      onClose={props.onClose}
+      focus={() => el}
+    >
+      <Show when={props.onClose}>
+        <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
+          <Icon name="close" />
+        </IconButton>
+      </Show>
+      <ScrollArea class={styles.root} viewClass={styles.body} tabIndex={-1} ref={el}>
+        <h2>ショートカット</h2>
+        <dl>
+          <For each={SHORTCUTS}>
+            {([k, d]) => (
+              <>
+                <dt>{k}</dt>
+                <dd>{d}</dd>
+              </>
+            )}
+          </For>
+        </dl>
+      </ScrollArea>
+    </DialogFrame>
   )
 }

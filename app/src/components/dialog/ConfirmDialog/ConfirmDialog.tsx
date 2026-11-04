@@ -1,4 +1,5 @@
-import { type JSX, onCleanup, onMount } from 'solid-js'
+import type { JSX } from 'solid-js'
+import { DialogFrame } from '../DialogFrame/DialogFrame'
 import styles from './ConfirmDialog.module.css'
 
 export interface ConfirmDialogProps {
@@ -14,12 +15,8 @@ export interface ConfirmDialogProps {
 
 /** 確認や選択を求める小さなダイアログ。Esc と枠の外のクリックで閉じる。 */
 export function ConfirmDialog(props: ConfirmDialogProps) {
-  let el!: HTMLDivElement
   const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      e.stopPropagation()
-      props.onClose?.()
-    } else if (
+    if (
       e.key === 'Enter' &&
       !e.isComposing &&
       !(e.target instanceof HTMLButtonElement || e.target instanceof HTMLInputElement) &&
@@ -29,24 +26,18 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
       props.onEnter()
     }
   }
-  onMount(() => {
-    el.focus()
-    window.addEventListener('keydown', onKey, true)
-  })
-  onCleanup(() => window.removeEventListener('keydown', onKey, true))
   return (
-    <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
-      <div
-        class={`${styles.root} ${props.class ?? ''}`}
-        role="alertdialog"
-        aria-label={props.label}
-        tabIndex={-1}
-        ref={el}
-      >
-        <h2>{props.title}</h2>
-        {props.children}
-        <footer>{props.footer}</footer>
-      </div>
-    </div>
+    <DialogFrame
+      label={props.label}
+      role="alertdialog"
+      overlayClass={styles.ov}
+      class={`${styles.root} ${props.class ?? ''}`}
+      onClose={props.onClose}
+      onKeyDown={onKey}
+    >
+      <h2>{props.title}</h2>
+      {props.children}
+      <footer>{props.footer}</footer>
+    </DialogFrame>
   )
 }

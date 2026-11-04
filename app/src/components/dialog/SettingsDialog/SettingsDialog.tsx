@@ -1,4 +1,4 @@
-import { For, type JSX, Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, type JSX, Show, createMemo, createResource, createSignal } from 'solid-js'
 import type {
   AppSettings,
   AutoTag,
@@ -14,9 +14,11 @@ import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
 import { type Notices, NoticesView } from './Notices'
+import { DialogFrame } from '../DialogFrame/DialogFrame'
 import styles from './SettingsDialog.module.css'
 import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
+import { createBusy, message } from '../../../model/busy'
 
 export type SettingsPage = 'general' | 'view' | 'note' | 'developer' | 'about'
 
@@ -52,8 +54,6 @@ export interface SettingsDialogProps {
   loadNotices?: () => Promise<Notices>
   onClose?: () => void
 }
-
-const message = (e: unknown) => (e instanceof Error ? e.message : String(e))
 
 const bytesLabel = (n: number) => {
   const units = ['B', 'KB', 'MB', 'GB']
@@ -106,33 +106,11 @@ interface Entry {
 const grouped = (group: string, list: Entry[]) => list.map((e) => ({ ...e, group }))
 
 export function SettingsDialog(props: SettingsDialogProps) {
-  let el!: HTMLDivElement
-  const [busy, setBusy] = createSignal<string>()
-  const [error, setError] = createSignal<string>()
   /** 変えられなかったときに増やし、スイッチを渡された値に描き直す。 */
   const [failed, setFailed] = createSignal(0)
+  const { busy, error, setError, run } = createBusy(() => setFailed(failed() + 1))
   const [query, setQuery] = createSignal('')
-  const onKey = (e: KeyboardEvent) => {
-    if (e.key === 'Escape' && !(e.target instanceof HTMLInputElement)) props.onClose?.()
-  }
-  onMount(() => {
-    el.focus()
-    window.addEventListener('keydown', onKey)
-  })
-  onCleanup(() => window.removeEventListener('keydown', onKey))
 
-  const run = async (label: string, job: () => Promise<void>) => {
-    setBusy(label)
-    setError(undefined)
-    try {
-      await job()
-    } catch (e) {
-      setError(message(e))
-      setFailed(failed() + 1)
-    } finally {
-      setBusy(undefined)
-    }
-  }
   const [switching, setSwitching] = createSignal(false)
   const changeAutoTag = async (change: (on: boolean) => Promise<void>, on: boolean) => {
     setSwitching(true)
@@ -742,73 +720,71 @@ export function SettingsDialog(props: SettingsDialogProps) {
   )
 
   return (
-    <div class={styles.ov} role="presentation" onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}>
-      <div class={styles.root} role="dialog" aria-label="設定" tabIndex={-1} ref={el}>
-        <Show when={props.onClose}>
-          <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
-            <Icon name="close" />
-          </IconButton>
-        </Show>
-        <nav class={styles.side}>
-          <h2>設定</h2>
-          <label class={styles.search}>
-            <Icon name="search" size={14} withText />
-            <input
-              type="search"
-              placeholder="検索"
-              aria-label="設定を検索"
-              value={query()}
-              onInput={(e) => setQuery(e.currentTarget.value)}
-              onKeyDown={(e) => {
-                if (e.key !== 'Escape' || !query()) return
-                e.preventDefault()
-                setQuery('')
-              }}
-            />
-          </label>
-          <ScrollArea class={styles.list} viewClass={styles.listView}>
-            <For each={pages()} fallback={<p class={styles.empty}>見つかりません</p>}>
-              {(p) => (
-                <button
-                  type="button"
-                  class={styles.item}
-                  aria-current={!searching() && current()?.id === p.id}
-                  onClick={() => {
-                    setQuery('')
-                    setPicked(p.id)
-                  }}
-                >
-                  {p.label}
-                </button>
-              )}
-            </For>
-          </ScrollArea>
-        </nav>
-        <ScrollArea class={styles.main} viewClass={styles.mainView}>
-          <Show when={busy() || error()}>
-            <p class={styles.status} data-error={!!error()} role="status">
-              {error() ?? `${busy()}…`}
-            </p>
-          </Show>
-          <For each={shown()}>
+    <DialogFrame label="設定" overlayClass={styles.ov} class={styles.root} onClose={props.onClose}>
+      <Show when={props.onClose}>
+        <IconButton class={styles.x} label="閉じる" onClick={() => props.onClose?.()}>
+          <Icon name="close" />
+        </IconButton>
+      </Show>
+      <nav class={styles.side}>
+        <h2>設定</h2>
+        <label class={styles.search}>
+          <Icon name="search" size={14} withText />
+          <input
+            type="search"
+            placeholder="検索"
+            aria-label="設定を検索"
+            value={query()}
+            onInput={(e) => setQuery(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Escape' || !query()) return
+              e.preventDefault()
+              setQuery('')
+            }}
+          />
+        </label>
+        <ScrollArea class={styles.list} viewClass={styles.listView}>
+          <For each={pages()} fallback={<p class={styles.empty}>見つかりません</p>}>
             {(p) => (
-              <section class={styles.page}>
-                <h3 class={styles.head}>{p.label}</h3>
-                <For each={groupsOf(p.id)}>
-                  {(g) => (
-                    <div class={styles.group}>
-                      <Show when={g.name}>
-                        <h4 class={styles.label}>{g.name}</h4>
-                      </Show>
-                      <For each={g.entries}>{(e) => e.body()}</For>
-                    </div>
-                  )}
-                </For>
-              </section>
+              <button
+                type="button"
+                class={styles.item}
+                aria-current={!searching() && current()?.id === p.id}
+                onClick={() => {
+                  setQuery('')
+                  setPicked(p.id)
+                }}
+              >
+                {p.label}
+              </button>
             )}
           </For>
         </ScrollArea>
-      </div>
-    </div>
+      </nav>
+      <ScrollArea class={styles.main} viewClass={styles.mainView}>
+        <Show when={busy() || error()}>
+          <p class={styles.status} data-error={!!error()} role="status">
+            {error() ?? `${busy()}…`}
+          </p>
+        </Show>
+        <For each={shown()}>
+          {(p) => (
+            <section class={styles.page}>
+              <h3 class={styles.head}>{p.label}</h3>
+              <For each={groupsOf(p.id)}>
+                {(g) => (
+                  <div class={styles.group}>
+                    <Show when={g.name}>
+                      <h4 class={styles.label}>{g.name}</h4>
+                    </Show>
+                    <For each={g.entries}>{(e) => e.body()}</For>
+                  </div>
+                )}
+              </For>
+            </section>
+          )}
+        </For>
+      </ScrollArea>
+    </DialogFrame>
   )
 }
