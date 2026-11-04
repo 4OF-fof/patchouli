@@ -768,9 +768,40 @@ fn tell_thumb(
     );
 }
 
+/// 開いているライブラリのロック。ほかのアプリが同じライブラリを開いて、キャッシュやメタ情報を書き合わないようにする。
+static LOCKED: Mutex<Option<(PathBuf, std::fs::File)>> = Mutex::new(None);
+
+fn lock_library(root: &Path) -> Result<(), String> {
+    let mut held = LOCKED.lock().unwrap_or_else(|e| e.into_inner());
+    if held.as_ref().is_some_and(|(r, _)| r == root) {
+        return Ok(());
+    }
+    let dir = root.join(library::STATE_DIR);
+    std::fs::create_dir_all(&dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let path = dir.join("lock");
+    let file = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&path)
+        .map_err(|e| format!("{}: {e}", path.display()))?;
+    match file.try_lock() {
+        Ok(()) => {
+            *held = Some((root.to_owned(), file));
+            Ok(())
+        }
+        Err(std::fs::TryLockError::WouldBlock) => Err(format!(
+            "このライブラリ（{}）は別のウィンドウで開いています",
+            root.display()
+        )),
+        Err(std::fs::TryLockError::Error(e)) => Err(format!("{}: {e}", path.display())),
+    }
+}
+
 #[tauri::command]
 async fn open_library(app: tauri::AppHandle, cur: State<'_, Current>) -> Result<Opened, String> {
     let root = library::canonical(&library_root(&app)?)?;
+    lock_library(&root)?;
     let (plugins, plugin_problems) =
         Registry::open(&root, &plugin_dir(&app)?, dev_places(&app).as_ref());
     let plugins = Arc::new(plugins);

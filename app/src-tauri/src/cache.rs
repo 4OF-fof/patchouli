@@ -135,6 +135,8 @@ pub fn sweep(cache: &Path, root: &Path) {
 /// 写しと、波形のサムネイルをジャケットと同じ場所に置いていた版から作り直したかを返す。
 fn connect(path: &Path) -> rusqlite::Result<(Connection, bool)> {
     let c = Connection::open(path)?;
+    c.busy_timeout(std::time::Duration::from_secs(5))?;
+    c.pragma_update(None, "journal_mode", "WAL")?;
     let v: i32 = c.pragma_query_value(None, "user_version", |r| r.get(0))?;
     let mixed = v != 0 && v < WAVE_THUMBS_APART;
     if v != VERSION {
