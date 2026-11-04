@@ -14,6 +14,10 @@
     hsl(calc(var(--h) + 28) var(--s) calc(var(--tl) - 9%))
   );
 }
+/* 透けるサムネイル（音声の波形など）の下に、仮の色を見せない */
+.root[data-fit] {
+  background: none;
+}
 .img {
   position: absolute;
   inset: 0;
