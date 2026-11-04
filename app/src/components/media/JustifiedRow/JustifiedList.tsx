@@ -1,4 +1,4 @@
-import { For, type JSX, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, type JSX, batch, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { cardScale } from '../../../model/prefs'
 import styles from './JustifiedList.module.css'
 
@@ -100,19 +100,27 @@ export function JustifiedList<T>(props: JustifiedListProps<T>) {
   )
   const shown = createMemo(() => rows().slice(range()[0], range()[1]))
 
+  // ResizeObserver の中で大きさを変えると、そのフレームで測り切れずにエラーになるので、描き直しは次のフレームに回す
+  let remeasure = 0
+  let resized = 0
+  let nextExtra = 0
   const elRows = new Map<Element, Row<T>>()
   const ro = new ResizeObserver((entries) => {
-    let changed = false
     for (const e of entries) {
       const r = elRows.get(e.target)
       if (!r) continue
       const h = e.borderBoxSize[0]?.blockSize ?? e.target.getBoundingClientRect().height
       if (sizes.get(r) === h) continue
       sizes.set(r, h)
-      setExtra(Math.max(0, h - r.h))
-      changed = true
+      nextExtra = Math.max(0, h - r.h)
+      remeasure ||= requestAnimationFrame(() => {
+        remeasure = 0
+        batch(() => {
+          setExtra(nextExtra)
+          setMeasured(measured() + 1)
+        })
+      })
     }
-    if (changed) setMeasured(measured() + 1)
   })
   const watch = (el: HTMLDivElement, r: Row<T>) => {
     elRows.set(el, r)
@@ -136,7 +144,12 @@ export function JustifiedList<T>(props: JustifiedListProps<T>) {
     const s = props.scroll()
     if (!s) return
     // 上にあるものの大きさが変わると、スクロールしなくても位置がずれるので、中身の大きさの変化でも確かめる
-    const size = new ResizeObserver(update)
+    const size = new ResizeObserver(() => {
+      resized ||= requestAnimationFrame(() => {
+        resized = 0
+        update()
+      })
+    })
     size.observe(root)
     size.observe(s)
     if (s.firstElementChild) size.observe(s.firstElementChild)
@@ -146,7 +159,11 @@ export function JustifiedList<T>(props: JustifiedListProps<T>) {
       s.removeEventListener('scroll', update)
     })
   })
-  onCleanup(() => ro.disconnect())
+  onCleanup(() => {
+    ro.disconnect()
+    cancelAnimationFrame(remeasure)
+    cancelAnimationFrame(resized)
+  })
 
   return (
     <div
