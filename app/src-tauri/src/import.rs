@@ -34,17 +34,27 @@ pub struct Imported {
     pub failed: Vec<String>,
 }
 
-fn files_in(dir: &Path, out: &mut Vec<PathBuf>) -> usize {
-    let Ok(rd) = fs::read_dir(dir) else { return 0 };
-    let mut paths: Vec<PathBuf> = rd
+/// フォルダの中のものと、フォルダかどうか。リンク先がフォルダのシンボリックリンクは、輪になることがあるので入れない。
+fn entries(dir: &Path) -> Vec<(PathBuf, bool)> {
+    let Ok(rd) = fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    let mut out: Vec<(PathBuf, bool)> = rd
         .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| listed(p))
+        .filter_map(|e| {
+            let t = e.file_type().ok()?;
+            let p = e.path();
+            (listed(&p) && !(t.is_symlink() && p.is_dir())).then_some((p, t.is_dir()))
+        })
         .collect();
-    paths.sort();
+    out.sort();
+    out
+}
+
+fn files_in(dir: &Path, out: &mut Vec<PathBuf>) -> usize {
     let mut dirs = 0;
-    for p in paths {
-        if p.is_dir() {
+    for (p, is_dir) in entries(dir) {
+        if is_dir {
             dirs += 1 + files_in(&p, out);
         } else {
             out.push(p);
@@ -156,15 +166,8 @@ impl Library {
         };
         let dir = g.dir.clone();
         out.groups.push(g);
-        let Ok(rd) = fs::read_dir(src) else { return };
-        let mut paths: Vec<PathBuf> = rd
-            .filter_map(Result::ok)
-            .map(|e| e.path())
-            .filter(|p| listed(p))
-            .collect();
-        paths.sort();
-        for p in paths {
-            if p.is_dir() {
+        for (p, is_dir) in entries(src) {
+            if is_dir {
                 self.copy_dir(&p, &inner, mv, out);
             } else {
                 self.copy_in(&p, &dir, &inner, mv, out);
@@ -254,5 +257,34 @@ impl Library {
                 .next()
                 .unwrap_or_else(|| format!("「{file_name}」の読み込みに失敗しました"))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inspect_does_not_follow_a_link_to_a_parent_folder() {
+        let root = std::env::temp_dir().join(format!(
+            "patchouli-import-{}",
+            uuid::Uuid::new_v4().simple()
+        ));
+        let a = root.join("a");
+        fs::create_dir_all(&a).unwrap();
+        fs::write(a.join("x.png"), b"").unwrap();
+        #[cfg(windows)]
+        let linked = std::os::windows::fs::symlink_dir("..", a.join("link"));
+        #[cfg(unix)]
+        let linked = std::os::unix::fs::symlink("..", a.join("link"));
+        if let Err(e) = linked {
+            let _ = fs::remove_dir_all(&root);
+            eprintln!("シンボリックリンクを作れないので確かめない: {e}");
+            return;
+        }
+        let info = inspect(std::slice::from_ref(&a), None);
+        let _ = fs::remove_dir_all(&root);
+        assert_eq!(info.files, 1);
+        assert_eq!(info.folders[0].subfolders, 0);
     }
 }
