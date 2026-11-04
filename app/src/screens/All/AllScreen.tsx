@@ -1,23 +1,20 @@
-import { For, Show, createMemo, createSignal } from 'solid-js'
+import { Show, createMemo, createSignal } from 'solid-js'
 import { NoneText } from '../../components/base/NoneText/NoneText'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
-import { Spinner } from '../../components/base/Spinner/Spinner'
 import { Button } from '../../components/controls/Button/Button'
-import { GroupCard } from '../../components/media/GroupCard/GroupCard'
+import { GROUP_RATIO, GroupCard } from '../../components/media/GroupCard/GroupCard'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
-import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
+import { JustifiedList } from '../../components/media/JustifiedRow/JustifiedList'
 import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
 import { type ItemFilter, NO_FILTER, filtering, matcher, sorter } from '../../model/filter'
-import { type Item, type Library, facesOf, thumbOf } from '../../model/library'
+import { type Group, type Item, type Library, facesOf, thumbOf } from '../../model/library'
 import { type Sort, prefs } from '../../model/prefs'
 import { ListTools, useKindOf } from '../ListTools/ListTools'
-import { useFill } from '../useFill'
 import shared from '../screen.module.css'
 import styles from './AllScreen.module.css'
 
-const FIRST = 48
-const MORE = 40
+const isItem = (x: Item | Group): x is Item => 'ext' in x
 
 export interface AllScreenProps {
   lib: Library
@@ -28,7 +25,6 @@ export interface AllScreenProps {
 
 export function AllScreen(props: AllScreenProps) {
   let scroll!: HTMLDivElement
-  let more: HTMLDivElement | undefined
   const lib = () => props.lib
   const preview = useHoverPreview()
   const sel = useSelection()
@@ -55,14 +51,7 @@ export function AllScreen(props: AllScreenProps) {
     const pins = new Set(lib().pins)
     return all().filter((it) => pins.has(it.id)).length
   })
-  const { shown } = useFill({
-    scroll: () => scroll,
-    end: () => more,
-    total: () => all().length,
-    first: FIRST,
-    more: MORE,
-  })
-  const visible = () => all().slice(0, shown())
+  const cards = createMemo(() => [...all().slice(0, pinCount()), ...groups(), ...all().slice(pinCount())])
   const itemCard = (it: Item) => (
     <ItemCard
       {...thumbOf(it, 'M')}
@@ -106,28 +95,27 @@ export function AllScreen(props: AllScreenProps) {
             }
           >
             <div class={styles.body}>
-              <JustifiedRow height={140}>
-                <For each={visible().slice(0, pinCount())}>{itemCard}</For>
-                <For each={groups()}>
-                  {(g) => (
+              <JustifiedList
+                scroll={() => scroll}
+                items={cards()}
+                ratio={(x) => (isItem(x) ? x.ratio : GROUP_RATIO)}
+                height={140}
+              >
+                {(x) =>
+                  isItem(x) ? (
+                    itemCard(x)
+                  ) : (
                     <GroupCard
-                      name={g.name}
-                      count={lib().inGroup(g.id).length}
-                      faces={facesOf(lib(), g.id).map((it) => thumbOf(it, 'M'))}
-                      onClick={() => props.onOpenGroup?.(g.id)}
+                      name={x.name}
+                      count={lib().inGroup(x.id).length}
+                      faces={facesOf(lib(), x.id).map((it) => thumbOf(it, 'M'))}
+                      onClick={() => props.onOpenGroup?.(x.id)}
                     />
-                  )}
-                </For>
-                <For each={visible().slice(pinCount())}>{itemCard}</For>
-              </JustifiedRow>
+                  )
+                }
+              </JustifiedList>
             </div>
           </Show>
-          <div class={styles.more} ref={more}>
-            <Show when={shown() < all().length}>
-              <Spinner />
-              続きを読み込み中
-            </Show>
-          </div>
         </SelectArea>
       </ScrollArea>
     </section>

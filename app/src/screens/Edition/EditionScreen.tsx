@@ -1,9 +1,8 @@
-import { For, Index, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
+import { Index, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
-import { Spinner } from '../../components/base/Spinner/Spinner'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
-import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
+import { JustifiedList } from '../../components/media/JustifiedRow/JustifiedList'
 import { Icon } from '../../components/base/Icon/Icon'
 import { Kbd } from '../../components/base/Kbd/Kbd'
 import { PinnedCard } from '../../components/media/PinnedCard/PinnedCard'
@@ -22,7 +21,6 @@ import {
   hasTag,
   thumbOf,
 } from '../../model/library'
-import { useFill } from '../useFill'
 import shared from '../screen.module.css'
 import styles from './EditionScreen.module.css'
 
@@ -33,8 +31,6 @@ const TIERS: { name: string; until: number; size: CardSize; h: number; gap: numb
 ]
 
 type Pin = { key: string; name: string; meta: string; moved: number; tiles: Item[]; open: () => void }
-const FIRST = 36
-const MORE = 30
 
 export interface EditionScreenProps {
   lib: Library
@@ -51,7 +47,6 @@ export interface EditionScreenProps {
 
 export function EditionScreen(props: EditionScreenProps) {
   let scroll!: HTMLDivElement
-  let more: HTMLDivElement | undefined
   const lib = () => props.lib
   const recent = createMemo(() => lib().pending())
   const pins = createMemo<Pin[]>(() =>
@@ -111,16 +106,9 @@ export function EditionScreen(props: EditionScreenProps) {
     onCleanup(() => ro.disconnect())
   }
 
-  const { shown } = useFill({
-    scroll: () => scroll,
-    end: () => more,
-    total: () => feed().length,
-    first: FIRST,
-    more: MORE,
-  })
   const tiers = createMemo(() => {
     const out: { tier: (typeof TIERS)[number]; n: number; items: Item[] }[] = []
-    for (const f of feed().slice(0, shown())) {
+    for (const f of feed()) {
       const last = out.at(-1)
       if (last?.tier === f.tier) last.items.push(f.it)
       else out.push({ tier: f.tier, n: f.n, items: [f.it] })
@@ -129,7 +117,8 @@ export function EditionScreen(props: EditionScreenProps) {
   })
 
   onMount(() => {
-    if (props.scrollTop) scroll.scrollTop = props.scrollTop
+    // 一覧は中で幅を測ってから高さが決まるので、それを待ってから戻す
+    if (props.scrollTop) queueMicrotask(() => (scroll.scrollTop = props.scrollTop ?? 0))
   })
 
   return (
@@ -207,30 +196,27 @@ export function EditionScreen(props: EditionScreenProps) {
               {(t) => (
                 <section>
                   <SectionLabel label={t().tier.name} count={t().n} />
-                  <JustifiedRow height={t().tier.h} gap={t().tier.gap}>
-                    <For each={t().items}>
-                      {(it) => (
-                        <ItemCard
-                          {...thumbOf(it, t().tier.size)}
-                          name={it.name}
-                          ratio={it.ratio}
-                          showName={false}
-                          preview={preview(it, { clock: t().tier.clock })}
-                          onClick={() => props.onOpenItem?.(it.id)}
-                        />
-                      )}
-                    </For>
-                  </JustifiedRow>
+                  <JustifiedList
+                    scroll={() => scroll}
+                    items={t().items}
+                    ratio={(it) => it.ratio}
+                    height={t().tier.h}
+                    gap={t().tier.gap}
+                  >
+                    {(it) => (
+                      <ItemCard
+                        {...thumbOf(it, t().tier.size)}
+                        name={it.name}
+                        ratio={it.ratio}
+                        showName={false}
+                        preview={preview(it, { clock: t().tier.clock })}
+                        onClick={() => props.onOpenItem?.(it.id)}
+                      />
+                    )}
+                  </JustifiedList>
                 </section>
               )}
             </Index>
-            <div class={styles.more} ref={more}>
-              <Show when={shown() < feed().length}>
-                <Spinner />
-                続きを読み込み中（<span class={styles.mono}>{feed().length}</span> 件中{' '}
-                <span class={styles.mono}>{Math.min(shown(), feed().length)}</span> 件を表示）
-              </Show>
-            </div>
           </SelectArea>
         </Show>
       </ScrollArea>

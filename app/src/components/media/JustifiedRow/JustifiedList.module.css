@@ -1,0 +1,26 @@
+.root {
+  --thumb-h: auto;
+  --card-why: none;
+  position: relative;
+}
+.rows {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+.row {
+  display: flex;
+  gap: var(--gap);
+}
+.row[data-last]::after {
+  content: '';
+  flex: 999 1 0;
+}
+.row > * {
+  --thumb-ar: var(--ar, 1);
+  flex: var(--ar, 1) var(--ar, 1) calc(var(--ar, 1) * var(--hh));
+  min-width: 0;
+}

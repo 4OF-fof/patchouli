@@ -1,22 +1,20 @@
 import { For, type JSX, Show, children, createEffect, createMemo, createSignal, on } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
-import { Spinner } from '../../components/base/Spinner/Spinner'
 import { useHoverPreview } from '../../components/media/HoverPreview/HoverPreview'
 import { Button } from '../../components/controls/Button/Button'
-import { GroupCard } from '../../components/media/GroupCard/GroupCard'
+import { GROUP_RATIO, GroupCard } from '../../components/media/GroupCard/GroupCard'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
+import { JustifiedList } from '../../components/media/JustifiedRow/JustifiedList'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
 import { type ItemFilter, NO_FILTER, filtering, matcher, sorter } from '../../model/filter'
 import { type CardSize, type Group, type Item, type Library, facesOf, thumbOf, toggled } from '../../model/library'
-import { useFill } from '../useFill'
 import shared from '../screen.module.css'
 import { type Sort, prefs } from '../../model/prefs'
 import { ListTools, useKindOf } from '../ListTools/ListTools'
 import styles from './DetailScreen.module.css'
 
-const FIRST = 60
-const MORE = 60
+const isItem = (x: Item | Group): x is Item => 'ext' in x
 
 export interface DetailScreenProps {
   label: string
@@ -70,19 +68,6 @@ export function DetailScreen(props: DetailScreenProps) {
   }
   const all = createMemo(() => props.items.filter(match()).toSorted(sorter(sort(), kindOf)))
   let scroll!: HTMLDivElement
-  let more: HTMLDivElement | undefined
-  const { shown, fill } = useFill({
-    scroll: () => scroll,
-    end: () => more,
-    total: () => all().length,
-    first: FIRST,
-    more: MORE,
-  })
-  const visible = () => all().slice(0, shown())
-  createEffect(() => {
-    void all()
-    queueMicrotask(fill)
-  })
   const card = (it: Item, size: CardSize, list: () => Item[], clock: boolean) => (
     <ItemCard
       {...thumbOf(it, size)}
@@ -155,17 +140,15 @@ export function DetailScreen(props: DetailScreenProps) {
                   <div class={shared.empty}>{filtering(filter()) ? '一致する項目がありません' : props.empty}</div>
                 }
               >
-                <JustifiedRow height={104}>
-                  <For each={groups()}>{(g) => groupCard(g)}</For>
-                  <For each={visible()}>{(it) => card(it, 'S', all, false)}</For>
-                </JustifiedRow>
+                <JustifiedList
+                  scroll={() => scroll}
+                  items={[...groups(), ...all()]}
+                  ratio={(x) => (isItem(x) ? x.ratio : GROUP_RATIO)}
+                  height={104}
+                >
+                  {(x) => (isItem(x) ? card(x, 'S', all, false) : groupCard(x))}
+                </JustifiedList>
               </Show>
-              <div class={styles.more} ref={more}>
-                <Show when={shown() < all().length}>
-                  <Spinner />
-                  続きを読み込み中
-                </Show>
-              </div>
             </SelectArea>
           </div>
         </div>

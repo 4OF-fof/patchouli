@@ -13,6 +13,9 @@ export interface GroupCardProps {
   onClick?: () => void
 }
 
+/** ratio を省いたときの縦横比。 */
+export const GROUP_RATIO = 1.25
+
 /** 奥から順に描く */
 const DEPTHS = [2, 1, 0] as const
 
@@ -22,7 +25,7 @@ export function GroupCard(props: GroupCardProps) {
     <button
       type="button"
       class={styles.root}
-      style={{ '--ar': props.ratio ?? 1.25 }}
+      style={{ '--ar': props.ratio ?? GROUP_RATIO }}
       onClick={() => props.onClick?.()}
       {...middleClick(() => props.onClick?.())}
     >

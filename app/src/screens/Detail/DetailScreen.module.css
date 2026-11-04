@@ -20,15 +20,3 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
-.more {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: var(--space-10);
-  padding: var(--space-16) 0 var(--space-8);
-  font-size: var(--fs-meta);
-  color: var(--muted);
-}
-.more:empty {
-  padding: 0;
-}
