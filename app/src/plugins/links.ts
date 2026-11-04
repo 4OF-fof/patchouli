@@ -33,6 +33,8 @@ export interface Page {
   title?: string
   description?: string
   image?: string
+  /** サイトのアイコン。ページに書いてあるもののうち、いちばん大きいもの。 */
+  icon?: string
 }
 
 const charsetOf = (type?: string) => /charset=([\w-]+)/i.exec(type ?? '')?.[1]
@@ -45,6 +47,32 @@ function decode(f: Fetched) {
   } catch {
     return new TextDecoder().decode(f.body)
   }
+}
+
+const absolute = (href: string | null | undefined, base: string) => {
+  try {
+    return href ? new URL(href, base).href : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** link の rel と sizes から、大きいものを選ぶ。SVG はどの大きさでもきれいなので先にする。 */
+function iconOf(doc: Document, base: string) {
+  let best: { href: string; size: number } | undefined
+  for (const l of doc.querySelectorAll<HTMLLinkElement>('link[rel][href]')) {
+    const rel = l.rel.toLowerCase().split(/\s+/)
+    const touch = rel.includes('apple-touch-icon') || rel.includes('apple-touch-icon-precomposed')
+    if (!touch && !rel.includes('icon')) continue
+    const href = absolute(l.getAttribute('href'), base)
+    if (!href) continue
+    const sizes = l.getAttribute('sizes')?.toLowerCase() ?? ''
+    const svg = /svg/i.test(l.type) || /\.svg(\?|#|$)/i.test(href) || sizes === 'any'
+    const given = Math.max(0, ...sizes.split(/\s+/).map((x) => Number(x.split('x')[0]) || 0))
+    const size = svg ? Infinity : given || (touch ? 180 : 16)
+    if (!best || size > best.size) best = { href, size }
+  }
+  return best?.href
 }
 
 const pages = new Map<string, Promise<Page>>()
@@ -64,18 +92,12 @@ export function pageOf(url: string, fetch: Fetch): Promise<Page> {
         }
         return undefined
       }
-      const image = meta('og:image', 'og:image:url', 'twitter:image')
-      let abs: string | undefined
-      try {
-        abs = image && new URL(image, f.url).href
-      } catch {
-        abs = undefined
-      }
       return {
         url,
         title: meta('og:title', 'twitter:title') ?? (doc.title.trim() || undefined),
         description: meta('og:description', 'twitter:description', 'description'),
-        image: abs,
+        image: absolute(meta('og:image', 'og:image:url', 'twitter:image'), f.url),
+        icon: iconOf(doc, f.url),
       }
     })()
     pages.set(url, p)
@@ -95,6 +117,50 @@ export async function imageThumbnail(src: string, fetch: Fetch, edge: number): P
   canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height)
   bmp.close()
   return { png: await canvas.convertToBlob({ type: 'image/png' }), width, height }
+}
+
+/** OGP の画像と同じ縦横比。 */
+const ICON_RATIO = 1.91
+
+/** SVG と ICO も読めるよう、img で読む。 */
+async function loadImage(f: Fetched) {
+  const url = URL.createObjectURL(new Blob([f.body], { type: f.type }))
+  try {
+    const img = new Image()
+    img.src = url
+    await img.decode()
+    return img
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+/** OGP の画像がないページの、サイトのアイコンとホスト名を並べたサムネイル。アイコンが読めなければ null。 */
+export async function iconThumbnail(page: Page, fetch: Fetch, edge: number): Promise<Thumbnail | null> {
+  const src = page.icon ?? absolute('/favicon.ico', page.url)
+  const f = src ? await fetch(src) : undefined
+  if (!f || f.status >= 400) return null
+  const img = await loadImage(f).catch(() => undefined)
+  if (!img) return null
+  const [w, h] = [edge, Math.round(edge / ICON_RATIO)]
+  const canvas = new OffscreenCanvas(w, h)
+  const g = canvas.getContext('2d')
+  if (!g) return null
+  const natural = Math.max(img.naturalWidth, img.naturalHeight)
+  const full = Math.round(h * 0.3)
+  // 小さいアイコンは、引き伸ばしすぎてぼやけないようにする
+  const size = natural && natural < full / 2 ? natural * 2 : full
+  const font = Math.round(h * 0.075)
+  const gap = Math.round(h * 0.06)
+  const top = Math.round((h - size - gap - font) / 2)
+  g.drawImage(img, (w - size) / 2, top, size, size)
+  // 背景は透かし、暗い地にも明るい地にも見える中間の灰色（tokens.css の --muted）で書く
+  g.fillStyle = '#8e929a'
+  g.font = `${font}px 'Noto Sans JP Variable', system-ui, sans-serif`
+  g.textAlign = 'center'
+  g.textBaseline = 'top'
+  g.fillText(hostOf(page.url) ?? page.url, w / 2, top + size + gap, w - font * 4)
+  return { png: await canvas.convertToBlob({ type: 'image/png' }), width: w, height: h }
 }
 
 export const pageRows = (p: Page): Detail[] =>

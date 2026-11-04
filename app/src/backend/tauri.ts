@@ -31,7 +31,7 @@ import type {
   UiRef,
 } from '../plugins/types'
 import type { Caller, ContentBudget, ContentPart, Fetched, LinkApi, OwnApi } from '../../plugins/sdk'
-import { handlerOf, imageThumbnail, pageOf, pageRows } from '../plugins/links'
+import { handlerOf, iconThumbnail, imageThumbnail, pageOf, pageRows } from '../plugins/links'
 import {
   EDGE,
   ThumbnailTimeout,
@@ -267,7 +267,8 @@ export function tauriBackend(): Backend {
     const h = handlerOf(links, url)
     if (h?.parts.includes('thumbnail')) return uiLinkThumbnail(pluginUrl(h.plugin, h.module), linkApi(url, h.plugin))
     const p = await pageOf(url, hostFetch)
-    return p.image ? imageThumbnail(p.image, hostFetch, EDGE) : null
+    const image = p.image && (await imageThumbnail(p.image, hostFetch, EDGE).catch(() => null))
+    return image || iconThumbnail(p, hostFetch, EDGE)
   }
 
   const linkDetails = async (d: ItemDetails, e: Elevated): Promise<ItemDetails> => {
