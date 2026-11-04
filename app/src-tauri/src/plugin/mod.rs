@@ -201,12 +201,19 @@ pub fn host_key(h: &str) -> String {
     h.trim_end_matches('.').to_ascii_lowercase()
 }
 
+/// fetch に書けるホスト名か。「com」のようにトップレベルドメインだけのものは書けない。
+pub fn fetch_host_ok(pattern: &str) -> bool {
+    let h = host_key(pattern);
+    h.contains('.') && !h.split('.').any(str::is_empty)
+}
+
 /// pattern がホスト名 host か、その上のドメインか。
 pub fn host_matches(pattern: &str, host: &str) -> bool {
-    host == pattern
-        || host
-            .strip_suffix(pattern)
-            .is_some_and(|rest| rest.ends_with('.'))
+    fetch_host_ok(pattern)
+        && (host == pattern
+            || host
+                .strip_suffix(pattern)
+                .is_some_and(|rest| rest.ends_with('.')))
 }
 
 pub fn keep_decoded_key(format: &str) -> String {
@@ -611,6 +618,9 @@ pub struct PluginStatus {
     pub links: Vec<String>,
     pub screens: Vec<String>,
     pub permissions: Vec<String>,
+    /// elevated を持つか。持つものは本体と同じ権限で動く。
+    pub elevated: bool,
+    pub fetch: Vec<String>,
     pub settings: Vec<SettingStatus>,
     pub problems: Vec<Problem>,
 }
@@ -749,6 +759,10 @@ impl Registry {
             if builtin_ids.contains(id) {
                 continue;
             }
+            if let Err(e) = install::check_id(id) {
+                problems.push(e);
+                continue;
+            }
             let at = dir.join(id);
             match Manifest::read(&at) {
                 Ok(manifest) if entry.disabled => {
@@ -781,6 +795,8 @@ impl Registry {
                     links: Vec::new(),
                     screens: Vec::new(),
                     permissions: Vec::new(),
+                    elevated: false,
+                    fetch: Vec::new(),
                     settings: Vec::new(),
                     problems: vec![error("この端末にインストールされていません".into())],
                 }),
@@ -791,10 +807,12 @@ impl Registry {
             .iter()
             .map(|p| {
                 let id = p.manifest.id.clone();
-                let s = Stored::read(&record::stored_path(root, &id)).unwrap_or_else(|e| {
-                    problems.push(e);
-                    Stored::default()
-                });
+                let s = record::stored_path(root, &id)
+                    .and_then(|p| Stored::read(&p))
+                    .unwrap_or_else(|e| {
+                        problems.push(e);
+                        Stored::default()
+                    });
                 (id, s)
             })
             .collect();
@@ -996,6 +1014,11 @@ impl Registry {
             for id in p.manifest.screens.keys().filter(|id| !screen_id_ok(id)) {
                 p.problems.push(error(format!(
                     "画面の ID「{id}」には、英数字・ハイフン・下線しか使えません"
+                )));
+            }
+            for h in p.manifest.fetch.iter().filter(|h| !fetch_host_ok(h)) {
+                p.problems.push(error(format!(
+                    "fetch の「{h}」は使えません（「example.com」のように、ドメイン名まで書きます）"
                 )));
             }
             if p.manifest.wants_elevated() && p.elevated.is_none() && p.problems.is_empty() {
@@ -1344,7 +1367,7 @@ impl Registry {
         let mut all = self.stored.write().map_err(|e| e.to_string())?;
         let s = all.entry(id.clone()).or_default();
         f(s);
-        s.write(&record::stored_path(root, id))
+        s.write(&record::stored_path(root, id)?)
     }
 
     fn data(&self, i: usize, key: &str) -> Option<String> {
@@ -1619,6 +1642,8 @@ impl Registry {
                     links,
                     screens,
                     permissions: permissions_of(m),
+                    elevated: m.wants_elevated(),
+                    fetch: fetch_of(m),
                     settings,
                     problems,
                 }
@@ -1760,6 +1785,8 @@ fn idle(
         links: m.links.keys().map(|h| host_key(h)).collect(),
         screens: screen_labels(m),
         permissions: permissions_of(m),
+        elevated: m.wants_elevated(),
+        fetch: fetch_of(m),
         settings: Vec::new(),
         problems,
     }
@@ -1778,6 +1805,18 @@ fn permissions_of(m: &Manifest) -> Vec<String> {
         .iter()
         .filter(|x| PERMISSIONS.contains(&x.as_str()))
         .cloned()
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn fetch_of(m: &Manifest) -> Vec<String> {
+    let mut out: Vec<String> = m
+        .fetch
+        .iter()
+        .filter(|h| fetch_host_ok(h))
+        .map(|h| host_key(h))
         .collect();
     out.sort();
     out.dedup();

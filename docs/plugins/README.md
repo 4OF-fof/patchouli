@@ -22,6 +22,8 @@
 | sandbox  | Rust（`plugin.wasm`）        | 権限を絞った WASM            | アプリが渡したファイルを読む。ネットワークは使えない。`permissions` に書いた関数を呼べる     |
 | elevated | TypeScript（`ui.js`）        | アプリの画面と同じ WebView   | DOM に描く。WASM を `api.call` で呼ぶ。`fetch` に書いたホストへ取りに行ける                  |
 
+権限を絞れるのは sandbox だけで、`permissions` も sandbox にだけ効く。elevated はアプリと同じ権限で動き、プラグインの一覧にも「フルアクセス」と出る。`fetch` の制限は `api.fetch` を使うときの約束で、elevated を閉じ込めるものではない。また、sandbox から `commands` で動かすコマンドはアプリと同じ権限で動くので、どのファイルも読み書きでき、ネットワークも使える。
+
 同じものを両方に書いたときは elevated を使い、中から `api.sandbox()` で sandbox の同じものを呼べる。重い処理やファイルの中身を解くところは sandbox に、描くところは elevated に置くとよい。
 
 ## 作り方

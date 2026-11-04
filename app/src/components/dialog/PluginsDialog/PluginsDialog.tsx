@@ -106,7 +106,7 @@ const need = (d: { need: string; min?: string; from?: string }) =>
 
 // フルアクセスはほかの権限を含むので、それと並べるのは外部ツールの実行だけにする
 const perms = (p: PluginStatus) => {
-  const full = p.caps.some((c) => c.by === 'elevated')
+  const full = p.elevated || p.caps.some((c) => c.by === 'elevated')
   return [
     ...(full
       ? [{ label: 'フルアクセス', text: 'アプリの画面上で直接動作し、すべての機能にアクセス可能', full: true }]
@@ -334,6 +334,14 @@ export function PluginsDialog(props: PluginsDialogProps) {
               <h4>権限</h4>
               <span class={styles.chips}>
                 <For each={p().permissions}>{(x) => <span class={styles.cap}>{PERMISSION[x]}</span>}</For>
+              </span>
+            </section>
+          </Show>
+          <Show when={p().fetch?.length}>
+            <section>
+              <h4>接続先</h4>
+              <span class={styles.chips}>
+                <For each={p().fetch}>{(h) => <span class={styles.cap}>{h}</span>}</For>
               </span>
             </section>
           </Show>

@@ -112,6 +112,10 @@ export interface PluginStatus {
   /** 足す画面の名前。 */
   screens?: string[]
   permissions?: Permission[]
+  /** elevated を持つか。持つものは本体と同じ権限で動く。 */
+  elevated?: boolean
+  /** plugin.json の fetch に書いたホスト名。 */
+  fetch?: string[]
   settings: Setting[]
   problems: Problem[]
 }

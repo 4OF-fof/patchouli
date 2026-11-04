@@ -1,6 +1,6 @@
 # sandbox（WASM）
 
-WASM は WIT（SDK の `wit/plugin.wit`）の component で、`wasm32-wasip2` でビルドする。ファイルはアプリが渡したものだけを読め、ネットワークは使えない。
+WASM は WIT（SDK の `wit/plugin.wit`）の component で、`wasm32-wasip2` でビルドする。ファイルはアプリが渡したものだけを読め、ネットワークは使えない。ただし `commands` で動かすコマンドは WASM の外で、アプリと同じ権限で動く。
 
 ## world の作り方
 

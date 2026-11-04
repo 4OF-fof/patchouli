@@ -45,7 +45,10 @@ export interface PluginDep {
 
 /** 求めるもの。 */
 export interface Deps {
-  /** 手元のコマンド（名前 → 版の下限など）。PATH から探す。 */
+  /**
+   * 手元のコマンド（名前 → 版の下限など）。PATH から探す。
+   * コマンドは sandbox の外で、本体と同じ権限で動く。シェルやインタプリタを書けば、何でも実行できる。
+   */
   commands?: Record<string, CommandDep>
   /** ほかのプラグイン（id → 版の下限）。 */
   plugins?: Record<string, PluginDep>
@@ -66,6 +69,7 @@ export interface FormatDecl {
   /**
    * true にすると、権限を絞った WASM（plugin.wasm）が export する役割（thumbnail・view・details・content）を受け持つ。
    * ファイルは本体が渡したものだけを読め、ネットワークは使えない。
+   * ただし commands で動かすコマンドは本体と同じ権限で動くので、どのファイルも読み書きでき、ネットワークも使える。
    */
   sandbox?: boolean
   /**
@@ -146,6 +150,6 @@ export interface Manifest {
   menu?: MenuDecl
   hooks?: HooksDecl
   permissions?: Permission[]
-  /** api.fetch で取りに行けるホスト名。サブドメインも含む。 */
+  /** api.fetch で取りに行けるホスト名。サブドメインも含む。「com」のようなトップレベルドメインだけのものは書けない。 */
   fetch?: string[]
 }

@@ -209,6 +209,8 @@ export interface Fetched {
 /**
  * URL 1 つの窓口。fetch は本体が代わりに取りに行くので、CORS に縛られない。
  * 取りに行けるのは、plugin.json の fetch に書いたホスト名だけ（一度に 16 MB まで）。
+ * elevated は本体と同じ権限で動くので、この制限は api.fetch を使うときの約束にすぎない。
+ * 権限を絞れるのは sandbox だけで、plugin.json の permissions も sandbox にだけ効く。
  */
 export interface LinkApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
   url: string
