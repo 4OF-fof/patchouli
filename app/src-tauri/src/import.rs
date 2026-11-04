@@ -1,12 +1,122 @@
+use std::collections::BTreeSet;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::SystemTime;
 
 use serde::Serialize;
 
 use crate::library::{
-    Library, Place, StoredGroup, StoredItem, check_name, dunce, listed, meta_path, numbered,
+    DirItem, Library, Place, StoredGroup, StoredItem, check_name, dunce, listed, meta_path,
+    numbered,
 };
+
+const TMP_END: &str = ".importing";
+
+/// いまこのアプリが書いている仮のファイル。片付けで、取り込んでいる最中のものを残りとみなさないため。
+static WRITING: Mutex<BTreeSet<PathBuf>> = Mutex::new(BTreeSet::new());
+
+fn writing() -> MutexGuard<'static, BTreeSet<PathBuf>> {
+    WRITING.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// 仮の名前。落ちたあとに片付けられるよう、移すか写すかと元の名前を入れる。
+fn tmp_name(src: &Path, mv: bool) -> String {
+    let name = src.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+    let how = if mv { 'm' } else { 'c' };
+    format!(
+        ".{}.{how}.{}{TMP_END}",
+        uuid::Uuid::new_v4().simple(),
+        fit(name)
+    )
+}
+
+/// 仮の名前が長くなりすぎないよう、拡張子を残して縮める。
+fn fit(name: &str) -> String {
+    const MAX: usize = 200;
+    if name.len() <= MAX {
+        return name.to_owned();
+    }
+    let p = Path::new(name);
+    let ext = p
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| format!(".{e}"))
+        .unwrap_or_default();
+    let mut out = String::new();
+    for c in p
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .chars()
+    {
+        if out.len() + c.len_utf8() + ext.len() > MAX {
+            break;
+        }
+        out.push(c);
+    }
+    out + &ext
+}
+
+/// 仮の名前から、移していたかと元の名前を読む。
+fn parse_tmp(name: &str) -> Option<(bool, &str)> {
+    let rest = name.strip_prefix('.')?.strip_suffix(TMP_END)?;
+    let (id, rest) = rest.split_once('.')?;
+    if id.len() != 32 || !id.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    match rest.split_once('.')? {
+        ("m", name) => Some((true, name)),
+        ("c", name) => Some((false, name)),
+        _ => None,
+    }
+}
+
+/// 前に落ちたときに残った仮のファイルを片付ける。移していたものは元の名前で置き直して項目として読ませ、
+/// 写していたものは元が残っているので消す。片付けたものがあれば true。
+pub(crate) fn recover(dir: &Path, entries: &[DirItem], problems: &mut Vec<String>) -> bool {
+    let mut any = false;
+    for e in entries {
+        let n = e.entry.file_name();
+        let Some((mv, name)) = n.to_str().and_then(parse_tmp) else {
+            continue;
+        };
+        let path = e.entry.path();
+        if !e.meta.as_ref().is_some_and(fs::Metadata::is_file) || writing().contains(&path) {
+            continue;
+        }
+        let done = if mv {
+            fs::rename(&path, free_file(dir, name))
+        } else {
+            fs::remove_file(&path)
+        };
+        match done {
+            Ok(()) => any = true,
+            Err(err) => problems.push(format!("{}: {err}", path.display())),
+        }
+    }
+    any
+}
+
+/// dir の中の、file_name か、番号を付けた空いている名前。
+fn free_file(dir: &Path, file_name: &str) -> PathBuf {
+    let src = Path::new(file_name);
+    let stem = src.file_stem().and_then(|n| n.to_str()).unwrap_or_default();
+    let stem = if stem.is_empty() {
+        "取り込み途中"
+    } else {
+        stem
+    };
+    let ext = src.extension().and_then(|e| e.to_str());
+    let file = |n: &str| match ext {
+        Some(ext) => dir.join(format!("{n}.{ext}")),
+        None => dir.join(n),
+    };
+    // 前のファイルの .meta だけが残っていると、それを引き継いでしまうので避ける
+    file(&numbered(stem, |n| {
+        file(n).exists() || meta_path(&file(n)).exists()
+    }))
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -140,6 +250,12 @@ pub struct Staged {
     place: Place,
 }
 
+impl Drop for Staged {
+    fn drop(&mut self) {
+        writing().remove(&self.tmp);
+    }
+}
+
 /// 取り込みは gather・plan_import・stage・finish_import の順に行う。
 /// ファイルを読む・動かす gather と stage はライブラリのロックの外で呼べる。
 pub fn gather(paths: &[PathBuf], root: &Path) -> Gathered {
@@ -195,9 +311,8 @@ fn move_file(from: &Path, to: &Path) -> std::io::Result<()> {
 pub fn stage(p: &mut Planned, mv: bool) -> Vec<Staged> {
     let mut staged = Vec::new();
     for job in std::mem::take(&mut p.jobs) {
-        let tmp = job
-            .dir
-            .join(format!(".{}.importing", uuid::Uuid::new_v4().simple()));
+        let tmp = job.dir.join(tmp_name(&job.src, mv));
+        writing().insert(tmp.clone());
         let put = if mv {
             move_file(&job.src, &tmp)
         } else {
@@ -212,6 +327,7 @@ pub fn stage(p: &mut Planned, mv: bool) -> Vec<Staged> {
             }),
             Err(e) => {
                 let _ = fs::remove_file(&tmp);
+                writing().remove(&tmp);
                 p.out.failed.push(format!("{}: {e}", job.src.display()));
             }
         }
@@ -336,16 +452,7 @@ impl Library {
         place: &Place,
         write: impl FnOnce(&Path) -> std::io::Result<()>,
     ) -> Result<(Option<StoredItem>, Vec<String>), String> {
-        let src = Path::new(file_name);
-        let stem = src.file_stem().and_then(|n| n.to_str()).unwrap_or_default();
-        let ext = src.extension().and_then(|e| e.to_str());
-        let file = |n: &str| match ext {
-            Some(ext) => dir.join(format!("{n}.{ext}")),
-            None => dir.join(n),
-        };
-        // 前のファイルの .meta だけが残っていると、それを引き継いでしまうので避ける
-        let name = numbered(stem, |n| file(n).exists() || meta_path(&file(n)).exists());
-        let to = file(&name);
+        let to = free_file(dir, file_name);
         write(&to).map_err(|e| e.to_string())?;
         let mut problems = Vec::new();
         let row = self.read_item(

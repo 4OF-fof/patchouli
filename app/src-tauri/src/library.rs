@@ -1816,7 +1816,14 @@ fn entry_mtime(e: &DirItem) -> Option<f64> {
 
 /// フォルダの中身を並べる。読んだついでに、そのフォルダの .meta をつなぎ直し、持ち主のないものを探す。
 fn list_dir(dir: &Path, f: &mut Found) -> Vec<Listed> {
-    let entries = match read_entries(dir) {
+    let read = read_entries(dir).and_then(|entries| {
+        if crate::import::recover(dir, &entries, &mut f.problems) {
+            read_entries(dir)
+        } else {
+            Ok(entries)
+        }
+    });
+    let entries = match read {
         Ok(entries) => f.tend.visit(dir, entries, &mut f.problems),
         Err(e) => {
             f.problems.push(format!("{}: {e}", dir.display()));
