@@ -164,6 +164,16 @@ export const toggled = <T>(list: T[], v: T) => (list.includes(v) ? list.filter((
 
 export const hasTag = (it: Item, t: string) => it.tags.some((x) => x === t || x.startsWith(t + '/'))
 
+/** どれかの項目に付いているタグと、その上の階層。hasTag が真になるタグの集まり。 */
+export function tagsUsed(lib: Library) {
+  const used = new Set<string>()
+  for (const t of lib.tagGroups().keys()) {
+    const parts = t.split('/')
+    for (let k = 1; k <= parts.length; k++) used.add(parts.slice(0, k).join('/'))
+  }
+  return used
+}
+
 export interface Library {
   today: Date
   items: Item[]
@@ -210,6 +220,22 @@ export function noteRefs(n: Item) {
   return refs
 }
 
+const once = <T>(make: () => T) => {
+  let made: { v: T } | undefined
+  return () => (made ??= { v: make() }).v
+}
+
+function bucket<K>(items: Item[], key: (i: Item) => K) {
+  const m = new Map<K, Item[]>()
+  for (const i of items) {
+    const k = key(i)
+    const l = m.get(k)
+    if (l) l.push(i)
+    else m.set(k, [i])
+  }
+  return m
+}
+
 export function buildLibrary(
   items: Item[],
   projects: Project[],
@@ -237,22 +263,38 @@ export function buildLibrary(
     }
     return ids
   }
-  const links = new Map<string, Item[]>()
-  const back = new Map<string, Item[]>()
-  for (const n of items) {
-    if (!n.note || !n.body) continue
-    const to = noteRefs(n)
-      .map((r) => byId.get(r))
-      .filter((x): x is Item => !!x && x !== n)
-    links.set(n.id, to)
-    for (const t of to) {
-      const b = back.get(t.id)
-      if (b) b.push(n)
-      else back.set(t.id, [n])
+  // サムネイルが届くたびに作り直すので、重いものは使うときに 1 度だけ作る
+  const linked = once(() => {
+    const links = new Map<string, Item[]>()
+    const back = new Map<string, Item[]>()
+    for (const n of items) {
+      if (!n.note || !n.body) continue
+      const to = noteRefs(n)
+        .map((r) => byId.get(r))
+        .filter((x): x is Item => !!x && x !== n)
+      links.set(n.id, to)
+      for (const t of to) {
+        const b = back.get(t.id)
+        if (b) b.push(n)
+        else back.set(t.id, [n])
+      }
     }
-  }
-  const linksOf = (n: Item) => links.get(n.id) ?? []
-  const backOf = (it: Item) => back.get(it.id) ?? []
+    return { links, back }
+  })
+  const linksOf = (n: Item) => linked().links.get(n.id) ?? []
+  const backOf = (it: Item) => linked().back.get(it.id) ?? []
+  const byProject = once(() => bucket(items, (i) => i.project))
+  const byTag = once(() => {
+    const m = new Map<string, Item[]>()
+    for (const i of items)
+      for (const t of i.tags) {
+        const l = m.get(t)
+        if (l) l.push(i)
+        else m.set(t, [i])
+      }
+    return m
+  })
+  const inGroups = new Map<string, Item[]>()
   return {
     today,
     items,
@@ -267,10 +309,15 @@ export function buildLibrary(
     linksOf,
     backOf,
     linkCount: (it) => (it.note ? linksOf(it).length : 0) + backOf(it).length,
-    inProject: (name) => items.filter((i) => i.project === name),
+    inProject: (name) => byProject().get(name) ?? [],
     inGroup: (id) => {
-      const ids = below(id)
-      return items.filter((i) => i.group !== null && ids.has(i.group))
+      let got = inGroups.get(id)
+      if (!got) {
+        const ids = below(id)
+        got = items.filter((i) => i.group !== null && ids.has(i.group))
+        inGroups.set(id, got)
+      }
+      return got
     },
     inPlace: (place) =>
       items.filter((i) => i.group === place.group && (place.group !== null || i.project === place.project)),
@@ -284,16 +331,7 @@ export function buildLibrary(
       ]
       return names.length ? names.join(' / ') : null
     },
-    tagGroups: () => {
-      const m = new Map<string, Item[]>()
-      for (const i of items)
-        for (const t of i.tags) {
-          const l = m.get(t)
-          if (l) l.push(i)
-          else m.set(t, [i])
-        }
-      return m
-    },
+    tagGroups: byTag,
     pending: () =>
       items
         .filter((i) => i.suggestion && !i.tags.length)
@@ -372,11 +410,18 @@ export function tagClash(lib: Library, from: string, to: string) {
 /** 変えた先がすでにあれば、keepFrom のときは元の概要を、そうでなければ変えた先の概要を残す。 */
 export function withRenamedTag(lib: Library, from: string, to: string, keepFrom = false): Library {
   const re = retag(from, to)
-  const items = lib.items.map((i) => ({
-    ...i,
-    tags: [...new Set(i.tags.map(re))],
-    suggestion: i.suggestion && { ...i.suggestion, tags: i.suggestion.tags.map((c) => ({ ...c, tag: re(c.tag) })) },
-  }))
+  const items = lib.items.map((i) =>
+    i.tags.some((t) => re(t) !== t) || i.suggestion?.tags.some((c) => re(c.tag) !== c.tag)
+      ? {
+          ...i,
+          tags: [...new Set(i.tags.map(re))],
+          suggestion: i.suggestion && {
+            ...i.suggestion,
+            tags: i.suggestion.tags.map((c) => ({ ...c, tag: re(c.tag) })),
+          },
+        }
+      : i,
+  )
   const covers = new Map([...lib.tagCovers].filter(([t]) => re(t) === t))
   for (const [t, c] of lib.tagCovers) if (re(t) !== t && (keepFrom || !covers.has(re(t)))) covers.set(re(t), c)
   return buildLibrary(items, lib.projects, lib.today, covers, lib.pins, lib.formats, lib.groups)
@@ -465,7 +510,7 @@ export const withAdded = (lib: Library, items: Item[], projects: Project[] = [],
 /** タグのない項目の候補を、届いたものに置き換える。 */
 export function withSuggestions(lib: Library, s: Record<string, Suggestion>) {
   return buildLibrary(
-    lib.items.map((i) => ({ ...i, suggestion: s[i.id] })),
+    lib.items.map((i) => (s[i.id] === i.suggestion ? i : { ...i, suggestion: s[i.id] })),
     lib.projects,
     lib.today,
     lib.tagCovers,

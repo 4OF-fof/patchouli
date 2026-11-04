@@ -11,6 +11,7 @@ const covers = new Set<HTMLElement>()
 let frame = 0
 let sent = ''
 let last: BrowserActions | undefined
+const moved = new Set<() => void>()
 
 const shown = (el: HTMLElement) =>
   el.isConnected && el.checkVisibility({ visibilityProperty: true, opacityProperty: true })
@@ -39,6 +40,8 @@ const collect = (): PageLayer[] => {
 
 const tick = () => {
   frame = 0
+  for (const f of moved) f()
+  if (!holes.size && !moved.size) unwatch()
   const b = holes.values().next().value?.browser ?? last
   if (!b) return
   last = b
@@ -48,28 +51,66 @@ const tick = () => {
     sent = now
     b.layer(layers).catch((e: unknown) => console.warn('外のページの重なりを変えられない', e))
   }
-  // 重ねる表示は知らせなく動くので、ページが出ている間は毎回確かめる
-  if (holes.size) kick()
 }
 
 const kick = () => {
   if (!frame) frame = requestAnimationFrame(tick)
 }
 
+// 位置だけが変わったときは知らせがないので、大きさ・スクロール・画面の書き換えのたびに確かめる
+const sized = new ResizeObserver(kick)
+const changed = new MutationObserver(kick)
+let watching = false
+const watch = () => {
+  if (watching) return
+  watching = true
+  window.addEventListener('scroll', kick, { capture: true, passive: true })
+  window.addEventListener('resize', kick)
+  document.addEventListener('transitionend', kick, true)
+  document.addEventListener('animationend', kick, true)
+  changed.observe(document.body, { subtree: true, childList: true, attributes: true })
+}
+const unwatch = () => {
+  if (!watching) return
+  watching = false
+  window.removeEventListener('scroll', kick, { capture: true })
+  window.removeEventListener('resize', kick)
+  document.removeEventListener('transitionend', kick, true)
+  document.removeEventListener('animationend', kick, true)
+  changed.disconnect()
+}
+
+/** 穴や重ねる表示が動いたかもしれないときに呼ぶ。返した関数で呼ぶのをやめる。 */
+export function onLayout(f: () => void) {
+  moved.add(f)
+  watch()
+  return () => {
+    moved.delete(f)
+    kick()
+  }
+}
+
 /** 外のページを見せる穴。el が出ている間だけ置く。 */
 export function setHole(key: string, el: HTMLElement | undefined, browser?: BrowserActions) {
-  if (el && browser) holes.set(key, { el, browser })
-  else holes.delete(key)
+  const was = holes.get(key)?.el
+  if (was && was !== el) sized.unobserve(was)
+  if (el && browser) {
+    holes.set(key, { el, browser })
+    sized.observe(el)
+    watch()
+  } else holes.delete(key)
   kick()
 }
 
 /** 外のページより前に出す表示。作ったときに呼ぶと、消えるときに外す。 */
 export function coverPage(el: HTMLElement) {
   covers.add(el)
+  sized.observe(el)
   kick()
   if (getOwner())
     onCleanup(() => {
       covers.delete(el)
+      sized.unobserve(el)
       kick()
     })
 }

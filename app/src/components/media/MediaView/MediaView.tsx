@@ -29,7 +29,7 @@ export function MediaView(props: MediaViewProps) {
           <span
             class={styles.cover}
             data-empty={!props.thumb}
-            style={{ 'background-image': props.thumb ? `url(${props.thumb})` : undefined }}
+            style={{ 'background-image': props.thumb ? `url(${JSON.stringify(props.thumb)})` : undefined }}
             role="img"
             aria-label={props.name}
           />

@@ -4,7 +4,7 @@ import { Icon } from '../../base/Icon/Icon'
 import { Button } from '../../controls/Button/Button'
 import { IconButton } from '../../controls/IconButton/IconButton'
 import { useTabShown } from '../../nav/TabPane/TabPane'
-import { coverPage, setHole } from './layer'
+import { coverPage, onLayout, setHole } from './layer'
 import styles from './WebPage.module.css'
 
 export interface WebPageProps {
@@ -49,10 +49,7 @@ export function WebPage(props: WebPageProps) {
   }
   onMount(() => {
     if (!props.browser) return
-    // 位置だけが変わったときは知らせがないので、ときどき確かめる
-    const timer = window.setInterval(sync, 200)
-    const ro = new ResizeObserver(sync)
-    ro.observe(frame)
+    const offLayout = onLayout(sync)
     const off = props.browser.onMoved((k, p) => {
       if (k !== key) return
       setAt(p.url)
@@ -61,8 +58,7 @@ export function WebPage(props: WebPageProps) {
     const offPopup = props.browser.onPopup((k, url) => k === key && props.onOpenDefault && setPopup(url))
     sync()
     onCleanup(() => {
-      clearInterval(timer)
-      ro.disconnect()
+      offLayout()
       off()
       offPopup()
       setHole(key, undefined)

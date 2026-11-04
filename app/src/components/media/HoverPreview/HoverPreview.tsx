@@ -5,6 +5,7 @@ import { useFormats } from '../../../plugins/formats'
 import type { Fit, UiRef } from '../../../plugins/types'
 import { type UiApi, loadUi } from '../../../plugins/ui'
 import { clock } from '../PlayerBar/clock'
+import { createMediaState } from '../PlayerBar/media'
 import styles from './HoverPreview.module.css'
 
 export interface HoverHost {
@@ -66,28 +67,18 @@ function Progress(props: { at: number; length: number; clock?: boolean; track?: 
  */
 export function AudioHover(props: { src: string; wave?: string; fit?: Fit; clock?: boolean }) {
   const [ready, setReady] = createSignal(false)
-  const [at, setAt] = createSignal(0)
-  const [length, setLength] = createSignal(0)
-  let audio!: HTMLAudioElement
-  let frame = 0
-  const tick = () => {
-    setAt(audio.currentTime)
-    frame = requestAnimationFrame(tick)
-  }
-  onMount(() => (frame = requestAnimationFrame(tick)))
-  onCleanup(() => cancelAnimationFrame(frame))
+  const [audio, setAudio] = createSignal<HTMLAudioElement>()
+  const { at, length } = createMediaState(audio)
   return (
     <span class={styles.root} data-ready={ready()}>
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- サムネイルでの短い再生 */}
       <audio
-        ref={audio}
+        ref={setAudio}
         src={props.src}
         muted={!prefs().hoverSound}
         autoplay
         loop
         onPlaying={() => setReady(true)}
-        onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
-        onDurationChange={(e) => setLength(e.currentTarget.duration)}
       />
       <Show when={ready()}>
         <Show when={props.wave && length() > 0 && props.wave}>
@@ -110,22 +101,13 @@ export function AudioHover(props: { src: string; wave?: string; fit?: Fit; clock
 
 export function VideoHover(props: { src: string; fit?: Fit; clock?: boolean }) {
   const [ready, setReady] = createSignal(false)
-  const [at, setAt] = createSignal(0)
-  const [length, setLength] = createSignal(0)
-  let video!: HTMLVideoElement
-  let frame = 0
-  // timeupdate は間が空くので、見えているあいだは描くたびにも読む
-  const tick = () => {
-    setAt(video.currentTime)
-    frame = requestAnimationFrame(tick)
-  }
-  onMount(() => (frame = requestAnimationFrame(tick)))
-  onCleanup(() => cancelAnimationFrame(frame))
+  const [video, setVideo] = createSignal<HTMLVideoElement>()
+  const { at, length } = createMediaState(video)
   return (
     <span class={styles.root} data-ready={ready()}>
       {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- サムネイルでの短い再生 */}
       <video
-        ref={video}
+        ref={setVideo}
         class={styles.video}
         data-fit={props.fit ?? 'center'}
         src={props.src}
@@ -134,8 +116,6 @@ export function VideoHover(props: { src: string; fit?: Fit; clock?: boolean }) {
         loop
         playsinline
         onPlaying={() => setReady(true)}
-        onTimeUpdate={(e) => setAt(e.currentTarget.currentTime)}
-        onDurationChange={(e) => setLength(e.currentTarget.duration)}
       />
       <Show when={ready()}>
         <Progress at={at()} length={length()} clock={props.clock} />

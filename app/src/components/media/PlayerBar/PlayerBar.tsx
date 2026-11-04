@@ -1,8 +1,9 @@
-import { type JSX, Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
+import { type JSX, Show, onCleanup, onMount } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
 import { useTabActive } from '../../nav/TabPane/TabPane'
 import { clock } from './clock'
 import { useFullscreen } from './fullscreen'
+import { createMediaState } from './media'
 import styles from './PlayerBar.module.css'
 
 export interface PlayerBarProps {
@@ -35,40 +36,8 @@ const typing = (t: EventTarget | null, within?: HTMLElement) => {
 }
 
 export function PlayerBar(props: PlayerBarProps) {
-  const [playing, setPlaying] = createSignal(false)
-  const [at, setAt] = createSignal(0)
-  const [length, setLength] = createSignal(0)
-  const [muted, setMuted] = createSignal(false)
-  const [volume, setVolume] = createSignal(1)
-  const [rate, setRate] = createSignal(1)
+  const { playing, at, length, muted, volume, rate } = createMediaState(props.media)
   const { full, toggle: toggleFull } = useFullscreen(() => props.fullscreen?.())
-  createEffect(() => {
-    const m = props.media()
-    if (!m) return
-    let frame = 0
-    // timeupdate は間が空くので、再生中は描くたびに読む
-    const tick = () => {
-      setAt(m.currentTime)
-      frame = requestAnimationFrame(tick)
-    }
-    const sync = () => {
-      setPlaying(!m.paused)
-      setAt(m.currentTime)
-      setLength(Number.isFinite(m.duration) ? m.duration : 0)
-      setMuted(m.muted)
-      setVolume(m.volume)
-      setRate(m.playbackRate)
-      cancelAnimationFrame(frame)
-      if (!m.paused) frame = requestAnimationFrame(tick)
-    }
-    const events = ['play', 'pause', 'ended', 'seeked', 'timeupdate', 'durationchange', 'volumechange', 'ratechange']
-    for (const e of events) m.addEventListener(e, sync)
-    sync()
-    onCleanup(() => {
-      cancelAnimationFrame(frame)
-      for (const e of events) m.removeEventListener(e, sync)
-    })
-  })
   const toggle = () => {
     const m = props.media()
     if (!m) return

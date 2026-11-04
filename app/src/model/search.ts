@@ -323,7 +323,11 @@ export function candidates(lib: Library, typing: Loose, chips: Filter[]): Candid
     }
   } else {
     const byExt = new Map<string, Item[]>()
-    for (const it of lib.items) byExt.set(it.ext, [...(byExt.get(it.ext) ?? []), it])
+    for (const it of lib.items) {
+      const list = byExt.get(it.ext)
+      if (list) list.push(it)
+      else byExt.set(it.ext, [it])
+    }
     for (const [ext, items] of byExt)
       all.push({ filter: { kind: 'ext', ext }, label: `.${ext}`, sub: lib.formatLabel(items[0]), n: items.length })
   }

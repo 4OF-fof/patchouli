@@ -38,6 +38,7 @@ import { ItemMenu } from './components/overlay/ItemMenu/ItemMenu'
 import {
   type CoverPart,
   hasTag,
+  tagsUsed,
   type Item,
   type Suggestion,
   type Library,
@@ -1119,9 +1120,9 @@ export function App(props: AppProps) {
     const now = lib()
     const before = tagsBefore
     tagsBefore = now
-    const gone = [...now.tagCovers.keys()].filter(
-      (t) => !now.items.some((i) => hasTag(i, t)) && before.items.some((i) => hasTag(i, t)),
-    )
+    const had = tagsUsed(before)
+    const has = tagsUsed(now)
+    const gone = [...now.tagCovers.keys()].filter((t) => !has.has(t) && had.has(t))
     if (gone.length) setGoneTags((g) => [...new Set([...g, ...gone])])
   })
   const saveProjectCover = (name: string, cover: CoverPart[]) => {

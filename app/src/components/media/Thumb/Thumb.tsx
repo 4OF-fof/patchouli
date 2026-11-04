@@ -125,9 +125,11 @@ export function Thumb(props: ThumbProps) {
         '--h': props.hue ?? 210,
         '--s': props.sat != null ? `${props.sat}%` : undefined,
         height: props.height ? `${props.height}px` : undefined,
-        'background-image': props.src ? `url(${props.src})` : undefined,
       }}
     >
+      {props.src && !props.note && (
+        <img class={styles.img} src={props.src} alt="" loading="lazy" decoding="async" draggable={false} />
+      )}
       {props.note && (
         <>
           {props.title && <b>{props.title}</b>}

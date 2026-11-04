@@ -1,6 +1,7 @@
 import { type JSX, Show, createEffect, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
 import { PlayerBar } from '../PlayerBar/PlayerBar'
 import { clock } from '../PlayerBar/clock'
+import { createMediaState } from '../PlayerBar/media'
 import { undecodable } from '../PlayerBar/undecodable'
 import styles from './AudioPlayer.module.css'
 import { inkOf, loadArt, paintStage, paintWave, toneOf } from './jacket'
@@ -63,8 +64,7 @@ export function AudioPlayer(props: AudioPlayerProps) {
   let area!: HTMLDivElement
   const [audio, setAudio] = createSignal<HTMLAudioElement>()
   const [box, setBox] = createSignal({ w: 0, h: 0 })
-  const [at, setAt] = createSignal(0)
-  const [length, setLength] = createSignal(0)
+  const { at, length } = createMediaState(audio)
   const look = () => props.look ?? 'stage'
   const path = createMemo(() => {
     const { w, h } = box()
@@ -108,27 +108,6 @@ export function AudioPlayer(props: AudioPlayerProps) {
     paintWave({ base, done }, a, tone, s, { x: A.left - R.left, y: A.top - R.top, w, h }, d)
   })
   const view = () => `0 0 ${box().w || 1} ${box().h || 1}`
-  createEffect(() => {
-    const m = audio()
-    if (!m) return
-    let frame = 0
-    const tick = () => {
-      setAt(m.currentTime)
-      frame = requestAnimationFrame(tick)
-    }
-    const sync = () => {
-      setAt(m.currentTime)
-      setLength(Number.isFinite(m.duration) ? m.duration : 0)
-      cancelAnimationFrame(frame)
-      if (!m.paused) frame = requestAnimationFrame(tick)
-    }
-    const events = ['play', 'pause', 'ended', 'seeked', 'timeupdate', 'durationchange']
-    for (const e of events) m.addEventListener(e, sync)
-    onCleanup(() => {
-      cancelAnimationFrame(frame)
-      for (const e of events) m.removeEventListener(e, sync)
-    })
-  })
   const seekAt = (clientX: number) => {
     const m = audio()
     const r = area.getBoundingClientRect()

@@ -26,19 +26,19 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
   const lib = () => props.lib
   const pins = () => props.pinned ?? []
   const [sort, setSort] = createSignal<Sort>(props.sort ?? 'moved')
-  const recency = (p: Project) => {
-    if (p.touched.startsWith('今日')) return 0
-    const l = lib().inProject(p.name)
-    return newestMoved(l, 999)
-  }
+  const recency = (p: Project) => (p.touched.startsWith('今日') ? 0 : newestMoved(lib().inProject(p.name), 999))
   const sorted = () => {
-    const count = (p: Project) => lib().inProject(p.name).length
+    const key = new Map(
+      lib().projects.map((p) => [p.name, sort() === 'count' ? lib().inProject(p.name).length : recency(p)]),
+    )
+    const count = (p: Project) => key.get(p.name) ?? 0
+    const recent = (p: Project) => key.get(p.name) ?? 999
     return lib().projects.toSorted(
       sort() === 'name'
         ? byName
         : sort() === 'count'
           ? (a, b) => count(b) - count(a) || byName(a, b)
-          : (a, b) => recency(a) - recency(b) || byName(a, b),
+          : (a, b) => recent(a) - recent(b) || byName(a, b),
     )
   }
 
