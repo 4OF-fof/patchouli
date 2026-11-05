@@ -2,8 +2,8 @@ import { Index, Show, createSignal, onCleanup, onMount } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
 import { TabMenu } from '../TabMenu/TabMenu'
 import type { TabStripProps } from '../TabStrip/TabStrip'
-import { TabUnitView } from '../TabStrip/TabUnitView'
-import { createTabUnits } from '../TabStrip/units'
+import { TabItem } from '../TabStrip/TabItem'
+import { createTabRow, useSlots } from '../TabStrip/row'
 import styles from './TabList.module.css'
 
 /** カーソルが窓の左端に来たときに出す幅（px）。 */
@@ -16,7 +16,8 @@ export function TabList(props: TabStripProps) {
   let root!: HTMLDivElement
   let list!: HTMLDivElement
   const [open, setOpen] = createSignal(false)
-  const u = createTabUnits(props, 'y', () => list)
+  const row = createTabRow(props, 'y', () => list)
+  useSlots(props, row)
   let inside = false
   let timer = 0
   const show = () => {
@@ -46,7 +47,7 @@ export function TabList(props: TabStripProps) {
     <div
       ref={root}
       class={styles.root}
-      data-open={open() || !!u.menu() || u.dragging() !== undefined}
+      data-open={open() || !!row.menu() || row.dragging() !== undefined || row.receiving()}
       onPointerEnter={() => {
         inside = true
         show()
@@ -66,20 +67,20 @@ export function TabList(props: TabStripProps) {
         role="tablist"
         aria-label="タブ"
         aria-orientation="vertical"
-        data-dragging={u.dragging() !== undefined || undefined}
+        data-dragging={row.dragging() !== undefined || undefined}
       >
-        <Index each={u.units()}>
-          {(g, i) => <TabUnitView unit={g} index={i} units={u} tabs={props} classes={styles} axis="y" />}
+        <Index each={props.tabs}>
+          {(t, i) => <TabItem tab={t} index={i} row={row} tabs={props} classes={styles} axis="y" />}
         </Index>
       </div>
-      <Show when={u.menu()} keyed>
+      <Show when={row.menu()} keyed>
         {(m) => (
           <TabMenu
             x={m.x}
             y={m.y}
             actions={m.actions}
             onAction={(a) => props.onAction?.(m.id, a)}
-            onClose={() => u.setMenu(undefined)}
+            onClose={() => row.setMenu(undefined)}
           />
         )}
       </Show>

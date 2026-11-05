@@ -1,5 +1,6 @@
 import { type JSX, createSignal, onCleanup, onMount } from 'solid-js'
 import { Portal } from 'solid-js/web'
+import { useHost } from '../../../window/host'
 import { coverPage } from '../../media/WebPage/layer'
 import styles from './ContextMenu.module.css'
 import { usePopover } from '../usePopover'
@@ -18,9 +19,11 @@ const MARGIN = 8
 /** 右クリックした場所に出す層。画面からはみ出すときは、内側に寄せる。 */
 export function ContextMenu(props: ContextMenuProps) {
   let el!: HTMLDivElement
+  const host = useHost()()
   const [pos, setPos] = createSignal({ left: props.x, top: props.y })
   const place = () => {
     const r = el.getBoundingClientRect()
+    const { innerWidth, innerHeight } = host.win
     const left = props.x + r.width + MARGIN > innerWidth ? Math.max(MARGIN, props.x - r.width) : props.x
     const top = props.y + r.height + MARGIN > innerHeight ? Math.max(MARGIN, innerHeight - r.height - MARGIN) : props.y
     setPos({ left, top })
@@ -35,22 +38,23 @@ export function ContextMenu(props: ContextMenuProps) {
   onMount(() => {
     const ro = new ResizeObserver(place)
     ro.observe(el)
-    window.addEventListener('keydown', onKey, true)
-    window.addEventListener('resize', close)
-    window.addEventListener('blur', close)
+    const w = host.win
+    w.addEventListener('keydown', onKey, true)
+    w.addEventListener('resize', close)
+    w.addEventListener('blur', close)
     onCleanup(() => {
       ro.disconnect()
-      window.removeEventListener('keydown', onKey, true)
-      window.removeEventListener('resize', close)
-      window.removeEventListener('blur', close)
+      w.removeEventListener('keydown', onKey, true)
+      w.removeEventListener('resize', close)
+      w.removeEventListener('blur', close)
     })
   })
   return (
-    <Portal>
+    <Portal mount={host.doc.body}>
       <div
         ref={(e) => {
           el = e
-          coverPage(e)
+          if (host.main) coverPage(e)
         }}
         class={styles.root}
         style={{ left: `${pos().left}px`, top: `${pos().top}px` }}

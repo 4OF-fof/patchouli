@@ -17,8 +17,8 @@
 .tab {
   position: relative;
   flex: 0 1 auto;
-  width: calc(180px * var(--panes, 1));
-  min-width: calc(72px * var(--panes, 1));
+  width: 180px;
+  min-width: 72px;
   height: 30px;
   display: flex;
   align-items: center;
@@ -28,7 +28,6 @@
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   color: var(--muted);
 }
-/* 分割して開いたまとまりは、1 つのタブの枠を縦線で区切る */
 .seg {
   position: relative;
   flex: 1;
@@ -37,10 +36,6 @@
   display: flex;
   align-items: center;
   border-radius: inherit;
-}
-.seg + .seg {
-  border-left: 1px solid var(--line);
-  border-radius: 0;
 }
 .seg:hover {
   color: var(--ink);
@@ -120,22 +115,10 @@
   background: var(--card);
   color: var(--ink);
 }
-/* 開いたまとまりの中では、操作しているペインのタブだけを目立たせる */
-.tab[data-group='open'] .seg {
-  color: var(--muted);
-}
-.tab[data-group='open'] .seg:hover,
-.tab[data-group='open'] .seg[data-current='true'] {
-  color: var(--ink);
-}
-.tab[data-group='open'] .seg[data-current='true'] .main svg {
-  color: var(--accent);
-}
 .count {
   flex: none;
   min-width: 16px;
   height: 16px;
-  margin-left: auto;
   padding: 0 var(--space-4);
   display: flex;
   align-items: center;
@@ -156,4 +139,25 @@
   box-shadow: var(--shadow-pill);
   transition: none;
   cursor: grabbing;
+}
+/* 列の外へ引き出したタブは、もとの場所を薄くして残す */
+.list[data-dragging] .tab[data-lifted] {
+  box-shadow: none;
+  opacity: 0.4;
+}
+/* ほかの列から運んできたタブが入るところ */
+.tab[data-drop]::before {
+  content: '';
+  position: absolute;
+  z-index: 4;
+  top: 4px;
+  bottom: 4px;
+  left: -2px;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+.tab[data-drop='after']::before {
+  left: auto;
+  right: -2px;
 }

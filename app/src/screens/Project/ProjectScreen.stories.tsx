@@ -3,6 +3,7 @@ import { DropZone } from '../../components/overlay/DropZone/DropZone'
 import { withEmptyProject } from '../../model/library'
 import { sampleLibrary } from '../../samples/library'
 import { AppBar } from '../AppBar'
+import { PlaceBar, placeEntries } from '../PlaceBar'
 import { ScreenFrame } from '../ScreenFrame'
 import type { JSX } from 'solid-js'
 import type { Library } from '../../model/library'
@@ -16,7 +17,14 @@ export default meta
 type Story = StoryObj
 
 const frame = (lib: Library, name: string, screen: JSX.Element, extra?: JSX.Element) => (
-  <ScreenFrame bar={<AppBar lib={lib} crumbs={['ホーム', name]} />}>
+  <ScreenFrame
+    bar={
+      <>
+        <AppBar lib={lib} />
+        <PlaceBar crumbs={['ホーム', name]} places={() => placeEntries(lib, undefined)} />
+      </>
+    }
+  >
     {screen}
     {extra}
   </ScreenFrame>

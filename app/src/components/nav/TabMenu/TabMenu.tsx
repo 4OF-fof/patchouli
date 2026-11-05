@@ -2,12 +2,12 @@ import { ContextMenu } from '../../overlay/ContextMenu/ContextMenu'
 import { NavMenu, type NavMenuItem } from '../NavMenu/NavMenu'
 import type { SplitSide } from '../SplitView/split'
 
-export type TabAction = SplitSide | 'detach'
+export type TabAction = SplitSide | 'window'
 
 const ITEMS: Record<TabAction, NavMenuItem> = {
   right: { id: 'right', icon: 'splitRight', label: '右に分割' },
   down: { id: 'down', icon: 'splitDown', label: '下に分割' },
-  detach: { id: 'detach', icon: 'newTab', label: 'タブに戻す' },
+  window: { id: 'window', icon: 'external', label: '別のウィンドウで開く' },
 }
 
 export interface TabMenuProps {

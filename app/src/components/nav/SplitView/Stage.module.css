@@ -1,0 +1,8 @@
+.root {
+  position: absolute;
+  inset: 0;
+}
+/* 箱は作らず、中のものはタブの画面と同じく面に重ねる */
+.layers {
+  display: contents;
+}

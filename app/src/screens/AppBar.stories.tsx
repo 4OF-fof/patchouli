@@ -4,7 +4,8 @@ import { ThumbMakingProvider } from '../components/media/Thumb/Thumb'
 import type { Activity } from '../components/nav/ActivityButton/ActivityButton'
 import { WindowProvider } from '../components/nav/TitleBar/TitleBar'
 import { PINNED_PROJECTS, PINNED_TAGS, sampleLibrary } from '../samples/library'
-import { AppBar, type AppBarProps } from './AppBar'
+import { AppBar, type AppBarProps, type Place } from './AppBar'
+import { PlaceBar, placeEntries } from './PlaceBar'
 import { EditionScreen } from './Edition/EditionScreen'
 import { ScreenFrame } from './ScreenFrame'
 
@@ -15,10 +16,17 @@ const meta = {
 export default meta
 type Story = StoryObj
 
-const bar = (o: Partial<AppBarProps> = {}) => {
+const bar = (o: Partial<AppBarProps> = {}, place: { here?: Place; crumbs?: string[] } = {}) => {
   const lib = sampleLibrary()
   return (
-    <ScreenFrame bar={<AppBar lib={lib} here="home" crumbs={['ホーム']} {...o} />}>
+    <ScreenFrame
+      bar={
+        <>
+          <AppBar lib={lib} {...o} />
+          <PlaceBar crumbs={place.crumbs ?? ['ホーム']} places={() => placeEntries(lib, place.here ?? 'home')} />
+        </>
+      }
+    >
       <EditionScreen lib={lib} pinnedProjects={PINNED_PROJECTS} pinnedTags={PINNED_TAGS} />
     </ScreenFrame>
   )
@@ -36,7 +44,7 @@ export const Default: Story = { name: 'web（窓のボタンなし）', render: 
 export const Desktop: Story = { name: 'デスクトップ', decorators: [desktop], render: () => bar() }
 export const Crumbs: Story = {
   name: '道のり',
-  render: () => bar({ here: 'projects', crumbs: ['プロジェクト一覧', '秋の企画'] }),
+  render: () => bar({}, { here: 'projects', crumbs: ['プロジェクト一覧', '秋の企画'] }),
 }
 export const Places: Story = {
   name: 'いまの場所から画面を選ぶ',

@@ -14,7 +14,7 @@ type Story = StoryObj
 const tags = (o: Partial<TagListScreenProps> = {}) => {
   const lib = sampleLibrary()
   return (
-    <ScreenFrame bar={<AppBar lib={lib} here="tags" crumbs={['タグ一覧']} />}>
+    <ScreenFrame bar={<AppBar lib={lib} />}>
       <TagListScreen lib={lib} {...o} />
     </ScreenFrame>
   )

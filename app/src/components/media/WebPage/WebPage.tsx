@@ -3,6 +3,7 @@ import type { BrowserActions } from '../../../backend/types'
 import { Icon } from '../../base/Icon/Icon'
 import { Button } from '../../controls/Button/Button'
 import { IconButton } from '../../controls/IconButton/IconButton'
+import { useHost } from '../../../window/host'
 import { useTabShown } from '../../nav/TabPane/TabPane'
 import { coverPage, onLayout, setHole } from './layer'
 import styles from './WebPage.module.css'
@@ -15,11 +16,21 @@ export interface WebPageProps {
   class?: string
 }
 
+/** 外のページ。別のウィンドウに出しているあいだは、WebView を重ねられないので iframe で出す。 */
+export function WebPage(props: WebPageProps) {
+  const host = useHost()
+  return (
+    <Show when={host().main} fallback={<Page {...props} browser={undefined} />}>
+      <Page {...props} />
+    </Show>
+  )
+}
+
 /**
- * 外のページ。browser があれば、本体とは別の WebView を枠の位置に重ねる。
+ * browser があれば、本体とは別の WebView を枠の位置に重ねる。
  * 別の WebView は本体の画面とは別に描かれるので、枠が隠れたり動いたりしたら合わせて隠し、動かす。
  */
-export function WebPage(props: WebPageProps) {
+function Page(props: WebPageProps) {
   // 画面を読み直しても前の WebView と名前が重ならないようにする
   const key = `page-${crypto.randomUUID()}`
   const active = useTabShown()

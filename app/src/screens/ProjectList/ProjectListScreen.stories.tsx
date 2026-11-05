@@ -14,7 +14,7 @@ type Story = StoryObj
 
 const list = (lib = sampleLibrary(), pinned = PINNED_PROJECTS) => {
   return (
-    <ScreenFrame bar={<AppBar lib={lib} here="projects" crumbs={['プロジェクト一覧']} />}>
+    <ScreenFrame bar={<AppBar lib={lib} />}>
       <ProjectListScreen lib={lib} pinned={pinned} />
     </ScreenFrame>
   )

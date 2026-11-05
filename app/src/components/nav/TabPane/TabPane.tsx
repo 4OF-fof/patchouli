@@ -1,4 +1,5 @@
 import { type Accessor, type JSX, createContext, useContext } from 'solid-js'
+import { type Host, HostProvider, MAIN_HOST } from '../../../window/host'
 import type { Rect } from '../SplitView/split'
 import styles from './TabPane.module.css'
 
@@ -16,10 +17,14 @@ export interface TabPaneProps {
   shown?: boolean
   /** 分割したときの場所。全体を 1 とした割合。 */
   rect?: Rect
-  /** 分割したときに、操作しているペインに印を付ける。 */
-  marked?: boolean
   onFocus?: () => void
   onContextMenu?: (e: MouseEvent) => void
+  /** 置いている窓。タブを別のウィンドウに出すと変わる。 */
+  host?: () => Host
+  /** 画面の上に置く段（いまの場所など）。 */
+  bar?: JSX.Element
+  /** bar の上に置くもの（ペインのタブ）。 */
+  head?: JSX.Element
   children?: JSX.Element
 }
 
@@ -29,27 +34,32 @@ const pct = (v: number) => `${v * 100}%`
 export function TabPane(props: TabPaneProps) {
   const shown = () => props.shown ?? props.active
   return (
-    <ActiveContext.Provider value={() => props.active}>
-      <ShownContext.Provider value={shown}>
-        <div
-          class={styles.root}
-          data-active={shown()}
-          data-marked={props.marked}
-          inert={!shown() || undefined}
-          style={
-            props.rect && {
-              left: pct(props.rect.x),
-              top: pct(props.rect.y),
-              width: pct(props.rect.w),
-              height: pct(props.rect.h),
+    <HostProvider value={() => props.host?.() ?? MAIN_HOST}>
+      <ActiveContext.Provider value={() => props.active}>
+        <ShownContext.Provider value={shown}>
+          <div
+            class={styles.root}
+            data-active={shown()}
+            inert={!shown() || undefined}
+            style={
+              props.rect && {
+                left: pct(props.rect.x),
+                top: pct(props.rect.y),
+                width: pct(props.rect.w),
+                height: pct(props.rect.h),
+              }
             }
-          }
-          on:pointerdown={{ handleEvent: () => props.onFocus?.(), capture: true }}
-          onContextMenu={(e) => props.onContextMenu?.(e)}
-        >
-          {props.children}
-        </div>
-      </ShownContext.Provider>
-    </ActiveContext.Provider>
+            on:pointerdown={{ handleEvent: () => props.onFocus?.(), capture: true }}
+            onContextMenu={(e) => props.onContextMenu?.(e)}
+          >
+            <div class={styles.top}>
+              {props.head}
+              {props.bar}
+            </div>
+            <div class={styles.body}>{props.children}</div>
+          </div>
+        </ShownContext.Provider>
+      </ActiveContext.Provider>
+    </HostProvider>
   )
 }

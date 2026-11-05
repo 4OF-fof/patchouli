@@ -43,6 +43,7 @@ import {
   Info,
   Italic,
   Keyboard,
+  LayoutDashboard,
   LayoutGrid,
   Library,
   Link,
@@ -164,6 +165,7 @@ const ICONS = {
   sort: ArrowUpDown,
   splitRight: Columns2,
   splitDown: Rows2,
+  workspace: LayoutDashboard,
 }
 
 export type IconName = keyof typeof ICONS

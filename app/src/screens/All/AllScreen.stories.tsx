@@ -16,7 +16,7 @@ export const Default: Story = {
   render: () => {
     const lib = sampleLibrary()
     return (
-      <ScreenFrame bar={<AppBar lib={lib} here="all" crumbs={['すべて']} />}>
+      <ScreenFrame bar={<AppBar lib={lib} />}>
         <AllScreen lib={lib} />
       </ScreenFrame>
     )

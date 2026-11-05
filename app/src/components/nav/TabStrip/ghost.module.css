@@ -1,0 +1,32 @@
+/* 写し元のタブの列の CSS より強くするため、body の子として指定する */
+body > .ghost {
+  position: fixed;
+  z-index: 1000;
+  top: 0;
+  left: 0;
+  margin: 0;
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  box-shadow: var(--shadow-pill);
+  opacity: 0.92;
+  pointer-events: none;
+  cursor: grabbing;
+}
+/* タブの列の外からつかんだときの写し */
+.tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-8);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: var(--fs-list);
+}
+/* かなは字面の中心が高く見えるので、アイコンの中心より 1px 下げる */
+.tab > span {
+  min-width: 0;
+  padding-top: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

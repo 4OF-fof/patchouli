@@ -1,20 +1,16 @@
 import { Index, Show } from 'solid-js'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { type TabAction, TabMenu } from '../TabMenu/TabMenu'
-import { TabUnitView } from './TabUnitView'
-import { createTabUnits } from './units'
+import { TabItem } from './TabItem'
+import { type TabSlots, createTabRow, useSlots } from './row'
 import styles from './TabStrip.module.css'
 
 export interface TabEntry {
   id: number
   label: string
   icon: IconName
-  /** 分割して並べるまとまりの番号。同じ番号のタブは続けて並べる。 */
-  group?: number
-  /** まとまりの中で、最後に操作したタブ。たたんだときに表に出す。 */
-  face?: boolean
-  /** 分割して、いま並べて見えている。 */
-  shown?: boolean
+  /** 同じワークスペースに並べているタブの数。2 つ以上なら、1 つにたたんで数を出す。 */
+  count?: number
 }
 
 export interface TabStripProps {
@@ -24,14 +20,23 @@ export interface TabStripProps {
   onClose: (id: number) => void
   onNew: () => void
   onAction?: (id: number, a: TabAction) => void
-  /** id のタブを、まとまりごと before の前に動かす。before がなければ末尾。 */
+  /** 右クリックで出す項目。空なら出さない。 */
+  actions?: (t: TabEntry) => TabAction[]
+  /** id のタブを before の前に動かす。before がなければ末尾。 */
   onMove?: (id: number, before: number | undefined) => void
+  /** id のタブを列の外へ運んでいるあいだ。位置は画面の上の位置で、列に戻ったら undefined。 */
+  onDragAway?: (id: number, at: { x: number; y: number } | undefined) => void
+  /** id のタブを列の外か窓の外で離したとき。位置は画面の上の位置。 */
+  onDropAway?: (id: number, x: number, y: number) => void
+  /** ほかの列から運んできたタブを受けられるようになったら、その受け口を渡す。なくなったら undefined。 */
+  slots?: (s: TabSlots | undefined) => void
 }
 
-/** タイトルバーに並べるタブ。中クリックでも閉じる。分割したタブは、見えていないときは 1 つにたたむ。 */
+/** タイトルバーに並べるタブ。中クリックでも閉じる。 */
 export function TabStrip(props: TabStripProps) {
   let list!: HTMLDivElement
-  const s = createTabUnits(props, 'x', () => list)
+  const row = createTabRow(props, 'x', () => list)
+  useSlots(props, row)
   return (
     <div class={styles.root}>
       <div
@@ -39,32 +44,20 @@ export function TabStrip(props: TabStripProps) {
         class={styles.list}
         role="tablist"
         aria-label="タブ"
-        data-dragging={s.dragging() !== undefined || undefined}
+        data-dragging={row.dragging() !== undefined || undefined}
       >
-        <Index each={s.units()}>
-          {(u, i) => (
-            <TabUnitView
-              unit={u}
-              index={i}
-              units={s}
-              tabs={props}
-              classes={styles}
-              style={{
-                '--panes': u().group && !u().tabs.some((t) => t.id === props.current) ? 1 : u().tabs.length,
-              }}
-              axis="x"
-            />
-          )}
+        <Index each={props.tabs}>
+          {(t, i) => <TabItem tab={t} index={i} row={row} tabs={props} classes={styles} axis="x" />}
         </Index>
       </div>
-      <Show when={s.menu()} keyed>
+      <Show when={row.menu()} keyed>
         {(m) => (
           <TabMenu
             x={m.x}
             y={m.y}
             actions={m.actions}
             onAction={(a) => props.onAction?.(m.id, a)}
-            onClose={() => s.setMenu(undefined)}
+            onClose={() => row.setMenu(undefined)}
           />
         )}
       </Show>

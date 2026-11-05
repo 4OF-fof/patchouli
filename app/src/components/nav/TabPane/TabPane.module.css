@@ -3,18 +3,21 @@
 .root {
   position: absolute;
   inset: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   isolation: isolate;
 }
+.top {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
 .root[data-active='false'] {
   visibility: hidden;
-}
-.root[data-marked='true']::after {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  z-index: 100;
-  height: 2px;
-  background: var(--accent);
-  pointer-events: none;
 }

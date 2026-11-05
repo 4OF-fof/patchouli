@@ -1,4 +1,5 @@
 import { createEffect, onCleanup } from 'solid-js'
+import { useHost } from '../../window/host'
 
 /**
  * 開いているあいだ、pop と anchor の外を押したら onClose を呼ぶ。
@@ -12,6 +13,7 @@ export function usePopover(o: {
   open?: () => boolean
   move?: boolean
 }) {
+  const host = useHost()
   const inside = (t: EventTarget | null) => t instanceof Node && (!!o.pop()?.contains(t) || !!o.anchor?.()?.contains(t))
   const onOutside = (e: PointerEvent) => {
     if (e.target instanceof Node && !inside(e.target)) o.onClose()
@@ -22,15 +24,16 @@ export function usePopover(o: {
   }
   createEffect(() => {
     if (o.open && !o.open()) return
-    document.addEventListener('pointerdown', onOutside, true)
+    const { doc, win } = host()
+    doc.addEventListener('pointerdown', onOutside, true)
     if (o.move) {
-      window.addEventListener('resize', onMove)
-      window.addEventListener('scroll', onMove, true)
+      win.addEventListener('resize', onMove)
+      win.addEventListener('scroll', onMove, true)
     }
     onCleanup(() => {
-      document.removeEventListener('pointerdown', onOutside, true)
-      window.removeEventListener('resize', onMove)
-      window.removeEventListener('scroll', onMove, true)
+      doc.removeEventListener('pointerdown', onOutside, true)
+      win.removeEventListener('resize', onMove)
+      win.removeEventListener('scroll', onMove, true)
     })
   })
 }

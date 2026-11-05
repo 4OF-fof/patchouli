@@ -36,8 +36,8 @@ export interface LibraryState {
 export interface SavedTabs {
   tabs: unknown[][]
   current: number
-  /** 分割して並べるまとまり。葉はタブの並びの index。 */
-  splits?: unknown[]
+  /** ワークスペース。tree の葉は panes の index、ペインのタブは tabs の index。 */
+  spaces?: unknown[]
 }
 
 export interface ListDiff {

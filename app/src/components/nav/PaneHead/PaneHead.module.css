@@ -1,0 +1,137 @@
+.root {
+  flex: none;
+  background: var(--side);
+}
+.bar {
+  display: flex;
+  align-items: flex-end;
+  height: 30px;
+  padding: 0 var(--space-4);
+  color: var(--ink-2);
+  font-size: var(--fs-list);
+  user-select: none;
+  box-shadow: inset 0 -1px var(--line);
+}
+/* 表のタブは、下の段の上の線にかぶせて、下の段とつなげる */
+.list {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab {
+  position: relative;
+  flex: 0 1 auto;
+  width: 150px;
+  min-width: 64px;
+  height: 25px;
+  display: flex;
+  align-items: center;
+  margin-right: -1px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  color: var(--muted);
+  cursor: grab;
+}
+.tab[data-current='true'] {
+  z-index: 1;
+  background: var(--paper);
+  color: var(--ink);
+}
+.seg {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  border-radius: inherit;
+}
+.seg:hover {
+  color: var(--ink);
+}
+.main {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-4) 0 var(--space-8);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  cursor: inherit;
+}
+.main:focus-visible {
+  outline-offset: -2px;
+}
+.main svg {
+  flex: none;
+}
+/* かなは字面の中心が高く見えるので、アイコンの中心より 1px 下げる */
+.label {
+  min-width: 0;
+  padding-top: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-right: var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  visibility: hidden;
+}
+.seg:hover .close,
+.close:focus-visible {
+  visibility: visible;
+}
+.close:hover {
+  background: var(--card);
+  color: var(--ink);
+}
+/* ドラッグ中は、ほかのタブがよけて入る場所を空ける。列の外へ引き出したタブは、もとの場所を薄くして残す */
+.list[data-dragging] .tab {
+  transition: transform 0.15s ease;
+}
+.list[data-dragging] .tab[data-dragged] {
+  z-index: 3;
+  background: var(--paper);
+  box-shadow: var(--shadow-pill);
+  transition: none;
+  cursor: grabbing;
+}
+.list[data-dragging] .tab[data-lifted] {
+  box-shadow: none;
+  opacity: 0.4;
+}
+.add {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin: 0 0 2px var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.add:hover {
+  background: var(--card);
+  color: var(--ink);
+}

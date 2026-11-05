@@ -17,8 +17,10 @@ export function Seams(props: SeamsProps) {
   const drag = (seam: Seam, e: PointerEvent) => {
     if (e.button !== 0) return
     const el = e.currentTarget
-    const box = el instanceof HTMLElement ? el.parentElement?.getBoundingClientRect() : undefined
-    if (!box || !(el instanceof HTMLElement)) return
+    if (!(el instanceof HTMLElement)) return
+    // 親は display: contents で大きさを持たないので、割合の基準になる箱から測る
+    const box = el.offsetParent?.getBoundingClientRect()
+    if (!box) return
     e.preventDefault()
     el.setPointerCapture(e.pointerId)
     const row = seam.dir === 'row'

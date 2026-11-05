@@ -1,6 +1,5 @@
 import {
   type Accessor,
-  For,
   type JSX,
   Show,
   createContext,
@@ -33,7 +32,6 @@ import { PluginsDialog } from '../components/dialog/PluginsDialog/PluginsDialog'
 import { SettingsDialog, type SettingsPage } from '../components/dialog/SettingsDialog/SettingsDialog'
 import { type Activity, ActivityButton } from '../components/nav/ActivityButton/ActivityButton'
 import { NavMenu, type NavMenuEntry } from '../components/nav/NavMenu/NavMenu'
-import { GRACE, OPEN_DELAY, type Point, graceArea, inside } from '../components/nav/CascadeMenu/grace'
 import { SearchPalette } from '../components/nav/SearchPalette/SearchPalette'
 import { TabStrip, type TabStripProps } from '../components/nav/TabStrip/TabStrip'
 import type { Library } from '../model/library'
@@ -84,13 +82,6 @@ export interface BarRequest {
 
 export interface AppBarProps {
   lib: Library
-  here?: Place
-  crumbs?: string[]
-  /** 選んでいる項目の数。0 より大きければ、いまの場所の横に出す。 */
-  selected?: number
-  onCrumb?: (i: number) => void
-  siblingsOf?: (i: number) => NavMenuEntry[] | undefined
-  onSibling?: (i: number, id: string) => void
   initial?: BarState
   query?: string
   activities?: Activity[]
@@ -115,13 +106,13 @@ export interface AppBarProps {
   pluginActions?: PluginActions
   onPluginsChanged?: (quiet?: boolean) => void | Promise<void>
   request?: BarRequest
-  /** あれば、タイトルバーにタブを並べ、いまの場所はその下の段に出す。 */
+  /** あれば、タイトルバーにワークスペースを並べる。 */
   tabs?: TabStripProps
+  /** あれば、メニューから新しいウィンドウを開ける。 */
+  onNewWindow?: () => void
   appSettings?: AppSettingsActions
   /** ファイルに書き出し、書き出した場所を返す。選ぶのをやめたら undefined。 */
   exportFile?: (name: string, data: string) => Promise<string | undefined>
-  /** いまの場所の行の右端に、画面ごとのボタンを置く所。 */
-  toolsRef?: (el: HTMLElement) => void
   screens?: ScreenPlace[]
 }
 
@@ -426,25 +417,6 @@ export function AppBar(props: AppBarProps) {
     if (a) onCleanup(a.onProgress(setAutoTagProgress))
   })
 
-  const placeItems = (): NavMenuEntry[] => [
-    { id: 'home', icon: 'home', label: 'ホーム', current: props.here === 'home' },
-    { id: 'all', icon: 'grid', label: 'すべて', count: lib().items.length, current: props.here === 'all' },
-    {
-      id: 'projects',
-      icon: 'project',
-      label: 'プロジェクト',
-      count: lib().projects.length,
-      current: props.here === 'projects',
-    },
-    { id: 'tags', icon: 'hash', label: 'タグ', count: lib().tagGroups().size, current: props.here === 'tags' },
-    ...(props.screens?.length ? ['separator' as const] : []),
-    ...(props.screens ?? []).map((s) => ({
-      id: s.place,
-      icon: s.icon,
-      label: s.label,
-      current: props.here === s.place,
-    })),
-  ]
   const menuItems = (): NavMenuEntry[] => [
     ...(props.onChooseLibrary
       ? [
@@ -457,90 +429,13 @@ export function AppBar(props: AppBarProps) {
           },
         ]
       : []),
+    ...(props.onNewWindow ? [{ id: 'window', icon: 'external' as const, label: '新しいウィンドウ' }] : []),
     { id: 'plugins', icon: 'plugin', label: 'プラグイン' },
     'separator',
     { id: 'theme', icon: 'theme', label: 'テーマを切り替え' },
     { id: 'keys', icon: 'keyboard', label: 'ショートカット一覧' },
     { id: 'settings', icon: 'settings', label: '設定' },
   ]
-  const [drop, setDrop] = createSignal<number>()
-  const [clicked, setClicked] = createSignal(false)
-  const crumbEls: HTMLElement[] = []
-  let dropEl: HTMLDivElement | undefined
-  let timer: ReturnType<typeof setTimeout> | undefined
-  let pending: number | undefined
-  let grace: Point[] | undefined
-  let graceTimer: ReturnType<typeof setTimeout> | undefined
-  let pointer: Point | undefined
-  let under: Node | undefined
-  let onCrumb = false
-  let prevAt = -1
-  // 入ってきた段。猶予のあいだは待たせ、明けてもまだ上にいれば開く
-  let wanted: number | undefined
-  const endGrace = () => {
-    clearTimeout(graceTimer)
-    grace = undefined
-  }
-  const leave = () => {
-    clearTimeout(timer)
-    pending = undefined
-    endGrace()
-    setDrop(undefined)
-    setClicked(false)
-  }
-  const holds = (p: Point) => drop() !== undefined && !!grace && inside(p, grace)
-  const enter = (i: number) => {
-    if (drop() === i || pending === i) return
-    clearTimeout(timer)
-    pending = i
-    timer = setTimeout(() => {
-      pending = undefined
-      if (!under || !crumbEls[i]?.contains(under)) return
-      endGrace()
-      setClicked(false)
-      setDrop(i)
-    }, OPEN_DELAY)
-  }
-  // 移動のメニューと同じく、段から出てもメニューへ向かう途中なら閉じず、ほかの段にも反応しない
-  const decide = () => {
-    const t = under
-    const p = pointer
-    if (!t || !p) return
-    const i = drop()
-    if (i !== undefined && !crumbEls[i]?.contains(t) && !dropEl?.contains(t) && !holds(p)) leave()
-    if (wanted !== undefined && crumbEls[wanted]?.contains(t) && !holds(p)) {
-      enter(wanted)
-      wanted = undefined
-    }
-  }
-  const onMove = (e: PointerEvent) => {
-    const t = e.target
-    if (!(t instanceof Node)) return
-    pointer = { x: e.clientX, y: e.clientY }
-    under = t
-    const at = crumbEls.findIndex((el) => el.contains(t))
-    if (at !== prevAt) wanted = at >= 0 ? at : undefined
-    prevAt = at
-    const i = drop()
-    const was = onCrumb
-    onCrumb = i !== undefined && crumbEls[i]?.contains(t)
-    if (dropEl?.contains(t)) endGrace()
-    else if (was && !onCrumb && dropEl) {
-      grace = graceArea(pointer, dropEl.getBoundingClientRect(), 'down')
-      clearTimeout(graceTimer)
-      graceTimer = setTimeout(() => {
-        grace = undefined
-        decide()
-      }, GRACE)
-    }
-    decide()
-  }
-  onMount(() => document.addEventListener('pointermove', onMove))
-  onCleanup(() => {
-    clearTimeout(timer)
-    clearTimeout(graceTimer)
-    document.removeEventListener('pointermove', onMove)
-  })
   const onMenu = (id: string) => {
     if (id === 'settings') return openSettings()
     if (id === 'theme') return toggleTheme()
@@ -552,93 +447,14 @@ export function AppBar(props: AppBarProps) {
       return props.onChooseLibrary?.()
     }
     close()
-    if (id === 'home' || id === 'all' || id === 'tags' || id === 'projects') props.onGo?.(id)
-    const s = props.screens?.find((x) => x.place === id)
-    if (s) props.onGo?.(s.place)
+    if (id === 'window') props.onNewWindow?.()
   }
-
-  const place = () => (
-    <>
-      <nav class={styles.crumbs} aria-label="いまの場所">
-        <For each={props.crumbs ?? []}>
-          {(c, i) => {
-            const last = () => i() === (props.crumbs?.length ?? 0) - 1
-            const listOf = () => {
-              const list = i() === 0 ? placeItems() : props.siblingsOf?.(i())
-              const entries = list?.filter((e) => e !== 'separator')
-              return entries?.length === 1 && entries[0].current ? undefined : list
-            }
-            const items = () => (drop() === i() ? listOf() : undefined)
-            // 最後の段は戻る先がないので、押すと仲間の一覧を開く
-            const menu = () => last() && !!listOf()?.length
-            return (
-              <>
-                <Show when={i() > 0}>
-                  <span class={styles.sep} aria-hidden="true">
-                    /
-                  </span>
-                </Show>
-                <span class={styles.crumbAt}>
-                  <button
-                    ref={(el) => (crumbEls[i()] = el)}
-                    type="button"
-                    class={styles.crumb}
-                    aria-current={last() ? 'page' : undefined}
-                    aria-haspopup={menu() ? 'menu' : undefined}
-                    aria-expanded={menu() ? drop() === i() : undefined}
-                    data-open={!!items()?.length}
-                    onClick={() => {
-                      if (menu()) {
-                        clearTimeout(timer)
-                        pending = undefined
-                        endGrace()
-                        if (drop() !== i()) {
-                          setClicked(true)
-                          setDrop(i())
-                        }
-                        return
-                      }
-                      if (last()) return
-                      leave()
-                      props.onCrumb?.(i())
-                    }}
-                  >
-                    {c}
-                  </button>
-                  <Show when={items()?.length ? items() : undefined}>
-                    {(list) => (
-                      <div ref={dropEl} class={styles.drop}>
-                        <NavMenu
-                          focusFirst={clicked()}
-                          items={list()}
-                          onSelect={(id) => {
-                            leave()
-                            if (i() === 0) void onMenu(id)
-                            else props.onSibling?.(i(), id)
-                          }}
-                          onClose={leave}
-                        />
-                      </div>
-                    )}
-                  </Show>
-                </span>
-              </>
-            )
-          }}
-        </For>
-      </nav>
-      <Show when={props.selected}>{(n) => <span class={styles.selected}>{n()} 件を選択中</span>}</Show>
-    </>
-  )
 
   return (
     <>
       <TitleBar
         end={
           <span class={styles.end}>
-            <Show when={!props.tabs}>
-              <span class={styles.tools} ref={(el) => props.toolsRef?.(el)} />
-            </Show>
             <ActivityButton activities={props.activities ?? []} />
             <button
               type="button"
@@ -680,14 +496,8 @@ export function AppBar(props: AppBarProps) {
             </div>
           </Show>
         </div>
-        {props.tabs ? <TabStrip {...props.tabs} /> : place()}
+        <Show when={props.tabs}>{(t) => <TabStrip {...t()} />}</Show>
       </TitleBar>
-      <Show when={props.tabs}>
-        <div class={styles.placeBar}>
-          {place()}
-          <span class={styles.tools} ref={(el) => props.toolsRef?.(el)} />
-        </div>
-      </Show>
       <Show when={searching()}>
         <SearchPalette
           mode={state() === 'prompt' ? 'prompt' : state() === 'command' ? 'command' : 'search'}

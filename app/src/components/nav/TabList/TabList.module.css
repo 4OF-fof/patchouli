@@ -129,29 +129,10 @@
   background: var(--line-2);
   color: var(--ink);
 }
-/* 分割して開いたまとまりは、1 つの枠の中を横線で区切る */
-.tab[data-group='open'] {
-  border: 1px solid var(--line);
-}
-.tab[data-group='open'] .seg {
-  border-radius: 0;
-  color: var(--muted);
-}
-.tab[data-group='open'] .seg + .seg {
-  border-top: 1px solid var(--line);
-}
-.tab[data-group='open'] .seg:hover,
-.tab[data-group='open'] .seg[data-current='true'] {
-  color: var(--ink);
-}
-.tab[data-group='open'] .seg[data-current='true'] .main svg {
-  color: var(--accent);
-}
 .count {
   flex: none;
   min-width: 16px;
   height: 16px;
-  margin-left: auto;
   padding: 0 var(--space-4);
   display: flex;
   align-items: center;
@@ -172,4 +153,25 @@
   box-shadow: var(--shadow-pill);
   transition: none;
   cursor: grabbing;
+}
+/* 列の外へ引き出したタブは、もとの場所を薄くして残す */
+.list[data-dragging] .tab[data-lifted] {
+  box-shadow: none;
+  opacity: 0.4;
+}
+/* ほかの列から運んできたタブが入るところ */
+.tab[data-drop]::before {
+  content: '';
+  position: absolute;
+  z-index: 4;
+  left: 4px;
+  right: 4px;
+  top: -2px;
+  height: 2px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+.tab[data-drop='after']::before {
+  top: auto;
+  bottom: -2px;
 }

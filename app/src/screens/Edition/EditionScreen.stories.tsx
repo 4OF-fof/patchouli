@@ -25,7 +25,7 @@ const edition = (
 ) => {
   const lib = sampleLibrary()
   return (
-    <ScreenFrame bar={<AppBar lib={lib} here="home" crumbs={['ホーム']} />} toast={o.toast}>
+    <ScreenFrame bar={<AppBar lib={lib} />} toast={o.toast}>
       <EditionScreen
         lib={lib}
         pinnedProjects={PINNED_PROJECTS}
@@ -70,7 +70,7 @@ export const Empty: Story = {
   render: () => {
     const lib = buildLibrary([], [], TODAY)
     return (
-      <ScreenFrame bar={<AppBar lib={lib} here="home" crumbs={['ホーム']} />}>
+      <ScreenFrame bar={<AppBar lib={lib} />}>
         <EditionScreen lib={lib} location="D:\Library\Example" />
       </ScreenFrame>
     )
