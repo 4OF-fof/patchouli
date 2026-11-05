@@ -217,8 +217,38 @@ class Check extends WidgetType {
   }
 }
 
+/** 埋め込みの読み込み。読み終えたら done にし、描き直すときはそのまま value を使う。 */
+interface Loaded {
+  promise: Promise<Embed | undefined>
+  done: boolean
+  value?: Embed
+}
 /** エディタごとに持つ、読み込んだ埋め込み。 */
-type Embeds = Map<string, Promise<Embed | undefined>>
+type Embeds = Map<string, Loaded>
+
+const loadedOf = (embeds: Embeds, key: string, load: () => Promise<Embed | undefined>) => {
+  const had = embeds.get(key)
+  if (had) return had
+  const l: Loaded = { promise: load(), done: false }
+  void l.promise.then(
+    (e) => {
+      l.done = true
+      l.value = e
+    },
+    () => {
+      l.done = true
+    },
+  )
+  embeds.set(key, l)
+  return l
+}
+
+/**
+ * 埋め込みの高さが変わったら次に描く前に測り直させる。CodeMirror は埋め込みの中の変化に気づくのが遅い。
+ * その間は見ている行が押し出されたまま描かれ、測ったときに戻ってガタつく。
+ */
+const remeasure = (view: EditorView) => view.requestMeasure()
+
 /** 埋め込みに描いた中身と、mount で描いたものを消す関数。 */
 const drawn = new WeakMap<HTMLElement, { sig: string; off: (() => void)[] }>()
 /** 片付けた埋め込み。あとから読み終えたものを描かない。 */
@@ -255,15 +285,21 @@ interface EmbedSpec {
 }
 
 /** 画像のもとの大きさを、ふだんの大きさを CSS で決めるために渡す。 */
-const imageOf = (src: string, alt: string) => {
+const imageOf = (src: string, alt: string, view: EditorView) => {
   const img = document.createElement('img')
-  img.addEventListener('load', () => {
+  const natural = () => {
     if (!img.naturalWidth || !img.naturalHeight) return
     img.style.setProperty('--natural-width', `${img.naturalWidth}px`)
     img.style.setProperty('--natural-ratio', String(img.naturalWidth / img.naturalHeight))
+  }
+  img.addEventListener('load', () => {
+    natural()
+    remeasure(view)
   })
   img.src = src
   img.alt = alt
+  // 一度読んだ画像は大きさがすぐ分かるので、その場で大きさを決める
+  natural()
   return img
 }
 
@@ -308,15 +344,15 @@ class EmbedView extends WidgetType {
    * 同じリンク先なら作り直さない。ライブラリが変わったとき（ノートを保存するたびに変わる）は中身を確かめ直し、
    * 変わっていたときだけ描き直す。作り直すと読み込み直す間に高さが変わり、本文がずれる。
    */
-  updateDOM(dom: HTMLElement, _view: EditorView, from: this) {
+  updateDOM(dom: HTMLElement, view: EditorView, from: this) {
     if (!this.same(from)) return false
     dom.dataset.selected = String(this.selected)
     scaleTo(dom, this.scale)
-    if (from.version !== this.version) this.load(dom)
+    if (from.version !== this.version) this.load(dom, view)
     return true
   }
 
-  toDOM() {
+  toDOM(view: EditorView) {
     const { classes } = this.hooks
     const { id, name } = this
     const dom = document.createElement('span')
@@ -325,10 +361,16 @@ class EmbedView extends WidgetType {
     scaleTo(dom, this.scale)
     if (!id) {
       if (WEB.test(this.src)) dom.dataset.page = this.src
-      const img = imageOf(this.src, this.alt)
-      img.addEventListener('error', () => this.loadUrl(dom, false), { once: true })
+      // 画像として読めなかった URL はすぐカードを描く
+      const card = this.embeds.get(this.urlKey(false))
+      if (card?.value) {
+        this.put(dom, view, card, this.alt || this.src)
+        return dom
+      }
+      const img = imageOf(this.src, this.alt, view)
+      img.addEventListener('error', () => this.loadUrl(dom, view, false), { once: true })
       dom.append(img)
-      this.loadUrl(dom, true)
+      this.loadUrl(dom, view, true)
       return dom
     }
     dom.dataset.ref = id
@@ -337,41 +379,51 @@ class EmbedView extends WidgetType {
       return dom
     }
     dom.append(spanOf(classes.card, name))
-    this.load(dom)
+    this.load(dom, view)
     return dom
   }
 
-  private load(dom: HTMLElement) {
+  private load(dom: HTMLElement, view: EditorView) {
     const { embedOf } = this.hooks
     const { id, name } = this
     if (!id || name === undefined) return
-    const key = `${this.version}:${id}`
-    let p = this.embeds.get(key)
-    if (!p) {
-      p = embedOf(id)
-      this.embeds.set(key, p)
-    }
-    void p.then((e) => e && this.show(dom, e, name))
+    this.put(
+      dom,
+      view,
+      loadedOf(this.embeds, `${this.version}:${id}`, () => embedOf(id)),
+      name,
+    )
   }
 
   /** URL の埋め込み。画像として読む前に links のプラグインが受け持つか確かめ、読めなかったらカードにする。 */
-  private loadUrl(dom: HTMLElement, image: boolean) {
+  private loadUrl(dom: HTMLElement, view: EditorView, image: boolean) {
     const of = this.hooks.urlEmbedOf
     if (!of) return
-    const key = `url:${image}:${this.src}`
-    let p = this.embeds.get(key)
-    if (!p) {
-      p = of(this.src, image)
-      this.embeds.set(key, p)
-    }
-    void p.then((e) => e && this.show(dom, e, this.alt || this.src))
+    const l = loadedOf(this.embeds, this.urlKey(image), () => of(this.src, image))
+    this.put(dom, view, l, this.alt || this.src)
   }
 
-  private show(dom: HTMLElement, e: Embed, name: string) {
-    if (!dom.isConnected || destroyed.has(dom)) return
+  private urlKey(image: boolean) {
+    return `url:${image}:${this.src}`
+  }
+
+  /**
+   * 読み終えていればその場で描く。画面の外から戻ってきたときに名前のカードを挟むと CodeMirror がカードの高さを測ってしまい、
+   * 中身に替わったところで本文がずれる。
+   */
+  private put(dom: HTMLElement, view: EditorView, l: Loaded, name: string) {
+    const fill = (e: Embed | undefined) => {
+      if (e && !destroyed.has(dom) && this.show(dom, view, e, name) && dom.isConnected) remeasure(view)
+    }
+    if (l.done) fill(l.value)
+    else void l.promise.then((e) => dom.isConnected && fill(e))
+  }
+
+  /** 中身を描く。同じ中身を描いてあれば false を返す。 */
+  private show(dom: HTMLElement, view: EditorView, e: Embed, name: string) {
     const { classes } = this.hooks
     const sig = e.kind === 'mount' ? `mount:${e.key}` : JSON.stringify(e)
-    if (drawn.get(dom)?.sig === sig) return
+    if (drawn.get(dom)?.sig === sig) return false
     unmount(dom)
     delete dom.dataset.wide
     const off: (() => void)[] = []
@@ -389,7 +441,7 @@ class EmbedView extends WidgetType {
       dom.replaceChildren(box)
       off.push(e.mount(box))
       caption(e.caption)
-      return
+      return true
     }
     if (e.kind === 'card') {
       const card = spanOf(e.error ? `${classes.card} ${classes.cardError}` : classes.card, e.name ?? name)
@@ -402,7 +454,7 @@ class EmbedView extends WidgetType {
       if (e.label) card.append(spanOf(classes.cardLabel, e.label))
       if (e.error) card.append(spanOf(classes.cardNote, e.error))
       dom.replaceChildren(card)
-      return
+      return true
     }
     if (e.kind === 'page') {
       const cover = spanOf(classes.pageCover, '')
@@ -414,6 +466,7 @@ class EmbedView extends WidgetType {
         img.addEventListener('error', () => {
           img.remove()
           delete cover.dataset.image
+          remeasure(view)
         })
         cover.dataset.image = 'true'
         cover.prepend(img)
@@ -422,10 +475,11 @@ class EmbedView extends WidgetType {
       card.append(cover, spanOf(classes.pageSite, e.site))
       dom.dataset.wide = 'true'
       dom.replaceChildren(card)
-      return
+      return true
     }
-    dom.replaceChildren(imageOf(e.src, name))
+    dom.replaceChildren(imageOf(e.src, name, view))
     caption(e.caption)
+    return true
   }
 
   destroy(dom: HTMLElement) {
