@@ -603,13 +603,30 @@ export function App(props: AppProps) {
     const t = makeTab([startView()])
     openWindow(t.id)
   }
-  // 窓を閉じたら、中のワークスペースは本体の窓に戻る
-  const dropPopped = (k: number) =>
+  // 窓を閉じたら、中のタブも閉じる。操作していたタブがそこにあったら、本体の窓に出しているものに移る
+  const dropPopped = (k: number) => {
+    const ids = new Set(spaces().flatMap((s) => (s.win === k ? tabsOf(s) : [])))
+    let rest = spaces().filter((s) => s.win !== k)
+    const here = rest.filter((s) => !isAway(s))
+    if (ids.size && !here.length) {
+      const own = spaceFor(makeTab())
+      rest = [...rest, own]
+      here.push(own)
+    }
+    const after = ids.has(currentTab().id)
+      ? faceTab(here.find((s) => s.id === shownIds().get(MAIN_WIN)) ?? here[0])
+      : undefined
     batch(() => {
-      setRawSpaces(spaces().map((s) => (s.win === k ? { ...s, win: undefined } : s)))
+      if (ids.size) setRawSpaces(rest)
+      if (after) setCurrentTab(after)
+      for (const id of ids) {
+        editors.delete(id)
+        pool.delete(id)
+      }
       setPopped((m) => new Map([...m].filter(([x]) => x !== k)))
       setPopStages((m) => new Map([...m].filter(([x]) => x !== k)))
     })
+  }
   // ワークスペースがすべてなくなった窓は閉じる
   createEffect(() => {
     const used = new Set(spaces().map(winOf))
