@@ -1,23 +1,61 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 #[cfg(not(windows))]
 use tauri::webview::PageLoadEvent;
-use tauri::webview::{NewWindowResponse, WebviewBuilder};
+use tauri::webview::{NewWindowFeatures, NewWindowResponse, WebviewBuilder};
 use tauri::{
     AppHandle, Emitter, LogicalPosition, LogicalSize, Manager, Rect, Url, Webview, WebviewUrl,
+    WebviewWindowBuilder, Wry,
 };
 
 /// 本体の画面の WebView。ほかの WebView（外のページ）からは、本体の関数とプラグインのファイルを使わせない。
 pub const MAIN: &str = "main";
 /// プラグインの画面だけを出す別のウィンドウの label の頭。中身は本体の画面と同じに扱う。
 pub const SCREEN: &str = "screen-";
+/// 本体の画面が window.open で開く、タブを出す別のウィンドウの label の頭。中身は本体の画面の JS が描く。
+pub const POPOUT: &str = "popout-";
+
+static POPOUTS: AtomicU64 = AtomicU64::new(0);
 
 /// 本体の画面を読み込んでいる WebView か。外のページは含めない。
 pub fn ours(label: &str) -> bool {
-    label == MAIN || label.starts_with(SCREEN)
+    label == MAIN || label.starts_with(SCREEN) || label.starts_with(POPOUT)
+}
+
+/// 本体の画面の window.open。空のページだけを開き、本体の画面から触れるよう、開いた側とつないだまま返す。
+pub fn popout(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewWindowResponse<Wry> {
+    if url.as_str() != "about:blank" {
+        return NewWindowResponse::Deny;
+    }
+    let label = format!("{POPOUT}{}", POPOUTS.fetch_add(1, Ordering::Relaxed));
+    // 枠は本体の画面が描くので、OS の枠は外す
+    let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))
+        .window_features(features)
+        .title("Patchouli")
+        .decorations(false)
+        .on_document_title_changed(|w, title| {
+            if let Err(e) = w.set_title(&title) {
+                log::warn!("別のウィンドウの名前を変えられない: {e}");
+            }
+        })
+        .build();
+    match built {
+        Ok(window) => {
+            // 開いた順に label を知らせる。本体の画面は、これで窓のボタンとドラッグをその窓に向ける
+            if let Err(e) = app.emit_to(MAIN, "popout", &label) {
+                log::warn!("別のウィンドウの名前を知らせられない: {e}");
+            }
+            NewWindowResponse::Create { window }
+        }
+        Err(e) => {
+            log::warn!("別のウィンドウを開けない: {e}");
+            NewWindowResponse::Deny
+        }
+    }
 }
 
 /// 一度に取ってこられる大きさ。
@@ -492,7 +530,7 @@ pub fn close_all(app: &AppHandle, pages: &Pages) -> Result<(), String> {
 
 pub fn close_screens(app: &AppHandle) {
     for (label, w) in app.webview_windows() {
-        if label.starts_with(SCREEN)
+        if (label.starts_with(SCREEN) || label.starts_with(POPOUT))
             && let Err(e) = w.close()
         {
             log::warn!("画面のウィンドウを閉じられない: {label}: {e}");

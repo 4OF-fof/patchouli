@@ -5,6 +5,7 @@ mod cover;
 mod decisions;
 mod embed;
 mod framed;
+mod ghost;
 mod hooks;
 pub mod import;
 pub mod library;
@@ -1862,6 +1863,29 @@ async fn browser_close_all(
     web::close_all(&app, &pages)
 }
 
+#[tauri::command]
+async fn ghost_show(
+    app: tauri::AppHandle,
+    page: String,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Result<(), String> {
+    ghost::show(&app, &page, x, y, w, h)
+        .inspect_err(|e| log::warn!("つかんだタブの写しの窓を出せない: {e}"))
+}
+
+#[tauri::command]
+async fn ghost_move(app: tauri::AppHandle, x: f64, y: f64) -> Result<(), String> {
+    ghost::place(&app, x, y)
+}
+
+#[tauri::command]
+async fn ghost_hide(app: tauri::AppHandle) -> Result<(), String> {
+    ghost::hide(&app)
+}
+
 #[derive(Serialize)]
 struct ScreenWindow {
     label: String,
@@ -2997,7 +3021,10 @@ pub fn run() {
             browser_hide,
             browser_close,
             browser_close_all,
-            open_screen_window
+            open_screen_window,
+            ghost_show,
+            ghost_move,
+            ghost_hide
         ]);
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -3021,9 +3048,23 @@ pub fn run() {
             // 画面のウィンドウは本体の窓とやり取りして動くので、本体の窓と一緒に閉じる
             if w.label() == web::MAIN && matches!(e, tauri::WindowEvent::Destroyed) {
                 web::close_screens(w.app_handle());
+                ghost::close(w.app_handle());
             }
         })
         .setup(|app| {
+            // タブを別のウィンドウに出すときの window.open を受けるため、本体の窓は設定から自分で作る
+            let conf = app
+                .config()
+                .app
+                .windows
+                .iter()
+                .find(|w| w.label == web::MAIN)
+                .ok_or("本体のウィンドウの設定がありません")?
+                .clone();
+            let handle = app.handle().clone();
+            tauri::WebviewWindowBuilder::from_config(app.handle(), &conf)?
+                .on_new_window(move |url, features| web::popout(&handle, url, features))
+                .build()?;
             // 前に起動したときに広げた開発版は、もう使っていない
             if let Some(d) = dev_unpack_dir(app.handle()) {
                 let _ = std::fs::remove_dir_all(d);
