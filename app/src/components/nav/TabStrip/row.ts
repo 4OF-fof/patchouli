@@ -198,7 +198,7 @@ export type TabMenuAt = { id: number; x: number; y: number; actions: TabAction[]
 
 /** ほかの列から運んできたタブを受ける、タブの列。 */
 export interface TabSlots {
-  /** 窓の中の位置で離したら入る番号。列の上でなければ undefined */
+  /** 窓の中の位置で離したら入る番号。列の帯（タイトルバーなら窓の幅いっぱい）の上でなければ undefined */
   slotAt: (x: number, y: number) => number | undefined
   /** 入る番号に印を出す。undefined で消す */
   mark: (i: number | undefined) => void
@@ -247,9 +247,11 @@ export function createTabRow(props: TabStripProps, axis: 'x' | 'y', list: () => 
   const slots: TabSlots = {
     slotAt: (x, y) => {
       const l = list()
-      if (!l || offList(l, axis, x, y)) return undefined
+      if (!l) return undefined
       const r = l.getBoundingClientRect()
-      if (axis === 'x' ? x < r.left || x > r.right + AWAY * 4 : y < r.top || y > r.bottom + AWAY * 4) return undefined
+      // 帯は窓の端の側にだけ広げる。中身の側に広げると、ペインの上端のタブの段に落とすものまで取ってしまう
+      const [c, lo, hi] = axis === 'x' ? [y, r.top, r.bottom] : [x, r.left, r.right]
+      if (c < lo - AWAY || c > hi) return undefined
       const p = axis === 'x' ? x : y
       return rectsOf(l).filter((t) => p > (axis === 'x' ? (t.left + t.right) / 2 : (t.top + t.bottom) / 2)).length
     },
