@@ -90,14 +90,17 @@ function rowsIn(view: EditorView, block: BlockInfo, from: number, to: number): R
   return [{ left: content.left, right: content.right, top, bottom: top + block.height }]
 }
 
+const originOf = (view: EditorView) => {
+  const base = view.scrollDOM.getBoundingClientRect()
+  return { left: base.left - view.scrollDOM.scrollLeft, top: base.top - view.scrollDOM.scrollTop }
+}
+
 /** 選んだ範囲を、見た目の行ごとに文字に沿った矩形で描く。標準の選択の色は、文字や部品ごとに高さがそろわず形が崩れる */
 export function selectionLayer(className: string) {
   return layer({
     above: false,
     markers(view) {
-      const base = view.scrollDOM.getBoundingClientRect()
-      const left = base.left - view.scrollDOM.scrollLeft
-      const top = base.top - view.scrollDOM.scrollTop
+      const { left, top } = originOf(view)
       const out: RectangleMarker[] = []
       for (const r of view.state.selection.ranges) {
         if (r.empty || r.to < view.viewport.from || r.from > view.viewport.to) continue
@@ -116,5 +119,24 @@ export function selectionLayer(className: string) {
       return out
     },
     update: (u) => u.docChanged || u.selectionSet || u.viewportChanged,
+  })
+}
+
+/**
+ * 本文の行の中の target の要素の地を、折り返しで分かれた部分ごとに描く。要素に地を塗ると、本文より下に描く選択の色が隠れる。
+ * selectionLayer より後に置き、その下に重ねる
+ */
+export function backLayer(className: string, target: string) {
+  return layer({
+    above: false,
+    markers(view) {
+      const { left, top } = originOf(view)
+      const out: RectangleMarker[] = []
+      for (const el of view.contentDOM.querySelectorAll(`.cm-line .${CSS.escape(target)}`))
+        for (const r of el.getClientRects())
+          out.push(new RectangleMarker(className, r.left - left, r.top - top, r.width, r.height))
+      return out
+    },
+    update: (u) => u.docChanged || u.viewportChanged,
   })
 }

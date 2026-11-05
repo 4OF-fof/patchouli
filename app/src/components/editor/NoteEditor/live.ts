@@ -110,6 +110,13 @@ export function marksAt(state: EditorState, from: number, to: number) {
   return [...out]
 }
 
+/** pos がコードブロックの中か。side は、境目でどちら側を見るか。 */
+export function inCodeBlock(state: EditorState, pos: number, side: -1 | 1) {
+  for (let n: SyntaxNode | null = syntaxTree(state).resolveInner(pos, side); n; n = n.parent)
+    if (n.name === 'FencedCode' || n.name === 'CodeBlock') return true
+  return false
+}
+
 const setFocus = StateEffect.define<boolean>()
 const focusField = StateField.define<boolean>({
   create: () => false,

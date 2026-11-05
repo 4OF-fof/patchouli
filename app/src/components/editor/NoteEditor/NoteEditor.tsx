@@ -23,6 +23,7 @@ import {
   WEB,
   editEmbed,
   escapeLabel,
+  inCodeBlock,
   live,
   marksAt,
   refAt,
@@ -30,7 +31,7 @@ import {
 } from './live'
 import { MathSyntax } from './math'
 import styles from './NoteEditor.module.css'
-import { selectionLayer } from './selection'
+import { backLayer, selectionLayer } from './selection'
 
 export type { Embed } from './live'
 
@@ -218,7 +219,9 @@ export function NoteEditor(props: NoteEditorProps) {
     const { state } = v
     const sel = state.selection.main
     const focused = v.hasFocus
-    const c = !sel.empty && (focused || !!bar?.contains(document.activeElement)) ? coords(v, sel.from) : undefined
+    const code = inCodeBlock(state, sel.from, 1) || inCodeBlock(state, sel.to, -1)
+    const c =
+      !sel.empty && !code && (focused || !!bar?.contains(document.activeElement)) ? coords(v, sel.from) : undefined
     setSelected(c && { ...c, marks: marksAt(state, sel.from, sel.to) })
     const r = sel.empty && focused ? refAt(state, sel.head) : undefined
     const rc = r && coords(v, r.from)
@@ -369,6 +372,7 @@ export function NoteEditor(props: NoteEditorProps) {
           EditorView.contentAttributes.of({ spellcheck: 'false', 'aria-label': '本文' }),
           live(() => hooks),
           selectionLayer(styles.selection ?? ''),
+          backLayer(styles.codeBack ?? '', styles.code ?? ''),
           EditorView.updateListener.of(onUpdate),
           EditorView.domEventHandlers({
             mousedown: (e) => {

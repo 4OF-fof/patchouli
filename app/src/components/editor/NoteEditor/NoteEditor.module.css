@@ -33,7 +33,6 @@
   background: transparent;
 }
 .selection {
-  border-radius: var(--radius-sm);
   background: var(--accent-soft);
 }
 /* 置き換えた部分の両側に入る画像は、そこで行を折り返させて「。」だけを次の行に送ってしまう。
@@ -98,12 +97,19 @@
 .del {
   text-decoration: line-through;
 }
-.code {
-  padding: 1px var(--space-4);
+.code,
+.codeBack {
   border-radius: var(--radius-sm);
   background: var(--side);
+}
+.code {
+  padding: 1px var(--space-4);
   font-family: var(--f-mono);
   font-size: 0.88em;
+}
+/* 本文の行の中は、地を selection.ts の backLayer が選択の色より下に描く */
+.root :global(.cm-line) .code {
+  background: none;
 }
 .raw {
   border-radius: var(--radius-sm);
