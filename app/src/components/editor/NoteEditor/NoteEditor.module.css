@@ -168,20 +168,32 @@
 }
 
 .codeLine {
+  position: relative;
   padding: 0 var(--space-14) !important;
-  background: var(--base00);
   color: var(--base05);
   font-family: var(--f-mono);
   font-size: var(--fs-list);
   line-height: 1.6;
 }
+/* 選択の色は CodeMirror の層に本文より下（z-index が -1 から下）で描くので、行に地を塗ると隠れる。地はその層より下に敷く */
+.codeLine::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -100;
+  background: var(--base00);
+}
 .codeTop {
   padding-top: var(--space-10) !important;
+}
+.codeTop::before {
   border-top-left-radius: var(--radius-md);
   border-top-right-radius: var(--radius-md);
 }
 .codeBottom {
   padding-bottom: var(--space-10) !important;
+}
+.codeBottom::before {
   border-bottom-left-radius: var(--radius-md);
   border-bottom-right-radius: var(--radius-md);
 }
