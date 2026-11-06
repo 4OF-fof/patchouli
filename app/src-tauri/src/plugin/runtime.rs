@@ -229,10 +229,7 @@ pub enum MenuShown {
         title: Option<String>,
         rows: Vec<(String, String)>,
     },
-    Screen {
-        id: String,
-        window: bool,
-    },
+    Screen(String),
 }
 
 /// run-menu・added の中で頼まれ、終わってからアプリが起こすこと。target は渡したものの順番。
@@ -1443,10 +1440,7 @@ impl Runner {
                 title: o.title,
                 rows: o.rows.into_iter().map(|d| (d.label, d.value)).collect(),
             },
-            MenuOutput::Screen(s) => MenuShown::Screen {
-                id: s.id,
-                window: s.window,
-            },
+            MenuOutput::Screen(id) => MenuShown::Screen(id),
         };
         Ok(MenuRun { shown, ran })
     }

@@ -27,7 +27,6 @@ export const SAMPLE_SCREENS: ScreenInfo[] = EXAMPLES.flatMap(({ manifest: m }) =
     label: d.label,
     icon: d.icon,
     place: d.place ?? true,
-    window: { width: d.window?.width ?? 480, height: d.window?.height ?? 640 },
     plugin: m.id,
     module,
   }))

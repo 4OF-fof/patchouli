@@ -2,15 +2,14 @@
   "id": "example_graph",
   "name": "example_graph",
   "version": "0.1.0",
-  "description": "右クリックメニューから別のウィンドウを開く例。選んだノートを真ん中に置き、リンクでつながるページを図にする",
+  "description": "右クリックメニューから画面を開く例。選んだノートを真ん中に置き、リンクでつながるページを図にする",
   "script": "ui.js",
   "menu": { "formats": ["md"], "by": "elevated" },
   "screens": {
     "graph": {
       "label": "ページの関係図",
       "icon": "diagram",
-      "place": false,
-      "window": { "width": 720, "height": 560 }
+      "place": false
     }
   }
 }

@@ -1,6 +1,5 @@
 /* @refresh reload */
 import { isTauri } from '@tauri-apps/api/core'
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { JSX } from 'solid-js'
 import { render } from 'solid-js/web'
 import { App } from './App'
@@ -9,23 +8,11 @@ import { TooltipHost } from './components/overlay/Tooltip/Tooltip'
 import { type Opened, pickBackend } from './backend'
 import { applyPrefs, prefs } from './model/prefs'
 import { LibraryErrorScreen } from './screens/LibraryError/LibraryErrorScreen'
-import { SCREEN_WINDOW } from './window/protocol'
-import { ScreenWindow } from './window/ScreenWindow'
 import './index.css'
 
 const root = document.getElementById('root')!
 
-if (isTauri() && getCurrentWebviewWindow().label.startsWith(SCREEN_WINDOW))
-  render(
-    () => (
-      <>
-        <ScreenWindow />
-        <TooltipHost />
-      </>
-    ),
-    root,
-  )
-else openMain()
+openMain()
 
 function show(main: () => JSX.Element) {
   render(

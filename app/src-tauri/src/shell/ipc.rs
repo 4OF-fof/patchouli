@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use serde::Serialize;
-use tauri::{Manager, State};
+use tauri::State;
 use tauri_plugin_dialog::DialogExt;
 
 use crate::ai::{content, suggest};
@@ -216,44 +215,6 @@ pub(crate) async fn ghost_move(app: tauri::AppHandle, x: f64, y: f64) -> Result<
 #[tauri::command]
 pub(crate) async fn ghost_hide(app: tauri::AppHandle) -> Result<(), String> {
     ghost::hide(&app)
-}
-
-#[derive(Serialize)]
-pub(crate) struct ScreenWindow {
-    label: String,
-    /// もう開いていたか。開いていたものは前に出す。
-    existed: bool,
-}
-
-/// プラグインの画面だけを出す別のウィンドウを開く。同じ画面のものがあれば、それを使う。
-#[tauri::command]
-pub(crate) async fn open_screen_window(
-    app: tauri::AppHandle,
-    plugin: String,
-    screen: String,
-    title: String,
-    width: f64,
-    height: f64,
-) -> Result<ScreenWindow, String> {
-    let key = thumb::fnv(&[plugin.as_bytes(), b"\0", screen.as_bytes()]);
-    let label = format!("{}{key:016x}", web::SCREEN);
-    if let Some(w) = app.get_webview_window(&label) {
-        let _ = w.unminimize();
-        w.set_focus().map_err(|e| e.to_string())?;
-        return Ok(ScreenWindow {
-            label,
-            existed: true,
-        });
-    }
-    tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App("index.html".into()))
-        .title(title)
-        .inner_size(width.clamp(240.0, 4096.0), height.clamp(200.0, 4096.0))
-        .build()
-        .map_err(|e| e.to_string())?;
-    Ok(ScreenWindow {
-        label,
-        existed: false,
-    })
 }
 
 #[tauri::command]

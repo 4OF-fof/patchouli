@@ -1,5 +1,5 @@
 /*
- * 選んだノートを真ん中に置き、リンクでつながるページを図にする画面。右クリックメニューから、別のウィンドウで開く。
+ * 選んだノートを真ん中に置き、リンクでつながるページを図にする画面。右クリックメニューから開く。
  * リンクは書いた側と書かれた側のどちらからもたどり、たどる段の数は 1 か 2 を選べる。ページを押すと本体で開く。
  */
 
@@ -236,7 +236,7 @@ export default definePlugin({
     return [{ id: 'graph', label: 'ページの関係図を開く' }]
   },
   async runMenu() {
-    return { screen: { id: 'graph', window: true } }
+    return { screen: { id: 'graph' } }
   },
   screens: { graph: { mount } },
 })

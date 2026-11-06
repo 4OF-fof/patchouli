@@ -49,7 +49,6 @@ export function PluginScreen(props: PluginScreenProps) {
   const api: ScreenApi = {
     ...props.own,
     targets: () => props.targets.flatMap((id) => api.item(id) ?? []),
-    inWindow: false,
     items: () => items(),
     item: (id) => {
       const it = props.lib.byId.get(id)

@@ -24,7 +24,6 @@ import type {
 import type { LinkApi, OwnApi } from '../../plugins/sdk'
 import type { Page } from '../plugins/links'
 import type { UiApi, UiItem } from '../plugins/ui'
-import type { FromWindow } from '../window/protocol'
 
 export interface LibraryState {
   pins: string[]
@@ -346,18 +345,6 @@ export interface Backend {
   openUrl?: (url: string) => Promise<void>
   /** タブの中に出す外のページ。ないときは iframe で出す。 */
   browser?: BrowserActions
-  /** プラグインの画面だけを出す別のウィンドウ。ないときは、タブで開く。 */
-  screenWindows?: ScreenWindows
-}
-
-export interface ScreenWindows {
-  /** 同じ画面のウィンドウがあれば前に出し、existed を true にする。 */
-  open(screen: ScreenInfo): Promise<{ label: string; existed: boolean }>
-  send(label: string, event: string, payload: unknown): Promise<void>
-  /** ウィンドウからの知らせを受ける。返した関数で受けるのをやめる。 */
-  listen(fn: (m: FromWindow) => void): () => void
-  /** 本体の窓を前に出す。 */
-  focusMain(): void
 }
 
 /** URL の表示。ui があれば links のプラグインが描き、なければ本体が page（OGP）から作る。 */

@@ -1,8 +1,6 @@
 import { convertFileSrc, invoke } from '@tauri-apps/api/core'
-import { emitTo, listen } from '@tauri-apps/api/event'
+import { listen } from '@tauri-apps/api/event'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import { FROM_WINDOW, type FromWindow } from '../window/protocol'
 import {
   type ItemUrls,
   type StoredChanged,
@@ -257,7 +255,6 @@ export function tauriBackend(): Backend {
   })
 
   const linkThumbs = new Map<string, Promise<Blob | undefined>>()
-  const windowListeners = new Set<(m: FromWindow) => void>()
   const linkThumbnail = async (url: string) => {
     const h = handlerOf(links, url)
     if (h?.parts.includes('thumbnail')) return uiLinkThumbnail(pluginUrl(h.plugin, h.module), linkApi(url, h.plugin))
@@ -796,41 +793,6 @@ export function tauriBackend(): Backend {
       onPopup: (fn) => {
         const off = listen<{ key: string; url: string }>('browser-popup', ({ payload }) => fn(payload.key, payload.url))
         return () => void off.then((f) => f())
-      },
-    },
-    screenWindows: {
-      async open(s) {
-        const r = await invoke<{ label: string; existed: boolean }>('open_screen_window', {
-          plugin: s.plugin,
-          screen: s.id,
-          title: s.label,
-          width: s.window.width,
-          height: s.window.height,
-        })
-        if (!r.existed) {
-          const off = listen(
-            'tauri://destroyed',
-            () => {
-              void off.then((f) => f())
-              for (const fn of windowListeners) fn({ label: r.label, kind: 'closed' })
-            },
-            { target: { kind: 'Window', label: r.label } },
-          )
-        }
-        return r
-      },
-      send: (label, event, payload) => emitTo(label, event, payload),
-      listen: (fn) => {
-        windowListeners.add(fn)
-        const off = listen<FromWindow>(FROM_WINDOW, (e) => fn(e.payload))
-        return () => {
-          windowListeners.delete(fn)
-          void off.then((f) => f())
-        }
-      },
-      focusMain: () => {
-        const w = getCurrentWindow()
-        void w.unminimize().then(() => w.setFocus())
       },
     },
   }

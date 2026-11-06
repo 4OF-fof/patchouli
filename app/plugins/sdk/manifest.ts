@@ -96,8 +96,6 @@ export interface ScreenDecl {
   icon?: string
   /** 場所のメニュー・コマンド・起動時に開く画面に並べるか。書かなければ true。false のものは右クリックメニューなどから開く。 */
   place?: boolean
-  /** 別のウィンドウで開いたときの大きさ（px）の既定。書かなければ 480 × 640。 */
-  window?: { width?: number; height?: number }
 }
 
 /**

@@ -199,38 +199,10 @@ pub struct ScreenDecl {
     /// 場所のメニューに並べるか。並べないものは、右クリックメニューなどから開く。
     #[serde(default = "yes")]
     pub place: bool,
-    #[serde(default)]
-    pub window: WindowDecl,
 }
 
 fn yes() -> bool {
     true
-}
-
-/// 別のウィンドウで開いたときの大きさ（px）の既定。
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct WindowDecl {
-    #[serde(default = "window_width")]
-    pub width: f64,
-    #[serde(default = "window_height")]
-    pub height: f64,
-}
-
-impl Default for WindowDecl {
-    fn default() -> WindowDecl {
-        WindowDecl {
-            width: window_width(),
-            height: window_height(),
-        }
-    }
-}
-
-fn window_width() -> f64 {
-    480.0
-}
-
-fn window_height() -> f64 {
-    640.0
 }
 
 /// ホスト名をそろえる。大文字と末尾の点は区別しない。
@@ -556,7 +528,6 @@ pub struct ScreenInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
     pub place: bool,
-    pub window: WindowDecl,
     #[serde(flatten)]
     pub ui: UiRef,
 }
@@ -1200,7 +1171,6 @@ impl Registry {
                         label: d.label.clone(),
                         icon: d.icon.clone(),
                         place: d.place,
-                        window: d.window,
                         ui: UiRef {
                             plugin: p.manifest.id.clone(),
                             module: module.clone(),

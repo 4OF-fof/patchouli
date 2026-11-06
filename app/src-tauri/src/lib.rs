@@ -117,7 +117,6 @@ pub fn run() {
             shell::ipc::browser_hide,
             shell::ipc::browser_close,
             shell::ipc::browser_close_all,
-            shell::ipc::open_screen_window,
             shell::ipc::ghost_show,
             shell::ipc::ghost_move,
             shell::ipc::ghost_hide
@@ -141,9 +140,9 @@ pub fn run() {
             commands(invoke)
         })
         .on_window_event(|w, e| {
-            // 画面のウィンドウは本体の窓とやり取りして動くので、本体の窓と一緒に閉じる
+            // タブのウィンドウは本体の窓の JS が描くので、本体の窓と一緒に閉じる
             if w.label() == web::MAIN && matches!(e, tauri::WindowEvent::Destroyed) {
-                web::close_screens(w.app_handle());
+                web::close_popouts(w.app_handle());
                 ghost::close(w.app_handle());
             }
         })

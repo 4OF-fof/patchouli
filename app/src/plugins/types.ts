@@ -63,7 +63,6 @@ export interface ScreenInfo extends UiRef {
   label: string
   icon?: string
   place: boolean
-  window: { width: number; height: number }
 }
 
 export interface Problem {

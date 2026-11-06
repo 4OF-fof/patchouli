@@ -142,7 +142,7 @@ export const menuOutputOf = (v: unknown): MenuOutput | undefined => {
   const s: unknown = Reflect.get(Object(v), 'screen')
   if (typeof s === 'object' && s !== null) {
     const id: unknown = Reflect.get(s, 'id')
-    return typeof id === 'string' ? { screen: { id, window: Reflect.get(s, 'window') === true } } : undefined
+    return typeof id === 'string' ? { screen: { id } } : undefined
   }
   const o: unknown = Reflect.get(Object(v), 'overlay')
   if (typeof o !== 'object' || o === null) return undefined

@@ -58,7 +58,6 @@ pub(crate) enum MenuOutput {
     },
     Screen {
         id: String,
-        window: bool,
     },
     /// SDK の MenuOutput に合わせて、{ toast, level } で送る。
     #[serde(untagged)]
@@ -93,7 +92,7 @@ fn finish_menu(
             title,
             rows: rows_of(rows),
         }),
-        MenuShown::Screen { id, window } => Some(MenuOutput::Screen { id, window }),
+        MenuShown::Screen(id) => Some(MenuOutput::Screen { id }),
     };
     let ids: Vec<String> = ts.iter().map(|t| t.id.clone()).collect();
     let a = apply_ran(app, cur, &ids, run.ran)?;
