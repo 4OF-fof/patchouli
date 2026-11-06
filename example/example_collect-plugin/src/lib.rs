@@ -28,7 +28,7 @@ impl role::menu::Guest for Collect {
     fn menu(_read: &Read, _targets: Vec<Target>) -> Result<Vec<MenuItem>, String> {
         Ok(vec![MenuItem {
             id: COLLECT.into(),
-            label: "選んだものからページを作る".into(),
+            label: "選択した項目からノートを作成".into(),
         }])
     }
 
@@ -45,14 +45,14 @@ impl role::menu::Guest for Collect {
             .iter()
             .map(|t| library::item(read, &t.file))
             .collect::<Result<Vec<_>, _>>()?;
-        let first = items.first().ok_or("選んだものがありません")?;
+        let first = items.first().ok_or("項目が選択されていません")?;
         let name = match items.len() {
             1 => format!("{} のノート", first.name),
             n => format!("{} ほか {} 件のノート", first.name, n - 1),
         };
         notes::create(run, &name, &body(&items))?;
         Ok(MenuOutput::Toast(Toast {
-            text: format!("「{name}」を作りました"),
+            text: format!("「{name}」を作成しました"),
             level: ToastLevel::Success,
         }))
     }

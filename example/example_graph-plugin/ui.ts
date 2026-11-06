@@ -182,7 +182,7 @@ function mount(root: HTMLElement, api: ScreenApi) {
       : 'ページの関係図'
     if (!first) {
       count.textContent = ''
-      area.replaceChildren(el('p', 'pg-none', 'ノートを選んで、右クリックメニューから開きます'))
+      area.replaceChildren(el('p', 'pg-none', 'ノートを選択し、右クリックメニューから開いてください'))
       return
     }
     const links = linksOf(api.items())

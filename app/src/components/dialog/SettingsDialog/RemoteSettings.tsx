@@ -31,7 +31,7 @@ export function CliPathSetting(props: RemoteSettingsProps) {
     <div class={styles.row}>
       <div class={styles.what}>
         <span class={styles.name}>PATH に登録</span>
-        <span class={styles.help}>端末から patchouli コマンドで呼び出せるようにします</span>
+        <span class={styles.help}>ターミナルから patchouli コマンドで呼び出せるようにします</span>
         <span class={styles.path} data-tip={s().path ? s().command : s().cli}>
           {s().path ? s().command : (s().cli ?? 'CLI（patchouli-cli）が見つかりません')}
         </span>

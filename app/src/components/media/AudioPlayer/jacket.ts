@@ -40,7 +40,7 @@ const canvas = (w: number, h: number) => {
 
 const context = (c: HTMLCanvasElement) => {
   const g = c.getContext('2d', { willReadFrequently: true })
-  if (!g) throw new Error('canvas を描けません')
+  if (!g) throw new Error('canvas の描画に失敗しました')
   return g
 }
 
@@ -82,7 +82,7 @@ export function loadArt(src: string) {
         reject(e)
       }
     })
-    img.addEventListener('error', () => reject(new Error(`ジャケットを読み込めません: ${src}`)))
+    img.addEventListener('error', () => reject(new Error(`ジャケットの読み込みに失敗しました：${src}`)))
     img.src = src
   })
 }

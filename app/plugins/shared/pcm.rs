@@ -122,12 +122,12 @@ pub fn audio(ext: &str, f: &File, budget: &ExcerptBudget) -> Result<Vec<ExcerptP
         .codec_params
         .as_ref()
         .and_then(|p| p.audio())
-        .ok_or("音声の形式がわかりません")?
+        .ok_or("音声の形式を取得できません")?
         .clone();
     let rate = f64::from(
         params
             .sample_rate
-            .ok_or("サンプリング周波数がわかりません")?,
+            .ok_or("サンプリング周波数を取得できません")?,
     );
     let len = budget.max_audio_secs.max(1.0);
     let known = track

@@ -33,8 +33,9 @@ function scriptView(c: CodeInfo, url: string, host: CodeHost): CodeView {
           return source()
         },
         setSource: (s) => block.setSource(s),
-        wasm: () => (renderCode ? renderCode(c.plugin, c.lang, source()) : unavailable('WASM で描けません')),
-        fetch: (u) => (fetch ? fetch(c.plugin, u) : unavailable('取りに行けません')),
+        wasm: () =>
+          renderCode ? renderCode(c.plugin, c.lang, source()) : unavailable(' WASM による描画を利用できません'),
+        fetch: (u) => (fetch ? fetch(c.plugin, u) : unavailable('データを取得できません')),
       }
       const dispose = render(() => <PluginView url={url} api={api} code={c.lang} />, el)
       return { update: (b) => setSource(b.source), destroy: dispose }
@@ -82,7 +83,7 @@ function wasmView(c: CodeInfo, renderCode: Render): CodeView {
           return
         }
         const svg = cleanSvg(img.svg)
-        if (!svg) throw new Error('SVG として読めません')
+        if (!svg) throw new Error('SVG の読み込みに失敗しました')
         free()
         shadow.replaceChildren(svg)
       }
@@ -98,7 +99,7 @@ function wasmView(c: CodeInfo, renderCode: Render): CodeView {
           })
           .catch((e: unknown) => {
             if (gone) return
-            error.textContent = `描けませんでした：${message(e)}`
+            error.textContent = `描画に失敗しました：${message(e)}`
             error.hidden = false
           })
           .finally(() => {

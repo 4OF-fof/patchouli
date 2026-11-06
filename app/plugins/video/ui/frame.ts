@@ -27,7 +27,7 @@ const until = (v: HTMLVideoElement, event: string) =>
     const fail = () => {
       v.removeEventListener(event, done)
       v.removeEventListener('error', fail)
-      reject(new Error(`WebView で動画を読めません（${v.error?.message || v.error?.code || '不明'}）`))
+      reject(new Error(`WebView で動画を読み込めません（${v.error?.message || v.error?.code || '不明'}）`))
     }
     v.addEventListener(event, done)
     v.addEventListener('error', fail)
@@ -61,17 +61,17 @@ const seek = async (v: HTMLVideoElement, at: number) => {
 
 async function draw(v: HTMLVideoElement, edge: number, type: string) {
   const { videoWidth: width, videoHeight: height } = v
-  if (!width || !height) throw new Error('WebView で映像を読めません')
+  if (!width || !height) throw new Error('WebView で映像を読み込めません')
   const scale = Math.min(1, edge / Math.max(width, height))
   const c = document.createElement('canvas')
   c.width = Math.max(1, Math.round(width * scale))
   c.height = Math.max(1, Math.round(height * scale))
   const g = c.getContext('2d')
-  if (!g) throw new Error('canvas を使えません')
+  if (!g) throw new Error('canvas を利用できません')
   g.imageSmoothingQuality = 'high'
   g.drawImage(v, 0, 0, c.width, c.height)
   const blob = await new Promise<Blob | null>((r) => c.toBlob(r, type, 0.85))
-  if (!blob) throw new Error('画像にできません')
+  if (!blob) throw new Error('画像の生成に失敗しました')
   return { blob, width, height }
 }
 
@@ -101,7 +101,7 @@ async function grabParts(url: string, budget: ExcerptBudget, signal: AbortSignal
   const v = await load(url)
   try {
     const secs = v.duration
-    if (!Number.isFinite(secs)) throw new Error('動画の長さがわかりません')
+    if (!Number.isFinite(secs)) throw new Error('動画の長さを取得できません')
     const parts: ExcerptPart[] = []
     for (const start of starts(secs, budget.maxImageParts)) {
       const end = Math.min(start + SPAN, secs)
@@ -151,7 +151,7 @@ export default definePlugin<Video>({
         }
       }
       const secs = await api.call('secs')
-      if (!secs) throw new Error('動画の長さがわかりません')
+      if (!secs) throw new Error('動画の長さを取得できません')
       const parts: ExcerptPart[] = []
       for (const start of starts(secs, budget.maxImageParts)) {
         signal.throwIfAborted()

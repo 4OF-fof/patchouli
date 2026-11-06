@@ -2,7 +2,7 @@
   "id": "example_graph",
   "name": "example_graph",
   "version": "0.1.0",
-  "description": "右クリックメニューから画面を開く例。選んだノートを真ん中に置き、リンクでつながるページを図にする",
+  "description": "選択したノートを中心に、リンクでつながるノートの関係図を表示",
   "script": "ui.js",
   "menu": { "formats": ["md"] },
   "screens": {

@@ -2,7 +2,7 @@
   "id": "patchouli.youtube",
   "name": "YouTube",
   "version": "0.1.0",
-  "description": "YouTube の動画の URL を、サムネイルとプレーヤーで見せる",
+  "description": "YouTube の動画 URL のサムネイルとプレーヤー表示",
   "script": "ui/youtube.js",
   "fetch": ["youtube.com", "ytimg.com"],
   "links": [{ "host": ["youtube.com", "youtu.be"], "parts": ["thumbnail", "view", "embed", "details"] }]

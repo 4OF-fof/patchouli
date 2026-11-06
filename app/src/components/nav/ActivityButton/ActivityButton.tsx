@@ -71,8 +71,8 @@ export function ActivityButton(props: ActivityButtonProps) {
                   <button
                     type="button"
                     class={styles.stop}
-                    data-tip={stopping().has(a.key) ? '止めています' : '止める'}
-                    aria-label={stopping().has(a.key) ? '止めています' : '止める'}
+                    data-tip={stopping().has(a.key) ? '中止しています' : '中止'}
+                    aria-label={stopping().has(a.key) ? '中止しています' : '中止'}
                     disabled={stopping().has(a.key)}
                     onClick={() => stop(a)}
                   >

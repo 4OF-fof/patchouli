@@ -323,7 +323,7 @@ pub(crate) async fn put_thumbnail(
         let (path, ext) = s.lib.asset(&id)?;
         if s.plugins.handles(&ext, Part::Thumbnail) != Some(By::Script) {
             return Err(format!(
-                "「.{ext}」のサムネイルは UI ファイルで生成する設定になっていません"
+                "「.{ext}」のサムネイルはスクリプトで生成する設定になっていません"
             ));
         }
         // 値は、WASM が読んだものと同じ形にそろえるため、こちらで引く
@@ -392,7 +392,7 @@ pub(crate) async fn put_waveform(
     let (src, ext, thumbs, plugins, cache) = with_session(&cur, |s| {
         let (path, ext) = s.lib.asset(&id)?;
         if !s.plugins.waves(&ext) {
-            return Err(format!("「.{ext}」は波形を作れる形式ではありません"));
+            return Err(format!("「.{ext}」は波形の作成に対応していません"));
         }
         Ok((
             path.to_owned(),

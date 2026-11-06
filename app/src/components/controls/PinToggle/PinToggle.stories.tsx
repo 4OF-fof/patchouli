@@ -13,6 +13,6 @@ export const Off: Story = {}
 export const On: Story = { args: { pressed: true } }
 export const Float: Story = { args: { look: 'float', pressed: true } }
 export const Reveal: Story = {
-  name: 'ホバーで出す（留めていると出たまま）',
+  name: 'ホバーで表示（ピン留め中は常時表示）',
   args: { look: 'float', reveal: true, pressed: true },
 }

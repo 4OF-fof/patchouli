@@ -29,7 +29,7 @@ pub fn cover(f: &File, edge: u32) -> Result<Option<Vec<u8>>, String> {
         .with_guessed_format()
         .map_err(|e| e.to_string())?
         .decode()
-        .map_err(|e| format!("ジャケットの絵を読めません：{e}"))?;
+        .map_err(|e| format!("ジャケット画像の読み込みに失敗しました：{e}"))?;
     if img.width() > edge || img.height() > edge {
         img = img.thumbnail(edge, edge);
     }

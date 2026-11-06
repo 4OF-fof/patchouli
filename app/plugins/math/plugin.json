@@ -2,7 +2,7 @@
   "id": "patchouli.math",
   "name": "数式",
   "version": "0.1.0",
-  "description": "ノートの $…$・$$…$$ と math のコードブロックを、TeX の数式として描く",
+  "description": "ノートの $…$・$$…$$ と math コードブロックの数式表示",
   "notes": {
     "code": ["math"],
     "slash": [{ "label": "数式", "icon": "math", "keys": "math tex katex suushiki", "insert": "$$\n$0\n$$" }]

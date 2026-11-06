@@ -26,7 +26,7 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const Unknown: Story = { name: '理由がわからない' }
+export const Unknown: Story = { name: '対応するプラグインなし' }
 export const Disabled: Story = {
   name: 'プラグインが無効',
   args: { blocker: { id: 'example_ai', name: 'example_ai', dev: false, state: 'disabled' } },
@@ -40,7 +40,7 @@ export const Decoder: Story = {
   args: { name: '撮影素材', ext: 'mov', label: '動画', decoder: true },
 }
 export const Failed: Story = {
-  name: '開けなかった',
+  name: '開くのに失敗',
   args: {
     onOpenDefault: async () => {
       throw new Error('D:素材秋の企画ロゴ原図.ai が見つかりません')

@@ -89,7 +89,7 @@ export function ProjectListScreen(props: ProjectListScreenProps) {
             <span class={shared.end}>
               <Button onClick={() => props.onCreate?.()}>
                 <Icon name="plus" size={14} withText />
-                新しいプロジェクト
+                新しいプロジェクトを作成
               </Button>
             </span>
           </header>

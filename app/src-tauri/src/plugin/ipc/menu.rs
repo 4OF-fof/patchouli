@@ -25,7 +25,7 @@ fn run_menu_of<T>(
     ts: &[Target],
     f: impl FnOnce(&mut Runner, &[TargetFile]) -> Result<T, String>,
 ) -> Result<T, String> {
-    let first = ts.first().ok_or("素材を選んでいません")?;
+    let first = ts.first().ok_or("項目が選択されていません")?;
     let infos: Vec<Option<ItemInfo>> = with(cur, |l| {
         ts.iter()
             .map(|t| Ok(l.stored(&t.id)?.map(info_of)))
@@ -240,7 +240,7 @@ fn edit_item(lib: &mut Library, ids: &[String], a: Action) -> Result<String, Str
     let id_of = |t: usize| {
         ids.get(t)
             .cloned()
-            .ok_or_else(|| "書き換えるものが見つかりません".to_owned())
+            .ok_or_else(|| "対象の項目が見つかりません".to_owned())
     };
     match a {
         Action::Body { target, body } => {
@@ -286,7 +286,8 @@ fn export_file(app: &tauri::AppHandle, from: &Path, name: &str) -> Result<Option
     let Some(to) = save_dialog(app, name) else {
         return Ok(None);
     };
-    std::fs::copy(from, &to).map_err(|e| format!("「{}」に書き出せません：{e}", to.display()))?;
+    std::fs::copy(from, &to)
+        .map_err(|e| format!("「{}」への書き出しに失敗しました：{e}", to.display()))?;
     Ok(Some(to))
 }
 
@@ -295,7 +296,7 @@ fn save_dialog(app: &tauri::AppHandle, name: &str) -> Option<PathBuf> {
     let mut dialog = app
         .dialog()
         .file()
-        .set_title("書き出す場所を選択")
+        .set_title("書き出し先を選択")
         .set_file_name(name);
     if let Some(ext) = Path::new(name).extension().and_then(|x| x.to_str()) {
         dialog = dialog.add_filter(ext.to_uppercase(), &[ext]);
@@ -316,7 +317,7 @@ pub(crate) fn named(path: PathBuf, name: Option<String>, failed: &mut Vec<String
     match std::fs::rename(&path, &to) {
         Ok(()) => to,
         Err(e) => {
-            failed.push(format!("「{name}」に名前を変えられません：{e}"));
+            failed.push(format!("「{name}」への名前の変更に失敗しました：{e}"));
             path
         }
     }
@@ -367,7 +368,8 @@ pub(crate) async fn export_data(
     let Some(to) = save_dialog(&app, &name) else {
         return Ok(None);
     };
-    std::fs::write(&to, bytes).map_err(|e| format!("「{}」に書き出せません：{e}", to.display()))?;
+    std::fs::write(&to, bytes)
+        .map_err(|e| format!("「{}」への書き出しに失敗しました：{e}", to.display()))?;
     Ok(Some(to))
 }
 

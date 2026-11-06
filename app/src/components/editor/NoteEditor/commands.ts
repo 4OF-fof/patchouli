@@ -28,7 +28,7 @@ const BLOCKS: SlashItem[] = [
 
 const REFS: SlashItem[] = [
   { label: 'リンク', icon: 'link', keys: 'link rinku', action: { type: 'link' } },
-  { label: '素材を埋め込む', icon: 'image', keys: 'embed image video audio umekomi', action: { type: 'embed' } },
+  { label: '素材を埋め込み', icon: 'image', keys: 'embed image video audio umekomi', action: { type: 'embed' } },
 ]
 
 /** / のメニューの項目。plugins は、プラグイン（コア機能を含む）が足す項目で、ブロックとリンクのあいだに並べる。 */

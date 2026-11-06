@@ -112,7 +112,7 @@ export function createBackground(d: BackgroundDeps) {
       )
       const rewritten = c.items.filter((it) => open.has(it.id) && it.body !== lib().byId.get(it.id)?.body)
       setLib(withChanged(lib(), c.items, c.removed, c.projects, c.tagCovers, s?.pins, c.groups))
-      for (const it of rewritten) notify(`「${it.name}」が外で変更されたので読み込み直しました`, 'info')
+      for (const it of rewritten) notify(`「${it.name}」が外部で変更されたため再読み込みしました`, 'info')
       if (c.removed.length) forget(c.removed)
       if (s?.pinnedProjects) setPinnedProjects(s.pinnedProjects)
       if (s?.pinnedTags) setPinnedTags(s.pinnedTags)
@@ -145,7 +145,7 @@ export function createBackground(d: BackgroundDeps) {
       notify(importedNotice(r), r.failed.length ? 'error' : r.items.length ? 'success' : 'info')
       return r.items
     } catch (e) {
-      notify(`取り込めませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
+      notify(`取り込みに失敗しました：${e instanceof Error ? e.message : String(e)}`, 'error')
       return []
     } finally {
       setImporting(importing() - 1)

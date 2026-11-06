@@ -2,33 +2,33 @@
 
 ## 同期サーバーと Web UI
 
-- 実装予定。同期サーバーをデータソースにして Web UI からつなぐ。プラグインも同期サーバーで動かす
+- 実装予定。同期サーバーをデータソースとして Web UI から接続し、プラグインも同期サーバー上で動作させる
 
 ## デスクトップ
 
-- タスクトレイに常駐し、ウィンドウを閉じても動き続けられるようにする
+- タスクトレイに常駐し、ウィンドウを閉じてもバックグラウンドで動作し続けられるようにする
   - CLI
   - skill
   - 外部アプリと連携するためのローカルサーバー
 
 ## ノート
 
-- 書式の一覧を `/` で出すと、日本語入力のときに使いづらい。出し方をあとで考え直す（今は `/` のまま）
+- 書式メニューを `/` で開く仕様は日本語入力時に使いづらいため、呼び出し方法を検討する（現在は `/` のまま）
 
 ## プラグイン
 
-### まだ作っていないもの
+### 未実装の機能
 
-- ショートカットの macOS（.webloc）と Linux（.desktop の Type=Link）。今は Windows の .url だけ
-- 内蔵ブラウザの戻る・進むの macOS（WKWebView）と Linux（WebKitGTK）。今は Windows の WebView2 だけが履歴を読み、ほかはいつも押せてページの中で history.back() を呼ぶ。ページを読み込み直さない移動では URL の表示も追いつかない
-- 内蔵ブラウザのページの前に、情報やツールチップなどを出す仕組みの macOS と Linux。今は Windows だけが本体の画面に穴を開けてページを下に置き、ほかはページが本体の画面の上に出て重ねる表示を隠す
+- ショートカットファイルの macOS（`.webloc`）と Linux（`.desktop` の `Type=Link`）対応。現在は Windows の `.url` のみ対応
+- 内蔵ブラウザの戻る・進むボタンの macOS（WKWebView）と Linux（WebKitGTK）対応。現在は Windows の WebView2 のみ履歴状態を取得しており、他の OS では常時有効でページ内の `history.back()` を呼ぶ実装のため、SPA 遷移などで URL 表示が追従しない
+- 内蔵ブラウザの前面に情報パネルやツールチップなどを重ねて表示する仕組みの macOS・Linux 対応。現在は Windows のみメインウィンドウにリージョンで穴を開けて子 WebView を背面に配置しており、他の OS では子 WebView が前面に出てオーバーレイ表示を隠してしまう
 
-### 例のプラグインとドキュメント
+### サンプルプラグインとドキュメント
 
-- `example/` と `docs/plugins/` を直す。もっとよいサンプルができたら example を入れ替え、docs の例と表も合わせる
-- 例がまだ使っていないもの：`excerpt`、`media`、スクリプトの `thumbnail`・`details`・`hover`・`embed`、`links` の `excerpt`・`hover`、`api.wasm()`、設定、コマンド、ほかのプラグインへの依存、`clipboard`・`edit`・`assets`・`export`、`host::fetch`、メニューの結果の `overlay`、フックの `edited`
+- より実践的なサンプルができた場合は `example/` を差し替え、`docs/plugins/` の例と表も更新する
+- サンプルで未使用の機能：`excerpt`、`media`、スクリプトの `thumbnail`・`details`・`hover`・`embed`、`links` の `excerpt`・`hover`、`api.wasm()`、設定、外部コマンド、他プラグインへの依存、`clipboard`・`edit`・`assets`・`export`、`host::fetch`、メニュー結果の `overlay`、フックの `edited`
 
 ### 公式プラグイン
 
-- importer：Eagle / Obsidian（完全互換は求めず、取り込めればよい）
-- リアルタイムの同時編集。Web UI のあとに考える
+- インポーター：Eagle / Obsidian（完全互換は求めず、データの取り込みができればよい）
+- リアルタイムの同時編集（Web UI 実装後に検討）

@@ -350,7 +350,7 @@ impl Library {
     /// フォルダは、中のフォルダも含めてグループとして取り込む。
     pub fn plan_import(&mut self, g: Gathered, place: &Place) -> Result<Planned, String> {
         if g.root != self.root() {
-            return Err("取り込むあいだに、ライブラリが切り替わりました".into());
+            return Err("取り込み中にライブラリが切り替わりました".into());
         }
         let (dest, project, group) = self.place_dir(place)?;
         let at = Place { project, group };
@@ -414,7 +414,7 @@ impl Library {
         mv: bool,
     ) -> Result<Imported, String> {
         if p.root != self.root() {
-            return Err("取り込むあいだに、ライブラリが切り替わりました".into());
+            return Err("取り込み中にライブラリが切り替わりました".into());
         }
         let mut out = p.out;
         for s in std::mem::take(staged) {

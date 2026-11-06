@@ -1,6 +1,6 @@
 # スクリプト（TypeScript）
 
-スクリプトはアプリの画面と同じ WebView で動く ES モジュールで、`@patchouli/plugin` から読む。型と窓口の説明は SDK の `index.ts` にある。
+スクリプトはアプリ本体と同じ WebView 上で動作する ES モジュールであり、`@patchouli/plugin` から型とヘルパーを import する。型定義の詳細は SDK の `index.ts` に記載されている。
 
 ```ts
 import { definePlugin } from '@patchouli/plugin'
@@ -20,113 +20,113 @@ export default definePlugin<Zip>({
 })
 ```
 
-- 型の引数の `methods` に WASM の `call` で呼べるもの、`settings` に設定の key と値の型を書くと、`api.call` と `api.settings()` に型が付く
-- `api.call(method, args?)` は `args` を JSON にして WASM の `call` に渡し、返した文字列を JSON として読む（空なら `undefined`）
+- 型引数の `methods` に WASM の `call` で呼び出せる関数、`settings` に設定のキーと値の型を指定すると `api.call` と `api.settings()` に型が付く
+- `api.call(method, args?)` は `args` を JSON 文字列に変換して WASM の `call` に渡し、戻り値の文字列を JSON としてパースする（空文字列なら `undefined`）
 
-## 書き出すもの
+## エクスポートする関数
 
-`default` に、受け持つもの（plugin.json の `formats` の `script`・`links`・`screens`・`notes` の `script`・`covers`）の分だけ書く。
+`default` エクスポートに対象機能（`plugin.json` の `formats` の `script`・`links`・`screens`・`notes` の `script`・`covers`）に対応する関数を定義する。
 
-| 関数               | 受け持つもの | 返すもの                                                                          |
-| ------------------ | ------------ | --------------------------------------------------------------------------------- |
-| `mount(el, api)`   | `view`       | 閉じるときに呼ぶ関数                                                              |
-| `thumbnail(api)`   | `thumbnail`  | `{ png, width?, height? }` か `null`。`width`・`height` は素材そのものの大きさ    |
-| `thumbnailTimeout` | `thumbnail`  | 待つ長さ（ms）。既定は 10 秒、長くても 30 秒                                      |
-| `hover(el, api)`   | `hover`      | カーソルが離れたときに呼ぶ関数                                                    |
-| `embed(el, api)`   | `embed`      | 埋め込みが消えるときに呼ぶ関数                                                    |
-| `details(api)`     | `details`    | `{ label, value }` の並び                                                         |
-| `excerpt(api)`     | `excerpt`    | `{ start?, end?, images? / audio? / text? }` の並び。`api.budget` を超えない      |
-| `links`            | `links`      | `thumbnail`・`mount`・`details`・`excerpt`・`hover`・`embed` を持つもの           |
-| `screens`          | `screens`    | 画面の ID → `{ mount(el, api) }`                                                  |
-| `code`             | `notes`      | 言語 → `{ render(el, api), update?(el, api) }`。`render` は消すときに呼ぶ関数を返す |
-| `covers`           | `covers`     | カードの ID → `{ mount(el, api) }`                                                |
+| プロパティ         | 対応する機能 | 戻り値・内容                                                                             |
+| ------------------ | ------------ | ---------------------------------------------------------------------------------------- |
+| `mount(el, api)`   | `view`       | 画面を閉じるときに呼ばれるクリーンアップ関数（任意）                                     |
+| `thumbnail(api)`   | `thumbnail`  | `{ png, width?, height? }` または `null`。`width`・`height` は元素材のピクセルサイズ     |
+| `thumbnailTimeout` | `thumbnail`  | タイムアウト時間（ms）。既定は 10 秒、最大 30 秒                                         |
+| `hover(el, api)`   | `hover`      | カーソルが離れたときに呼ばれるクリーンアップ関数（任意）                                 |
+| `embed(el, api)`   | `embed`      | 埋め込み要素が破棄されるときに呼ばれるクリーンアップ関数（任意）                         |
+| `details(api)`     | `details`    | `{ label, value }` の配列                                                                |
+| `excerpt(api)`     | `excerpt`    | `{ start?, end?, images? / audio? / text? }` の配列。`api.budget` の上限内で返す         |
+| `links`            | `links`      | `thumbnail`・`mount`・`details`・`excerpt`・`hover`・`embed` を持つオブジェクト          |
+| `screens`          | `screens`    | 画面 ID → `{ mount(el, api) }`                                                           |
+| `code`             | `notes`      | 言語名 → `{ render(el, api), update?(el, api) }`。`render` は破棄時のクリーンアップ関数を返す |
+| `covers`           | `covers`     | カード ID → `{ mount(el, api) }`                                                         |
 
-- `hover` はカーソルを合わせているカード 1 枚にだけ描くので、動画の再生や音を出すこともできる
-- `embed` の `el` の幅は本文の幅で、高さは描いたものに合わせて決まる
-- `excerpt` の `api.signal` は、時間の上限を過ぎたときなどに中止になる
+- `hover` はカーソルを合わせているカード 1 枚に対してのみ呼ばれるため、動画や音声の再生も可能
+- `embed` の `el` はノート本文の幅になり、高さは描画内容に合わせて決まる
+- `excerpt` の `api.signal` はタイムアウト時や中断時に abort される
 
-## 窓口
+## API
 
-素材 1 つの窓口（`Api`）は、`mount`・`thumbnail`・`hover`・`embed`・`details`・`excerpt` に渡る。
+素材 1 件に対する `Api` オブジェクトは `mount`・`thumbnail`・`hover`・`embed`・`details`・`excerpt` に渡される。
 
-| 窓口                         | 中身                                                                                          |
-| ---------------------------- | --------------------------------------------------------------------------------------------- |
-| `item`                       | `{ id, name, ext, url? }`。`url` は中身の URL で、`fetch` や `img`・`video` の `src` に使える |
-| `read(offset, length)`       | 中身を `Uint8Array` で読む。一度に 16 MB まで                                                 |
-| `call(method, args?)`        | 自分の WASM の `call`                                                                         |
-| `plugin(id).call(...)`       | `required`・`optional` の `plugins` に書いたプラグインの WASM の `call`                       |
-| `settings()`・`setSetting()` | 自分の設定                                                                                    |
-| `getData()`・`setData()`     | ライブラリごとに残す値（WASM の `get-data`・`set-data` と同じもの）                           |
-| `wasm()`                     | WASM の同じもの（`thumbnail`・`details`・`excerpt`）を呼ぶ                                    |
+| プロパティ・メソッド         | 内容                                                                                             |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| `item`                       | `{ id, name, ext, url? }`。`url` は実ファイルの URL で、`fetch` や `img`・`video` の `src` に使用可能 |
+| `read(offset, length)`       | ファイル内容を `Uint8Array` で読み取る。1 回につき最大 16 MB                                     |
+| `call(method, args?)`        | 同一プラグインの WASM の `call` を呼び出す                                                       |
+| `plugin(id).call(...)`       | `required`・`optional` の `plugins` に指定した依存プラグインの WASM の `call` を呼び出す         |
+| `settings()`・`setSetting()` | プラグイン設定の取得・更新                                                                       |
+| `getData()`・`setData()`     | ライブラリごとに保存されるプラグイン固有データの取得・更新（WASM の `get-data`・`set-data` と共通） |
+| `wasm()`                     | 同一プラグインの WASM の同名機能（`thumbnail`・`details`・`excerpt`）を呼び出す                  |
 
-`excerpt` の `api.wasm()` が返すのは区間の位置と種類だけで、中身は本体が持つ。本体はそれを `excerpt` が返す区間に足すので、返し直さない。
+`excerpt` 内で `api.wasm()` を呼ぶと、WASM が生成した区間の位置と種別のみが返り、実データはアプリ本体側で保持・結合される（スクリプト側で再度返す必要はない）。
 
 ### links
 
-`links` の関数には、URL の窓口（`LinkApi`）が渡る。
+`links` の各関数には URL 用の `LinkApi` が渡される。
 
-| 窓口                | 中身                                                                                                             |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `url`               | 受け持つ URL                                                                                                     |
-| `fetch(url)`        | アプリが代わりに取りに行き、`{ status, url, type?, body }` を返す。CORS に縛られない。plugin.json の `fetch` に書いたホスト名だけ、一度に 16 MB まで |
-| `edge`              | `thumbnail` で、長いほうの辺の上限（px）                                                                         |
-| `budget`・`signal`  | `excerpt` で、`Api` と同じもの                                                                                   |
-| `settings()` など   | 自分の設定と残す値。`Api` と同じもの                                                                             |
+| プロパティ・メソッド | 内容                                                                                                                               |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `url`                | 対象の URL                                                                                                                         |
+| `fetch(url)`         | アプリ本体経由で HTTP GET を行い、`{ status, url, type?, body }` を返す。CORS の制限を受けない。`plugin.json` の `fetch` に指定したホストのみ、最大 16 MB |
+| `edge`               | `thumbnail` で渡される長辺の最大サイズ（px）                                                                                       |
+| `budget`・`signal`   | `excerpt` で渡される上限設定と `AbortSignal`（`Api` と同じ）                                                                       |
+| `settings()` など    | プラグイン設定と保存データ（`Api` と同じ）                                                                                         |
 
-`embed` は、ショートカットを埋め込んだときと、ノートに URL を埋め込んだときの両方に使う。
+`embed` はショートカットファイル（`.url`）をノートに埋め込んだ場合と、URL を直接ノートに埋め込んだ場合の両方で使われる。
 
 ### screens
 
-画面の `mount(el, api)` の `el` は画面いっぱいの大きさで、はみ出す分は送れる。
+画面の `mount(el, api)` に渡される `el` は画面全体の領域を持ち、溢れた内容はスクロール可能になる。
 
-| 窓口                                                         | 中身                                                                     |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `targets()`                                                  | 右クリックメニューから開いたときに選んでいたもの。ほかから開いたときは空 |
-| `items()`・`item(id)`                                        | ライブラリの項目                                                         |
-| `onChange(fn)`                                               | 項目が増えたり、変わったり、なくなったりしたら呼ぶ。返した関数で止める   |
-| `open(id)`・`openTag(tag)`・`openProject(name)`              | 本体で開く。`{ newTab: true }` で新しいタブに開く                        |
-| `createNote({ name?, body?, project? })`                     | ノートを作る。同じ名前があれば後ろに番号を付ける                         |
-| `setBody(id, body)`・`setTags(id, tags)`・`rename(id, name)` | 書き換える。保存できなかったときは、本体が通知を出して読み込み直す       |
-| `settings()` など                                            | 自分の設定と残す値。`Api` と同じもの                                     |
+| プロパティ・メソッド                                         | 内容                                                                           |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `targets()`                                                  | 右クリックメニューから開いた際に選択されていた項目の配列。それ以外の経路では空 |
+| `items()`・`item(id)`                                        | ライブラリ内の全項目・指定 ID の項目を取得                                     |
+| `onChange(fn)`                                               | 項目の追加・変更・削除時に呼ばれるリスナーを登録する。戻り値の関数で解除する   |
+| `open(id)`・`openTag(tag)`・`openProject(name)`              | 項目・タグ・プロジェクトを開く。`{ newTab: true }` で新しいタブで開く          |
+| `createNote({ name?, body?, project? })`                     | ノートを作成する。同名のノートがある場合は末尾に連番が付く                     |
+| `setBody(id, body)`・`setTags(id, tags)`・`rename(id, name)` | 項目を更新する。保存に失敗した場合はアプリ本体がエラー通知を出して再読み込みする |
+| `settings()` など                                            | プラグイン設定と保存データ（`Api` と同じ）                                     |
 
-ノートの本文では、ほかの項目へのリンクを `[名前](patchouli:<id>)`、埋め込みを `![名前](patchouli:<id>)` と書く。
+ノートの本文内では他項目へのリンクを `[名前](patchouli:<id>)`、埋め込みを `![名前](patchouli:<id>)` と記述する。
 
 ### code
 
-コードブロックの `render(el, api)` と `update(el, api)` には、コードブロックの窓口（`CodeApi`）が渡る。`el` の幅は本文の幅で、高さは描いたものに合わせて決まる。`el` の中のクリックやキー入力は本文に渡らない。
+コードブロックの `render(el, api)` と `update(el, api)` には `CodeApi` が渡される。`el` の幅は本文の幅になり、高さは描画内容に合わせて決まる。`el` 内のクリックやキー入力はノートエディタ側には伝播しない。
 
-| 窓口                | 中身                                                                |
-| ------------------- | ------------------------------------------------------------------- |
-| `lang`              | ```` ``` ```` の後ろに書いた言語（小文字）                          |
-| `source`            | いまの中身。囲みの ```` ``` ```` の行は含めない                     |
-| `setSource(source)` | 中身を書き換える                                                    |
-| `wasm()`            | 自分の WASM の `render` を、いまの中身で呼ぶ。`{ svg }` か `{ png }` |
-| `fetch(url)`        | `LinkApi` と同じもの                                                |
-| `settings()` など   | 自分の設定と残す値。`Api` と同じもの                                |
+| プロパティ・メソッド | 内容                                                                      |
+| -------------------- | ------------------------------------------------------------------------- |
+| `lang`               | ```` ``` ```` の直後に指定された言語名（小文字）                          |
+| `source`             | コードブロックの中身（囲みの ```` ``` ```` の行を除く）                   |
+| `setSource(source)`  | コードブロックの中身を書き換える                                          |
+| `wasm()`             | 同一プラグインの WASM の `render` を現在の `source` で呼び出し、`{ svg }` または `{ png }` を返す |
+| `fetch(url)`         | `LinkApi` と同じ                                                          |
+| `settings()` など    | プラグイン設定と保存データ（`Api` と同じ）                                |
 
-`update` は、中身が変わるたび（ノートで書き換えているときと `setSource` のあと）に呼ぶ。書かなければ、`render` が返した関数を呼んでから `render` をもう一度呼ぶ。
+`update` はコードブロックの内容が変わるたび（エディタでの編集時および `setSource` 呼び出し後）に呼ばれる。`update` を省略した場合は、`render` が返したクリーンアップ関数を実行してから再度 `render` が呼ばれる。
 
 ### covers
 
-概要のカードの `mount(el, api)` には、カード 1 枚の窓口（`CoverApi`）が渡る。`el` の幅は概要の列の幅で、高さは描いたものに合わせて決まる。
+概要カードの `mount(el, api)` にはカード 1 枚ごとの `CoverApi` が渡される。`el` の幅は概要欄の幅になり、高さは描画内容に合わせて決まる。
 
-| 窓口                                        | 中身                                                                                                 |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `on`                                        | 置いた画面。`tag` か `project`                                                                       |
-| `name`                                      | タグの名前か、プロジェクトの名前                                                                     |
-| `id`                                        | カードの ID。同じカードをいくつも置いたときに見分けられる                                            |
-| `value`・`setValue(value?)`                 | カードに残した値（JSON）。`value` を書かずに呼ぶと消す。カードを消すと残した値も消える               |
-| `editing`・`onEditing(fn)`                  | 「概要を編集」を押しているか。`onEditing` は編集を始めたときと終えたときに呼ぶ                       |
-| `items()`                                   | 概要の横に並ぶ項目。タグはサブタグで絞り込んでいればそのあと、プロジェクトは中のフォルダも含めたすべて |
-| `onChange(fn)`                              | 項目が変わったときと、残した値がほかから変わったときに呼ぶ                                           |
-| `open(id)`・`openTag(tag)`                  | 本体で開く。`{ newTab: true }` で新しいタブに開く                                                    |
-| `settings()` など                           | 自分の設定と残す値。`Api` と同じもの                                                                 |
+| プロパティ・メソッド        | 内容                                                                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------ |
+| `on`                        | 配置先の画面種別（`tag` または `project`）                                                       |
+| `name`                      | タグ名またはプロジェクト名                                                                       |
+| `id`                        | カードの ID。同じ種類のカードを複数配置した際の識別に使える                                      |
+| `value`・`setValue(value?)` | カードに保存された JSON 値の取得・更新。引数なしで呼ぶと削除される。カード削除時にも消去される   |
+| `editing`・`onEditing(fn)`  | 「概要を編集」モード中かどうか。`onEditing` は編集モードの開始・終了時に呼ばれる                 |
+| `items()`                   | 画面に表示されている対象項目の一覧。タグ画面でサブタグ絞り込み中は絞り込み後の項目、プロジェクト画面ではサブフォルダ内を含む全項目 |
+| `onChange(fn)`              | 対象項目またはカードの保存値が変更されたときに呼ばれる                                           |
+| `open(id)`・`openTag(tag)`  | 項目やタグを開く。`{ newTab: true }` で新しいタブで開く                                          |
+| `settings()` など           | プラグイン設定と保存データ（`Api` と同じ）                                                       |
 
-`onEditing`・`onChange` は返した関数で知らせをやめる。
+`onEditing`・`onChange` は戻り値の関数でリスナーを解除する。
 
-## 描くとき
+## スタイルと UI 要素
 
-- 本体の CSS 変数（`--ink`・`--muted`・`--card`・`--accent`・`--space-*`・`--fs-*` など）を使える。CSS は `<style>` を `el` の中に入れ、ほかとぶつからないクラス名にする
-- `mount`・`embed`・`screens`・`code`・`covers` の中では、`button`・`input`・`select`・`textarea` に本体と同じ見た目が付く。プラグインの CSS で上書きできる
-- `select` は、押すと本体と同じ一覧を出す。選んだあとは素の `select` と同じく `value` が変わり、`input` と `change` が届く
-- `data-tip` を付けた要素には、その文言で本体のツールチップが出る
+- アプリ本体の CSS 変数（`--ink`・`--muted`・`--card`・`--accent`・`--space-*`・`--fs-*` など）をそのまま利用できる。独自スタイルは `<style>` 要素を `el` 内に追加し、他の要素と衝突しないクラス名を付ける
+- `mount`・`embed`・`screens`・`code`・`covers` の描画領域内では、標準の `button`・`input`・`select`・`textarea` にアプリ本体と統一されたスタイルが適用される（プラグイン側の CSS で上書き可能）
+- `select` 要素をクリックするとアプリ本体のカスタムドロップダウンが開く。選択時は標準の `select` と同様に `value` が更新され、`input` イベントと `change` イベントが発火する
+- `data-tip` 属性を付けた要素にはアプリ本体のツールチップが表示される

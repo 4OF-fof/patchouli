@@ -64,7 +64,7 @@ pub(crate) fn library_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     #[cfg(debug_assertions)]
     return Ok(dev_path("PATCHOULI_LIBRARY", "dev-library"));
     #[cfg(not(debug_assertions))]
-    Err("ライブラリが選択されていません。設定から選択してください".into())
+    Err("ライブラリが選択されていません".into())
 }
 
 pub(crate) fn with<T>(
@@ -79,7 +79,7 @@ pub(crate) fn with_session<T>(
     f: impl FnOnce(&mut Session) -> Result<T, String>,
 ) -> Result<T, String> {
     let mut g = cur.lock();
-    let s = g.as_mut().ok_or("ライブラリを開いていません")?;
+    let s = g.as_mut().ok_or("ライブラリが開かれていません")?;
     f(s)
 }
 

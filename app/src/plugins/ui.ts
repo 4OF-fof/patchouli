@@ -81,7 +81,7 @@ export const loadUi = (url: string): Promise<UiModule> => {
       const mod: unknown = typeof ns === 'object' && ns !== null ? Reflect.get(ns, 'default') : undefined
       if (!isModule(mod))
         throw new Error(
-          `default で書き出したものの ${MODULE_FNS.join('・')}、links の ${LINK_FNS.join('・')}、screens の mount、code の render・update、covers の mount のいずれかが関数ではありません`,
+          `default エクスポートの ${MODULE_FNS.join('・')}、links の ${LINK_FNS.join('・')}、screens の mount、code の render・update、covers の mount のいずれかが関数ではありません`,
         )
       return mod
     })
@@ -121,21 +121,21 @@ const details = (v: unknown): Detail[] =>
 
 export async function uiDetails(url: string, api: DetailsApi): Promise<Detail[]> {
   const mod = await loadUi(url)
-  if (!mod.details) throw new Error('ファイルの詳細を作る関数（details）が見つかりません')
+  if (!mod.details) throw new Error('ファイルの詳細を取得する関数（details）が見つかりません')
   return details(await mod.details(api))
 }
 
 export async function uiLinkThumbnail(url: string, api: Omit<LinkThumbnailApi, 'edge'>): Promise<MadeThumbnail | null> {
   const mod = await loadUi(url)
   const links = mod.links
-  if (!links?.thumbnail) throw new Error('URL のサムネイルを作る関数（links.thumbnail）が見つかりません')
+  if (!links?.thumbnail) throw new Error('URL のサムネイルを生成する関数（links.thumbnail）が見つかりません')
   return made(mod, links.thumbnail({ ...api, edge: EDGE }))
 }
 
 export async function uiLinkDetails(url: string, api: LinkApi): Promise<Detail[]> {
   const mod = await loadUi(url)
   const links = mod.links
-  if (!links?.details) throw new Error('URL の詳細を作る関数（links.details）が見つかりません')
+  if (!links?.details) throw new Error('URL の詳細を取得する関数（links.details）が見つかりません')
   return details(await links.details(api))
 }
 
@@ -157,7 +157,7 @@ export async function uiExcerpt(
   stop: AbortSignal,
 ): Promise<ExcerptPart[]> {
   const mod = await loadUi(url)
-  if (!mod.excerpt) throw new Error('区間を作る関数（excerpt）が見つかりません')
+  if (!mod.excerpt) throw new Error('区間を作成する関数（excerpt）が見つかりません')
   return excerptOf((signal) => mod.excerpt?.({ ...api, budget, signal }) ?? Promise.resolve([]), stop)
 }
 
@@ -168,6 +168,6 @@ export async function uiLinkExcerpt(
   stop: AbortSignal,
 ): Promise<ExcerptPart[]> {
   const links = (await loadUi(url)).links
-  if (!links?.excerpt) throw new Error('URL の区間を作る関数（links.excerpt）が見つかりません')
+  if (!links?.excerpt) throw new Error('URL の区間を作成する関数（links.excerpt）が見つかりません')
   return excerptOf((signal) => links.excerpt?.({ ...api, budget, signal }) ?? Promise.resolve([]), stop)
 }

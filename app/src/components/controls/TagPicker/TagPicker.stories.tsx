@@ -48,11 +48,11 @@ export const Empty: Story = {
 }
 
 export const Create: Story = {
-  name: '新しいタグを作る',
+  name: '新しいタグを作成',
   render: (args) => picker(args),
   play: async ({ args, canvas }) => {
-    await userEvent.type(canvas.getByRole('textbox', { name: 'タグを探す・作る' }), '# 逆光')
-    await userEvent.click(canvas.getByRole('button', { name: /新しいタグとして付ける/ }))
+    await userEvent.type(canvas.getByRole('textbox', { name: 'タグを検索・作成' }), '# 逆光')
+    await userEvent.click(canvas.getByRole('button', { name: /新しいタグとして追加/ }))
     await expect(args.onToggle).toHaveBeenCalledWith('逆光', true)
   },
 }

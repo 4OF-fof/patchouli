@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from 'storybook-solidjs-vite'
 import { Select } from './Select'
 
 const OPTIONS = [
-  { value: '', label: 'プロジェクトなし' },
+  { value: '', label: '指定なし' },
   { value: '秋の企画', label: '秋の企画' },
   { value: 'UI 改善', label: 'UI 改善' },
   { value: '旅行 2026', label: '旅行 2026' },

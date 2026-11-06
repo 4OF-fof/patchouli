@@ -63,7 +63,7 @@ export function createEdits(d: EditsDeps) {
     const undo: Partial<Item> = Object.fromEntries(Object.entries(it).filter(([k]) => k in change))
     changeFile(id, change, undo, async () => {
       const read = await backend.saveItem(id, patch)
-      if (read) notify('外で変更されたので読み込み直しました', 'info')
+      if (read) notify('外部で変更されたため再読み込みしました', 'info')
       return read
     })
   }
@@ -143,10 +143,10 @@ export function createEdits(d: EditsDeps) {
       const moved = its.length - failed.length
       if (failed.length)
         notify(
-          `${moved ? `${moved} 件を${place}移しました。` : ''}${namesOf(failed)}は、同じ名前のファイルがあるなどで移せませんでした`,
+          `${moved ? `${moved} 件を${place}移動しました。` : ''}${namesOf(failed)}は、同じ名前のファイルが存在するため移動できませんでした`,
           'error',
         )
-      else notify(`${moved} 件を${place}移しました`, 'success')
+      else notify(`${moved} 件を${place}移動しました`, 'success')
     })
   }
   const approveTags = (id: string, decision: TidyDecision) => {
@@ -315,7 +315,7 @@ export function createEdits(d: EditsDeps) {
         return rest.length ? rest : [{ s: 'edition' }]
       })
       saveState()
-      notify(`プロジェクト「${name}」を削除し、中身を所属なしに移動しました`, 'success')
+      notify(`プロジェクト「${name}」を削除し、中の項目を所属なしに移動しました`, 'success')
     })
   }
   const [orphans, setOrphans] = createSignal(d.orphans ?? [])

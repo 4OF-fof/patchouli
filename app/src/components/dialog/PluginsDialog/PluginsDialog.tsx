@@ -520,7 +520,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 setting={{
                   key: 'prerelease',
                   label: 'プレリリースを含める',
-                  help: '更新を確認するときに、プレリリースも対象にする',
+                  help: '更新を確認するときに、プレリリースも対象にします',
                   kind: 'toggle',
                   default: false,
                   value: !!p().prerelease,
@@ -550,7 +550,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
     setError(undefined)
     try {
       const path = await props.onPickCommand!(name)
-      if (path) await run(`${name} の場所を変えています`, () => props.onCommandPathChange!(name, path))
+      if (path) await run(`${name} の場所を変更しています`, () => props.onCommandPathChange!(name, path))
     } catch (e) {
       setError(message(e))
     }
@@ -577,7 +577,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 ? `${fixed() ? '指定' : '自動'}：${c().path}`
                 : fixed()
                   ? `見つかりません：${fixed()}`
-                  : '未検出。PATH から探しています'}
+                  : '未検出（PATH から検索）'}
             </span>
           </div>
           <Show when={props.onPickCommand && props.onCommandPathChange}>
@@ -586,7 +586,9 @@ export function PluginsDialog(props: PluginsDialogProps) {
                 size="sm"
                 variant="ghost"
                 disabled={busy() !== undefined}
-                onClick={() => void run(`${c().name} の場所を戻しています`, () => props.onCommandPathChange!(c().name))}
+                onClick={() =>
+                  void run(`${c().name} の場所を自動に戻しています`, () => props.onCommandPathChange!(c().name))
+                }
               >
                 自動に戻す
               </Button>
@@ -707,7 +709,7 @@ export function PluginsDialog(props: PluginsDialogProps) {
               ))}
             </Show>
             <Show when={!GROUPS.some((g) => shown(g).length) && !shownCommands().length}>
-              <p class={styles.none}>見つかりません</p>
+              <p class={styles.none}>一致する項目がありません</p>
             </Show>
           </Show>
         </ScrollArea>

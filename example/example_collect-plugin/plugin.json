@@ -2,7 +2,7 @@
   "id": "example_collect",
   "name": "example_collect",
   "version": "0.1.0",
-  "description": "WASM で右クリックメニューに項目を足す例。選んだ素材を埋め込み、選んだノートへのリンクを並べたページを作る",
+  "description": "選択した素材とノートへのリンクをまとめたノートを右クリックメニューから作成",
   "menu": { "formats": "all" },
   "permissions": ["library", "notes"]
 }

@@ -69,7 +69,7 @@ fn close_for_clearing(app: &tauri::AppHandle, cur: &State<Current>) -> Result<()
     content::stop(app);
     suggest::stop();
     if !background::wait(LIMIT) {
-        return Err("裏で動いている処理が終わらないため、キャッシュを消せませんでした。少し待ってから、やり直してください".into());
+        return Err("実行中の処理が完了しないため、キャッシュを削除できませんでした".into());
     }
     let closed = cur.lock().take();
     if let Some(s) = closed {

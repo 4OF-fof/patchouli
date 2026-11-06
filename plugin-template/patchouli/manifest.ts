@@ -1,121 +1,120 @@
-/* plugin.json の形。 */
+/* plugin.json の型定義と検証。 */
 import rules from './rules.json' with { type: 'json' }
 
 /**
- * 形式ごとに受け持つもの。
- * - thumbnail: サムネイル
- * - view: 詳細の表示。WASM は本体が読めない画像を PNG にし、スクリプトは描く
- * - details: ファイルの詳細に足す行
- * - excerpt: 内容で探したり分けたりするときに読む区間
- * - hover: カーソルを合わせたときにサムネイルの上に重ねる表示
+ * 形式ごとに対応する機能。
+ * - thumbnail: サムネイル生成
+ * - view: 詳細表示。WASM は PNG を返し、スクリプトは DOM に描画する
+ * - details: ファイルの詳細欄に追加する行
+ * - excerpt: AI 検索・自動分類のために抽出する区間データ
+ * - hover: サムネイルにカーソルを合わせたときのホバー表示
  * - embed: ノートに埋め込んだときの表示
  *
- * hover・embed は、スクリプトだけが受け持てる。
+ * hover・embed はスクリプトのみ対応可能。
  */
 export type Part = 'thumbnail' | 'view' | 'details' | 'excerpt' | 'hover' | 'embed'
 
 /**
- * 本体がそのまま出す種類。詳細の表示に出し、カーソルを合わせたときは video を音を消して再生し、audio を鳴らす。
- * ノートに埋め込んだときも、そのまま出す。parts の view・hover・embed があれば、そちらを使う。
+ * アプリ本体が標準プレーヤーで表示するメディア種別。詳細表示とノートへの埋め込みを標準コンポーネントで表示し、
+ * ホバー時は video を消音で再生し、audio を音声付きで再生する。parts に view・hover・embed がある場合はそちらが優先される。
  */
 export type Media = 'image' | 'video' | 'audio'
 
-/** サムネイルを決まった形の枠に入れるときの収め方。center 真ん中を残して切り抜く / top 上の端を残して切り抜く / contain 切り抜かずに収める。 */
+/** サムネイルの表示方法。center は中央基準で切り抜き、top は上端基準で切り抜き、contain は切り抜かずに全体を表示する。 */
 export type Fit = 'center' | 'top' | 'contain'
 
-/** コマンドの版の取り方。args で動かし、出力から pattern で版を拾う（グループがあれば最初のグループ）。 */
+/** 外部コマンドのバージョン取得方法。args で実行し、出力から正規表現 pattern でバージョン文字列を抽出する（キャプチャグループがあれば第 1 グループ）。 */
 export interface Probe {
   args?: string[]
   pattern: string
 }
 
-/** 求めるコマンド 1 つ。min を書くときは、version に版の取り方も書く。 */
+/** 依存する外部コマンド 1 件の設定。min を指定する場合は version も必須。 */
 export interface CommandDep {
   min?: string
   version?: Probe
-  /** 何に使うか。プラグインの画面に出す。 */
+  /** 用途の説明。プラグイン一覧に表示される。 */
   description?: string
 }
 
-/** 求めるプラグイン 1 つ。 */
+/** 依存する他プラグイン 1 件の設定。 */
 export interface PluginDep {
   min?: string
 }
 
-/** 求めるもの。 */
+/** 依存関係の設定。 */
 export interface Deps {
   /**
-   * 手元のコマンド（名前 → 版の下限など）。PATH から探す。
-   * コマンドは WASM の外で、本体と同じ権限で動く。シェルやインタプリタを書けば、何でも実行できる。
+   * 外部コマンド（コマンド名 → 最小バージョンなど）。PATH または設定で指定された場所から検索する。
+   * 外部コマンドは WASM サンドボックスの外で、アプリ本体と同じ権限で実行される。
    */
   commands?: Record<string, CommandDep>
-  /** ほかのプラグイン（id → 版の下限）。 */
+  /** 依存プラグイン（プラグイン ID → 最小バージョン）。 */
   plugins?: Record<string, PluginDep>
 }
 
-/** 同じ扱いの拡張子のまとまり。 */
+/** 同じ設定で扱う拡張子の定義。 */
 export interface FormatDecl {
-  /** 拡張子。小文字にそろえて読む。 */
+  /** 拡張子の配列。小文字に正規化される。 */
   ext: string[]
   label?: string
-  /** 縦横比（幅 / 高さ）の既定。サムネイルができるまで使う。 */
+  /** 既定の縦横比（幅 / 高さ）。サムネイル生成前に使用される。 */
   ratio?: number
-  /** サムネイルの枠への収め方。書かなければ center。 */
+  /** サムネイルの表示方法（省略時は center）。 */
   fit?: Fit
   media?: Media
-  /** 受け持つもの。 */
+  /** 対応する機能。 */
   parts?: Part[]
   /**
-   * parts のうち、スクリプト（plugin.json の上の階層の script）で受け持つもの。ほかは WASM（plugin.wasm）が受け持つ。
-   * WASM は、ファイルは本体が渡したものだけを読め、ネットワークは使えない。
-   * ただし commands で動かすコマンドは本体と同じ権限で動くので、どのファイルも読み書きでき、ネットワークも使える。
-   * スクリプトの中から api.wasm() で、WASM の同じものを呼べる。
+   * parts のうちスクリプト（plugin.json トップレベルの script）で処理するもの。指定しないものは WASM（plugin.wasm）が処理する。
+   * WASM はアプリから渡されたファイルのみ読み取り可能で、スクリプト内からは api.wasm() で WASM の同名機能を呼び出せる。
    */
   script?: Part[]
 }
 
 /**
- * 同じ扱いの URL のまとまり。受け持つものはすべてスクリプトが描く。
- * 本体が読むショートカット（.url）も、指す URL に当てはまるものが描く。thumbnail・view・details・embed は、なければ本体がページの OGP から作る。
+ * URL のホスト名ごとの対応設定。対応する機能はすべてスクリプトで実装する。
+ * アプリ本体が扱うショートカット（.url）もリンク先 URL に一致するものが処理する。thumbnail・view・details・embed に未対応の場合はアプリ本体が OGP から生成する。
  */
 export interface LinkDecl {
   /**
-   * ホスト名。サブドメインも含む（youtube.com は www.youtube.com にも当てはまる）。
-   * 当てはまるものが複数あるときは、いちばん長いホスト名のものを使う。同じホスト名を複数のプラグインが書いたら、どれも使わない。
+   * ホスト名の配列（サブドメインも含む）。
+   * 複数一致する場合は最も長いホスト名の設定が使われる。同じホスト名を複数のプラグインが指定した場合は競合となり使用されない。
    */
   host: string[]
-  /** 受け持つもの。書けるものは formats の parts と同じ。 */
+  /** 対応する機能。指定可能な値は formats の parts と同じ。 */
   parts?: Part[]
 }
 
-/** 本体に足す画面。ホームやすべてと並べて、場所のメニューやコマンドから開ける。描くのはスクリプトの screens。 */
+/** アプリに追加するカスタム画面。ホームや「すべて」と並べてナビゲーションメニューやコマンドから開ける。描画はスクリプトの screens で行う。 */
 export interface ScreenDecl {
-  /** 場所のメニューやタブに出す名前。 */
+  /** ナビゲーションメニューやタブに表示する名前。 */
   label: string
-  /** 本体のアイコンの名前（home・grid・note など）。書かないときや、本体にないものは、プラグインのアイコンにする。 */
+  /** アプリ本体のアイコン名（home・grid・note など）。省略時や未定義の名前はプラグインのアイコンになる。 */
   icon?: string
-  /** 場所のメニュー・コマンド・起動時に開く画面に並べるか。書かなければ true。false のものは右クリックメニューなどから開く。 */
+  /** ナビゲーションメニュー・コマンド・起動時の画面の選択肢に表示するか（省略時は true）。false の画面は右クリックメニューなどから開く。 */
   place?: boolean
 }
 
 /**
- * 右クリックメニューに項目を足す対象。WASM の menu・run-menu で項目を作る。formats は拡張子の並び、all（ノートも含めたすべて）、files（ノートを除いたすべて）のどれか。
- * ノートの拡張子は md。選んだものがすべて対象のときだけ、項目を足す。同じものを対象にするプラグインが複数あれば、プラグインごとに並べる。
+ * 右クリックメニューに項目を追加する対象。WASM の menu・run-menu で処理する。
+ * formats には拡張子の配列、all（ノートを含む全項目）、files（ノートを除く全ファイル）のいずれかを指定する（ノートの拡張子は md）。
+ * 選択中の項目がすべて対象に含まれる場合のみ項目が表示される。
  */
 export interface MenuDecl {
   formats: string[] | 'all' | 'files'
 }
 
-/** フックの対象。formats の書き方は menu と同じ。 */
+/** フックの対象。formats の指定方法は menu と同じ。 */
 export interface HookDecl {
   formats: string[] | 'all' | 'files'
 }
 
 /**
- * フック。書いたときに、formats に入るものを渡して WASM の hook を裏で呼ぶ。
- * added は取り込んだとき（右クリックメニューで作ったノートと登録した素材も含む）、
- * changed は中身が変わったとき（ノートは書き換えて離れたとき、ファイルはアプリの外で変わったのを見つけたとき）、
- * edited は名前・タグ・置き場を変えたとき。フックの中で書き換えたものには、フックを呼ばない。
+ * フックの設定。対象形式の項目に対して WASM の hook をバックグラウンドで呼び出す。
+ * added は取り込み時（右クリックメニューで作成したノートや追加した素材を含む）、
+ * changed は内容変更時（ノートは編集後に画面を離れたとき、ファイルは外部での変更を検出したとき）、
+ * edited は名前・タグ・所属の変更時。フック内で行われた変更に対してはフックは再実行されない。
  */
 export interface HooksDecl {
   added?: HookDecl
@@ -123,94 +122,93 @@ export interface HooksDecl {
   edited?: HookDecl
 }
 
-/** ノートの / のメニューに足す項目。 */
+/** ノートの / メニューに追加する項目。 */
 export interface SlashDecl {
-  /** メニューに出す名前。 */
+  /** メニューに表示する名前。 */
   label: string
-  /** 本体のアイコンの名前（codeBlock・diagram・math など）。書かないときや、本体にないものは、プラグインのアイコンにする。 */
+  /** アプリ本体のアイコン名（codeBlock・diagram・math など）。省略時や未定義の名前はプラグインのアイコンになる。 */
   icon?: string
-  /** 打った文字で探すときに、名前のほかに当てる言葉。空白で区切る。 */
+  /** / メニューの絞り込みで名前のほかに一致させる検索語（空白区切り）。 */
   keys?: string
-  /** 入れる文字。カーソルの行が空ならそこに、空でなければ次の段落として入れる。$0 の位置にカーソルを置き、なければ終わりに置く。 */
+  /** 挿入するテキスト。カーソル行が空ならその行に、文字があれば次の段落として挿入し、$0 の位置にカーソルを置く。 */
   insert: string
 }
 
 /**
- * ノートに足すもの。
- * code は、``` の後ろに書く言語の名前。そのコードブロックをプラグインが描く。小文字にそろえて読む。
- * 同じ言語を複数の外部のプラグインが書くと、どれも使わない。外部のプラグインとコア機能が書くと、外部のものを使う。
+ * ノート機能の拡張設定。
+ * code には ``` の直後に記述する言語名を指定する（小文字に正規化される）。
+ * 同じ言語名を外部プラグインとコア機能が指定した場合は外部プラグインが優先され、外部プラグインどうしが重複した場合はどちらも使用されない。
  */
 export interface NotesDecl {
   code?: string[]
-  /** code のうち、スクリプトで描くもの。ほかは WASM の code の render が、SVG か PNG を返して描く。 */
+  /** code のうちスクリプトで描画するもの。指定しないものは WASM の code の render が SVG または PNG を返す。 */
   script?: string[]
   slash?: SlashDecl[]
 }
 
-/** 概要のカードを置ける画面。tag はタグの概要、project はプロジェクトの概要。 */
+/** 概要カードを配置できる画面。tag はタグの概要、project はプロジェクトの概要。 */
 export type CoverOn = 'tag' | 'project'
 
-/** タグやプロジェクトの概要に足すカード。描くのはスクリプトの covers。 */
+/** タグやプロジェクトの概要欄に追加するカード。描画はスクリプトの covers で行う。 */
 export interface CoverDecl {
-  /** カードの見出しと、「セクションを追加」の一覧に出す名前。 */
+  /** カードの見出しと「セクションを追加」メニューに表示する名前。 */
   label: string
-  /** 「セクションを追加」の一覧で、名前の下に出す説明。 */
+  /** 「セクションを追加」メニューで名前の下に表示する補足説明。 */
   note?: string
-  /** 置ける画面。書かなければ両方。 */
+  /** 配置できる画面（省略時は両方）。 */
   on?: CoverOn[]
-  /** 1 つの概要に、いくつも置けるか。書かなければ 1 つだけ。 */
+  /** 1 つの概要欄に複数配置できるか（省略時は false）。 */
   multiple?: boolean
 }
 
 /**
- * WASM に渡すホストの interface（WIT）。書いていないものを使う WASM は読み込まない。
- * library はライブラリの情報（名前・タグ・メモなど）を読み、embed は EmbeddingGemma で文章をベクトルにする。
- * clipboard はコピー、notes はノートの作成と本文の書き換え、edit は名前とタグの変更、assets は素材の登録と中身の置き換え、
- * export はライブラリの外への書き出し。clipboard と export は run-menu の中だけで使える。
+ * WASM に許可するホストインターフェース（WIT）。指定していないインターフェースを import する WASM は読み込まれない。
+ * library は項目情報の読み取り、embed は EmbeddingGemma による文章のベクトル化と類似検索、
+ * clipboard はクリップボードへのコピー、notes はノートの作成と本文の更新、edit は名前とタグの変更、
+ * assets は素材の追加とファイル内容の置き換え、export はライブラリ外へのファイルの書き出し。clipboard と export は run-menu 内でのみ使用可能。
  */
 export type Permission = 'library' | 'clipboard' | 'notes' | 'edit' | 'assets' | 'export' | 'embed'
 
-/** plugin.json。 */
+/** plugin.json の型。 */
 export interface Manifest {
   id: string
   name: string
   version: string
   description?: string
-  /** ないと動かないもの。 */
+  /** 必須の依存関係。 */
   required?: Deps
-  /** あれば使うもの。 */
+  /** 任意の依存関係。 */
   optional?: Deps
   /**
-   * formats の script、links、screens、notes の script、covers を受け持つ ES モジュール（plugin.json からの相対パス、.js）。
-   * 中身は PluginModule で、本体の画面と同じ WebView で、本体と同じ権限で動く。ビルドでは、拡張子を .ts にしたものから作る。
+   * formats の script、links、screens、notes の script、covers を処理する ES モジュール（plugin.json からの相対パス、.js）。
+   * ビルド時は拡張子を .ts に置き換えたソースファイルからバンドルされる。
    */
   script?: string
   formats?: FormatDecl[]
   links?: LinkDecl[]
-  /** 画面の id → 画面。id は英数字・ハイフン・下線で書く。 */
+  /** 画面 ID → 画面の設定。ID には英数字・ハイフン・アンダースコアのみ使用可能。 */
   screens?: Record<string, ScreenDecl>
   menu?: MenuDecl
   hooks?: HooksDecl
   notes?: NotesDecl
-  /** 概要のカードの id → カード。id は英数字・ハイフン・下線で書く。 */
+  /** カード ID → 概要カードの設定。ID には英数字・ハイフン・アンダースコアのみ使用可能。 */
   covers?: Record<string, CoverDecl>
   permissions?: Permission[]
-  /** スクリプトの api.fetch と WASM の host の fetch で取りに行けるホスト名。サブドメインも含む。「com」のようなトップレベルドメインだけのものは書けない。 */
+  /** スクリプトの api.fetch と WASM の host::fetch で通信を許可するホスト名（サブドメインも含む。「com」のようなトップレベルドメイン単体は指定不可）。 */
   fetch?: string[]
 }
 
-/** permissions に書けるもの。 */
+/** permissions に指定可能な値の一覧。 */
 export const PERMISSIONS: readonly string[] = rules.permissions
 
 const COVER_ON: readonly string[] = ['tag', 'project'] satisfies CoverOn[]
 
-/** plugin.json からの相対パスで、外に出ないもの。 */
+/** plugin.json からの相対パスであり、親ディレクトリへ出ないか判定する。 */
 const inside = (rel: string) =>
   rel !== '' && !/^([\\/]|[A-Za-z]:)/.test(rel) && rel.split(/[\\/]/).every((c) => c !== '' && c !== '.' && c !== '..')
 
 /**
- * アプリが読み込むときと同じ決まり（rules.json）で plugin.json を確かめる。
- * errors はアプリが問題として報告するもの、warnings は読めるが直したほうがよいもの。
+ * アプリ本体の読み込み時と同じ規則（rules.json）で plugin.json を検証する。
  */
 export function checkManifest(m: Manifest): { errors: string[]; warnings: string[] } {
   const errors: string[] = []
@@ -218,38 +216,38 @@ export function checkManifest(m: Manifest): { errors: string[]; warnings: string
   if (!new RegExp(rules.id).test(m.id)) errors.push(`プラグイン ID「${m.id}」の形式が正しくありません`)
   for (const x of m.permissions ?? [])
     if (!PERMISSIONS.includes(x))
-      errors.push(`permissions の「${x}」は使えません（${PERMISSIONS.join('・')} のどれか）`)
+      errors.push(`permissions の「${x}」は無効です（${PERMISSIONS.join('・')} のいずれかを指定してください）`)
   for (const id of Object.keys(m.screens ?? {}))
     if (!new RegExp(rules.screenId).test(id))
-      errors.push(`画面の ID「${id}」には、英数字・ハイフン・下線しか使えません`)
+      errors.push(`画面の ID「${id}」には、英数字・ハイフン・アンダースコアのみ使用できます`)
   for (const h of m.fetch ?? [])
     if (!new RegExp(rules.fetchHost).test(h.replace(/\.+$/, '').toLowerCase()))
-      errors.push(`fetch の「${h}」は使えません（「example.com」のように、ドメイン名まで書きます）`)
+      errors.push(`fetch の「${h}」は無効です（「example.com」のようにドメイン名を指定してください）`)
   if (m.script !== undefined && !inside(m.script))
-    errors.push(`script のファイル（${m.script}）は、plugin.json のあるフォルダの中に置きます`)
+    errors.push(`script のファイル（${m.script}）は plugin.json のフォルダ内に配置してください`)
   for (const d of m.formats ?? []) {
     for (const ext of d.ext)
-      if (ext !== ext.toLowerCase()) warnings.push(`formats の「${ext}」は、小文字にそろえて読みます`)
+      if (ext !== ext.toLowerCase()) warnings.push(`formats の「${ext}」は小文字として扱われます`)
     for (const p of d.script ?? [])
-      if (!d.parts?.includes(p)) errors.push(`「.${d.ext.join('・.')}」の script の ${p} は、parts にも書きます`)
+      if (!d.parts?.includes(p)) errors.push(`「.${d.ext.join('・.')}」の script の ${p} は parts にも指定してください`)
   }
   const code = m.notes?.code ?? []
   for (const lang of code) {
-    if (!new RegExp(rules.codeLang).test(lang)) errors.push(`notes の code の「${lang}」には、空白と \` を使えません`)
-    if (lang !== lang.toLowerCase()) warnings.push(`notes の code の「${lang}」は、小文字にそろえて読みます`)
+    if (!new RegExp(rules.codeLang).test(lang)) errors.push(`notes の code の「${lang}」に空白や \` は使用できません`)
+    if (lang !== lang.toLowerCase()) warnings.push(`notes の code の「${lang}」は小文字として扱われます`)
   }
   for (const lang of m.notes?.script ?? [])
     if (!code.some((c) => c.toLowerCase() === lang.toLowerCase()))
-      errors.push(`notes の script の「${lang}」は、code にも書きます`)
+      errors.push(`notes の script の「${lang}」は code にも指定してください`)
   for (const s of m.notes?.slash ?? [])
-    if (!s.label || typeof s.insert !== 'string') errors.push('notes の slash には、label と insert を書きます')
+    if (!s.label || typeof s.insert !== 'string') errors.push('notes の slash には label と insert を指定してください')
   for (const [id, c] of Object.entries(m.covers ?? {})) {
     if (!new RegExp(rules.screenId).test(id))
-      errors.push(`カードの ID「${id}」には、英数字・ハイフン・下線しか使えません`)
+      errors.push(`カードの ID「${id}」には、英数字・ハイフン・アンダースコアのみ使用できます`)
     if (!c.label?.trim()) errors.push(`カード「${id}」の label が空です`)
-    if (c.on && !c.on.length) errors.push(`カード「${id}」の on が空です。tag・project のどちらかを書きます`)
+    if (c.on && !c.on.length) errors.push(`カード「${id}」の on が空です（tag・project のいずれかを指定してください）`)
     if (c.on?.some((o) => !COVER_ON.includes(o)))
-      errors.push(`カード「${id}」の on には tag・project のどれかを書きます`)
+      errors.push(`カード「${id}」の on には tag・project のいずれかを指定してください`)
   }
   return { errors, warnings }
 }

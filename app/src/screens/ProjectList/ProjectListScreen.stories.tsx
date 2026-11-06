@@ -22,4 +22,4 @@ const list = (lib = sampleLibrary(), pinned = PINNED_PROJECTS) => {
 
 export const Default: Story = { render: () => list() }
 export const NoPins: Story = { name: 'ピン留めなし', render: () => list(sampleLibrary(), []) }
-export const Empty: Story = { name: 'プロジェクトがない', render: () => list(buildLibrary([], [], TODAY), []) }
+export const Empty: Story = { name: 'プロジェクトなし', render: () => list(buildLibrary([], [], TODAY), []) }

@@ -18,10 +18,10 @@ export function createNotice() {
   const notify = (message: string, level: ToastLevel) => setNotice({ message, level })
 
   const fail = (e: unknown) => {
-    notify(`保存できませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
+    notify(`保存に失敗しました：${e instanceof Error ? e.message : String(e)}`, 'error')
   }
   const failLoad = (e: unknown) => {
-    notify(`読み込めませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
+    notify(`読み込みに失敗しました：${e instanceof Error ? e.message : String(e)}`, 'error')
   }
   const failOpen = (e: unknown) => {
     notify(`開けませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')

@@ -1,8 +1,8 @@
-//! プラグインの処理部分。wasm32-wasip2 で WASM のコンポーネントにし、アプリが動かす。
-//! 関数と型の説明は patchouli/wit/plugin.wit にある。
-//! この例では、サムネイルと詳細は ui.ts が描き、WASM は設定の項目と、行と列を数える関数を持つ。
+//! プラグインの WASM 実装。wasm32-wasip2 ターゲットで WASM コンポーネントにビルドされ、アプリ本体から呼び出される。
+//! インターフェースと型の定義は patchouli/wit/plugin.wit にある。
+//! このサンプルではサムネイルと詳細表示を ui.ts で描画し、WASM 側では設定項目と行列数の集計関数を実装している。
 
-// 受け持つ役割の world を include でまとめる。役割と world の名前は plugin.wit にある
+// 対応するロールの world を include でまとめる。ロールと world の一覧は plugin.wit を参照
 wit_bindgen::generate!({
     inline: "
         package local:csv;

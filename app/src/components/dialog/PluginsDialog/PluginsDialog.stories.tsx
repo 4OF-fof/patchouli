@@ -267,7 +267,7 @@ export const Default: Story = {}
 export const External: Story = { name: '更新・未導入', args: { report: external } }
 export const Problems: Story = { name: 'エラーと警告', args: { report: troubled } }
 export const Failed: Story = {
-  name: '入れられなかった',
+  name: 'インストールに失敗',
   args: {
     actions: {
       ...actions,
@@ -279,7 +279,7 @@ export const Failed: Story = {
   },
 }
 export const Refresh: Story = {
-  name: '設定を変えて読み直す',
+  name: '設定を変更して再読み込み',
   render: (args) => {
     const values = new Map<string, SettingValue>()
     const load = (): PluginReport => ({
@@ -316,7 +316,7 @@ export const Developing: Story = {
   },
 }
 export const Disabled: Story = {
-  name: '無効にしたもの',
+  name: '無効化したプラグイン',
   args: { report: { ...found, plugins: [...builtinReport().plugins, { ...text, state: 'disabled', enabled: false }] } },
 }
 export const Sample: Story = { name: '見本（例のプラグインも）', args: { report: sampleReport(), actions: {} } }

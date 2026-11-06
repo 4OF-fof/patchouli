@@ -40,14 +40,14 @@ const desktop = (Story: () => JSX.Element) => (
   </WindowProvider>
 )
 
-export const Default: Story = { name: 'web（窓のボタンなし）', render: () => bar() }
+export const Default: Story = { name: 'Web（ウィンドウのボタンなし）', render: () => bar() }
 export const Desktop: Story = { name: 'デスクトップ', decorators: [desktop], render: () => bar() }
 export const Crumbs: Story = {
   name: '道のり',
   render: () => bar({}, { here: 'projects', crumbs: ['プロジェクト一覧', '秋の企画'] }),
 }
 export const Places: Story = {
-  name: 'いまの場所から画面を選ぶ',
+  name: '現在の場所から画面を選択',
   render: () => bar(),
   play: ({ canvasElement }) => canvasElement.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.click(),
 }
@@ -105,7 +105,7 @@ export const PromptNone: Story = {
   render: () =>
     bar({ initial: 'prompt', query: '夕焼けの海', contentSearch: { prepare: async () => {}, search: async () => [] } }),
 }
-export const Help: Story = { name: 'キー操作の一覧', render: () => bar({ initial: 'help' }) }
+export const Help: Story = { name: 'ショートカット一覧', render: () => bar({ initial: 'help' }) }
 
 const working: Activity[] = [
   { key: 'check', icon: 'sync', label: 'ライブラリの整合性を確認中' },

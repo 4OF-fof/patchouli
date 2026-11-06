@@ -258,13 +258,13 @@ export function SettingsDialog(props: SettingsDialogProps) {
       pref(
         'general',
         'openLink',
-        'リンクを押したときの開き方',
+        'リンクの開き方',
         [
           { value: 'peek', label: '重ねて表示' },
-          { value: 'here', label: 'いまのタブ' },
+          { value: 'here', label: '現在のタブ' },
           { value: 'tab', label: '新しいタブ' },
         ],
-        'ノートのリンクを押したとき。中クリックでは、いつも新しいタブで開きます',
+        'ノート内のリンクをクリックしたときの動作です。中クリックでは常に新しいタブで開きます',
       ),
       ...(props.onAppChange
         ? [
@@ -337,7 +337,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
         { value: 'top', label: '上' },
         { value: 'left', label: '左' },
       ],
-      '左にすると、カーソルを窓の左端に寄せたときに出ます',
+      '左にすると、ウィンドウの左端にカーソルを合わせたときに表示されます',
     ),
     pref('view', 'cardSize', 'カードの大きさ', SIZES),
     pref('view', 'sort', '一覧の並び順', [
@@ -345,25 +345,25 @@ export function SettingsDialog(props: SettingsDialogProps) {
       { value: 'name', label: '名前順' },
       { value: 'kind', label: '種類順' },
     ]),
-    pref('view', 'hoverPreview', 'サムネイルでの再生', 'toggle', '動画や音声のサムネイルにマウスを乗せると再生します'),
-    pref('view', 'hoverSound', 'サムネイルでの再生の音声', 'toggle', 'サムネイルで再生するときに音声を出します'),
-    pref('note', 'noteFont', '本文の文字の大きさ', SIZES),
+    pref('view', 'hoverPreview', 'ホバー再生', 'toggle', '動画や音声のサムネイルにカーソルを合わせると再生します'),
+    pref('view', 'hoverSound', 'ホバー再生の音声', 'toggle', 'ホバー再生時に音声を出力します'),
+    pref('note', 'noteFont', '本文の文字サイズ', SIZES),
     pref('note', 'noteWidth', '本文の幅', [
       { value: 'narrow', label: '狭い' },
       { value: 'normal', label: '標準' },
       { value: 'wide', label: '広い' },
     ]),
-    pref('note', 'headsOpen', '見出しのカードを開いておく', 'toggle', '窓が狭いときは、閉じた状態で開きます'),
+    pref('note', 'headsOpen', '見出しを常に表示', 'toggle', '画面幅が狭いときは、閉じた状態で開きます'),
     ...grouped('ライブラリ', [
       ...(props.library !== undefined || props.onOpenLibraries
         ? [
             {
               page: 'general' as const,
-              words: 'いまのライブラリ ライブラリを切り替え 場所',
+              words: '現在のライブラリ ライブラリを切り替え 場所',
               body: () => (
                 <div class={styles.row}>
                   <div class={styles.what}>
-                    <span class={styles.name}>いまのライブラリ</span>
+                    <span class={styles.name}>現在のライブラリ</span>
                     <span class={styles.path} data-tip={props.library}>
                       {props.library ?? '未選択'}
                     </span>
@@ -382,7 +382,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
         ? [
             {
               page: 'general' as const,
-              words: 'ファイルを取り込むとき コピー 移動 取り込み',
+              words: 'ファイルの取り込み方法 コピー 移動 取り込み',
               body: () => (
                 <Show when={props.app} fallback={<p class={styles.loading}>読み込み中…</p>}>
                   {(a) => (
@@ -390,21 +390,21 @@ export function SettingsDialog(props: SettingsDialogProps) {
                       <SettingField
                         setting={{
                           key: 'importMode',
-                          label: 'ファイルを取り込むとき',
+                          label: 'ファイルの取り込み方法',
                           kind: 'choice',
                           choices: [
-                            { value: 'copy', label: 'コピーする' },
-                            { value: 'move', label: '移動する' },
+                            { value: 'copy', label: 'コピー' },
+                            { value: 'move', label: '移動' },
                           ],
                           default: 'copy',
                           value: a().importMode,
                           help:
                             a().importMode === 'move'
-                              ? 'ライブラリの外から落としたファイルを、ライブラリへ移します。元の場所からはなくなります'
-                              : 'ライブラリの外から落としたファイルを、ライブラリへコピーします',
+                              ? 'ライブラリの外からドロップしたファイルを、ライブラリへ移動します。元の場所には残りません'
+                              : 'ライブラリの外からドロップしたファイルを、ライブラリへコピーします',
                         }}
                         onChange={(v) =>
-                          setApp({ importMode: v === 'move' ? 'move' : 'copy' }, '取り込み方を変えています')
+                          setApp({ importMode: v === 'move' ? 'move' : 'copy' }, '取り込み方法を変更しています')
                         }
                       />
                     </div>
@@ -414,7 +414,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
             },
             {
               page: 'general' as const,
-              words: 'URL リンクを開くとき 内蔵ブラウザ 既定のアプリ ブラウザ',
+              words: 'URL の開き方 内蔵ブラウザ 既定のアプリ ブラウザ',
               body: () => (
                 <Show when={props.app}>
                   {(a) => (
@@ -422,7 +422,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                       <SettingField
                         setting={{
                           key: 'linkOpen',
-                          label: 'URL を開くとき',
+                          label: 'URL の開き方',
                           kind: 'choice',
                           choices: [
                             { value: 'default', label: '既定のアプリ' },
@@ -432,8 +432,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
                           value: a().linkOpen,
                           help:
                             a().linkOpen === 'builtin'
-                              ? 'ノートのリンクを Ctrl+クリックしたとき、新しい画面としてアプリの中に開きます'
-                              : 'ノートのリンクを Ctrl+クリックしたとき、既定のブラウザなどで開きます',
+                              ? 'ノート内の URL を Ctrl+クリックしたとき、アプリ内の新しいタブで開きます'
+                              : 'ノート内の URL を Ctrl+クリックしたとき、既定のブラウザで開きます',
                         }}
                         onChange={(v) =>
                           setApp({ linkOpen: v === 'builtin' ? 'builtin' : 'default' }, 'URL の開き方を変更しています')
@@ -499,7 +499,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                       <SettingField
                         setting={{
                           key: 'thumbSize',
-                          label: 'サムネイルの大きさ',
+                          label: 'サムネイルの画質',
                           kind: 'choice',
                           choices: [
                             { value: 'standard', label: '標準' },
@@ -507,10 +507,10 @@ export function SettingsDialog(props: SettingsDialogProps) {
                           ],
                           default: 'standard',
                           value: a().thumbSize,
-                          help: '変えると、サムネイルを作り直します。高精細は、キャッシュがおよそ 4 倍になります',
+                          help: '変更すると、サムネイルを再作成します。高精細ではキャッシュの容量が約 4 倍になります',
                         }}
                         onChange={(v) =>
-                          setApp({ thumbSize: v === 'large' ? 'large' : 'standard' }, 'サムネイルを作り直しています')
+                          setApp({ thumbSize: v === 'large' ? 'large' : 'standard' }, 'サムネイルを再作成しています')
                         }
                       />
                     </div>
@@ -546,7 +546,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                       {props.unused
                         ? props.unused.length
                           ? `${props.unused.map((p) => p.name).join('、')} · ${bytesLabel(unusedBytes())}`
-                          : 'ありません'
+                          : 'なし'
                         : '…'}
                     </span>
                   </div>
@@ -589,10 +589,10 @@ export function SettingsDialog(props: SettingsDialogProps) {
     ...grouped('Patchouli', [
       {
         page: 'about',
-        words: 'Patchouli 版 バージョン',
+        words: 'Patchouli バージョン',
         body: () => (
           <div class={styles.row}>
-            <span class={styles.name}>版</span>
+            <span class={styles.name}>バージョン</span>
             <span class={styles.value}>{props.version}</span>
           </div>
         ),
@@ -714,7 +714,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                         kind: 'toggle',
                         default: true,
                         value: a().search,
-                        help: '検索バーで Tab を押すと、内容で検索できます',
+                        help: '検索バーの先頭に「?」を入力すると、内容で検索できます',
                       }}
                       onChange={(v) => run('AI 検索を切り替えています', () => set()(v === true))}
                     />
@@ -755,7 +755,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
             size="sm"
             variant={c.kind === 'all' ? 'danger' : 'default'}
             disabled={busy() !== undefined}
-            onClick={() => void run(`${c.label}を削除しています`, () => clear(c.kind))}
+            onClick={() => void run(`${c.label}のキャッシュを削除しています`, () => clear(c.kind))}
           >
             {c.kind === 'all' ? 'すべて削除' : '削除'}
           </Button>
@@ -863,7 +863,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
           />
         </label>
         <ScrollArea class={styles.list} viewClass={styles.listView}>
-          <For each={pages()} fallback={<p class={styles.empty}>見つかりません</p>}>
+          <For each={pages()} fallback={<p class={styles.empty}>一致する項目がありません</p>}>
             {(p) => (
               <button
                 type="button"

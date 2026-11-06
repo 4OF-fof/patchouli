@@ -76,7 +76,7 @@ fn read(f: &File, offset: u64, len: u64) -> Result<Vec<u8>, String> {
         buf.extend_from_slice(&part);
     }
     if (buf.len() as u64) < len {
-        return Err("zip が途中で切れています".into());
+        return Err("ZIP ファイルが途中で切れています".into());
     }
     Ok(buf)
 }
@@ -100,7 +100,7 @@ fn directory(f: &File) -> Result<(u64, u64), String> {
     let at = (0..tail.len().saturating_sub(21))
         .rev()
         .find(|&i| u32_at(&tail, i) == u64::from(END))
-        .ok_or("zip ではないか、壊れています")?;
+        .ok_or("ZIP ファイルではないか、破損しています")?;
     let (size, offset) = (u32_at(&tail, at + 12), u32_at(&tail, at + 16));
     if size != 0xffff_ffff && offset != 0xffff_ffff {
         return Ok((offset, size));
@@ -123,7 +123,7 @@ fn directory(f: &File) -> Result<(u64, u64), String> {
 fn entries(f: &File) -> Result<Vec<Entry>, String> {
     let (offset, size) = directory(f)?;
     if size > MAX_DIRECTORY {
-        return Err("中身が多すぎて読めません".into());
+        return Err("ファイル数が多すぎるため読み込めません".into());
     }
     let d = read(f, offset, size)?;
     let mut out = Vec::new();
@@ -139,7 +139,7 @@ fn entries(f: &File) -> Result<Vec<Entry>, String> {
         let extra_at = name_at + name_len;
         let next = extra_at + extra_len + comment_len;
         if next > d.len() {
-            return Err("zip の目次が壊れています".into());
+            return Err("ZIP ファイルの目次が破損しています".into());
         }
         let raw = &d[name_at..extra_at];
         let mut unicode = None;

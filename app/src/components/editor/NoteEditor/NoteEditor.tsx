@@ -782,7 +782,7 @@ export function NoteEditor(props: NoteEditorProps) {
                   type="button"
                   onClick={() => setPicking({ embed: embed(), from: r().from, to: r().to, scale: r().scale })}
                 >
-                  アセットを選択
+                  {embed() ? '素材を変更' : 'リンク先を変更'}
                 </button>
               </Show>
               <Show when={!r().id}>

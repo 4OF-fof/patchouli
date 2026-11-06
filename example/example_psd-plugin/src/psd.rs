@@ -138,12 +138,12 @@ impl<'a> Reader<'a> {
 pub fn read(f: &File) -> Result<Psd, String> {
     let mut r = Reader::new(f, 0);
     if r.take(4)? != b"8BPS" {
-        return Err("PSD ではないか、壊れています".into());
+        return Err("PSD ファイルではないか、破損しています".into());
     }
     let big = match r.u16()? {
         1 => false,
         2 => true,
-        v => return Err(format!("版 {v} の PSD には対応していません")),
+        v => return Err(format!("バージョン {v} の PSD には対応していません")),
     };
     r.take(6)?;
     let channels = usize::from(r.u16()?);
@@ -159,10 +159,10 @@ pub fn read(f: &File) -> Result<Psd, String> {
         7 => Mode::Multichannel,
         8 => Mode::Duotone,
         9 => Mode::Lab,
-        m => return Err(format!("色の形式（{m}）に対応していません")),
+        m => return Err(format!("カラーモード（{m}）には対応していません")),
     };
     if width == 0 || height == 0 || channels < mode.colors() {
-        return Err("PSD の大きさかチャンネルの数が不正です".into());
+        return Err("PSD のサイズまたはチャンネル数が不正です".into());
     }
     if ![1, 8, 16, 32].contains(&depth) {
         return Err(format!("{depth} ビットの PSD には対応していません"));

@@ -122,7 +122,7 @@ struct Stopped;
 
 impl std::fmt::Display for Stopped {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "止めました")
+        write!(f, "処理を中止しました")
     }
 }
 
@@ -438,13 +438,16 @@ impl HostState {
     fn env(&self) -> Result<&Env, String> {
         self.env
             .as_deref()
-            .ok_or_else(|| "いまはライブラリを読めません".into())
+            .ok_or_else(|| "現在はライブラリを読み取れません".into())
     }
 
     fn ai(&self) -> Result<&Env, String> {
         let env = self.env()?;
         if !env.ai {
-            return Err("AI 機能が無効か、モデルが入っていないため、embed を使えません".into());
+            return Err(
+                "AI 機能が無効か、モデルがインストールされていないため、embed を利用できません"
+                    .into(),
+            );
         }
         Ok(env)
     }
@@ -674,10 +677,7 @@ impl patchouli::plugin::export::Host for HostState {
     fn create(&mut self, _: Resource<RunProof>, name: String) -> Result<File, String> {
         self.menu_only("export")?;
         if self.exported.is_some() {
-            return Err(
-                "書き出せるのは 1 つのファイルだけです。複数あるときは zip などにまとめてください"
-                    .into(),
-            );
+            return Err("一度に書き出せるファイルは 1 件のみです".into());
         }
         let f = self.scratch_file(&name)?;
         self.exported = Some(f.handle);
@@ -904,18 +904,20 @@ fn check_version(name: &str) -> Result<(), String> {
     let host = format!("{hm}.{hn}.{hp}");
     let v = name.split_once('@').map_or("", |(_, v)| v);
     let Some((m, n, p)) = parse_version(v) else {
-        return Err(format!("プラグインの SDK の版（{v}）を読めません"));
+        return Err(format!(
+            "プラグインの SDK バージョン（{v}）の形式が正しくありません"
+        ));
     };
     let compatible = m == hm && (m > 0 || n == hn);
     if compatible && (m, n, p) <= WIT_VERSION {
         Ok(())
     } else if (m, n, p) > WIT_VERSION {
         Err(format!(
-            "プラグインの SDK の版（{v}）がアプリ（{host}）より新しいため、読み込めません。アプリを更新してください"
+            "プラグインの SDK バージョン（{v}）がアプリ（{host}）より新しいため、読み込めません"
         ))
     } else {
         Err(format!(
-            "プラグインの SDK の版（{v}）がアプリ（{host}）と互換でないため、読み込めません。今の SDK で作り直してください"
+            "プラグインの SDK バージョン（{v}）に互換性がないため、読み込めません"
         ))
     }
 }
@@ -947,7 +949,7 @@ impl Prepared {
             let iface = rest.split('@').next().unwrap_or(rest);
             if iface == "commands" && !commands_ok {
                 return Err(
-                    "plugin.json の required・optional に commands を書いていないため、コマンドを動かせません"
+                    "plugin.json の required / optional に commands が記載されていないため、外部ツールを実行できません"
                         .into(),
                 );
             }
@@ -957,7 +959,7 @@ impl Prepared {
         }
         if !missing.is_empty() {
             return Err(format!(
-                "plugin.json の permissions に「{}」を書いていないため、使えません",
+                "plugin.json の permissions に「{}」が記載されていないため、利用できません",
                 missing.join("」「")
             ));
         }
@@ -1447,7 +1449,7 @@ impl Runner {
         let i = self.reg.index_of(plugin)?;
         if !files.iter().all(|m| self.reg.menu_covers(i, m.ext, m.note)) {
             return Err(format!(
-                "プラグイン「{plugin}」の右クリックメニューは、選んだものに対応していません"
+                "プラグイン「{plugin}」の右クリックメニューは、選択した項目に対応していません"
             ));
         }
         Ok(i)
@@ -1545,7 +1547,7 @@ impl Runner {
         let p = &self.reg.plugins[i];
         if p.blocked || !p.manifest.notes.code.iter().any(|l| l == lang) {
             return Err(format!(
-                "プラグイン「{plugin}」は、コードブロックの「{lang}」を描きません"
+                "プラグイン「{plugin}」はコードブロック「{lang}」に対応していません"
             ));
         }
         if !p.wasm.as_ref().is_some_and(|w| w.has(Role::Code)) {

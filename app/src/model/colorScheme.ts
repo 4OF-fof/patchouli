@@ -61,7 +61,7 @@ export const COLOR_GROUPS: { label: string; entries: ColorEntry[] }[] = [
       { key: 'ink', label: '文字', against: 'paper' },
       { key: 'ink-2', label: 'やや薄い文字', against: 'paper' },
       { key: 'muted', label: '薄い文字', against: 'paper' },
-      { key: 'disabled', label: '使えないもの' },
+      { key: 'disabled', label: '無効な項目' },
     ],
   },
   {
@@ -235,21 +235,21 @@ export const parseSchemeJson = (text: string, fallbackName: string): Omit<ColorS
   try {
     raw = JSON.parse(text)
   } catch {
-    throw new Error('JSON として読めません')
+    throw new Error('JSON の読み込みに失敗しました')
   }
   if (typeof raw !== 'object' || !raw || Array.isArray(raw)) throw new Error('配色のファイルではありません')
   const o: Record<string, unknown> = { ...raw }
   if (o.type !== FILE_TYPE) throw new Error('配色のファイルではありません')
-  if (o.version !== FILE_VERSION) throw new Error(`この版（${String(o.version)}）の配色は読み込めません`)
+  if (o.version !== FILE_VERSION) throw new Error(`このバージョン（${String(o.version)}）の配色には対応していません`)
   const colors = (mode: Mode): Colors => {
     const v = o[mode]
     if (v === undefined) return {}
-    if (typeof v !== 'object' || !v || Array.isArray(v)) throw new Error(`「${mode}」に色が並んでいません`)
+    if (typeof v !== 'object' || !v || Array.isArray(v)) throw new Error(`「${mode}」の形式が正しくありません`)
     const out: Colors = {}
     for (const [k, c] of Object.entries(v)) {
-      if (!isKey(k)) throw new Error(`「${mode}.${k}」は配色で変えられる色ではありません`)
+      if (!isKey(k)) throw new Error(`「${mode}.${k}」は指定できない色です`)
       if (typeof c !== 'string' || !parseColor(c))
-        throw new Error(`「${mode}.${k}」の値は #rrggbb か oklch(L C H) で書きます`)
+        throw new Error(`「${mode}.${k}」には #rrggbb または oklch(L C H) を指定してください`)
       out[k] = c
     }
     return out

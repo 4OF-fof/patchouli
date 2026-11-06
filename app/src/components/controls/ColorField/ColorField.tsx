@@ -22,7 +22,7 @@ export function ColorField(props: ColorFieldProps) {
         type="button"
         class={styles.swatch}
         style={{ background: formatOklch(props.value) }}
-        aria-label={`${props.label}の色を選ぶ`}
+        aria-label={`${props.label}の色を選択`}
         aria-expanded={open()}
         disabled={props.disabled}
         onClick={() => setOpen(!open())}
@@ -110,7 +110,7 @@ function ColorPopover(props: ColorFieldProps & { anchor: HTMLElement; onClose: (
           <input
             class={styles.hex}
             value={hex()}
-            aria-label="16 進数の色"
+            aria-label="カラーコード"
             aria-invalid={bad()}
             spellcheck={false}
             onInput={(e) => setHex(e.currentTarget.value)}

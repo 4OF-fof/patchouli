@@ -130,7 +130,7 @@ export default definePlugin<Zip>({
         const tree = treeOf(entries)
         sum.textContent = `${tree.count} 件 · ${bytes(tree.size)}（圧縮後 ${bytes(packed)}）`
         if (!entries.length) {
-          page.append(el('p', 'zp-none', '中身はありません'))
+          page.append(el('p', 'zp-none', 'ファイルがありません'))
           return
         }
         const ul = list(tree)
@@ -141,7 +141,7 @@ export default definePlugin<Zip>({
         if (only) only.open = true
       })
       .catch((e: unknown) => {
-        if (alive) sum.textContent = `読めませんでした：${e instanceof Error ? e.message : String(e)}`
+        if (alive) sum.textContent = `読み込みに失敗しました：${e instanceof Error ? e.message : String(e)}`
       })
     return () => {
       alive = false

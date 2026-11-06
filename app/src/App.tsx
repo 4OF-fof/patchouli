@@ -332,7 +332,7 @@ export function App(props: AppProps) {
         await flushWrites()
         if (await backend.chooseLibrary?.()) window.location.reload()
       } catch (e) {
-        notify(`ライブラリを切り替えられませんでした：${e instanceof Error ? e.message : String(e)}`, 'error')
+        notify(`ライブラリの切り替えに失敗しました：${e instanceof Error ? e.message : String(e)}`, 'error')
       }
     })
   // 前に開いていたタブを戻してから、変わるたびに書き出す
@@ -464,7 +464,7 @@ export function App(props: AppProps) {
     return (
       <Toast
         level="warning"
-        message={`「${b.note.name}」に、見つからないリンクが ${b.lost} 件あります${more}`}
+        message={`「${b.note.name}」に、リンク切れが ${b.lost} 件あります${more}`}
         actionLabel="修正"
         onAction={() => {
           ignore(b.note.id)

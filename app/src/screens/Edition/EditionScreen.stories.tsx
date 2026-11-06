@@ -48,7 +48,7 @@ export const Scrolled: Story = {
   render: () => edition({ scrollTop: 1100 }),
 }
 export const Narrow: Story = {
-  name: '狭い窓',
+  name: '狭いウィンドウ',
   decorators: [
     (Story) => (
       <div style={{ width: '900px' }}>
@@ -59,14 +59,14 @@ export const Narrow: Story = {
   render: () => edition(),
 }
 export const Drop: Story = {
-  name: '08 ファイルを持ってきた',
+  name: '08 ファイルをドラッグ中',
   render: () =>
     edition({
-      extra: <DropZone title="12 件のファイルを取り込む" sub="ドロップしてプロジェクト未指定で取り込みます" />,
+      extra: <DropZone title="12 件のファイルを取り込む" sub="ドロップして所属なしで取り込みます" />,
     }),
 }
 export const Empty: Story = {
-  name: '08 まだ何もない',
+  name: '08 まだ項目がない',
   render: () => {
     const lib = buildLibrary([], [], TODAY)
     return (
@@ -77,11 +77,11 @@ export const Empty: Story = {
   },
 }
 export const LoadError: Story = {
-  name: '08 一部を読み込めない',
+  name: '08 一部の読み込みに失敗',
   render: () =>
     edition({
       toast: (
-        <Toast message="3 件のノートを読み込めませんでした" actionLabel="見る" onAction={() => {}} onClose={() => {}} />
+        <Toast message="3 件のノートを読み込めませんでした" actionLabel="確認" onAction={() => {}} onClose={() => {}} />
       ),
     }),
 }

@@ -73,7 +73,7 @@ export const Details: StoryObj<Pick<AssetScreenProps, 'onRename'>> = {
   },
 }
 export const Tags: Story = {
-  name: 'タグを選ぶ',
+  name: 'タグを選択',
   render: () => {
     const [lib, setLib] = createSignal(sampleLibrary())
     const list = lib()
@@ -100,7 +100,7 @@ export const Tags: Story = {
   },
   play: async ({ canvas }) => {
     await userEvent.click(canvas.getByRole('button', { name: '追加' }))
-    const picker = await canvas.findByRole('dialog', { name: 'タグを選ぶ' })
+    const picker = await canvas.findByRole('dialog', { name: 'タグを選択' })
     await expect(await within(picker).findByRole('checkbox', { name: /紅葉/ })).toBeInTheDocument()
   },
 }
@@ -147,22 +147,22 @@ const withFile = (name: string, file: string, view: ItemView, waveform?: AssetVi
 }
 
 export const Video: Story = {
-  name: '動画を再生する',
+  name: '動画を再生',
   render: () => withFile('clip-0412', 'clip-0412.mp4', { kind: 'video' }),
 }
 export const Image: Story = {
-  name: '画像の倍率を変える',
+  name: '画像の表示倍率を変更',
   render: () => withFile('IMG_3310', 'IMG_3310.jpg', { kind: 'image' }),
 }
 export const Audio: Story = {
-  name: '音声を再生する',
+  name: '音声を再生',
   render: () =>
     withFile('voice-1019', 'voice-1019.mp3', { kind: 'audio' }, async () =>
       Uint8Array.from({ length: 4000 }, (_, i) => 255 * Math.abs(Math.sin((Math.PI * i) / 450))),
     ),
 }
 export const AudioJacket: Story = {
-  name: 'ジャケットのある音声を再生する',
+  name: 'ジャケット付きの音声を再生',
   render: () => {
     const lib = sampleLibrary()
     const it = lib.items.find((i) => i.name === 'voice-1019')
@@ -183,7 +183,7 @@ export const AudioJacket: Story = {
   },
 }
 export const Rename: Story = {
-  name: '名前を変えて読み直す',
+  name: '名前を変更して再読み込み',
   render: () => {
     const files: Record<string, [string, ItemView]> = {
       IMG_3310: ['IMG_3310.jpg', { kind: 'image' }],

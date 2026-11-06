@@ -41,7 +41,7 @@ export const AddPart: Story = {
   render: () => project({ editing: true, addOpen: true }),
 }
 export const Drop: Story = {
-  name: 'ファイルを持ってきた',
+  name: 'ファイルをドラッグ中',
   render: () =>
     project({}, '秋の企画', <DropZone title="3 件のファイルを取り込む" sub="ドロップして「秋の企画」に追加します" />),
 }
@@ -50,9 +50,9 @@ export const Other: Story = {
   render: () => project({}, 'UI 改善'),
 }
 export const NoPins: Story = { name: 'ピン留めなし', render: () => project({}, '資料') }
-export const NoCover: Story = { name: '表紙なし', render: () => project({}, '日記') }
+export const NoCover: Story = { name: '概要なし', render: () => project({}, '日記') }
 export const Created: Story = {
-  name: '新しく作った',
+  name: '新規作成',
   render: () => {
     const { lib, name } = withEmptyProject(sampleLibrary())
     return frame(lib, name, <ProjectScreen lib={lib} name={name} editing />)

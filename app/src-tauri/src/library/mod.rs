@@ -1079,7 +1079,7 @@ impl Library {
 
     pub fn rename_item(&mut self, id: &str, name: &str) -> Result<StoredItem, String> {
         if name.trim().is_empty() {
-            return Err("名前を入れてください".into());
+            return Err("名前を入力してください".into());
         }
         // 「.」で始まるファイルは、隠しファイルとして読まれなくなる
         if name.starts_with('.') || bad_chars(name) {
@@ -1103,7 +1103,7 @@ impl Library {
             return Err(unusable(name));
         }
         let to = from.with_file_name(&file);
-        let taken = format!("同じ名前のファイル（{file}）があるため、名前を変えられません");
+        let taken = format!("同じ名前のファイル（{file}）が存在するため、名前を変更できません");
         self.relocate(id, row, &to, taken, |it| it.name = name.to_owned())
     }
 
@@ -1113,7 +1113,7 @@ impl Library {
         self.ensure_saved(id)?;
         let e = self.entry(id)?;
         if e.note {
-            return Err("ノートの中身は置き換えられません".into());
+            return Err("ノートの内容は置き換えられません".into());
         }
         let path = e.path.clone();
         let row = self.row_of(&path)?;
@@ -1125,7 +1125,7 @@ impl Library {
         let to = path.with_extension(&ext);
         if to != path {
             let file = to.file_name().unwrap_or_default().to_string_lossy();
-            let taken = format!("同じ名前のファイル（{file}）があるため、置き換えられません");
+            let taken = format!("同じ名前のファイル（{file}）が存在するため、置き換えられません");
             self.relocate(id, row, &to, taken, |it| {
                 it.ext.clone_from(&ext);
                 (it.thumb, it.width, it.height) = (None, None, None);
@@ -1133,7 +1133,7 @@ impl Library {
         }
         fs::copy(from, &to).map_err(|e| format!("{}: {e}", to.display()))?;
         self.refresh(id)
-            .ok_or_else(|| format!("{} を読み直せません", to.display()))
+            .ok_or_else(|| format!("{} の再読み込みに失敗しました", to.display()))
     }
 
     /// ファイルとメタ情報をごみ箱に入れ、ライブラリから外す。
@@ -1542,7 +1542,7 @@ impl Library {
         self.rename_tag_covers(&re, keep_from)?;
         match failed.first() {
             Some(e) => Err(format!(
-                "{} 件の素材のタグを変えられませんでした：{e}",
+                "{} 件の項目のタグを変更できませんでした：{e}",
                 failed.len()
             )),
             None => Ok(()),

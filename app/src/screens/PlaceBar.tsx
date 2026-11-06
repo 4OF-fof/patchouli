@@ -128,7 +128,7 @@ export function PlaceBar(props: PlaceBarProps) {
   }
   return (
     <div class={styles.root} onPointerDown={grab}>
-      <nav class={styles.crumbs} aria-label="いまの場所">
+      <nav class={styles.crumbs} aria-label="現在の場所">
         <For each={props.crumbs}>
           {(c, i) => {
             const last = () => i() === props.crumbs.length - 1

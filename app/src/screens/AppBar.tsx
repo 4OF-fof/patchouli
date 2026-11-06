@@ -268,14 +268,14 @@ export function AppBar(props: AppBarProps) {
     const typing = parsed().typing
     if (typing)
       return [
-        ['Enter / Tab', typing.kind === 'not' ? '除く' : '絞り込む'],
+        ['Enter / Tab', typing.kind === 'not' ? '除外' : '絞り込み'],
         ...(typing.kind === 'tag' || typing.kind === 'place' ? [['Ctrl Enter', 'ページを開く'] satisfies Hint] : []),
         ['Esc', '閉じる'],
       ]
     if (chips().length)
       return [
         ['Enter', '開く'],
-        ['Backspace', '絞り込みを外す'],
+        ['Backspace', '絞り込みを解除'],
         ['Esc', '閉じる'],
       ]
     if (query().trim()) return undefined
@@ -283,7 +283,7 @@ export function AppBar(props: AppBarProps) {
       ['#', 'タグ'],
       ['@', '場所'],
       ['.', '種類'],
-      ['-', '除く'],
+      ['-', '除外'],
       ['>', '操作'],
       ...(aiOn.latest ? [['?', 'AI で検索'] satisfies Hint] : []),
       ['Esc', '閉じる'],
@@ -469,8 +469,8 @@ export function AppBar(props: AppBarProps) {
             <button
               type="button"
               class={styles.ib}
-              aria-label="新しいノート"
-              data-tip="新しいノート"
+              aria-label="新しいノートを作成"
+              data-tip="新しいノートを作成（Ctrl N）"
               onClick={() => props.onCreate?.()}
             >
               <Icon name="newNote" />

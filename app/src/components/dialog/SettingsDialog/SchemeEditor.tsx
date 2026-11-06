@@ -100,7 +100,7 @@ export function SchemeEditor(props: SchemeEditorProps) {
       const s = add(parseSchemeJson(await f.text(), f.name.replace(/\.json$/i, '')))
       props.onMessage({ done: `「${s.name}」を読み込みました` })
     } catch (e) {
-      props.onMessage({ error: `「${f.name}」を読み込めません：${e instanceof Error ? e.message : String(e)}` })
+      props.onMessage({ error: `「${f.name}」の読み込みに失敗しました：${e instanceof Error ? e.message : String(e)}` })
     }
   }
   const exportCurrent = async () => {
@@ -112,7 +112,7 @@ export function SchemeEditor(props: SchemeEditorProps) {
       const to = await props.onExport(name, schemeJson(c))
       if (to) props.onMessage({ done: `「${to}」に書き出しました` })
     } catch (e) {
-      props.onMessage({ error: `書き出せません：${e instanceof Error ? e.message : String(e)}` })
+      props.onMessage({ error: `書き出しに失敗しました：${e instanceof Error ? e.message : String(e)}` })
     }
   }
   const remove = () => {
@@ -145,7 +145,7 @@ export function SchemeEditor(props: SchemeEditorProps) {
   return (
     <>
       <div ref={row} class={styles.row}>
-        <span class={styles.name}>使う配色</span>
+        <span class={styles.name}>配色</span>
         <div class={styles.actions}>
           <Show
             when={renaming() && current()}
@@ -200,7 +200,7 @@ export function SchemeEditor(props: SchemeEditorProps) {
           <Show when={current()}>
             <IconButton
               ref={more}
-              label="ほかの操作"
+              label="その他"
               onClick={() => {
                 const r = more.getBoundingClientRect()
                 setMenu(menu() ? undefined : { x: r.left, y: r.bottom + 4 })
@@ -260,7 +260,9 @@ export function SchemeEditor(props: SchemeEditorProps) {
                       <span
                         class={styles.headCol}
                         data-tip={
-                          g.entries.some((e) => e.against === 'side') ? 'コードの背景と比べます' : '背景と比べます'
+                          g.entries.some((e) => e.against === 'side')
+                            ? 'サイドバーとのコントラスト比'
+                            : '背景とのコントラスト比'
                         }
                       >
                         コントラスト比
@@ -296,7 +298,7 @@ export function SchemeEditor(props: SchemeEditorProps) {
                           <input
                             class={styles.hex}
                             value={toHex(value())}
-                            aria-label={`${e.label}の 16 進数の色`}
+                            aria-label={`${e.label}のカラーコード`}
                             spellcheck={false}
                             disabled={!current()}
                             onChange={(ev) => commitHex(ev.currentTarget)}

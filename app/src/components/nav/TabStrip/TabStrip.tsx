@@ -64,8 +64,8 @@ export function TabStrip(props: TabStripProps) {
       <button
         type="button"
         class={styles.add}
-        aria-label="新しいタブ"
-        data-tip="新しいタブ"
+        aria-label="新しいタブを開く"
+        data-tip="新しいタブを開く"
         onClick={() => props.onNew()}
       >
         <Icon name="plus" />

@@ -21,6 +21,6 @@ const tag = (o: Partial<TagScreenProps> = {}, name = '写真') => {
 }
 
 export const Default: Story = { render: () => tag() }
-export const Sub: Story = { name: 'サブタグで絞り込む', render: () => tag({ sub: '写真/旅行' }) }
+export const Sub: Story = { name: 'サブタグで絞り込み', render: () => tag({ sub: '写真/旅行' }) }
 export const Edit: Story = { name: '概要を編集', render: () => tag({ editing: true, addOpen: true }) }
 export const NoCover: Story = { name: '概要がないタグ', render: () => tag({}, '参考') }

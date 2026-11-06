@@ -48,10 +48,10 @@ export default meta
 type Story = StoryObj<typeof meta>
 
 export const Default: Story = {}
-export const Empty: Story = { name: 'まだない', args: { libraries: [] } }
+export const Empty: Story = { name: '履歴なし', args: { libraries: [] } }
 export const Loading: Story = { name: '読み込み中', args: { libraries: undefined } }
 export const Failed: Story = {
-  name: '切り替えられなかった',
+  name: '切り替えに失敗',
   args: {
     onOpen: async () => {
       await wait()

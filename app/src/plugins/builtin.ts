@@ -94,11 +94,11 @@ export function resolveFormats(
     for (const d of m.formats ?? [])
       for (const ext of d.ext) {
         if (ext === SHORTCUT.ext) {
-          add(m.id, `「.${ext}」は本体が読むため、使用していません`, 'warning')
+          add(m.id, `「.${ext}」はアプリ本体が対応しているため、使用していません`, 'warning')
           continue
         }
         if (own.has(ext)) {
-          add(m.id, `「.${ext}」を formats に 2 回書いています`)
+          add(m.id, `「.${ext}」が formats に重複して指定されています`)
           continue
         }
         own.set(ext, d)

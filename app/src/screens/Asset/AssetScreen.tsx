@@ -390,8 +390,8 @@ export function AssetScreen(props: AssetScreenProps) {
           type="button"
           class={bar ? styles.barBtn : `${styles.btn} ${styles.pin} ${styles.fade}`}
           aria-pressed={lib().pins.includes(a().id)}
-          aria-label={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
-          data-tip={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留めする'}
+          aria-label={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留め'}
+          data-tip={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留め'}
           onClick={() => props.onTogglePin?.(a().id)}
         >
           <Icon name="pin" size={15} class={styles.pinGlyph} />
@@ -574,7 +574,7 @@ export function AssetScreen(props: AssetScreenProps) {
                   </label>
                   <div class={styles.fl}>
                     <span class={styles.k}>この素材へのリンク {lib().backOf(a()).length}</span>
-                    <Show when={lib().backOf(a()).length} fallback={<LinkNone>まだありません</LinkNone>}>
+                    <Show when={lib().backOf(a()).length} fallback={<LinkNone>リンクはまだありません</LinkNone>}>
                       <For each={lib().backOf(a())}>
                         {(n) => <LinkRow mark="←" label={n.name} onClick={() => props.onOpenNote?.(n.id)} />}
                       </For>

@@ -276,7 +276,7 @@ class Meter {
 }
 
 async function measure(ext: string, read: Read, signal: AbortSignal) {
-  if (!isFormat(ext)) throw new Error(`「.${ext}」の波形は作れません`)
+  if (!isFormat(ext)) throw new Error(`「.${ext}」は波形の作成に対応していません`)
   const f = await LAYOUTS[ext](read)
   const rate = Math.min(192000, Math.max(8000, f.rate || 44100))
   const meter = new Meter(POINTS)

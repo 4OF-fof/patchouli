@@ -123,16 +123,16 @@ function mount(root: HTMLElement, api: ScreenApi) {
   const count = el('span', 'nc-count')
   const tools = el('span', 'nc-tools')
   const select = el('select')
-  select.setAttribute('aria-label', '並べ方')
+  select.setAttribute('aria-label', '並び順')
   for (const [value, label] of [
-    ['moved', '更新した順'],
-    ['name', '名前の順'],
+    ['moved', '更新順'],
+    ['name', '名前順'],
   ] as const) {
     const o = el('option', undefined, label)
     o.value = value
     select.append(o)
   }
-  const create = el('button', undefined, '新しいノート')
+  const create = el('button', undefined, '新しいノートを作成')
   create.type = 'button'
   tools.append(select, create)
   head.append(el('h1', undefined, 'ノートのカード'), count, tools)

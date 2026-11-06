@@ -2,9 +2,9 @@
   "id": "example_zip",
   "name": "example_zip",
   "version": "0.1.0",
-  "description": "拡張子のプラグインの例。zip のサムネイルにアイコンを描き、詳細では中身をフォルダの木で見せる",
+  "description": "ZIP ファイルのサムネイル生成と、アーカイブ内のフォルダツリー表示",
   "script": "ui.js",
   "formats": [
-    { "ext": ["zip"], "label": "zip", "ratio": 1, "fit": "contain", "parts": ["thumbnail", "view"], "script": ["view"] }
+    { "ext": ["zip"], "label": "ZIP", "ratio": 1, "fit": "contain", "parts": ["thumbnail", "view"], "script": ["view"] }
   ]
 }

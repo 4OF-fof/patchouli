@@ -2,7 +2,7 @@
   "id": "patchouli.mermaid",
   "name": "Mermaid",
   "version": "0.1.0",
-  "description": "ノートの mermaid のコードブロックを図にする",
+  "description": "ノートの mermaid コードブロックの図表表示",
   "script": "ui/mermaid.js",
   "notes": {
     "code": ["mermaid"],

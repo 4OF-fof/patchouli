@@ -70,7 +70,7 @@ type RawCard<C> = C extends unknown ? Omit<C, 'id'> : never
 
 const TAG_COVERS: Record<string, RawCard<TagCoverPart>[]> = {
   写真: [
-    { type: 'desc', text: 'カメラで撮ったもの。旅行や街は下の階層に分ける。' },
+    { type: 'desc', text: 'カメラで撮った写真。旅行や街はサブタグに分ける。' },
     { type: 'kids' },
     { type: 'exts' },
     { type: 'together' },

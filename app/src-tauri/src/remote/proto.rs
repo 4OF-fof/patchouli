@@ -42,9 +42,9 @@ pub const PERMISSIONS: [&str; 6] = ["library", "assets", "notes", "edit", "delet
 
 pub fn permission_label(p: &str) -> &str {
     match p {
-        "library" => "ライブラリの情報を読む",
+        "library" => "ライブラリの情報を読み取り",
         "assets" => "素材を追加",
-        "notes" => "ノートを作成・書き換え",
+        "notes" => "ノートを作成・編集",
         "edit" => "名前・タグ・プロジェクトを変更",
         "delete" => "ごみ箱に移動",
         "window" => "ウィンドウを表示・アプリを終了",

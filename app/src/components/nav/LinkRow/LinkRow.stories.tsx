@@ -28,7 +28,7 @@ export const Group: Story = {
       <LinkRow mark="→" label="moodboard-01" sub="JPG" />
       <LinkRow mark="→" label="差し色の比較" sub="未作成" missing />
       <LinkCaption>この素材へのリンク</LinkCaption>
-      <LinkNone>まだありません</LinkNone>
+      <LinkNone>リンクはまだありません</LinkNone>
     </div>
   ),
 }

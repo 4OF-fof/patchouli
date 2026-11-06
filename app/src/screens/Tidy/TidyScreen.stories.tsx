@@ -35,7 +35,7 @@ export const Next: Story = {
   },
 }
 export const Done: Story = {
-  name: 'すべて終わった',
+  name: 'すべて完了',
   render: () => {
     const lib = sampleLibrary()
     return (

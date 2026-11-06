@@ -19,4 +19,4 @@ type Story = StoryObj<typeof meta>
 
 export const Default: Story = { render: () => <TitleBar window={controls(false)}>ホーム</TitleBar> }
 export const Maximized: Story = { name: '最大化中', render: () => <TitleBar window={controls(true)}>ホーム</TitleBar> }
-export const Web: Story = { name: 'web（窓のボタンなし）', render: () => <TitleBar>ホーム</TitleBar> }
+export const Web: Story = { name: 'Web（ウィンドウのボタンなし）', render: () => <TitleBar>ホーム</TitleBar> }

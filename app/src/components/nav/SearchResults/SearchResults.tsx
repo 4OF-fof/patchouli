@@ -86,7 +86,7 @@ export function SearchResults(props: SearchResultsProps) {
                 <ResultRow
                   kind={kindOf(r.c)}
                   title={
-                    r.c.filter.kind === 'not' ? `「${r.c.label}」を含むものを除く` : marked(r.c.label, props.terms)
+                    r.c.filter.kind === 'not' ? `「${r.c.label}」を含む項目を除外` : marked(r.c.label, props.terms)
                   }
                   sub={r.c.sub ? `${r.c.sub} | ${r.c.n} 件` : `${r.c.n} 件`}
                   selected={sel()}

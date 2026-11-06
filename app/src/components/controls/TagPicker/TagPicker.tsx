@@ -92,15 +92,15 @@ export function TagPicker(props: TagPickerProps) {
       class={`${styles.root} ${props.class ?? ''}`}
       style={props.style}
       role="dialog"
-      aria-label="タグを選ぶ"
+      aria-label="タグを選択"
     >
       <label class={styles.search}>
         <Icon name="search" size={13} withText />
         <input
           ref={input}
           type="text"
-          placeholder="タグを探す・作る"
-          aria-label="タグを探す・作る"
+          placeholder="タグを検索・作成"
+          aria-label="タグを検索・作成"
           value={q()}
           onInput={(e) => setQ(e.currentTarget.value)}
           onKeyDown={onEnter}
@@ -109,7 +109,7 @@ export function TagPicker(props: TagPickerProps) {
       <Show when={fresh()}>
         {(t) => (
           <button type="button" class={styles.fresh} onClick={() => (props.onToggle(t(), true), setQ(''))}>
-            <Icon name="plus" size={13} withText />「{t()}」を新しいタグとして付ける
+            <Icon name="plus" size={13} withText />「{t()}」を新しいタグとして追加
           </button>
         )}
       </Show>
@@ -125,7 +125,7 @@ export function TagPicker(props: TagPickerProps) {
       </section>
       <section>
         <h3>最近</h3>
-        <Show when={match(props.recent).length} fallback={<NoneText>まだありません</NoneText>}>
+        <Show when={match(props.recent).length} fallback={<NoneText>履歴はありません</NoneText>}>
           {grid(match(props.recent))}
         </Show>
       </section>
@@ -133,7 +133,7 @@ export function TagPicker(props: TagPickerProps) {
         <h3>
           すべて<em>{props.all.length}</em>
         </h3>
-        <Show when={match(props.all).length} fallback={<NoneText>一致するタグはありません</NoneText>}>
+        <Show when={match(props.all).length} fallback={<NoneText>一致するタグがありません</NoneText>}>
           <ScrollArea class={styles.scroll}>{grid(match(props.all))}</ScrollArea>
         </Show>
       </section>

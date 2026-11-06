@@ -138,7 +138,7 @@ fn wait_open(app: &AppHandle) -> Result<(), String> {
     let until = Instant::now() + OPEN_WAIT;
     while app.state::<Current>().lock().is_none() {
         if Instant::now() >= until {
-            return Err("ライブラリを開いていません".into());
+            return Err("ライブラリが開かれていません".into());
         }
         std::thread::sleep(Duration::from_millis(100));
     }

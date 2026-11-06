@@ -79,7 +79,7 @@ pub fn grant(
     lock().retain(|(a, _)| a.id != ask.id);
     let _ = app.emit_to(web::MAIN, "remote-ask-closed", ask.id);
     let Ok(answer) = answer else {
-        return Err("接続の許可を待つあいだに時間切れになりました".into());
+        return Err("接続の許可がタイムアウトしました".into());
     };
     let allowed = answer.is_some();
     let permissions = answer.map(known_permissions).unwrap_or_default();

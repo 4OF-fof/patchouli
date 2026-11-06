@@ -1,9 +1,9 @@
 import type { Permission, PluginSource } from './types'
 
 export const PERMISSION: Record<Permission, string> = {
-  library: 'ライブラリの情報を読む',
+  library: 'ライブラリの情報を読み取り',
   clipboard: 'クリップボードにコピー',
-  notes: 'ノートを作成・書き換え',
+  notes: 'ノートを作成・編集',
   edit: '名前とタグを変更',
   assets: '素材を登録・置き換え',
   export: 'ファイルを書き出し',

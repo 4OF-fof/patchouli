@@ -24,7 +24,12 @@ export function PaneHead(props: TabStripProps) {
             {(t, i) => <TabItem tab={t} index={i} row={row} tabs={props} classes={styles} axis="x" />}
           </Index>
         </div>
-        <button type="button" class={styles.add} aria-label="このペインに新しいタブ" onClick={() => props.onNew()}>
+        <button
+          type="button"
+          class={styles.add}
+          aria-label="このペインで新しいタブを開く"
+          onClick={() => props.onNew()}
+        >
           <Icon name="plus" size={14} />
         </button>
       </div>

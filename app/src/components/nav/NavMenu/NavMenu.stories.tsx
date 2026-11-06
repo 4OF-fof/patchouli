@@ -12,4 +12,4 @@ type Story = StoryObj<typeof meta>
 
 export const Main: Story = {}
 export const Settings: Story = { args: { items: SETTINGS_ITEMS } }
-export const Places: Story = { name: '画面の一覧（いまの場所から）', args: { items: PLACE_ITEMS } }
+export const Places: Story = { name: '画面の一覧（現在の場所から）', args: { items: PLACE_ITEMS } }

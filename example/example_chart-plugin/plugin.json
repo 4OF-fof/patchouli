@@ -2,7 +2,7 @@
   "id": "example_chart",
   "name": "example_chart",
   "version": "0.1.0",
-  "description": "ノートのコードブロックの例。bars を棒グラフにし、tally を押して数える表にする",
+  "description": "ノートの bars コードブロックを棒グラフで表示し、tally コードブロックをカウンター表として表示",
   "script": "ui.js",
   "notes": {
     "code": ["bars", "tally"],

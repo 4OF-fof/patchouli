@@ -27,12 +27,12 @@ pub fn analyze(ext: &str, f: &File) -> Result<Analysis, String> {
         .codec_params
         .as_ref()
         .and_then(|p| p.audio())
-        .ok_or("音声の形式がわかりません")?
+        .ok_or("音声の形式を取得できません")?
         .clone();
     let rate = f64::from(
         params
             .sample_rate
-            .ok_or("サンプリング周波数がわかりません")?,
+            .ok_or("サンプリング周波数を取得できません")?,
     );
     let known = base
         .zip(track.duration)

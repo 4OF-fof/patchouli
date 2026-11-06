@@ -36,7 +36,7 @@ impl role::hook::Guest for Autolink {
             // 書き換えるたびには知らせない
             return match event {
                 HookEvent::Added => {
-                    Err("AI 機能を有効にしてモデルを入れると、リンクを付けられます".into())
+                    Err("AI 機能が無効か、モデルがインストールされていないため、自動リンクを利用できません".into())
                 }
                 _ => Ok(()),
             };

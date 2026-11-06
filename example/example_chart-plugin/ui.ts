@@ -59,7 +59,7 @@ function show(el: HTMLElement, api: CodeApi) {
       span(r.name),
       button('−', '1 減らす', () => setCount(api, r, r.count - 1)),
       span(String(r.count), 'ec-count'),
-      button('+', '1 足す', () => setCount(api, r, r.count + 1)),
+      button('+', '1 増やす', () => setCount(api, r, r.count + 1)),
     ]),
   )
   const ticket = ++s.ticket
@@ -85,10 +85,10 @@ export default definePlugin({
         form.className = 'ec-add'
         const input = document.createElement('input')
         input.placeholder = '名前'
-        input.setAttribute('aria-label', '足す行の名前')
+        input.setAttribute('aria-label', '追加する行の名前')
         const add = document.createElement('button')
         add.type = 'submit'
-        add.textContent = '行を足す'
+        add.textContent = '行を追加'
         form.append(input, add)
         form.addEventListener('submit', (e) => {
           e.preventDefault()

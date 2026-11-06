@@ -239,7 +239,7 @@ pub(crate) async fn plugin_settings(
     with_session(&cur, |s| {
         s.plugins
             .settings_of(&plugin)
-            .ok_or_else(|| format!("{plugin} は有効になっていません"))
+            .ok_or_else(|| format!("プラグイン「{plugin}」は有効ではありません"))
     })
 }
 

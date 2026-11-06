@@ -1015,7 +1015,9 @@ impl Registry {
                             i,
                             Problem {
                                 level: Level::Warning,
-                                text: format!("「.{ext}」は本体が読むため、使用していません"),
+                                text: format!(
+                                    "「.{ext}」はアプリ本体が対応しているため、使用していません"
+                                ),
                             },
                         ));
                         continue;
@@ -1023,7 +1025,7 @@ impl Registry {
                     if own[i].contains_key(ext) {
                         problems.push((
                             i,
-                            error(format!("「.{ext}」を formats に 2 回書いています")),
+                            error(format!("「.{ext}」が formats に重複して指定されています")),
                         ));
                         continue;
                     }
@@ -1073,7 +1075,7 @@ impl Registry {
             // WASM のないコア機能のコードブロックは本体が描く
             if p.manifest.wants_wasm() && p.wasm.is_none() && p.problems.is_empty() && !p.builtin {
                 p.problems.push(error(
-                    "plugin.wasm が見つからないため、WASM で受け持つものを処理できません".into(),
+                    "plugin.wasm が見つからないため、WASM の機能を利用できません".into(),
                 ));
             }
             if let Some(w) = &p.wasm
@@ -1081,7 +1083,7 @@ impl Registry {
                 && !w.has(runtime::Role::Menu)
             {
                 p.problems.push(error(
-                    "menu を書いていますが、plugin.wasm は menu と run-menu を export していません"
+                    "menu が指定されていますが、plugin.wasm が menu と run-menu を export していません"
                         .into(),
                 ));
             }
@@ -1090,7 +1092,7 @@ impl Registry {
                 && !w.has(runtime::Role::Code)
             {
                 p.problems.push(error(
-                    "notes の code を書いていますが、plugin.wasm は code の render を export していません"
+                    "notes の code が指定されていますが、plugin.wasm が code の render を export していません"
                         .into(),
                 ));
             }
@@ -1100,13 +1102,13 @@ impl Registry {
             }) = &p.manifest.menu
             {
                 p.problems.push(error(
-                    "menu の formats には、拡張子の並びか all・files を書きます".into(),
+                    "menu の formats には、拡張子の配列または all・files を指定してください".into(),
                 ));
             }
             for (k, h) in p.manifest.hooks.all() {
                 if matches!(h.formats, MenuFormats::Every(MenuEvery::Unknown)) {
                     p.problems.push(error(format!(
-                        "hooks の {k} の formats には、拡張子の並びか all・files を書きます"
+                        "hooks の {k} の formats には、拡張子の配列または all・files を指定してください"
                     )));
                 }
             }
@@ -1114,7 +1116,7 @@ impl Registry {
                 && p.wasm.as_ref().is_some_and(|w| !w.has(runtime::Role::Hook))
             {
                 p.problems.push(error(
-                    "hooks を書いていますが、plugin.wasm は hook を export していません".into(),
+                    "hooks が指定されていますが、plugin.wasm が hook を export していません".into(),
                 ));
             }
             for x in p
@@ -1124,19 +1126,19 @@ impl Registry {
                 .filter(|x| !rules().permitted(x))
             {
                 p.problems.push(error(format!(
-                    "permissions の「{x}」は使えません（{} のどれか）",
+                    "permissions の「{x}」は無効です（{} のいずれかを指定してください）",
                     rules().permissions.join("・")
                 )));
             }
             for id in p.manifest.screens.keys().filter(|id| !screen_id_ok(id)) {
                 p.problems.push(error(format!(
-                    "画面の ID「{id}」には、英数字・ハイフン・下線しか使えません"
+                    "画面の ID「{id}」には、英数字・ハイフン・アンダースコアのみ使用できます"
                 )));
             }
             for (id, d) in &p.manifest.covers {
                 if !screen_id_ok(id) {
                     p.problems.push(error(format!(
-                        "カードの ID「{id}」には、英数字・ハイフン・下線しか使えません"
+                        "カードの ID「{id}」には、英数字・ハイフン・アンダースコアのみ使用できます"
                     )));
                 }
                 if d.label.trim().is_empty() {
@@ -1145,18 +1147,18 @@ impl Registry {
                 }
                 if d.on.is_empty() {
                     p.problems.push(error(format!(
-                        "カード「{id}」の on が空です。tag・project のどちらかを書きます"
+                        "カード「{id}」の on が空です（tag・project のいずれかを指定してください）"
                     )));
                 }
             }
             for h in p.manifest.fetch.iter().filter(|h| !fetch_host_ok(h)) {
                 p.problems.push(error(format!(
-                    "fetch の「{h}」は使えません（「example.com」のように、ドメイン名まで書きます）"
+                    "fetch の「{h}」は無効です（「example.com」のようにドメイン名を指定してください）"
                 )));
             }
             if p.manifest.wants_script() && p.script.is_none() && p.problems.is_empty() {
                 p.problems.push(error(
-                    "plugin.json の script のファイルが見つからないため、スクリプトで受け持つものを処理できません"
+                    "plugin.json の script のファイルが見つからないため、スクリプトの機能を利用できません"
                         .into(),
                 ));
             }
@@ -1228,11 +1230,11 @@ impl Registry {
             for lang in &n.code {
                 if !rules().code_lang.is_match(lang) {
                     bad.push(error(format!(
-                        "notes の code の「{lang}」には、空白と ` を使えません"
+                        "notes の code の「{lang}」に空白や ` は使用できません"
                     )));
                 } else if !seen.insert(lang) {
                     bad.push(error(format!(
-                        "「{lang}」を notes の code に 2 回書いています"
+                        "「{lang}」が notes の code に重複して指定されています"
                     )));
                 } else {
                     claims.entry(lang.clone()).or_default().push(i);
@@ -1240,7 +1242,7 @@ impl Registry {
             }
             for lang in n.script.iter().filter(|l| !n.code.contains(l)) {
                 bad.push(error(format!(
-                    "notes の script の「{lang}」は、code にも書きます"
+                    "notes の script の「{lang}」は code にも指定してください"
                 )));
             }
             for s in &n.slash {
@@ -1283,8 +1285,9 @@ impl Registry {
             for (k, d) in p.manifest.links.iter().enumerate() {
                 for host in d.host.iter().map(|h| host_key(h)) {
                     if !seen.insert(host.clone()) {
-                        p.problems
-                            .push(error(format!("「{host}」を links に 2 回書いています")));
+                        p.problems.push(error(format!(
+                            "「{host}」が links に重複して指定されています"
+                        )));
                         continue;
                     }
                     claims.entry(host).or_default().push((i, k));
@@ -1551,7 +1554,7 @@ impl Registry {
             Ok(())
         } else {
             Err(format!(
-                "プラグイン「{}」は「{host}」に接続できません（plugin.json の fetch に書いていません）",
+                "プラグイン「{}」は「{host}」に接続できません（plugin.json の fetch に記載されていません）",
                 p.manifest.name
             ))
         }
@@ -2164,17 +2167,17 @@ fn misspelled(m: &Manifest) -> Vec<Problem> {
         let ext = d.ext.join("・.");
         if d.fit == Some(Fit::Unknown) {
             out.push(error(format!(
-                "「.{ext}」の fit には center・top・contain のどれかを書きます"
+                "「.{ext}」の fit には center・top・contain のいずれかを指定してください"
             )));
         }
         if d.media == Some(Media::Unknown) {
             out.push(error(format!(
-                "「.{ext}」の media には image・video・audio のどれかを書きます"
+                "「.{ext}」の media には image・video・audio のいずれかを指定してください"
             )));
         }
         if d.parts.contains(&Part::Unknown) || d.script.contains(&Part::Unknown) {
             out.push(error(format!(
-                "「.{ext}」の parts か script に、受け持てないものが書かれています"
+                "「.{ext}」の parts または script に無効な値が指定されています"
             )));
         }
     }
@@ -2182,19 +2185,19 @@ fn misspelled(m: &Manifest) -> Vec<Problem> {
         let host = d.hosts();
         if d.parts.contains(&Part::Unknown) {
             out.push(error(format!(
-                "「{host}」の links の parts に、受け持てないものが書かれています"
+                "「{host}」の links の parts に無効な値が指定されています"
             )));
         }
         if d.parts.contains(&Part::Menu) {
             out.push(error(format!(
-                "「{host}」の links の parts に menu は書けません。右クリックメニューは plugin.json の menu に書きます"
+                "「{host}」の links の parts に menu は指定できません（右クリックメニューは plugin.json の menu に指定してください）"
             )));
         }
     }
     for (id, d) in &m.covers {
         if d.on.contains(&CoverOn::Unknown) {
             out.push(error(format!(
-                "カード「{id}」の on には tag・project のどれかを書きます"
+                "カード「{id}」の on には tag・project のいずれかを指定してください"
             )));
         }
     }
@@ -2257,7 +2260,7 @@ fn format_parts(p: &Loaded, d: &FormatDecl, problems: &mut Vec<Problem>) -> Hash
     let ext = d.ext.join("・.");
     for &part in d.script.iter().filter(|&x| !d.parts.contains(x)) {
         problems.push(error(format!(
-            "「.{ext}」の script の {} は、parts にも書きます",
+            "「.{ext}」の script の {} は parts にも指定してください",
             part.name()
         )));
     }
@@ -2268,7 +2271,7 @@ fn format_parts(p: &Loaded, d: &FormatDecl, problems: &mut Vec<Problem>) -> Hash
         }
         if part == Part::Menu {
             problems.push(error(format!(
-                "「.{ext}」の parts に menu は書けません。右クリックメニューは plugin.json の menu に書きます"
+                "「.{ext}」の parts に menu は指定できません（右クリックメニューは plugin.json の menu に指定してください）"
             )));
             continue;
         }
@@ -2278,14 +2281,14 @@ fn format_parts(p: &Loaded, d: &FormatDecl, problems: &mut Vec<Problem>) -> Hash
             By::Wasm => match (part.wasm_role(), &p.wasm) {
                 (None, _) => {
                     problems.push(error(format!(
-                        "「.{ext}」の {} はスクリプトでしか受け持てないため、script にも書きます",
+                        "「.{ext}」の {} はスクリプトのみ対応しているため、script にも指定してください",
                         part.name()
                     )));
                     false
                 }
                 (Some(r), Some(w)) if !w.has(r) => {
                     problems.push(error(format!(
-                        "「.{ext}」の {} を受け持つ関数を、plugin.wasm が export していません",
+                        "「.{ext}」の {} に対応する関数を plugin.wasm が export していません",
                         part.name()
                     )));
                     false

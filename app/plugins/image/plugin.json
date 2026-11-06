@@ -7,7 +7,7 @@
     "commands": {
       "ffmpeg": {
         "version": { "args": ["-version"], "pattern": "ffmpeg version n?([0-9][^ ]*)" },
-        "description": "AVIF のサムネイルを作り、AI 機能で読み取れるようになります"
+        "description": "AVIF のサムネイル生成と AI 機能での解析"
       }
     }
   },

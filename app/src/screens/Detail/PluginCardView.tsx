@@ -102,7 +102,7 @@ function Card(props: CardProps & { host: CardHost; info: CoverInfo; part: Part }
   return (
     <DetailPart label={props.info.label} editing={props.editing} onMove={props.onMove} onRemove={props.onRemove}>
       {/* プラグインを読み直してスクリプトが変わったら、描き直す */}
-      <Show when={props.host.url(props.info)} keyed fallback={<NoneText>この環境ではカードを描けません</NoneText>}>
+      <Show when={props.host.url(props.info)} keyed fallback={<NoneText>この環境ではカードを表示できません</NoneText>}>
         {(url) => <PluginView url={url} api={api} cover={props.info.card} />}
       </Show>
     </DetailPart>

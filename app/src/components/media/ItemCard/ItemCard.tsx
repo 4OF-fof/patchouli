@@ -81,7 +81,7 @@ export function ItemCard(props: ItemCardProps) {
               class={styles.mark}
               role="checkbox"
               aria-checked={on()}
-              aria-label={`「${local.name}」を選ぶ`}
+              aria-label={`「${local.name}」を選択`}
               onClick={(e) => {
                 e.stopPropagation()
                 area?.click(e, id(), () => area.sel.toggle(id()))

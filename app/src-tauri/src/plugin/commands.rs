@@ -220,7 +220,7 @@ pub fn run(
         .join()
         .map_err(|_| format!("外部ツール「{name}」の出力の読み込みに失敗しました"))?;
     if halted {
-        return Err(format!("外部ツール「{name}」を止めました"));
+        return Err(format!("外部ツール「{name}」を中止しました"));
     }
     if status.is_none() {
         return Err(format!(

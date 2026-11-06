@@ -62,17 +62,17 @@ export const Default: Story = {
     )
   },
 }
-export const NoUnused: Story = { name: '使っていないものがない', args: { page: 'general', unused: [] } }
+export const NoUnused: Story = { name: '未使用のプラグインなし', args: { page: 'general', unused: [] } }
 export const Loading: Story = {
   name: '読み込み中',
   args: { page: 'general', usage: undefined, unused: undefined, developer: undefined },
 }
 export const VersionOnly: Story = {
-  name: '版だけ',
+  name: 'バージョンのみ',
   args: { onClear: undefined, onRemoveUnused: undefined, onDeveloperChange: undefined },
 }
 export const Failed: Story = {
-  name: '消せなかった',
+  name: '削除に失敗',
   args: {
     page: 'general',
     onClear: async () => {

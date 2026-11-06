@@ -297,7 +297,7 @@ export function NoteScreen(props: NoteScreenProps) {
               <Portal mount={el}>
                 <span class={styles.barTools}>
                   <BarButton
-                    label={lib().pins.includes(n().id) ? 'ピン留めを解除' : 'ピン留めする'}
+                    label={lib().pins.includes(n().id) ? 'ピン留めを解除' : 'ピン留め'}
                     aria-pressed={lib().pins.includes(n().id)}
                     onClick={() => props.onTogglePin?.(n().id)}
                   >
@@ -383,7 +383,7 @@ export function NoteScreen(props: NoteScreenProps) {
                 <FloatingCard title={`リンク ${into().length + from().length}`} onClose={() => setLinks(false)}>
                   <div>
                     <LinkCaption>このノートへのリンク</LinkCaption>
-                    <Show when={into().length} fallback={<LinkNone>まだありません</LinkNone>}>
+                    <Show when={into().length} fallback={<LinkNone>リンクはまだありません</LinkNone>}>
                       <For each={into()}>
                         {(x) => (
                           <LinkRow mark="←" label={x.name} sub="ノート" onClick={() => props.onOpenRef?.(x.id)} />
@@ -393,7 +393,7 @@ export function NoteScreen(props: NoteScreenProps) {
                   </div>
                   <div>
                     <LinkCaption>このノートからのリンク</LinkCaption>
-                    <Show when={from().length} fallback={<LinkNone>まだありません</LinkNone>}>
+                    <Show when={from().length} fallback={<LinkNone>リンクはまだありません</LinkNone>}>
                       <For each={from()}>
                         {(id) => {
                           const it = () => lib().byId.get(id)
