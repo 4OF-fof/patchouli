@@ -169,7 +169,7 @@ pub struct Changes {
     /// 名前が変わっていたものの ID と前の名前。
     #[serde(skip)]
     pub renamed: HashMap<String, String>,
-    /// アプリの外で中身が変わっていたものの ID。
+    /// アプリの外で中身が変わっていたものの ID。ノートは本文、素材は print で比べる。
     #[serde(skip)]
     pub changed_files: Vec<String>,
 }
@@ -617,7 +617,7 @@ impl Library {
             }
             if let Some(b) = before.get(&path)
                 && b.item.id == row.item.id
-                && !b.sig.same_file(&row.sig)
+                && (b.item.body != row.item.body || b.item.print != row.item.print)
             {
                 changes.changed_files.push(row.item.id.clone());
             }
