@@ -83,11 +83,11 @@ pub(super) fn load() -> Vec<Loaded> {
                 }
                 None => None,
             };
-            let elevated = manifest.elevated.clone().filter(|m| {
+            let script = manifest.script.clone().filter(|m| {
                 let ok = embedded(dir, m).is_some();
                 if !ok {
                     problems.push(error(format!(
-                        "elevated のファイル（{m}）が見つかりません（組み込みのプラグインは build.rs の UI_PLUGINS に書いたものだけビルドします）"
+                        "script のファイル（{m}）が見つかりません（組み込みのプラグインは build.rs の UI_PLUGINS に書いたものだけビルドします）"
                     )));
                 }
                 ok
@@ -98,7 +98,7 @@ pub(super) fn load() -> Vec<Loaded> {
                 builtin: true,
                 dir: None,
                 wasm,
-                elevated,
+                script,
                 settings,
                 problems,
                 source: None,

@@ -34,8 +34,8 @@ export function useHoverPreview() {
         return <PluginHover url={p.url} api={p.api} />
       }
     const src = it.src
-    if (f?.hover === 'video' && src) return () => <VideoHover src={src} fit={it.fit} clock={opts?.clock} />
-    if (f?.hover === 'audio' && src)
+    if (f?.media === 'video' && src) return () => <VideoHover src={src} fit={it.fit} clock={opts?.clock} />
+    if (f?.media === 'audio' && src)
       return () => <AudioHover src={src} wave={it.waveThumb ? it.thumb : undefined} fit={it.fit} clock={opts?.clock} />
     return undefined
   }

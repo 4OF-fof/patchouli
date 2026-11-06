@@ -3,10 +3,9 @@ wit_bindgen::generate!({
         package local:audio;
 
         world audio {
-            include patchouli:plugin/thumbnail-role@0.12.0;
-            include patchouli:plugin/view-role@0.12.0;
-            include patchouli:plugin/details-role@0.12.0;
-            include patchouli:plugin/content-role@0.12.0;
+            include patchouli:plugin/thumbnail-role@0.13.0;
+            include patchouli:plugin/details-role@0.13.0;
+            include patchouli:plugin/excerpt-role@0.13.0;
         }
     ",
     path: "../sdk/wit",
@@ -16,17 +15,15 @@ wit_bindgen::generate!({
 
 use exports::patchouli::plugin as role;
 use patchouli::plugin::commands;
-use patchouli::plugin::types::{
-    ContentBudget, ContentPart, Detail, File, ThumbnailImage, ViewKind,
-};
+use patchouli::plugin::types::{Detail, ExcerptBudget, ExcerptPart, File, ThumbnailImage};
 
 #[path = "../../shared/frame.rs"]
 mod frame;
 
 #[path = "../../shared/clock.rs"]
 mod clock;
-#[path = "../../shared/content.rs"]
-mod content;
+#[path = "../../shared/excerpt.rs"]
+mod excerpt;
 #[path = "../../shared/pcm.rs"]
 mod pcm;
 
@@ -43,16 +40,6 @@ impl role::thumbnail::Guest for Audio {
             _ => frame::frame(&f, 0.0, edge).ok(),
         };
         Ok(png.map(|png| ThumbnailImage { png, size: None }))
-    }
-}
-
-impl role::view::Guest for Audio {
-    fn view(_format: String, _f: File) -> Option<ViewKind> {
-        Some(ViewKind::Audio)
-    }
-
-    fn decode(_format: String, _f: File) -> Result<Vec<u8>, String> {
-        Err("decode には対応していません".into())
     }
 }
 
@@ -73,11 +60,11 @@ impl role::details::Guest for Audio {
     }
 }
 
-impl role::content::Guest for Audio {
-    fn content(format: String, f: File, budget: ContentBudget) -> Result<Vec<ContentPart>, String> {
+impl role::excerpt::Guest for Audio {
+    fn excerpt(format: String, f: File, budget: ExcerptBudget) -> Result<Vec<ExcerptPart>, String> {
         match pcm::audio(&format, &f, &budget) {
             Ok(parts) => Ok(parts),
-            Err(_) if commands::available("ffmpeg") => Ok(content::audio(&f, None, &budget)),
+            Err(_) if commands::available("ffmpeg") => Ok(excerpt::audio(&f, None, &budget)),
             Err(e) => Err(e),
         }
     }

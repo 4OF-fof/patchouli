@@ -6,10 +6,10 @@ use symphonia::core::formats::{FormatReader, SeekMode, SeekTo, TrackType};
 use symphonia::core::io::{MediaSource, MediaSourceStream};
 use symphonia::core::units::Time;
 
-use crate::content::{part, starts};
+use crate::excerpt::{part, starts};
 use crate::patchouli::plugin::host;
 use crate::patchouli::plugin::types::File;
-use crate::patchouli::plugin::types::{ContentBudget, ContentMedia, ContentPart};
+use crate::patchouli::plugin::types::{ExcerptBudget, ExcerptMedia, ExcerptPart};
 
 /// ホストの read で読む MediaSource。
 /// MP4 は映像と音声のパケットが交互に並び、パケットごとにシークされるので、
@@ -112,7 +112,7 @@ fn wav(mono: &[f32], rate: f64) -> Vec<u8> {
 
 /// max-audio-secs ごとの 16 kHz・モノラルの WAV。区間を全部読むときは頭から続けてデコードし、
 /// 間引くときは区間ごとに 1 回だけシークする（MP4 では、映像のパケットを読み飛ばすあいだにシークし直すと進まなくなる）。
-pub fn audio(ext: &str, f: &File, budget: &ContentBudget) -> Result<Vec<ContentPart>, String> {
+pub fn audio(ext: &str, f: &File, budget: &ExcerptBudget) -> Result<Vec<ExcerptPart>, String> {
     let mut format = reader(ext, f)?;
     let track = format
         .default_track(TrackType::Audio)
@@ -183,7 +183,7 @@ pub fn audio(ext: &str, f: &File, budget: &ContentBudget) -> Result<Vec<ContentP
             out.push(part(
                 picked[k],
                 picked[k] + len,
-                ContentMedia::Audio(wav(&mono, rate)),
+                ExcerptMedia::Audio(wav(&mono, rate)),
             ));
             mono = if seek { Vec::new() } else { rest };
             k += 1;
@@ -192,7 +192,7 @@ pub fn audio(ext: &str, f: &File, budget: &ContentBudget) -> Result<Vec<ContentP
     // 最後の区間は短くても、1 秒あれば読む
     if k < picked.len() && mono.len() as f64 >= rate {
         let end = picked[k] + mono.len() as f64 / rate;
-        out.push(part(picked[k], end, ContentMedia::Audio(wav(&mono, rate))));
+        out.push(part(picked[k], end, ExcerptMedia::Audio(wav(&mono, rate))));
     }
     Ok(out)
 }

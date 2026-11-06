@@ -2,25 +2,29 @@
 import rules from './rules.json' with { type: 'json' }
 
 /**
- * 形式ごとに受け持つもの。details はファイルの詳細に足す行、content は内容で探したり分けたりするときに読む区間。
- * waveform は音の波形、hover はカーソルを合わせたときにサムネイルの上に重ねる表示、
- * embed はノートに埋め込んだときの表示で、この 3 つは elevated だけが受け持てる。
- * link はファイルが指す URL（ショートカットなど）で、elevated だけが受け持てる。link を受け持つ形式のサムネイル・詳細の表示・
- * 埋め込み・ファイルの詳細は、ほかに受け持つものがなければ、URL に当てはまる links のプラグインか本体が受け持つ。
+ * 形式ごとに受け持つもの。
+ * - thumbnail: サムネイル
+ * - view: 詳細の表示。WASM は本体が読めない画像を PNG にし、スクリプトは描く
+ * - details: ファイルの詳細に足す行
+ * - excerpt: 内容で探したり分けたりするときに読む区間
+ * - hover: カーソルを合わせたときにサムネイルの上に重ねる表示
+ * - embed: ノートに埋め込んだときの表示
+ * - waveform: 音の波形
+ * - link: ファイルが指す URL（ショートカットなど）。link を受け持つ形式のサムネイル・詳細の表示・埋め込み・ファイルの詳細は、
+ *   ほかに受け持つものがなければ、URL に当てはまる links のプラグインか本体が受け持つ
+ *
+ * hover・embed・waveform・link は、スクリプトだけが受け持てる。
  */
-export type Part = 'thumbnail' | 'view' | 'waveform' | 'hover' | 'details' | 'embed' | 'content' | 'link'
+export type Part = 'thumbnail' | 'view' | 'details' | 'excerpt' | 'hover' | 'embed' | 'waveform' | 'link'
 
 /** links で受け持てるもの。 */
 export type LinkPart = 'thumbnail' | 'view' | 'embed' | 'details'
 
-/** カーソルを合わせたときに、本体がサムネイルの上で見せるもの。video は元のファイルを音を消して再生する。 */
-export type Hover = 'video' | 'audio'
-
 /**
- * ノートに埋め込んだときに、本体が見せるもの。view は詳細と同じ表示（画像・動画・音声）、card はサムネイルと名前のカード。
- * 詳細を elevated で描く形式は、view でも埋め込みには描かない。
+ * 本体がそのまま出す種類。詳細の表示に出し、カーソルを合わせたときは video を音を消して再生し、audio を鳴らす。
+ * ノートに埋め込んだときも、そのまま出す。parts の view・hover・embed があれば、そちらを使う。
  */
-export type Embed = 'view' | 'card'
+export type Media = 'image' | 'video' | 'audio'
 
 /** サムネイルを決まった形の枠に入れるときの収め方。center 真ん中を残して切り抜く / top 上の端を残して切り抜く / contain 切り抜かずに収める。 */
 export type Fit = 'center' | 'top' | 'contain'
@@ -55,31 +59,25 @@ export interface Deps {
   plugins?: Record<string, PluginDep>
 }
 
+/** 同じ扱いの拡張子のまとまり。 */
 export interface FormatDecl {
-  /** 引き継ぐ形式。自分で受け持たないものと、書いていない呼び名などはそちらのものを使う。 */
-  extends?: string
+  /** 拡張子。小文字にそろえて読む。 */
+  ext: string[]
   label?: string
   /** 縦横比（幅 / 高さ）の既定。サムネイルができるまで使う。 */
   ratio?: number
   /** サムネイルの枠への収め方。書かなければ center。 */
   fit?: Fit
-  /** カーソルを合わせたときに、本体が見せるもの。elevated の hover があれば、そちらを使う。 */
-  hover?: Hover
-  /** ノートに埋め込んだときに、本体が見せるもの。書かなければ view。elevated の embed があれば、そちらを使う。 */
-  embed?: Embed
+  media?: Media
+  /** 受け持つもの。 */
+  parts?: Part[]
   /**
-   * true にすると、権限を絞った WASM（plugin.wasm）が export する役割（thumbnail・view・details・content）を受け持つ。
-   * ファイルは本体が渡したものだけを読め、ネットワークは使えない。
+   * parts のうち、スクリプト（plugin.json の上の階層の script）で受け持つもの。ほかは WASM（plugin.wasm）が受け持つ。
+   * WASM は、ファイルは本体が渡したものだけを読め、ネットワークは使えない。
    * ただし commands で動かすコマンドは本体と同じ権限で動くので、どのファイルも読み書きでき、ネットワークも使える。
+   * スクリプトの中から api.sandbox() で、WASM の同じものを呼べる。
    */
-  sandbox?: boolean
-  /**
-   * 本体の画面と同じ WebView で動く TypeScript（plugin.json の elevated）で受け持つもの。
-   * sandbox と同じものを書いたときは、こちらを使う。中から api.sandbox() で sandbox の同じものを呼べる。
-   */
-  elevated?: Part[]
-  /** 詳細用に WASM が PNG にしたものを、取っておけるようにする。取っておくかは、本体が足す設定の項目で選ぶ。 */
-  keepDecoded?: boolean
+  script?: Part[]
 }
 
 /** URL ごとに受け持つもの。ネットワークを使うことが多いので、elevated だけが受け持てる。 */
@@ -136,11 +134,11 @@ export interface Manifest {
   /** あれば使うもの。 */
   optional?: Deps
   /**
-   * formats と links の elevated、screens、by が elevated の menu を受け持つ ES モジュール（plugin.json からの相対パス、.js）。中身は PluginModule。
-   * ビルドでは、拡張子を .ts にしたものから作る。
+   * formats の script、links、screens、by が elevated の menu を受け持つ ES モジュール（plugin.json からの相対パス、.js）。
+   * 中身は PluginModule で、本体の画面と同じ WebView で、本体と同じ権限で動く。ビルドでは、拡張子を .ts にしたものから作る。
    */
-  elevated?: string
-  formats?: Record<string, FormatDecl>
+  script?: string
+  formats?: FormatDecl[]
   /**
    * URL のホスト名 → 受け持つもの。ホスト名はサブドメインも含む（youtube.com は www.youtube.com にも当てはまる）。
    * 当てはまるものが複数あるときは、いちばん長いホスト名のものを使う。同じホスト名を複数のプラグインが書いたら、どれも使わない。
@@ -179,12 +177,13 @@ export function checkManifest(m: Manifest): { errors: string[]; warnings: string
   for (const h of m.fetch ?? [])
     if (!new RegExp(rules.fetchHost).test(h.replace(/\.+$/, '').toLowerCase()))
       errors.push(`fetch の「${h}」は使えません（「example.com」のように、ドメイン名まで書きます）`)
-  if (m.elevated !== undefined && !inside(m.elevated))
-    errors.push(`elevated のファイル（${m.elevated}）は、plugin.json のあるフォルダの中に置きます`)
-  for (const [ext, d] of Object.entries(m.formats ?? {})) {
-    if (ext !== ext.toLowerCase()) warnings.push(`formats の「${ext}」は、小文字にそろえて読みます`)
-    if (d.extends && d.extends !== d.extends.toLowerCase())
-      warnings.push(`「${ext}」の extends の「${d.extends}」は、小文字にそろえて読みます`)
+  if (m.script !== undefined && !inside(m.script))
+    errors.push(`script のファイル（${m.script}）は、plugin.json のあるフォルダの中に置きます`)
+  for (const d of m.formats ?? []) {
+    for (const ext of d.ext)
+      if (ext !== ext.toLowerCase()) warnings.push(`formats の「${ext}」は、小文字にそろえて読みます`)
+    for (const p of d.script ?? [])
+      if (!d.parts?.includes(p)) errors.push(`「.${d.ext.join('・.')}」の script の ${p} は、parts にも書きます`)
   }
   return { errors, warnings }
 }

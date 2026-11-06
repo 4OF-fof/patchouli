@@ -1,14 +1,14 @@
 //! PSD の合成画像をサムネイルと詳細に出し、解像度・色・ビット数・レイヤー数を詳細に足す。
-//! アプリは PSD を読めないので、詳細は view で decoded を返し、decode で PNG にする。
+//! アプリは PSD を読めないので、詳細は view の decode で PNG にする。
 
 wit_bindgen::generate!({
     inline: "
         package local:psd;
 
         world psd {
-            include patchouli:plugin/thumbnail-role@0.12.0;
-            include patchouli:plugin/view-role@0.12.0;
-            include patchouli:plugin/details-role@0.12.0;
+            include patchouli:plugin/thumbnail-role@0.13.0;
+            include patchouli:plugin/view-role@0.13.0;
+            include patchouli:plugin/details-role@0.13.0;
         }
     ",
     path: "../../app/plugins/sdk/wit",
@@ -19,7 +19,7 @@ wit_bindgen::generate!({
 mod psd;
 
 use exports::patchouli::plugin as role;
-use patchouli::plugin::types::{Detail, Dimensions, File, ThumbnailImage, ViewKind};
+use patchouli::plugin::types::{Detail, Dimensions, File, ThumbnailImage};
 
 struct Psd;
 
@@ -55,10 +55,6 @@ impl role::thumbnail::Guest for Psd {
 }
 
 impl role::view::Guest for Psd {
-    fn view(_format: String, _f: File) -> Option<ViewKind> {
-        Some(ViewKind::Decoded)
-    }
-
     fn decode(_format: String, f: File) -> Result<Vec<u8>, String> {
         let p = psd::read(&f)?;
         png(&psd::image(&f, &p, None)?)

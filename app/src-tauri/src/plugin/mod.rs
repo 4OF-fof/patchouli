@@ -19,7 +19,7 @@ use serde_json::Value;
 
 use record::{Record, Source, Stored};
 pub use runtime::{
-    Action, ContentBudget, ContentMedia, ContentPart, Env, ItemInfo, MenuRun, MenuShown, Ran,
+    Action, Env, ExcerptBudget, ExcerptMedia, ExcerptPart, ItemInfo, MenuRun, MenuShown, Ran,
     Runner, TargetFile, UiOwner, ViewOut, read, set_compiled_dir,
 };
 
@@ -49,29 +49,39 @@ pub enum Part {
     Details,
     Embed,
     Menu,
-    Content,
+    Excerpt,
     Link,
     #[serde(other)]
     Unknown,
 }
 
+impl Part {
+    /// WASM でも受け持てるもの。ほかはスクリプトだけが受け持つ。
+    fn wasm_role(self) -> Option<runtime::Role> {
+        match self {
+            Part::Thumbnail => Some(runtime::Role::Thumbnail),
+            Part::View => Some(runtime::Role::View),
+            Part::Details => Some(runtime::Role::Details),
+            Part::Excerpt => Some(runtime::Role::Excerpt),
+            _ => None,
+        }
+    }
+
+    fn name(self) -> String {
+        format!("{self:?}").to_lowercase()
+    }
+}
+
 /// link を受け持つ形式で、ほかに受け持つものがなければ、URL ごとに links のプラグインか本体が受け持つもの。
 const LINK_PARTS: [Part; 4] = [Part::Thumbnail, Part::View, Part::Embed, Part::Details];
 
+/// 本体がそのまま出す種類。詳細の表示と、カーソルを合わせたとき・埋め込みの出し方を決める。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
-pub enum Hover {
+pub enum Media {
+    Image,
     Video,
     Audio,
-    #[serde(other)]
-    Unknown,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Embed {
-    View,
-    Card,
     #[serde(other)]
     Unknown,
 }
@@ -96,21 +106,36 @@ pub enum By {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct FormatDecl {
-    pub extends: Option<String>,
+    /// 拡張子は小文字で探すので、読むときに小文字にそろえる。
+    #[serde(deserialize_with = "lowercase")]
+    pub ext: Vec<String>,
     pub label: Option<String>,
     pub ratio: Option<f64>,
     pub fit: Option<Fit>,
-    pub hover: Option<Hover>,
-    pub embed: Option<Embed>,
-    /// WASM の export にある役割を受け持たせる。
+    pub media: Option<Media>,
     #[serde(default)]
-    pub sandbox: bool,
+    pub parts: Vec<Part>,
+    /// parts のうちスクリプトが受け持つもの。ほかは WASM が受け持つ。
     #[serde(default)]
-    pub elevated: Vec<Part>,
-    #[serde(default)]
-    pub keep_decoded: bool,
+    pub script: Vec<Part>,
+}
+
+impl FormatDecl {
+    fn by(&self, part: Part) -> By {
+        if self.script.contains(&part) {
+            By::Elevated
+        } else {
+            By::Sandbox
+        }
+    }
+}
+
+fn lowercase<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    Ok(Vec::<String>::deserialize(d)?
+        .into_iter()
+        .map(|e| e.to_ascii_lowercase())
+        .collect())
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -263,29 +288,12 @@ pub fn host_matches(pattern: &str, host: &str) -> bool {
                 .is_some_and(|rest| rest.ends_with('.')))
 }
 
-pub fn keep_decoded_key(format: &str) -> String {
-    format!("@keepDecoded:{format}")
-}
-
-fn keep_decoded_settings(m: &Manifest) -> impl Iterator<Item = SettingDecl> + '_ {
-    m.formats
-        .iter()
-        .filter(|(_, d)| d.keep_decoded)
-        .map(|(f, _)| SettingDecl {
-            key: keep_decoded_key(f),
-            label: format!("「.{f}」の詳細表示用の画像を保存"),
-            help: Some("変換した画像をキャッシュに保存し、次回から速く表示します".into()),
-            kind: SettingKind::Toggle,
-            default: Value::Bool(false),
-        })
-}
-
 pub const WAVEFORM_LIMIT_KEY: &str = "@waveformLimit";
 
 fn waveform_settings(m: &Manifest) -> Option<SettingDecl> {
     m.formats
-        .values()
-        .any(|d| d.elevated.contains(&Part::Waveform))
+        .iter()
+        .any(|d| d.script.contains(&Part::Waveform))
         .then(|| SettingDecl {
             key: WAVEFORM_LIMIT_KEY.into(),
             label: "波形の作成時間の上限（秒）".into(),
@@ -311,9 +319,10 @@ pub struct Manifest {
     pub required: Deps,
     #[serde(default)]
     pub optional: Deps,
-    pub elevated: Option<String>,
-    #[serde(default, deserialize_with = "lowercase_formats")]
-    pub formats: BTreeMap<String, FormatDecl>,
+    /// 本体の画面と同じ WebView で動くスクリプト（ビルドしたあとの .js）。
+    pub script: Option<String>,
+    #[serde(default)]
+    pub formats: Vec<FormatDecl>,
     #[serde(default)]
     pub links: BTreeMap<String, LinkDecl>,
     #[serde(default)]
@@ -326,19 +335,6 @@ pub struct Manifest {
     pub permissions: Vec<String>,
     #[serde(default)]
     pub fetch: Vec<String>,
-}
-
-/// 拡張子は小文字で探すので、formats のキーと extends は読むときに小文字にそろえる。
-fn lowercase_formats<'de, D: serde::Deserializer<'de>>(
-    d: D,
-) -> Result<BTreeMap<String, FormatDecl>, D::Error> {
-    Ok(BTreeMap::<String, FormatDecl>::deserialize(d)?
-        .into_iter()
-        .map(|(ext, mut f)| {
-            f.extends = f.extends.map(|e| e.to_ascii_lowercase());
-            (ext.to_ascii_lowercase(), f)
-        })
-        .collect())
 }
 
 pub const MANIFEST: &str = "plugin.json";
@@ -363,34 +359,29 @@ impl Manifest {
     }
 
     fn wants_sandbox(&self) -> bool {
-        self.formats.values().any(|d| d.sandbox)
+        self.formats
+            .iter()
+            .any(|d| d.parts.iter().any(|&p| d.by(p) == By::Sandbox))
             || self.menu_by(By::Sandbox)
             || self.hooks.added.is_some()
     }
 
-    fn wants_elevated(&self) -> bool {
-        self.formats.values().any(|d| !d.elevated.is_empty())
+    fn wants_script(&self) -> bool {
+        self.formats.iter().any(|d| !d.script.is_empty())
             || self.links.values().any(|d| !d.elevated.is_empty())
             || !self.screens.is_empty()
             || self.menu_by(By::Elevated)
     }
 
-    /// sandbox の受け持つものは WASM の export で決まるので、wasm がなければ並べない。
-    fn caps(&self, wasm: Option<&runtime::Prepared>) -> Vec<Cap> {
-        let parts: Vec<Part> = wasm.map(|w| w.parts().collect()).unwrap_or_default();
+    fn caps(&self) -> Vec<Cap> {
         let mut out: Vec<Cap> = self
             .formats
-            .values()
+            .iter()
             .flat_map(|d| {
-                let own = if d.sandbox { parts.as_slice() } else { &[] };
-                let sandbox = own.iter().map(|&part| Cap {
+                d.parts.iter().map(|&part| Cap {
                     part,
-                    by: By::Sandbox,
-                });
-                sandbox.chain(d.elevated.iter().map(|&part| Cap {
-                    part,
-                    by: By::Elevated,
-                }))
+                    by: d.by(part),
+                })
             })
             .chain(self.links.values().flat_map(|d| {
                 d.elevated.iter().map(|&part| Cap {
@@ -504,7 +495,7 @@ struct Loaded {
     builtin: bool,
     dir: Option<PathBuf>,
     wasm: Option<Arc<runtime::Prepared>>,
-    elevated: Option<String>,
+    script: Option<String>,
     settings: Vec<SettingDecl>,
     problems: Vec<Problem>,
     source: Option<Source>,
@@ -550,16 +541,8 @@ struct Resolved {
     label: String,
     ratio: f64,
     fit: Fit,
-    hover: Option<Hover>,
-    embed: Option<Embed>,
-    /// 同じ part を sandbox と elevated の両方に書いたものは、両方を持つ。使うのは elevated。
-    parts: HashMap<(Part, By), Handler>,
-}
-
-#[derive(Debug, Clone)]
-struct Handler {
-    plugin: usize,
-    format: String,
+    media: Option<Media>,
+    parts: HashMap<Part, By>,
 }
 
 #[derive(Debug, Clone)]
@@ -623,11 +606,9 @@ pub struct FormatInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_waveform: Option<UiRef>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub hover: Option<Hover>,
+    pub media: Option<Media>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_hover: Option<UiRef>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub embed: Option<Embed>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_embed: Option<UiRef>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -669,8 +650,8 @@ pub struct PluginStatus {
     pub links: Vec<String>,
     pub screens: Vec<String>,
     pub permissions: Vec<String>,
-    /// elevated を持つか。持つものは本体と同じ権限で動く。
-    pub elevated: bool,
+    /// スクリプトを持つか。持つものは本体と同じ権限で動く。
+    pub script: bool,
     pub fetch: Vec<String>,
     pub settings: Vec<SettingStatus>,
     pub problems: Vec<Problem>,
@@ -864,7 +845,7 @@ impl Registry {
                     links: Vec::new(),
                     screens: Vec::new(),
                     permissions: Vec::new(),
-                    elevated: false,
+                    script: false,
                     fetch: Vec::new(),
                     settings: Vec::new(),
                     problems: vec![error(if at.exists() {
@@ -915,10 +896,34 @@ impl Registry {
     }
 
     fn resolve(&mut self) {
+        let mut problems: Vec<(usize, Problem)> = Vec::new();
         let mut claims: BTreeMap<String, Vec<usize>> = BTreeMap::new();
-        for (i, p) in self.plugins.iter().enumerate().filter(|(_, p)| !p.blocked) {
-            for ext in p.manifest.formats.keys() {
-                claims.entry(ext.clone()).or_default().push(i);
+        // プラグインごとの、拡張子 → formats の何番目か
+        let mut own: Vec<HashMap<String, usize>> = vec![HashMap::new(); self.plugins.len()];
+        let mut parts_of: Vec<Vec<HashMap<Part, By>>> = Vec::new();
+        for (i, p) in self.plugins.iter().enumerate() {
+            let mut out = Vec::new();
+            for d in &p.manifest.formats {
+                let mut bad = Vec::new();
+                out.push(format_parts(p, d, &mut bad));
+                problems.extend(bad.into_iter().map(|x| (i, x)));
+            }
+            parts_of.push(out);
+            if p.blocked {
+                continue;
+            }
+            for (k, d) in p.manifest.formats.iter().enumerate() {
+                for ext in &d.ext {
+                    if own[i].contains_key(ext) {
+                        problems.push((
+                            i,
+                            error(format!("「.{ext}」を formats に 2 回書いています")),
+                        ));
+                        continue;
+                    }
+                    own[i].insert(ext.clone(), k);
+                    claims.entry(ext.clone()).or_default().push(i);
+                }
             }
         }
         let mut claim: HashMap<String, usize> = HashMap::new();
@@ -976,102 +981,34 @@ impl Registry {
         self.resolve_links();
 
         let mut formats = HashMap::new();
-        let mut problems: Vec<(usize, Problem)> = Vec::new();
         for (ext, &owner) in &claim {
-            let mut label = None;
-            let mut ratio = None;
-            let mut fit = None;
-            let mut hover = None;
-            let mut embed = None;
-            let mut parts = HashMap::new();
-            let mut seen = HashSet::new();
-            let (mut at, mut fmt) = (owner, ext.clone());
-            loop {
-                if !seen.insert(fmt.clone()) {
-                    problems.push((
-                        owner,
-                        error(format!("「.{ext}」の形式定義（extends）が循環しています")),
-                    ));
-                    break;
-                }
-                let decl = &self.plugins[at].manifest.formats[&fmt];
-                label = label.or_else(|| decl.label.clone());
-                ratio = ratio.or(decl.ratio);
-                fit = fit.or(decl.fit.filter(|&f| f != Fit::Unknown));
-                hover = hover.or(decl.hover.filter(|&h| h != Hover::Unknown));
-                embed = embed.or(decl.embed.filter(|&e| e != Embed::Unknown));
-                let own: Vec<(Part, By)> = match &self.plugins[at].wasm {
-                    Some(w) if decl.sandbox => w.parts().map(|p| (p, By::Sandbox)).collect(),
-                    _ => Vec::new(),
-                };
-                for (part, by) in own
-                    .into_iter()
-                    .chain(decl.elevated.iter().map(|&p| (p, By::Elevated)))
-                {
-                    if part == Part::Unknown {
-                        continue;
-                    }
-                    if part == Part::Menu {
-                        problems.push((
-                            at,
-                            error(format!(
-                                "「.{fmt}」の menu は使っていません。右クリックメニューは plugin.json の menu に書きます"
-                            )),
-                        ));
-                        continue;
-                    }
-                    parts.entry((part, by)).or_insert_with(|| Handler {
-                        plugin: at,
-                        format: fmt.clone(),
-                    });
-                }
-                let Some(base) = &decl.extends else { break };
-                let Some(&next) = claim.get(base) else {
-                    problems.push((
-                        at,
-                        error(format!(
-                            "「.{fmt}」が引き継ぐ「.{base}」に対応するプラグインがありません"
-                        )),
-                    ));
-                    break;
-                };
-                (at, fmt) = (next, base.clone());
-            }
-            parts.retain(|&(_, by), h| match by {
-                By::Sandbox => self.plugins[h.plugin].wasm.is_some(),
-                By::Elevated => self.plugins[h.plugin].elevated.is_some(),
-                By::Unknown => false,
-            });
+            let k = own[owner][ext];
+            let d = &self.plugins[owner].manifest.formats[k];
             formats.insert(
                 ext.clone(),
                 Resolved {
                     owner,
-                    label: label.unwrap_or_else(|| ext.to_uppercase()),
-                    ratio: ratio.unwrap_or(DEFAULT_RATIO),
-                    fit: fit.unwrap_or(Fit::Center),
-                    hover,
-                    embed,
-                    parts,
+                    label: d.label.clone().unwrap_or_else(|| ext.to_uppercase()),
+                    ratio: d.ratio.unwrap_or(DEFAULT_RATIO),
+                    fit: d.fit.filter(|&f| f != Fit::Unknown).unwrap_or(Fit::Center),
+                    media: d.media.filter(|&m| m != Media::Unknown),
+                    parts: parts_of[owner][k].clone(),
                 },
             );
         }
         for (i, p) in self.plugins.iter_mut().enumerate() {
             if p.manifest.wants_sandbox() && p.wasm.is_none() && p.problems.is_empty() {
                 p.problems.push(error(
-                    "plugin.wasm が見つからないため、サムネイルと詳細表示を処理できません".into(),
+                    "plugin.wasm が見つからないため、WASM で受け持つものを処理できません".into(),
                 ));
             }
-            if let Some(w) = &p.wasm {
-                if p.manifest.formats.values().any(|d| d.sandbox) && w.parts().next().is_none() {
-                    p.problems.push(error(
-                        "formats で sandbox を true にしていますが、plugin.wasm はサムネイル・詳細表示・詳細の記述・内容のどれも export していません".into(),
-                    ));
-                }
-                if p.manifest.menu_by(By::Sandbox) && !w.has(runtime::Role::Menu) {
-                    p.problems.push(error(
-                        "menu の by が sandbox ですが、plugin.wasm は menu と run-menu を export していません".into(),
-                    ));
-                }
+            if let Some(w) = &p.wasm
+                && p.manifest.menu_by(By::Sandbox)
+                && !w.has(runtime::Role::Menu)
+            {
+                p.problems.push(error(
+                    "menu の by が sandbox ですが、plugin.wasm は menu と run-menu を export していません".into(),
+                ));
             }
             p.problems.extend(misspelled(&p.manifest));
             if let Some(MenuDecl {
@@ -1122,9 +1059,9 @@ impl Registry {
                     "fetch の「{h}」は使えません（「example.com」のように、ドメイン名まで書きます）"
                 )));
             }
-            if p.manifest.wants_elevated() && p.elevated.is_none() && p.problems.is_empty() {
+            if p.manifest.wants_script() && p.script.is_none() && p.problems.is_empty() {
                 p.problems.push(error(
-                    "plugin.json の elevated のファイルが見つからないため、elevated の処理を使えません"
+                    "plugin.json の script のファイルが見つからないため、スクリプトで受け持つものを処理できません"
                         .into(),
                 ));
             }
@@ -1171,7 +1108,7 @@ impl Registry {
                 }
                 let p = &mut self.plugins[only];
                 p.problems.extend(bad);
-                if p.elevated.is_some() {
+                if p.script.is_some() {
                     links.insert(
                         host,
                         LinkResolved {
@@ -1215,7 +1152,7 @@ impl Registry {
                     host: host.clone(),
                     ui: UiRef {
                         plugin: p.manifest.id.clone(),
-                        module: p.elevated.clone()?,
+                        module: p.script.clone()?,
                     },
                     parts: l.parts.clone(),
                 })
@@ -1229,7 +1166,7 @@ impl Registry {
         self.plugins
             .iter()
             .filter(|p| !p.blocked)
-            .filter_map(|p| Some((p, p.elevated.clone()?)))
+            .filter_map(|p| Some((p, p.script.clone()?)))
             .flat_map(|(p, module)| {
                 p.manifest
                     .screens
@@ -1271,7 +1208,7 @@ impl Registry {
                     }
                     By::Elevated => Some(UiRef {
                         plugin: p.manifest.id.clone(),
-                        module: p.elevated.clone()?,
+                        module: p.script.clone()?,
                     }),
                     By::Unknown => return None,
                 };
@@ -1357,14 +1294,11 @@ impl Registry {
 
     pub fn handles(&self, ext: &str, part: Part) -> Option<By> {
         let parts = &self.formats.get(ext)?.parts;
-        [By::Elevated, By::Sandbox]
-            .into_iter()
-            .find(|&by| parts.contains_key(&(part, by)))
-            .or_else(|| {
-                let linked =
-                    LINK_PARTS.contains(&part) && parts.contains_key(&(Part::Link, By::Elevated));
-                linked.then_some(By::Elevated)
-            })
+        parts.get(&part).copied().or_else(|| {
+            let linked =
+                LINK_PARTS.contains(&part) && parts.get(&Part::Link) == Some(&By::Elevated);
+            linked.then_some(By::Elevated)
+        })
     }
 
     /// URL ごとに受け持つもの（links のプラグインか本体）に回すか。
@@ -1380,10 +1314,18 @@ impl Registry {
         self.slot(ext, part, by)
     }
 
-    /// elevated があっても、sandbox の担当を返す。elevated の中から sandbox を呼ぶときに使う。
+    /// スクリプトが受け持つものでも、WASM が export していれば WASM の担当を返す。スクリプトの中から WASM を呼ぶときに使う。
     fn slot(&self, ext: &str, part: Part, by: By) -> Option<(usize, &str)> {
-        let h = self.formats.get(ext)?.parts.get(&(part, by))?;
-        Some((h.plugin, h.format.as_str()))
+        let (key, f) = self.formats.get_key_value(ext)?;
+        let ok = match by {
+            By::Elevated => f.parts.get(&part) == Some(&By::Elevated),
+            By::Sandbox => part
+                .wasm_role()
+                .zip(self.plugins[f.owner].wasm.as_ref())
+                .is_some_and(|(r, w)| w.has(r)),
+            By::Unknown => false,
+        };
+        ok.then_some((f.owner, key.as_str()))
     }
 
     pub fn ratio_of(&self, ext: &str) -> f64 {
@@ -1405,10 +1347,10 @@ impl Registry {
             .unwrap_or(Value::Null)
     }
 
+    /// WASM が詳細用に PNG にしたものを取っておくときの、プラグインの ID と形式。
     pub fn keeps_decoded(&self, ext: &str) -> Option<(&str, &str)> {
         let (i, format) = self.part(ext, Part::View, By::Sandbox)?;
-        let on = self.setting(i, &keep_decoded_key(format)) == Some(Value::Bool(true));
-        on.then(|| (self.plugins[i].manifest.id.as_str(), format))
+        Some((self.plugins[i].manifest.id.as_str(), format))
     }
 
     pub fn ui_of(&self, ext: &str, part: Part) -> Option<UiRef> {
@@ -1416,24 +1358,33 @@ impl Registry {
         let p = &self.plugins[i];
         Some(UiRef {
             plugin: p.manifest.id.clone(),
-            module: p.elevated.clone()?,
+            module: p.script.clone()?,
         })
     }
 
-    /// content を作るプラグインの ID と版。elevated が呼べる sandbox のものも並べる。版が変われば区間を作り直す。
-    pub fn content_owner(&self, ext: &str) -> Option<String> {
-        let by = self.handles(ext, Part::Content)?;
-        let mut out = Vec::new();
-        for b in [by, By::Sandbox] {
-            if let Some((i, _)) = self.slot(ext, Part::Content, b) {
-                let m = &self.plugins[i].manifest;
-                let s = format!("{}@{}", m.id, m.version);
-                if !out.contains(&s) {
-                    out.push(s);
-                }
-            }
+    /// 詳細に出すもの。parts の view があれば、media より先に使う。
+    pub fn view(&self, ext: &str) -> Option<ViewOut> {
+        if self.by_link(ext, Part::View) {
+            return self.link_of(ext).map(ViewOut::Link);
         }
-        Some(out.join(","))
+        match self.handles(ext, Part::View) {
+            Some(By::Elevated) => return self.ui_of(ext, Part::View).map(ViewOut::Ui),
+            Some(By::Sandbox) => return Some(ViewOut::Decoded),
+            _ => {}
+        }
+        Some(match self.formats.get(ext)?.media? {
+            Media::Image => ViewOut::Image,
+            Media::Video => ViewOut::Video,
+            Media::Audio => ViewOut::Audio,
+            Media::Unknown => return None,
+        })
+    }
+
+    /// excerpt を作るプラグインの ID と版。版が変われば区間を作り直す。
+    pub fn excerpt_owner(&self, ext: &str) -> Option<String> {
+        self.handles(ext, Part::Excerpt)?;
+        let m = &self.plugins[self.formats.get(ext)?.owner].manifest;
+        Some(format!("{}@{}", m.id, m.version))
     }
 
     pub fn file(&self, id: &str, rel: &str) -> Option<Vec<u8>> {
@@ -1539,9 +1490,8 @@ impl Registry {
                 thumbnail: self.handles(ext, Part::Thumbnail).is_some(),
                 ui_thumbnail: self.ui_of(ext, Part::Thumbnail),
                 ui_waveform: self.ui_of(ext, Part::Waveform),
-                hover: f.hover,
+                media: f.media,
                 ui_hover: self.ui_of(ext, Part::Hover),
-                embed: f.embed,
                 ui_embed: self.ui_of(ext, Part::Embed),
                 ui_link: self.link_of(ext),
             })
@@ -1659,7 +1609,7 @@ impl Registry {
                     }
                 }
                 // elevated は依存先の関数を呼べるので、依存先が動かせるコマンドも見せる
-                let via = if m.wants_elevated() {
+                let via = if m.wants_script() {
                     self.reachable(i)
                         .into_iter()
                         .flat_map(|(q, required)| {
@@ -1688,7 +1638,7 @@ impl Registry {
                     });
                 }
                 let mut formats: Vec<String> = if p.blocked {
-                    m.formats.keys().cloned().collect()
+                    m.formats.iter().flat_map(|d| d.ext.iter().cloned()).collect()
                 } else {
                     self.formats
                         .iter()
@@ -1734,12 +1684,12 @@ impl Registry {
                     required: m.required.clone(),
                     optional: m.optional.clone(),
                     via,
-                    caps: m.caps(p.wasm.as_deref()),
+                    caps: m.caps(),
                     formats,
                     links,
                     screens,
                     permissions: permissions_of(m),
-                    elevated: m.wants_elevated(),
+                    script: m.wants_script(),
                     fetch: fetch_of(m),
                     settings,
                     problems,
@@ -1780,10 +1730,10 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
     } else {
         None
     };
-    let elevated = manifest.elevated.clone().filter(|m| {
+    let script = manifest.script.clone().filter(|m| {
         let ok = inside(m) && dir.join(m).is_file();
         if !ok {
-            problems.push(error(format!("elevated のファイル（{m}）が見つかりません")));
+            problems.push(error(format!("script のファイル（{m}）が見つかりません")));
         }
         ok
     });
@@ -1793,7 +1743,7 @@ fn load_external(manifest: Manifest, dir: PathBuf, entry: &record::Entry) -> Loa
         builtin: false,
         dir: Some(dir),
         wasm,
-        elevated,
+        script,
         settings,
         problems,
         source: entry.source.clone(),
@@ -1884,12 +1834,16 @@ fn idle(
         required: m.required.clone(),
         optional: m.optional.clone(),
         via: Vec::new(),
-        caps: m.caps(None),
-        formats: m.formats.keys().cloned().collect(),
+        caps: m.caps(),
+        formats: m
+            .formats
+            .iter()
+            .flat_map(|d| d.ext.iter().cloned())
+            .collect(),
         links: m.links.keys().map(|h| host_key(h)).collect(),
         screens: screen_labels(m),
         permissions: permissions_of(m),
-        elevated: m.wants_elevated(),
+        script: m.wants_script(),
         fetch: fetch_of(m),
         settings: Vec::new(),
         problems,
@@ -1900,25 +1854,21 @@ fn idle(
 /// 書けない値を書いたところ。読み込みでは捨てて続けるので、ここで知らせる。
 fn misspelled(m: &Manifest) -> Vec<Problem> {
     let mut out = Vec::new();
-    for (ext, d) in &m.formats {
+    for d in &m.formats {
+        let ext = d.ext.join("・.");
         if d.fit == Some(Fit::Unknown) {
             out.push(error(format!(
                 "「.{ext}」の fit には center・top・contain のどれかを書きます"
             )));
         }
-        if d.hover == Some(Hover::Unknown) {
+        if d.media == Some(Media::Unknown) {
             out.push(error(format!(
-                "「.{ext}」の hover には video・audio のどちらかを書きます"
+                "「.{ext}」の media には image・video・audio のどれかを書きます"
             )));
         }
-        if d.embed == Some(Embed::Unknown) {
+        if d.parts.contains(&Part::Unknown) || d.script.contains(&Part::Unknown) {
             out.push(error(format!(
-                "「.{ext}」の embed には view・card のどちらかを書きます"
-            )));
-        }
-        if d.elevated.contains(&Part::Unknown) {
-            out.push(error(format!(
-                "「.{ext}」の elevated に、受け持てないものが書かれています"
+                "「.{ext}」の parts か script に、受け持てないものが書かれています"
             )));
         }
     }
@@ -1982,7 +1932,55 @@ fn settings_of(
             Vec::new()
         }
     };
-    list.extend(keep_decoded_settings(m));
     list.extend(waveform_settings(m));
     list
+}
+
+/// 形式 d の parts ごとの担当。受け持てないものは、問題に足して外す。
+fn format_parts(p: &Loaded, d: &FormatDecl, problems: &mut Vec<Problem>) -> HashMap<Part, By> {
+    let ext = d.ext.join("・.");
+    for &part in d.script.iter().filter(|&x| !d.parts.contains(x)) {
+        problems.push(error(format!(
+            "「.{ext}」の script の {} は、parts にも書きます",
+            part.name()
+        )));
+    }
+    let mut out = HashMap::new();
+    for &part in &d.parts {
+        if part == Part::Unknown {
+            continue;
+        }
+        if part == Part::Menu {
+            problems.push(error(format!(
+                "「.{ext}」の parts に menu は書けません。右クリックメニューは plugin.json の menu に書きます"
+            )));
+            continue;
+        }
+        let by = d.by(part);
+        let ok = match by {
+            By::Elevated => p.script.is_some(),
+            By::Sandbox => match (part.wasm_role(), &p.wasm) {
+                (None, _) => {
+                    problems.push(error(format!(
+                        "「.{ext}」の {} はスクリプトでしか受け持てないため、script にも書きます",
+                        part.name()
+                    )));
+                    false
+                }
+                (Some(r), Some(w)) if !w.has(r) => {
+                    problems.push(error(format!(
+                        "「.{ext}」の {} を受け持つ関数を、plugin.wasm が export していません",
+                        part.name()
+                    )));
+                    false
+                }
+                (Some(_), w) => w.is_some(),
+            },
+            By::Unknown => false,
+        };
+        if ok {
+            out.insert(part, by);
+        }
+    }
+    out
 }

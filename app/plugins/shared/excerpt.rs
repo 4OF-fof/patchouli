@@ -1,7 +1,7 @@
 use crate::patchouli::plugin::commands::{self, CommandArg};
 use crate::patchouli::plugin::host;
 use crate::patchouli::plugin::types::File;
-use crate::patchouli::plugin::types::{ContentBudget, ContentMedia, ContentPart};
+use crate::patchouli::plugin::types::{ExcerptBudget, ExcerptMedia, ExcerptPart};
 
 /// 1 回の FFmpeg の待ち時間。
 const TIMEOUT: u32 = 60_000;
@@ -19,8 +19,8 @@ pub fn starts(secs: f64, len: f64, max: u32) -> Vec<f64> {
     picked.into_iter().map(|i| i as f64 * len).collect()
 }
 
-pub fn part(start: f64, end: f64, media: ContentMedia) -> ContentPart {
-    ContentPart {
+pub fn part(start: f64, end: f64, media: ExcerptMedia) -> ExcerptPart {
+    ExcerptPart {
         start: Some(start),
         end: Some(end),
         media,
@@ -54,7 +54,7 @@ pub fn ffmpeg(f: &File, start: f64, len: f64, out: &[&str]) -> Result<Vec<u8>, S
 
 /// FFmpeg で切り出す max-audio-secs ごとの 16 kHz・モノラルの WAV。symphonia で読めない形式に使う。
 /// 長さがわからなければ、頭から空になるまで読む。
-pub fn audio(f: &File, secs: Option<f64>, budget: &ContentBudget) -> Vec<ContentPart> {
+pub fn audio(f: &File, secs: Option<f64>, budget: &ExcerptBudget) -> Vec<ExcerptPart> {
     let len = budget.max_audio_secs.max(1.0);
     let limit = secs.unwrap_or(len * f64::from(budget.max_audio_parts));
     let mut out = Vec::new();
@@ -67,7 +67,7 @@ pub fn audio(f: &File, secs: Option<f64>, budget: &ContentBudget) -> Vec<Content
         );
         match wav {
             Ok(w) if w.len() > 44 => {
-                out.push(part(s, (s + len).min(limit), ContentMedia::Audio(w)));
+                out.push(part(s, (s + len).min(limit), ExcerptMedia::Audio(w)));
             }
             Ok(_) => break,
             Err(e) => {

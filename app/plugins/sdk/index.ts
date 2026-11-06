@@ -1,9 +1,9 @@
 /*
- * プラグインを作るための型と補助。plugin.json の形と、elevated に渡す窓口を決める。
+ * プラグインを作るための型と補助。plugin.json の形と、スクリプトに渡す窓口を決める。
  * 正本は app/plugins/sdk/。plugin-template/patchouli/ は scripts/plugin-template.ts が写したもの。
- * elevated からは `@patchouli/plugin` として読む（ビルドでは cli.ts が、型の確認では tsconfig の paths がここを指す）。
+ * スクリプトからは `@patchouli/plugin` として読む（ビルドでは cli.ts が、型の確認では tsconfig の paths がここを指す）。
  *
- * elevated は本体の画面と同じ文書で描くので、本体の CSS 変数（--ink・--card・--accent・--space-* など）を使える。
+ * スクリプトは本体の画面と同じ文書で描くので、本体の CSS 変数（--ink・--card・--accent・--space-* など）を使える。
  * mount・embed・screens で描く場所の中では、素の要素が本体の部品と同じに見える。
  * - button・input・select・textarea などに、本体と同じ見た目が付く（プラグインの CSS で上書きできる）
  * - select は、押すと本体と同じ一覧を出す。選んだあとは素の select と同じく value が変わり、input と change が届く
@@ -59,7 +59,7 @@ export interface OwnApi<T extends PluginTypes = PluginTypes> {
   setData(key: string, value?: string): Promise<void>
 }
 
-/** elevated に渡す、素材 1 つの窓口。 */
+/** スクリプトに渡す、素材 1 つの窓口。 */
 export interface Api<T extends PluginTypes = PluginTypes> extends Caller<MethodsOf<T>>, OwnApi<T> {
   item: Item
   /** 中身を offset から最大 length バイト読む（一度に 16 MB まで）。終わりに近ければ短くなる。 */
@@ -74,7 +74,7 @@ export interface Api<T extends PluginTypes = PluginTypes> extends Caller<Methods
 /** サムネイルを作るときの窓口。edge は長いほうの辺の上限（px）。 */
 export interface ThumbnailApi<T extends PluginTypes = PluginTypes> extends Api<T> {
   edge: number
-  /** sandbox の thumbnail を呼ぶ。この形式の sandbox に thumbnail を書いていなければ失敗する。 */
+  /** WASM の thumbnail を呼ぶ。plugin.wasm が thumbnail を export していなければ失敗する。 */
   sandbox(): Promise<Thumbnail | null>
 }
 
@@ -86,7 +86,7 @@ export interface Detail {
 
 /** ファイルの詳細を作るときの窓口。 */
 export interface DetailsApi<T extends PluginTypes = PluginTypes> extends Api<T> {
-  /** sandbox の details を呼ぶ。この形式の sandbox に details を書いていなければ失敗する。 */
+  /** WASM の details を呼ぶ。plugin.wasm が details を export していなければ失敗する。 */
   sandbox(): Promise<Detail[]>
 }
 
@@ -145,8 +145,8 @@ export interface WaveformApi<T extends PluginTypes = PluginTypes> extends Api<T>
   signal: AbortSignal
 }
 
-/** 内容で探したり分けたりするときに読む区間の上限。WIT の content-budget と同じ。 */
-export interface ContentBudget {
+/** 内容で探したり分けたりするときに読む区間の上限。WIT の excerpt-budget と同じ。 */
+export interface ExcerptBudget {
   /** 画像の区間の数。 */
   maxImageParts: number
   /** 音声の区間の数。 */
@@ -164,7 +164,7 @@ export interface ContentBudget {
 type Bytes = Blob | ArrayBuffer | Uint8Array
 
 /** 本体が読む区間。images（PNG か JPEG）・audio（WAV）・text のどれか 1 つ。start と end は秒で、素材全体なら書かない。 */
-export interface ContentPart {
+export interface ExcerptPart {
   start?: number
   end?: number
   images?: Bytes[]
@@ -172,7 +172,7 @@ export interface ContentPart {
   text?: string
 }
 
-/** sandbox が作った区間。中身は本体が持っていて、ここには位置と種類だけが来る。 */
+/** WASM が作った区間。中身は本体が持っていて、ここには位置と種類だけが来る。 */
 export interface SandboxPart {
   start?: number
   end?: number
@@ -180,12 +180,12 @@ export interface SandboxPart {
 }
 
 /** 区間を作るときの窓口。signal は、時間の上限を過ぎたときや作り直しをやめたときに中止になる。 */
-export interface ContentApi<T extends PluginTypes = PluginTypes> extends Api<T> {
-  budget: ContentBudget
+export interface ExcerptApi<T extends PluginTypes = PluginTypes> extends Api<T> {
+  budget: ExcerptBudget
   signal: AbortSignal
   /**
-   * sandbox の content を呼ぶ。返した区間は、content が返す区間に本体が足す（content で返し直さない）。
-   * この形式の sandbox に content を書いていなければ失敗する。
+   * WASM の excerpt を呼ぶ。返した区間は、excerpt が返す区間に本体が足す（excerpt で返し直さない）。
+   * plugin.wasm が excerpt を export していなければ失敗する。
    */
   sandbox(): Promise<SandboxPart[]>
 }
@@ -209,8 +209,8 @@ export interface Fetched {
 /**
  * URL 1 つの窓口。fetch は本体が代わりに取りに行くので、CORS に縛られない。
  * 取りに行けるのは、plugin.json の fetch に書いたホスト名だけ（一度に 16 MB まで）。
- * elevated は本体と同じ権限で動くので、この制限は api.fetch を使うときの約束にすぎない。
- * 権限を絞れるのは sandbox だけで、plugin.json の permissions も sandbox にだけ効く。
+ * スクリプトは本体と同じ権限で動くので、この制限は api.fetch を使うときの約束にすぎない。
+ * 権限を絞れるのは WASM だけで、plugin.json の permissions も WASM にだけ効く。
  */
 export interface LinkApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
   url: string
@@ -302,7 +302,7 @@ export interface ScreenModule<T extends PluginTypes = PluginTypes> {
   mount(el: HTMLElement, api: ScreenApi<T>): void | (() => void)
 }
 
-/** elevated の ES モジュールが default で書き出すもの。受け持つもの（plugin.json の formats の elevated）の分だけあればよい。 */
+/** スクリプトの ES モジュールが default で書き出すもの。受け持つもの（plugin.json の formats の script など）の分だけあればよい。 */
 export interface PluginModule<T extends PluginTypes = PluginTypes> {
   /** 詳細の表示。el の中に描く。返した関数は、閉じるときに呼ぶ。 */
   mount?(el: HTMLElement, api: Api<T>): void | (() => void)
@@ -332,7 +332,7 @@ export interface PluginModule<T extends PluginTypes = PluginTypes> {
   /** menu で返した項目が選ばれたとき。文字列を返すと、本体が通知として出す。 */
   runMenu?(api: RunMenuApi<T>): Promise<MenuOutput | undefined | void>
   /** 内容で探したり分けたりするときに読む区間。区間の分け方はプラグインが決め、budget を超えない。 */
-  content?(api: ContentApi<T>): Promise<ContentPart[]>
+  excerpt?(api: ExcerptApi<T>): Promise<ExcerptPart[]>
   /** ファイルが指す URL。指していなければ undefined。 */
   link?(api: Api<T>): Promise<string | undefined>
   /** plugin.json の links で受け持つもの。 */
@@ -342,7 +342,7 @@ export interface PluginModule<T extends PluginTypes = PluginTypes> {
 }
 
 /**
- * elevated を決める。`export default definePlugin<{ methods: …; settings: … }>({ mount, thumbnail })` のように書く。
+ * スクリプトを決める。`export default definePlugin<{ methods: …; settings: … }>({ mount, thumbnail })` のように書く。
  * 中身はそのまま返すだけで、型を付けるためのもの。
  */
 export const definePlugin = <T extends PluginTypes = PluginTypes>(mod: PluginModule<T>): PluginModule<T> => mod

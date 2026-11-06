@@ -27,10 +27,10 @@ wasmtime::component::bindgen!({ world: "full", path: "../plugins/sdk/wit" });
 
 use patchouli::plugin::commands::{CommandArg, CommandOutput};
 use patchouli::plugin::types::{self, File, MenuOutput, Read as ReadProof, Run as RunProof};
-pub use patchouli::plugin::types::{ContentBudget, ContentMedia, ContentPart};
+pub use patchouli::plugin::types::{ExcerptBudget, ExcerptMedia, ExcerptPart};
 
 /// plugin.wit の package の版と合わせる。
-const WIT_VERSION: (u64, u64, u64) = (0, 12, 0);
+const WIT_VERSION: (u64, u64, u64) = (0, 13, 0);
 
 pub const READ_MAX: u32 = 16 << 20;
 
@@ -78,7 +78,7 @@ const HOOK_LIMIT: Budget = Budget {
 /// 1 つの Store に入れてよいインスタンス・テーブル・メモリの数。Store にはプラグインをいくつも入れる。
 const STORE_ITEMS: usize = 1000;
 
-/// WASM が返すバイト列（サムネイル・decode・content・call）の上限。
+/// WASM が返すバイト列（サムネイル・decode・excerpt・call）の上限。
 const OUTPUT_MAX: usize = 256 << 20;
 
 const TICK: Duration = Duration::from_millis(100);
@@ -820,7 +820,7 @@ pub enum Role {
     Thumbnail,
     View,
     Details,
-    Content,
+    Excerpt,
     Menu,
     Hook,
     Settings,
@@ -830,27 +830,14 @@ pub enum Role {
 /// 役割ごとに export する interface と、その中の関数。
 const ROLES: [(Role, &str, &[&str]); 8] = [
     (Role::Thumbnail, "thumbnail", &["thumbnail"]),
-    (Role::View, "view", &["view", "decode"]),
+    (Role::View, "view", &["decode"]),
     (Role::Details, "details", &["details"]),
-    (Role::Content, "content", &["content"]),
+    (Role::Excerpt, "excerpt", &["excerpt"]),
     (Role::Menu, "menu", &["menu", "run-menu"]),
     (Role::Hook, "hook", &["added"]),
     (Role::Settings, "settings", &["settings"]),
     (Role::Call, "call", &["call"]),
 ];
-
-impl Role {
-    /// plugin.json の formats で sandbox を true にした形式に受け持たせるもの。
-    pub fn part(self) -> Option<Part> {
-        match self {
-            Role::Thumbnail => Some(Part::Thumbnail),
-            Role::View => Some(Part::View),
-            Role::Details => Some(Part::Details),
-            Role::Content => Some(Part::Content),
-            Role::Menu | Role::Hook | Role::Settings | Role::Call => None,
-        }
-    }
-}
 
 /// 関数の名前ごとの、export の場所。
 type Funcs = HashMap<&'static str, ComponentExportIndex>;
@@ -995,11 +982,6 @@ impl Prepared {
         self.roles.contains(&role)
     }
 
-    /// formats で sandbox を true にした形式に受け持たせるもの。
-    pub fn parts(&self) -> impl Iterator<Item = Part> + '_ {
-        self.roles.iter().filter_map(|r| r.part())
-    }
-
     fn instantiate(&self, store: &mut Store<HostState>) -> wasmtime::Result<Plugin> {
         let inst = self.pre.instantiate(store)?;
         Ok(Plugin {
@@ -1056,18 +1038,6 @@ impl Plugin {
         }))
     }
 
-    fn call_view(
-        &self,
-        s: &mut Store<HostState>,
-        fmt: &str,
-        f: &File,
-    ) -> wasmtime::Result<Option<types::ViewKind>> {
-        let (r,) = self
-            .func::<(&str, &File), _>(s, "view")?
-            .call(&mut *s, (fmt, f))?;
-        Ok(r)
-    }
-
     fn call_decode(
         &self,
         s: &mut Store<HostState>,
@@ -1092,17 +1062,17 @@ impl Plugin {
         Ok(r)
     }
 
-    fn call_content(
+    fn call_excerpt(
         &self,
         s: &mut Store<HostState>,
         fmt: &str,
         f: &File,
-        budget: ContentBudget,
-    ) -> wasmtime::Result<Result<Vec<ContentPart>, String>> {
-        let (r,): (Result<Vec<ContentPart>, String>,) = self
-            .func::<(&str, &File, ContentBudget), _>(s, "content")?
+        budget: ExcerptBudget,
+    ) -> wasmtime::Result<Result<Vec<ExcerptPart>, String>> {
+        let (r,): (Result<Vec<ExcerptPart>, String>,) = self
+            .func::<(&str, &File, ExcerptBudget), _>(s, "excerpt")?
             .call(&mut *s, (fmt, f, budget))?;
-        Ok(r.and_then(|ps| within(ps.iter().map(content_size).sum()).map(|()| ps)))
+        Ok(r.and_then(|ps| within(ps.iter().map(excerpt_size).sum()).map(|()| ps)))
     }
 
     fn call_menu(
@@ -1180,11 +1150,11 @@ fn within(len: usize) -> Result<(), String> {
     }
 }
 
-fn content_size(p: &ContentPart) -> usize {
+fn excerpt_size(p: &ExcerptPart) -> usize {
     match &p.media {
-        ContentMedia::Images(l) => l.iter().map(Vec::len).sum(),
-        ContentMedia::Audio(b) => b.len(),
-        ContentMedia::Text(t) => t.len(),
+        ExcerptMedia::Images(l) => l.iter().map(Vec::len).sum(),
+        ExcerptMedia::Audio(b) => b.len(),
+        ExcerptMedia::Text(t) => t.len(),
     }
 }
 
@@ -1347,36 +1317,6 @@ impl Runner {
         Ok(t.map(|t| (t.png, t.size.map(|d| (d.width, d.height)), reads)))
     }
 
-    pub fn view(&mut self, ext: &str, path: &Path) -> Option<ViewOut> {
-        if self.reg.by_link(ext, Part::View) {
-            return self.reg.link_of(ext).map(ViewOut::Link);
-        }
-        if let Some(ui) = self.reg.ui_of(ext, Part::View) {
-            return Some(ViewOut::Ui(ui));
-        }
-        let r = self.call(
-            ext,
-            Part::View,
-            By::Sandbox,
-            path,
-            VIEW_LIMIT,
-            |p, s, fmt, file| p.call_view(s, fmt, &file),
-        )?;
-        let v = match r {
-            Ok(v) => v?,
-            Err(e) => {
-                log::warn!("詳細に出すものを決められない: {}: {e}", path.display());
-                return None;
-            }
-        };
-        Some(match v {
-            types::ViewKind::Image => ViewOut::Image,
-            types::ViewKind::Video => ViewOut::Video,
-            types::ViewKind::Audio => ViewOut::Audio,
-            types::ViewKind::Decoded => ViewOut::Decoded,
-        })
-    }
-
     pub fn details(&mut self, ext: &str, path: &Path) -> Result<Vec<(String, String)>, String> {
         let r = self.call(
             ext,
@@ -1390,20 +1330,20 @@ impl Runner {
         Ok(ds.into_iter().map(|d| (d.label, d.value)).collect())
     }
 
-    /// sandbox の content。受け持たなければ None。
-    pub fn content(
+    /// WASM の excerpt。受け持たなければ None。
+    pub fn excerpt(
         &mut self,
         ext: &str,
         path: &Path,
-        budget: ContentBudget,
-    ) -> Option<Result<Vec<ContentPart>, String>> {
+        budget: ExcerptBudget,
+    ) -> Option<Result<Vec<ExcerptPart>, String>> {
         let r = self.call(
             ext,
-            Part::Content,
+            Part::Excerpt,
             By::Sandbox,
             path,
             CONTENT_LIMIT,
-            |p, s, fmt, file| p.call_content(s, fmt, &file, budget),
+            |p, s, fmt, file| p.call_excerpt(s, fmt, &file, budget),
         )?;
         Some(r.and_then(|x| x))
     }

@@ -72,7 +72,7 @@ const captionOf = (icon: IconName, name: string, label: string) => (el: HTMLElem
   )
 
 /**
- * ノートに埋め込んだときの表示。組み込み UI の embed、plugin.json の embed、詳細の表示の順に見る。
+ * ノートに埋め込んだときの表示。スクリプトの embed、詳細の表示の順に見る。
  * 詳細を組み込み UI で描く形式は、埋め込みには描かない。
  */
 export async function embedOf(it: Item, host: EmbedHost): Promise<Embed> {
@@ -90,7 +90,6 @@ export async function embedOf(it: Item, host: EmbedHost): Promise<Embed> {
       mount: (el) => render(() => <PluginView url={url} api={make(item, 'embed', ui.plugin)} draw="embed" />, el),
     }
   }
-  if (f?.embed === 'card') return card
   const v = await host.view?.(it.id).catch(() => null)
   if (v?.kind === 'image' && v.url?.startsWith('blob:')) URL.revokeObjectURL(v.url)
   if (v?.kind === 'ui') return { ...card, error: '埋め込みに対応していません' }

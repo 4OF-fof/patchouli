@@ -1,13 +1,13 @@
 /*
- * 組み込み UI。plugin.json の elevated の ES モジュールを、隔離せずに本体の画面で動かす。中身は default で書き出した PluginModule。
+ * 組み込み UI。plugin.json の script の ES モジュールを、隔離せずに本体の画面で動かす。中身は default で書き出した PluginModule。
  * 本体の画面と同じ文書で動くので、色や字体の CSS 変数（src/styles/tokens.css）はそのまま使え、
  * 描く場所の中では、ボタンや入力欄などの素の要素に本体と同じ見た目が付き、select は本体の一覧で開く（PluginView）。
  */
 import type {
   Api,
-  ContentApi,
-  ContentBudget,
-  ContentPart,
+  ExcerptApi,
+  ExcerptBudget,
+  ExcerptPart,
   Detail,
   DetailsApi,
   Item,
@@ -60,7 +60,7 @@ export class WaveformTimeout extends Error {
 
 const loaded = new Map<string, Promise<UiModule>>()
 
-const MODULE_FNS = ['mount', 'thumbnail', 'waveform', 'hover', 'embed', 'details', 'menu', 'runMenu', 'content', 'link']
+const MODULE_FNS = ['mount', 'thumbnail', 'waveform', 'hover', 'embed', 'details', 'menu', 'runMenu', 'excerpt', 'link']
 const LINK_FNS = ['thumbnail', 'mount', 'embed', 'details']
 
 const isFn = (v: unknown) => v === undefined || typeof v === 'function'
@@ -223,17 +223,17 @@ export async function uiLinkDetails(url: string, api: LinkApi): Promise<Detail[]
 const CONTENT_LIMIT = 600_000
 
 /** stop が中止になるか、時間の上限を過ぎると、signal で止めてもらう。 */
-export async function uiContent(
+export async function uiExcerpt(
   url: string,
-  api: Omit<ContentApi, 'budget' | 'signal'>,
-  budget: ContentBudget,
+  api: Omit<ExcerptApi, 'budget' | 'signal'>,
+  budget: ExcerptBudget,
   stop: AbortSignal,
-): Promise<ContentPart[]> {
+): Promise<ExcerptPart[]> {
   const mod = await loadUi(url)
-  if (!mod.content) throw new Error('区間を作る関数（content）が見つかりません')
+  if (!mod.excerpt) throw new Error('区間を作る関数（excerpt）が見つかりません')
   const late = AbortSignal.timeout(CONTENT_LIMIT)
   const signal = AbortSignal.any([stop, late])
-  const parts = await mod.content({ ...api, budget, signal })
+  const parts = await mod.excerpt({ ...api, budget, signal })
   if (late.aborted) throw new Error(`区間の作成が ${CONTENT_LIMIT / 1000} 秒以内に終わりませんでした`)
   return Array.isArray(parts) ? parts : []
 }

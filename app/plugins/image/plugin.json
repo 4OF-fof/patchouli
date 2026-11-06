@@ -1,7 +1,7 @@
 {
   "id": "patchouli.image",
   "name": "画像",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "写真やイラストのサムネイルと表示",
   "optional": {
     "commands": {
@@ -11,13 +11,13 @@
       }
     }
   },
-  "formats": {
-    "jpg": { "label": "画像", "ratio": 1.6, "sandbox": true },
-    "jpeg": { "extends": "jpg" },
-    "png": { "extends": "jpg" },
-    "webp": { "extends": "jpg" },
-    "gif": { "extends": "jpg" },
-    "avif": { "extends": "jpg" },
-    "bmp": { "extends": "jpg" }
-  }
+  "formats": [
+    {
+      "ext": ["jpg", "jpeg", "png", "webp", "gif", "avif", "bmp"],
+      "label": "画像",
+      "ratio": 1.6,
+      "media": "image",
+      "parts": ["thumbnail", "details", "excerpt"]
+    }
+  ]
 }

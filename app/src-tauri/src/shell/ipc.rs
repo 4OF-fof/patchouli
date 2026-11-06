@@ -64,10 +64,7 @@ pub(crate) async fn set_app_settings(
 }
 
 /// キャッシュを消す前に、裏の仕事を止めて終わるのを待ち、ライブラリを閉じる。
-fn close_for_clearing(
-    app: &tauri::AppHandle,
-    cur: &State<Current>,
-) -> Result<(), String> {
+fn close_for_clearing(app: &tauri::AppHandle, cur: &State<Current>) -> Result<(), String> {
     const LIMIT: std::time::Duration = std::time::Duration::from_secs(60);
     thumb::stop();
     content::stop(app);

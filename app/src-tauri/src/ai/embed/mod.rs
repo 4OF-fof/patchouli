@@ -11,7 +11,7 @@ use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
 use serde_json::{Value, json};
 
-use crate::plugin::ContentMedia;
+use crate::plugin::ExcerptMedia;
 
 pub mod install;
 
@@ -307,14 +307,14 @@ pub fn image(b: &[u8]) -> Result<Vec<f32>, String> {
     embed(json!({ "content": [image_part(b)] }))
 }
 
-pub fn media(m: &ContentMedia) -> Result<Vec<f32>, String> {
+pub fn media(m: &ExcerptMedia) -> Result<Vec<f32>, String> {
     match m {
-        ContentMedia::Images(bs) => {
+        ExcerptMedia::Images(bs) => {
             embed(json!({ "content": bs.iter().map(|b| image_part(b)).collect::<Vec<_>>() }))
         }
-        ContentMedia::Audio(wav) => embed(
+        ExcerptMedia::Audio(wav) => embed(
             json!({ "content": [{ "type": "input_audio", "input_audio": { "data": STANDARD.encode(wav), "format": "wav" } }] }),
         ),
-        ContentMedia::Text(s) => text("classification", s),
+        ExcerptMedia::Text(s) => text("classification", s),
     }
 }

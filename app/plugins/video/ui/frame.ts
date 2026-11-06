@@ -1,10 +1,10 @@
 /*
  * 動画のサムネイルと、内容を読むときのコマ。WebView のデコーダーで取る（詳細での再生と同じもので読む）。
  * WebView で読めないものは、サムネイルは sandbox の thumbnail、コマは WASM の call（frames）で、FFmpeg があれば取り出す。
- * 音声トラックは sandbox の content が読む。
+ * 音声トラックは WASM の excerpt が読む。
  */
 
-import { type ContentBudget, type ContentPart, definePlugin } from '@patchouli/plugin'
+import { type ExcerptBudget, type ExcerptPart, definePlugin } from '@patchouli/plugin'
 
 interface Video {
   methods: { frames(args: string): string[]; secs(): number | null }
@@ -88,7 +88,7 @@ async function grab(url: string, edge: number) {
 
 /**
  * secs を SPAN 秒ずつに分けた区間の始まり。max より多ければ、全体から均等に max 個選ぶ。
- * WASM を呼ばずにコマを取ることもあるのでここにも置き、plugins/shared/content.rs の starts と同じにする。
+ * WASM を呼ばずにコマを取ることもあるのでここにも置き、plugins/shared/excerpt.rs の starts と同じにする。
  */
 const starts = (secs: number, max: number) => {
   const n = Math.max(1, Math.ceil(secs / SPAN))
@@ -97,12 +97,12 @@ const starts = (secs: number, max: number) => {
 }
 
 /** WebView で、区間ごとに EVERY 秒おきのコマを取る。 */
-async function grabParts(url: string, budget: ContentBudget, signal: AbortSignal): Promise<ContentPart[]> {
+async function grabParts(url: string, budget: ExcerptBudget, signal: AbortSignal): Promise<ExcerptPart[]> {
   const v = await load(url)
   try {
     const secs = v.duration
     if (!Number.isFinite(secs)) throw new Error('動画の長さがわかりません')
-    const parts: ContentPart[] = []
+    const parts: ExcerptPart[] = []
     for (const start of starts(secs, budget.maxImageParts)) {
       const end = Math.min(start + SPAN, secs)
       const images: Blob[] = []
@@ -137,7 +137,7 @@ export default definePlugin<Video>({
       throw new Error(failed ? `${failed} / ${message(e)}` : message(e))
     })
   },
-  async content(api) {
+  async excerpt(api) {
     const { budget, signal } = api
     // 音声は裏の WASM が読むので、コマを取るのと並べて進める
     const audio = api.sandbox().catch((e: unknown) => console.warn('音声トラックを読めない', e))
@@ -152,7 +152,7 @@ export default definePlugin<Video>({
       }
       const secs = await api.call('secs')
       if (!secs) throw new Error('動画の長さがわかりません')
-      const parts: ContentPart[] = []
+      const parts: ExcerptPart[] = []
       for (const start of starts(secs, budget.maxImageParts)) {
         signal.throwIfAborted()
         const got = await api.call('frames', `${start},${SPAN},${EVERY},${budget.maxImages},${budget.edge}`)

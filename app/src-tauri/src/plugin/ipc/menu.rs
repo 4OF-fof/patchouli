@@ -264,11 +264,7 @@ fn edit_item(lib: &mut Library, ids: &[String], a: Action) -> Result<String, Str
 }
 
 /// export で用意したファイルを、聞いた保存先へ写す。やめたときは None。
-fn export_file(
-    app: &tauri::AppHandle,
-    from: &Path,
-    name: &str,
-) -> Result<Option<PathBuf>, String> {
+fn export_file(app: &tauri::AppHandle, from: &Path, name: &str) -> Result<Option<PathBuf>, String> {
     let Some(to) = save_dialog(app, name) else {
         return Ok(None);
     };

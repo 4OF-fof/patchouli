@@ -3,10 +3,9 @@ wit_bindgen::generate!({
         package local:image;
 
         world image {
-            include patchouli:plugin/thumbnail-role@0.12.0;
-            include patchouli:plugin/view-role@0.12.0;
-            include patchouli:plugin/details-role@0.12.0;
-            include patchouli:plugin/content-role@0.12.0;
+            include patchouli:plugin/thumbnail-role@0.13.0;
+            include patchouli:plugin/details-role@0.13.0;
+            include patchouli:plugin/excerpt-role@0.13.0;
         }
     ",
     path: "../sdk/wit",
@@ -16,7 +15,7 @@ wit_bindgen::generate!({
 
 use exports::patchouli::plugin as role;
 use patchouli::plugin::types::{
-    ContentBudget, ContentMedia, ContentPart, Detail, File, ThumbnailImage, ViewKind,
+    Detail, ExcerptBudget, ExcerptMedia, ExcerptPart, File, ThumbnailImage,
 };
 use patchouli::plugin::{commands, host};
 
@@ -46,16 +45,6 @@ impl role::thumbnail::Guest for Image {
     }
 }
 
-impl role::view::Guest for Image {
-    fn view(_format: String, _f: File) -> Option<ViewKind> {
-        Some(ViewKind::Image)
-    }
-
-    fn decode(_format: String, _f: File) -> Result<Vec<u8>, String> {
-        Err("decode には対応していません".into())
-    }
-}
-
 impl role::details::Guest for Image {
     fn details(_format: String, f: File) -> Result<Vec<Detail>, String> {
         Ok(host::image_size(&f)
@@ -68,17 +57,17 @@ impl role::details::Guest for Image {
     }
 }
 
-impl role::content::Guest for Image {
-    fn content(
+impl role::excerpt::Guest for Image {
+    fn excerpt(
         _format: String,
         f: File,
-        budget: ContentBudget,
-    ) -> Result<Vec<ContentPart>, String> {
+        budget: ExcerptBudget,
+    ) -> Result<Vec<ExcerptPart>, String> {
         let png = shrink(&f, budget.edge)?;
-        Ok(vec![ContentPart {
+        Ok(vec![ExcerptPart {
             start: None,
             end: None,
-            media: ContentMedia::Images(vec![png]),
+            media: ExcerptMedia::Images(vec![png]),
         }])
     }
 }

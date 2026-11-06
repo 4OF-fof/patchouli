@@ -47,7 +47,7 @@ const PART: Record<CapPart, string> = {
   details: 'ファイルの詳細',
   embed: '埋め込み表示',
   menu: '右クリックメニュー',
-  content: '内容の読み取り',
+  excerpt: '内容の読み取り',
   link: 'URL の読み取り',
 }
 
@@ -109,7 +109,7 @@ const need = (d: { need: string; min?: string; from?: string }) =>
 
 // フルアクセスはほかの権限を含むので、それと並べるのは外部ツールの実行だけにする
 const perms = (p: PluginStatus) => {
-  const full = p.elevated || p.caps.some((c) => c.by === 'elevated')
+  const full = p.script || p.caps.some((c) => c.by === 'elevated')
   return [
     ...(full ? [{ ...FULL_ACCESS, full: true }] : []),
     ...(!full && p.formats.length

@@ -1,17 +1,16 @@
 /* プラグインの形。plugin.json と、Rust 側（src-tauri/src/plugin/）から届くもの。Rust 側と合わせる。 */
 
-import type { Deps, Embed, Fit, Hover, LinkPart, Part, Permission, SettingValue } from '../../plugins/sdk'
+import type { Deps, Fit, LinkPart, Media, Part, Permission, SettingValue } from '../../plugins/sdk'
 
 export type {
   CommandDep,
   Deps,
-  Embed,
   Fit,
   FormatDecl,
-  Hover,
   LinkDecl,
   LinkPart,
   Manifest,
+  Media,
   MenuDecl,
   MenuOutput,
   Part,
@@ -46,9 +45,8 @@ export interface FormatInfo {
   thumbnail: boolean
   uiThumbnail?: UiRef
   uiWaveform?: UiRef
-  hover?: Hover
+  media?: Media
   uiHover?: UiRef
-  embed?: Embed
   uiEmbed?: UiRef
   /** ファイルが指す URL を読むもの。あれば、ほかに受け持つもののない部分は URL ごとに受け持つものが描く。 */
   uiLink?: UiRef
@@ -113,8 +111,8 @@ export interface PluginStatus {
   /** 足す画面の名前。 */
   screens?: string[]
   permissions?: Permission[]
-  /** elevated を持つか。持つものは本体と同じ権限で動く。 */
-  elevated?: boolean
+  /** スクリプトを持つか。持つものは本体と同じ権限で動く。 */
+  script?: boolean
   /** plugin.json の fetch に書いたホスト名。 */
   fetch?: string[]
   settings: Setting[]

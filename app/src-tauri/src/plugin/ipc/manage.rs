@@ -185,11 +185,7 @@ fn stage_recorded(
     )
 }
 
-fn place_staged(
-    app: &tauri::AppHandle,
-    cur: &State<Current>,
-    p: &Pending,
-) -> Result<(), String> {
+fn place_staged(app: &tauri::AppHandle, cur: &State<Current>, p: &Pending) -> Result<(), String> {
     if root_of(cur)? != p.root {
         return Err("ライブラリが切り替わったため、インストールを中止しました".into());
     }
@@ -404,16 +400,6 @@ pub(crate) async fn set_plugin_setting(
         s.plugins.set_setting(&id, &key, &value)?;
         Ok((Arc::clone(&s.plugins), s.thumbs.clone(), s.lib.cache()))
     })?;
-    if let Some(format) = key.strip_prefix(&plugin::keep_decoded_key(""))
-        && value == Value::Bool(false)
-    {
-        let dir = thumb::decoded_dir(&thumbs, &id, format);
-        if let Err(e) = std::fs::remove_dir_all(&dir)
-            && e.kind() != std::io::ErrorKind::NotFound
-        {
-            log::warn!("詳細用の画像を消せない: {}: {e}", dir.display());
-        }
-    }
     let reads = cache.thumb_reads()?;
     if !reads.values().any(|r| r.contains_key(&key)) {
         return Ok(Vec::new());

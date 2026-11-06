@@ -3,11 +3,10 @@ wit_bindgen::generate!({
         package local:video;
 
         world video {
-            include patchouli:plugin/thumbnail-role@0.12.0;
-            include patchouli:plugin/view-role@0.12.0;
-            include patchouli:plugin/details-role@0.12.0;
-            include patchouli:plugin/content-role@0.12.0;
-            include patchouli:plugin/call-role@0.12.0;
+            include patchouli:plugin/thumbnail-role@0.13.0;
+            include patchouli:plugin/details-role@0.13.0;
+            include patchouli:plugin/excerpt-role@0.13.0;
+            include patchouli:plugin/call-role@0.13.0;
         }
     ",
     path: "../sdk/wit",
@@ -20,13 +19,13 @@ use base64::engine::general_purpose::STANDARD;
 use exports::patchouli::plugin as role;
 use patchouli::plugin::commands;
 use patchouli::plugin::types::{
-    ContentBudget, ContentPart, Detail, Dimensions, File, ThumbnailImage, ViewKind,
+    Detail, Dimensions, ExcerptBudget, ExcerptPart, File, ThumbnailImage,
 };
 
 #[path = "../../shared/clock.rs"]
 mod clock;
-#[path = "../../shared/content.rs"]
-mod content;
+#[path = "../../shared/excerpt.rs"]
+mod excerpt;
 #[path = "../../shared/frame.rs"]
 mod frame;
 mod frames;
@@ -51,16 +50,6 @@ impl role::thumbnail::Guest for Video {
     }
 }
 
-impl role::view::Guest for Video {
-    fn view(_format: String, _f: File) -> Option<ViewKind> {
-        Some(ViewKind::Video)
-    }
-
-    fn decode(_format: String, _f: File) -> Result<Vec<u8>, String> {
-        Err("decode には対応していません".into())
-    }
-}
-
 impl role::details::Guest for Video {
     fn details(_format: String, f: File) -> Result<Vec<Detail>, String> {
         let Some(p) = probed(&f) else {
@@ -78,13 +67,13 @@ impl role::details::Guest for Video {
     }
 }
 
-impl role::content::Guest for Video {
+impl role::excerpt::Guest for Video {
     /// 音声トラックだけを返す。コマは elevated が WebView で取る。
-    fn content(format: String, f: File, budget: ContentBudget) -> Result<Vec<ContentPart>, String> {
+    fn excerpt(format: String, f: File, budget: ExcerptBudget) -> Result<Vec<ExcerptPart>, String> {
         match pcm::audio(&format, &f, &budget) {
             Ok(parts) => Ok(parts),
             Err(_) if commands::available("ffmpeg") => {
-                Ok(content::audio(&f, probed(&f).and_then(|p| p.secs), &budget))
+                Ok(excerpt::audio(&f, probed(&f).and_then(|p| p.secs), &budget))
             }
             Err(_) => Ok(Vec::new()),
         }

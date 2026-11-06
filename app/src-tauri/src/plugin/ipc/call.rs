@@ -15,7 +15,8 @@ pub(crate) async fn item_view(
     cur: State<'_, Current>,
     id: String,
 ) -> Result<Option<ViewOut>, String> {
-    Ok(Target::of(&cur, &id)?.run(|r, ext, path| r.view(ext, path)))
+    let t = Target::of(&cur, &id)?;
+    Ok(t.plugins.view(&t.ext))
 }
 
 #[derive(Serialize)]

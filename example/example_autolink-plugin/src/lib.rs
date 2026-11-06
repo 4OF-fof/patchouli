@@ -6,7 +6,7 @@ wit_bindgen::generate!({
         package local:autolink;
 
         world autolink {
-            include patchouli:plugin/hook-role@0.12.0;
+            include patchouli:plugin/hook-role@0.13.0;
         }
     ",
     path: "../../app/plugins/sdk/wit",

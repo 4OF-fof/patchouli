@@ -30,14 +30,14 @@ import type {
   SettingValue,
   UiRef,
 } from '../plugins/types'
-import type { Caller, ContentBudget, ContentPart, Fetched, LinkApi, OwnApi } from '../../plugins/sdk'
+import type { Caller, ExcerptBudget, ExcerptPart, Fetched, LinkApi, OwnApi } from '../../plugins/sdk'
 import { handlerOf, iconThumbnail, imageThumbnail, pageOf, pageRows } from '../plugins/links'
 import {
   EDGE,
   ThumbnailTimeout,
   type UiApi,
   type UiItem,
-  uiContent,
+  uiExcerpt,
   uiDetails,
   uiLink,
   uiLinkDetails,
@@ -141,7 +141,7 @@ const bytesOf = async (b: Blob | ArrayBuffer | Uint8Array) =>
  * Rust に渡す区間。頭の 4 バイトが区間の形の JSON の長さで、JSON、中身と続く。
  * 形は src-tauri/src/content.rs の SentPart と合わせる。
  */
-async function packParts(parts: ContentPart[]) {
+async function packParts(parts: ExcerptPart[]) {
   const chunks: Uint8Array[] = []
   const sent = []
   for (const p of parts) {
@@ -442,7 +442,7 @@ export function tauriBackend(): Backend {
   }
   let contentQueue: ContentWanted[] = []
   let contentStop = new AbortController()
-  let contentBudget: ContentBudget | undefined
+  let contentBudget: ExcerptBudget | undefined
   let contenting = false
   const makeContents = async () => {
     if (contenting) return
@@ -454,9 +454,9 @@ export function tauriBackend(): Backend {
         const started = performance.now()
         const ms = () => `${performance.now() - started}`
         try {
-          const parts = await uiContent(
+          const parts = await uiExcerpt(
             pluginUrl(w.plugin, w.module),
-            { ...uiApi(uiItemOf(w), 'content', w.plugin), sandbox: () => invoke('content_sandbox', { job: w.job }) },
+            { ...uiApi(uiItemOf(w), 'excerpt', w.plugin), sandbox: () => invoke('content_sandbox', { job: w.job }) },
             budget,
             contentStop.signal,
           )
@@ -483,7 +483,7 @@ export function tauriBackend(): Backend {
     }))
 
   const listenContent = () =>
-    (listeningContent ??= listen<{ items: ContentWanted[]; budget?: ContentBudget }>('content-wanted', (e) => {
+    (listeningContent ??= listen<{ items: ContentWanted[]; budget?: ExcerptBudget }>('content-wanted', (e) => {
       contentStop.abort()
       contentStop = new AbortController()
       contentQueue = [...e.payload.items]

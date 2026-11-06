@@ -16,11 +16,11 @@ use tauri::Emitter;
 use crate::ai::embed;
 use crate::ai::vectors::{self, Store};
 use crate::library::StoredItem;
-use crate::plugin::{By, ContentBudget, ContentMedia, ContentPart, Part, Registry, Runner, UiRef};
+use crate::plugin::{By, ExcerptBudget, ExcerptMedia, ExcerptPart, Part, Registry, Runner, UiRef};
 use crate::thumb;
 
-fn budget() -> ContentBudget {
-    ContentBudget {
+fn budget() -> ExcerptBudget {
+    ExcerptBudget {
         max_image_parts: 240,
         max_audio_parts: 120,
         max_text_parts: 120,
@@ -48,7 +48,7 @@ struct Work {
     id: String,
     name: String,
     sig: String,
-    parts: Vec<ContentPart>,
+    parts: Vec<ExcerptPart>,
     thumb: Option<PathBuf>,
 }
 
@@ -86,13 +86,13 @@ fn current() -> &'static Mutex<Arc<AtomicBool>> {
     C.get_or_init(|| Mutex::new(Arc::new(AtomicBool::new(false))))
 }
 
-fn counts(parts: &[ContentPart]) -> String {
+fn counts(parts: &[ExcerptPart]) -> String {
     let (mut images, mut audio, mut text) = (0, 0, 0);
     for p in parts {
         match p.media {
-            ContentMedia::Images(_) => images += 1,
-            ContentMedia::Audio(_) => audio += 1,
-            ContentMedia::Text(_) => text += 1,
+            ExcerptMedia::Images(_) => images += 1,
+            ExcerptMedia::Audio(_) => audio += 1,
+            ExcerptMedia::Text(_) => text += 1,
         }
     }
     format!("画像 {images}・音声 {audio}・文章 {text}")
@@ -174,8 +174,8 @@ pub fn collect(
     for it in items.iter().filter(|it| !it.note) {
         let ext = it.ext.to_lowercase();
         let thumb = it.thumb.clone().filter(|t| t.is_file());
-        let by = plugins.handles(&ext, Part::Content);
-        let sig = match (plugins.content_owner(&ext), thumb.as_ref()) {
+        let by = plugins.handles(&ext, Part::Excerpt);
+        let sig = match (plugins.excerpt_owner(&ext), thumb.as_ref()) {
             (Some(owner), _) => format!("{}|{owner}|{key}", it.mtime),
             (None, Some(t)) => format!(
                 "{}|thumb|{}",
@@ -197,7 +197,7 @@ pub fn collect(
         match by {
             Some(By::Sandbox) => sandbox.push((ext, it.file.clone(), work)),
             Some(By::Elevated) => {
-                let Some(ui) = plugins.ui_of(&ext, Part::Content) else {
+                let Some(ui) = plugins.ui_of(&ext, Part::Excerpt) else {
                     continue;
                 };
                 let job = NEXT.fetch_add(1, Ordering::Relaxed);
@@ -268,7 +268,7 @@ pub fn collect(
                 return;
             }
             let started = Instant::now();
-            match runner.content(&ext, &file, budget()) {
+            match runner.excerpt(&ext, &file, budget()) {
                 Some(Ok(parts)) => {
                     log::info!(
                         "区間を作った: {} {}（{:.1} 秒）",
@@ -430,11 +430,11 @@ pub struct SandboxPart {
     kind: &'static str,
 }
 
-fn kind_of(m: &ContentMedia) -> &'static str {
+fn kind_of(m: &ExcerptMedia) -> &'static str {
     match m {
-        ContentMedia::Images(_) => "images",
-        ContentMedia::Audio(_) => "audio",
-        ContentMedia::Text(_) => "text",
+        ExcerptMedia::Images(_) => "images",
+        ExcerptMedia::Audio(_) => "audio",
+        ExcerptMedia::Text(_) => "text",
     }
 }
 
@@ -452,7 +452,7 @@ pub fn sandbox(job: u64) -> Result<Vec<SandboxPart>, String> {
     let mut runner = Runner::new(plugins);
     runner.set_stop(stop);
     let parts = runner
-        .content(&ext, &file, budget())
+        .excerpt(&ext, &file, budget())
         .ok_or("この形式の sandbox は content を受け持っていません")??;
     let out = parts
         .iter()
@@ -506,20 +506,20 @@ pub fn put(job: u64, body: &[u8], error: Option<&str>, ms: f64) -> Result<(), St
     let mut parts = std::mem::take(&mut work.parts);
     for p in sent {
         let media = if !p.images.is_empty() {
-            ContentMedia::Images(
+            ExcerptMedia::Images(
                 p.images
                     .iter()
                     .map(|&n| take(n))
                     .collect::<Result<_, _>>()?,
             )
         } else if let Some(n) = p.audio {
-            ContentMedia::Audio(take(n)?)
+            ExcerptMedia::Audio(take(n)?)
         } else if let Some(t) = p.text {
-            ContentMedia::Text(t)
+            ExcerptMedia::Text(t)
         } else {
             continue;
         };
-        parts.push(ContentPart {
+        parts.push(ExcerptPart {
             start: p.start,
             end: p.end,
             media,

@@ -28,7 +28,7 @@ pub enum Want {
 /// 入れる前に見せる、プラグインができること。
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct Risk {
-    /// elevated を持ち、本体と同じ権限で動く。
+    /// スクリプトを持ち、本体と同じ権限で動く。
     pub full: bool,
     pub permissions: Vec<String>,
     pub commands: Vec<String>,
@@ -45,7 +45,7 @@ impl Risk {
             .cloned()
             .collect();
         Risk {
-            full: m.elevated.is_some() || m.wants_elevated(),
+            full: m.script.is_some() || m.wants_script(),
             permissions: super::permissions_of(m),
             commands: commands.into_iter().collect(),
             fetch: super::fetch_of(m),

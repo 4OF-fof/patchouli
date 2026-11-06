@@ -11,43 +11,35 @@ import type {
   Cap,
   Conflict,
   Deps,
-  Embed,
   Fit,
+  FormatDecl,
   FormatInfo,
-  Hover,
   LinkPart,
   Manifest,
+  Media,
   Part,
   PluginReport,
   PluginStatus,
   Problem,
+  UiRef,
 } from './types'
+
+type RawFormat = Omit<FormatDecl, 'fit' | 'media' | 'parts' | 'script'> & {
+  fit?: string
+  media?: string
+  parts?: string[]
+  script?: string[]
+}
 
 export interface RawManifest extends Omit<Manifest, 'formats' | 'links'> {
   links?: Record<string, { elevated?: string[] }>
-  formats?: Record<
-    string,
-    {
-      extends?: string
-      label?: string
-      ratio?: number
-      fit?: string
-      hover?: string
-      embed?: string
-      sandbox?: boolean
-      elevated?: string[]
-      keepDecoded?: boolean
-    }
-  >
+  formats?: RawFormat[]
 }
 
-const PARTS: readonly Part[] = ['thumbnail', 'view', 'waveform', 'hover', 'details', 'embed', 'content', 'link']
-/** WASM が受け持つものは export で決まる。ここでは WASM を読まないので、組み込みの WASM が export するものを使う。 */
-const WASM_PARTS: readonly Part[] = ['thumbnail', 'view', 'details', 'content']
+const PARTS: readonly Part[] = ['thumbnail', 'view', 'details', 'excerpt', 'hover', 'embed', 'waveform', 'link']
 const LINK_PARTS: readonly LinkPart[] = ['thumbnail', 'view', 'embed', 'details']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
-const HOVERS: readonly Hover[] = ['video', 'audio']
-const EMBEDS: readonly Embed[] = ['view', 'card']
+const MEDIA: readonly Media[] = ['image', 'video', 'audio']
 
 const partsOf = (raw?: string[]) => (raw ?? []).flatMap((p) => PARTS.find((x) => x === p) ?? [])
 
@@ -59,19 +51,14 @@ export const readManifest = (raw: RawManifest): Manifest => ({
       { elevated: (d.elevated ?? []).flatMap((p) => LINK_PARTS.find((x) => x === p) ?? []) },
     ]),
   ),
-  formats: Object.fromEntries(
-    Object.entries(raw.formats ?? {}).map(([ext, d]) => [
-      ext.toLowerCase(),
-      {
-        ...d,
-        extends: d.extends?.toLowerCase(),
-        fit: FITS.find((f) => f === d.fit),
-        hover: HOVERS.find((h) => h === d.hover),
-        embed: EMBEDS.find((e) => e === d.embed),
-        elevated: partsOf(d.elevated),
-      },
-    ]),
-  ),
+  formats: (raw.formats ?? []).map((d) => ({
+    ...d,
+    ext: d.ext.map((e) => e.toLowerCase()),
+    fit: FITS.find((f) => f === d.fit),
+    media: MEDIA.find((m) => m === d.media),
+    parts: partsOf(d.parts),
+    script: partsOf(d.script),
+  })),
 })
 
 export const BUILTIN_MANIFESTS = [image, video, audio, shortcut, youtube].map(readManifest)
@@ -85,8 +72,8 @@ export interface Resolved {
 }
 
 /**
- * 形式ごとに受け持つプラグインを決め、引き継ぎをたどる。src-tauri/src/plugin/mod.rs と同じ決まり。
- * 処理の部分や組み込み UI が本当にあるかは確かめない。
+ * 形式ごとに受け持つプラグインを決める。src-tauri/src/plugin/mod.rs と同じ決まり。
+ * WASM の export や、スクリプトが本当にあるかは確かめない。
  */
 export function resolveFormats(
   manifests: Manifest[],
@@ -95,8 +82,20 @@ export function resolveFormats(
   const problems = new Map<string, Problem[]>(manifests.map((m) => [m.id, []]))
   const add = (id: string, text: string, level: Problem['level'] = 'error') => problems.get(id)?.push({ level, text })
   const claims = new Map<string, Manifest[]>()
-  for (const m of manifests)
-    for (const ext of Object.keys(m.formats ?? {})) claims.set(ext, [...(claims.get(ext) ?? []), m])
+  const declOf = new Map<Manifest, Map<string, FormatDecl>>()
+  for (const m of manifests) {
+    const own = new Map<string, FormatDecl>()
+    for (const d of m.formats ?? [])
+      for (const ext of d.ext) {
+        if (own.has(ext)) {
+          add(m.id, `「.${ext}」を formats に 2 回書いています`)
+          continue
+        }
+        own.set(ext, d)
+        claims.set(ext, [...(claims.get(ext) ?? []), m])
+      }
+    declOf.set(m, own)
+  }
   const claim = new Map<string, Manifest>()
   const conflicts: Conflict[] = []
   for (const [ext, by] of [...claims].toSorted(([a], [b]) => (a < b ? -1 : 1))) {
@@ -122,64 +121,31 @@ export function resolveFormats(
   }
   const formats = new Map<string, FormatInfo>()
   for (const [ext, owner] of claim) {
-    let label: string | undefined
-    let ratio: number | undefined
-    let fit: Fit | undefined
-    let hover: Hover | undefined
-    let embed: Embed | undefined
-    const parts = new Map<Part, Manifest | 'sandbox'>()
-    const seen = new Set<string>()
-    let at: Manifest | undefined = owner
-    let fmt = ext
-    while (at) {
-      if (seen.has(fmt)) {
-        add(owner.id, `「.${ext}」の形式定義（extends）が循環しています`)
-        break
-      }
-      seen.add(fmt)
-      const d = at.formats?.[fmt]
-      if (!d) break
-      label ??= d.label
-      ratio ??= d.ratio
-      fit ??= d.fit
-      hover ??= d.hover
-      embed ??= d.embed
-      for (const p of d.elevated ?? []) {
-        const now = parts.get(p)
-        if ((now === undefined || now === 'sandbox') && at.elevated) parts.set(p, at)
-      }
-      if (d.sandbox) for (const p of WASM_PARTS) if (!parts.has(p)) parts.set(p, 'sandbox')
-      if (!d.extends) break
-      const next = claim.get(d.extends)
-      if (!next) add(at.id, `「.${fmt}」が引き継ぐ「.${d.extends}」に対応するプラグインがありません`)
-      at = next
-      fmt = d.extends
-    }
-    const ui = parts.get('thumbnail')
-    const wave = parts.get('waveform')
-    const hoverUi = parts.get('hover')
-    const embedUi = parts.get('embed')
-    const linkUi = parts.get('link')
+    const d = declOf.get(owner)?.get(ext)
+    if (!d) continue
+    const parts = d.parts ?? []
+    const ui = (p: Part): UiRef | undefined =>
+      owner.script && parts.includes(p) && d.script?.includes(p)
+        ? { plugin: owner.id, module: owner.script }
+        : undefined
+    const uiLink = ui('link')
+    const uiThumbnail = ui('thumbnail')
+    const uiWaveform = ui('waveform')
+    const uiHover = ui('hover')
+    const uiEmbed = ui('embed')
     formats.set(ext, {
       ext,
-      label: label ?? ext.toUpperCase(),
-      ratio: ratio ?? DEFAULT_RATIO,
-      fit: fit ?? 'center',
+      label: d.label ?? ext.toUpperCase(),
+      ratio: d.ratio ?? DEFAULT_RATIO,
+      fit: d.fit ?? 'center',
       plugin: owner.id,
-      thumbnail: parts.has('thumbnail') || parts.has('link'),
-      ...(linkUi &&
-        linkUi !== 'sandbox' &&
-        linkUi.elevated && { uiLink: { plugin: linkUi.id, module: linkUi.elevated } }),
-      ...(ui && ui !== 'sandbox' && ui.elevated && { uiThumbnail: { plugin: ui.id, module: ui.elevated } }),
-      ...(wave && wave !== 'sandbox' && wave.elevated && { uiWaveform: { plugin: wave.id, module: wave.elevated } }),
-      ...(hover && { hover }),
-      ...(hoverUi &&
-        hoverUi !== 'sandbox' &&
-        hoverUi.elevated && { uiHover: { plugin: hoverUi.id, module: hoverUi.elevated } }),
-      ...(embed && { embed }),
-      ...(embedUi &&
-        embedUi !== 'sandbox' &&
-        embedUi.elevated && { uiEmbed: { plugin: embedUi.id, module: embedUi.elevated } }),
+      thumbnail: parts.includes('thumbnail') || parts.includes('link'),
+      ...(uiLink && { uiLink }),
+      ...(uiThumbnail && { uiThumbnail }),
+      ...(uiWaveform && { uiWaveform }),
+      ...(d.media && { media: d.media }),
+      ...(uiHover && { uiHover }),
+      ...(uiEmbed && { uiEmbed }),
     })
   }
   return { formats, problems, conflicts }
@@ -188,15 +154,14 @@ export function resolveFormats(
 const resolvedBuiltin = resolveFormats(BUILTIN_MANIFESTS)
 
 const capsOf = (m: Manifest): Cap[] => {
-  const formats = Object.values(m.formats ?? {})
-  const elevated = (p: Part) =>
-    formats.some((d) => d.elevated?.includes(p)) ||
-    Object.values(m.links ?? {}).some((d) => d.elevated?.some((x) => x === p))
-  return [
-    ...(formats.some((d) => d.sandbox) ? WASM_PARTS.map((part): Cap => ({ part, by: 'sandbox' })) : []),
-    ...PARTS.filter(elevated).map((part): Cap => ({ part, by: 'elevated' })),
+  const caps: Cap[] = [
+    ...(m.formats ?? []).flatMap((d) =>
+      (d.parts ?? []).map((part): Cap => ({ part, by: d.script?.includes(part) ? 'elevated' : 'sandbox' })),
+    ),
+    ...Object.values(m.links ?? {}).flatMap((d) => (d.elevated ?? []).map((part): Cap => ({ part, by: 'elevated' }))),
     ...(m.menu ? [{ part: 'menu', by: m.menu.by } as const] : []),
   ]
+  return caps.filter((c, i) => caps.findIndex((x) => x.part === c.part && x.by === c.by) === i)
 }
 
 const depsOf = (d?: Deps): Deps => ({ commands: d?.commands ?? {}, plugins: d?.plugins ?? {} })
@@ -221,7 +186,7 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
   links: Object.keys(m.links ?? {}).toSorted(),
   screens: Object.values(m.screens ?? {}).map((d) => d.label),
   permissions: m.permissions ?? [],
-  elevated: !!m.elevated,
+  script: !!m.script,
   fetch: m.fetch ?? [],
   settings: [],
   problems: r.problems.get(m.id) ?? [],
