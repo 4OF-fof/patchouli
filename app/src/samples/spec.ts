@@ -20,6 +20,7 @@ export const EXAMPLE_PLUGINS: string[] = [
   'example_zip-plugin',
   'example_psd-plugin',
   'example_chart-plugin',
+  'example_cover-plugin',
 ]
 
 export type SpecItem = Item & {
@@ -73,6 +74,8 @@ const TAG_COVERS: Record<string, RawCard<TagCoverPart>[]> = {
     { type: 'kids' },
     { type: 'exts' },
     { type: 'together' },
+    // 例のプラグイン（example_cover）が描く
+    { type: 'plugin', plugin: 'example_cover', card: 'months' },
   ],
   UI: [{ type: 'kids' }, { type: 'exts' }],
 }
@@ -97,6 +100,8 @@ const PROJECTS: (Omit<Project, 'cover'> & { cover: RawCard<CoverPart>[]; pinName
         ],
       },
       { type: 'links', items: [{ t: '印刷所の入稿ルール', u: 'https://example.com/' }] },
+      // 例のプラグイン（example_cover）が描く
+      { type: 'plugin', plugin: 'example_cover', card: 'goal', value: { target: 20 } },
     ],
     pinNames: ['配色メモ：秋の企画', '秋の企画：進め方', 'moodboard-01', 'poster-draft'],
   },
@@ -774,12 +779,12 @@ function linkByName(items: SpecItem[], byName: Map<string, SpecItem>) {
     })
 }
 
-/** 中身のあるカードには c1, c2… を、中身のないカードには種類をそのまま id に振る */
+/** 中身のあるカードとプラグインのカードには c1, c2… を、中身のないカードには種類をそのまま id に振る */
 function cardIds() {
   let card = 0
   return <C extends { type: string }>(c: C) => ({
     ...structuredClone(c),
-    id: 'text' in c || 'items' in c ? `c${++card}` : c.type,
+    id: 'text' in c || 'items' in c || c.type === 'plugin' ? `c${++card}` : c.type,
   })
 }
 

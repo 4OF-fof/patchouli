@@ -1,0 +1,11 @@
+{
+  "id": "example_cover",
+  "name": "example_cover",
+  "version": "0.1.0",
+  "description": "概要のカードの例。タグとプロジェクトの概要に、件数の目標と、更新した月ごとの件数を出す",
+  "script": "ui.js",
+  "covers": {
+    "goal": { "label": "目標", "note": "件数の目標と進み具合", "on": ["tag", "project"] },
+    "months": { "label": "月ごとの件数", "note": "更新した月ごとの件数" }
+  }
+}
