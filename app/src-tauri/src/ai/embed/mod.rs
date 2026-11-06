@@ -34,7 +34,7 @@ pub fn init(app_data: &Path) {
     #[cfg(debug_assertions)]
     let dir = {
         let _ = app_data;
-        crate::dev_path("PATCHOULI_EMBED_DIR", "dev-embed")
+        crate::session::dev_path("PATCHOULI_EMBED_DIR", "dev-embed")
     };
     #[cfg(not(debug_assertions))]
     let dir = app_data.join("embed");

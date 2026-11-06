@@ -4,7 +4,7 @@ use std::path::Path;
 
 use serde::Serialize;
 
-use crate::{embed, vectors};
+use crate::ai::{embed, vectors};
 
 const MAX_HITS: usize = 20;
 /// 区間の多い素材は、どの言葉にも近い区間が 1 つは出やすいので、区間の数で割り引く。

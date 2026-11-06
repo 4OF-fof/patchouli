@@ -13,10 +13,11 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
 use tauri::Emitter;
 
+use crate::ai::embed;
+use crate::ai::vectors::{self, Store};
 use crate::library::StoredItem;
 use crate::plugin::{By, ContentBudget, ContentMedia, ContentPart, Part, Registry, Runner, UiRef};
-use crate::vectors::{self, Store};
-use crate::{embed, thumb};
+use crate::thumb;
 
 fn budget() -> ContentBudget {
     ContentBudget {
@@ -237,7 +238,7 @@ pub fn collect(
         let app = app.clone();
         crate::background::spawn(move || {
             if embed_all(&mut store, texts, by_thumb, &rx, &stop) {
-                crate::refresh_suggestions(&app, true);
+                crate::ai::ipc::refresh_suggestions(&app, true);
             }
         });
     }

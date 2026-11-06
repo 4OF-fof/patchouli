@@ -42,7 +42,7 @@ fn size_of(path: &Path) -> u64 {
 }
 
 fn library_files(cache: &Path, root: &Path) -> Vec<PathBuf> {
-    let main = crate::cache::path_for(cache, root);
+    let main = crate::library::cache::path_for(cache, root);
     let (Some(dir), Some(stem)) = (main.parent(), main.file_stem().and_then(|s| s.to_str())) else {
         return Vec::new();
     };

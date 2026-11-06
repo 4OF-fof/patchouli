@@ -1,3 +1,10 @@
+pub mod cache;
+pub(crate) mod cover;
+pub mod import;
+pub(crate) mod ipc;
+pub mod note;
+pub(crate) mod orphan;
+
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::{self, File};
@@ -9,10 +16,9 @@ use std::time::UNIX_EPOCH;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
-use crate::cache::{Cache, Row, Sig};
-use crate::cover;
-use crate::note;
-use crate::orphan::{self, Orphan};
+use cache::{Cache, Row, Sig};
+use orphan::Orphan;
+
 use crate::plugin::{FormatInfo, LinkInfo, Registry, ScreenInfo};
 
 pub const ID_KEY: &str = "patchouli-id";
@@ -323,7 +329,7 @@ impl Library {
         let snap = self
             .cache
             .load()?
-            .unwrap_or_else(|| crate::cache::Snapshot {
+            .unwrap_or_else(|| crate::library::cache::Snapshot {
                 rows: Vec::new(),
                 projects: Vec::new(),
                 groups: Vec::new(),
@@ -1881,7 +1887,7 @@ fn entry_mtime(e: &DirItem) -> Option<f64> {
 /// フォルダの中身を並べる。読んだついでに、そのフォルダの .meta をつなぎ直し、持ち主のないものを探す。
 fn list_dir(dir: &Path, f: &mut Found) -> Vec<Listed> {
     let read = read_entries(dir).and_then(|entries| {
-        if crate::import::recover(dir, &entries, &mut f.problems) {
+        if crate::library::import::recover(dir, &entries, &mut f.problems) {
             read_entries(dir)
         } else {
             Ok(entries)

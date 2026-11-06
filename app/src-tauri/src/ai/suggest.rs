@@ -11,9 +11,9 @@ use std::time::Instant;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::decisions::{self, Decision};
+use crate::ai::decisions::{self, Decision};
+use crate::ai::{embed, vectors};
 use crate::library::StoredItem;
-use crate::{embed, vectors};
 
 const STOP: &[&str] = &[
     "img", "dsc", "image", "download", "untitled", "copy", "final", "rec", "audio", "sound",

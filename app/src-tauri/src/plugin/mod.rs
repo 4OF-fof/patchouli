@@ -2,7 +2,9 @@ mod builtin;
 pub mod commands;
 pub mod files;
 pub mod github;
+pub(crate) mod hooks;
 pub mod install;
+pub(crate) mod ipc;
 pub mod record;
 mod runtime;
 

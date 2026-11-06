@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use rusqlite::{Connection, OptionalExtension, params};
 
-use crate::embed::MODEL;
+use crate::ai::embed::MODEL;
 
 pub struct Part {
     pub start: Option<f64>,

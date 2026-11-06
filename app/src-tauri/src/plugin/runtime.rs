@@ -19,7 +19,8 @@ use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 use super::{
     By, Choice, Manifest, Part, Reads, Registry, SettingDecl, SettingKind, UiRef, commands,
 };
-use crate::{embed, library, search, thumb};
+use crate::ai::{embed, search};
+use crate::{library, thumb};
 
 // 役割ごとの export は WASM によってあったりなかったりするので、world 全体の型と import だけを使い、export は名前で呼ぶ
 wasmtime::component::bindgen!({ world: "full", path: "../plugins/sdk/wit" });

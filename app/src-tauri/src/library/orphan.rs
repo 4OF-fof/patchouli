@@ -10,13 +10,13 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
-use crate::cache::Row;
+use crate::library::cache::Row;
+use crate::library::note;
 use crate::library::{
     DirItem, ID_KEY, NOTE_EXT, PRINT_KEY, PROJECT_TYPE, PROJECTS_DIR, STATE_DIR, TAG_INDEX,
     TAGS_DIR, TYPE_KEY, cards_dir, check_name, listed_entry, meta_path, name_of, read_entries,
     read_json, write_json,
 };
-use crate::note;
 
 const EDGE: u64 = 8 * 1024;
 

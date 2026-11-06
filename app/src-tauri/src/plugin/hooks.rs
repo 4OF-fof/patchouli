@@ -8,8 +8,10 @@ use serde::Serialize;
 use tauri::{Emitter, Manager};
 
 use crate::library::StoredItem;
+use crate::plugin::ipc::menu::apply_ran;
+use crate::plugin::ipc::{Target, env_of, info_of};
 use crate::plugin::{Registry, Runner, TargetFile};
-use crate::{Current, Target, apply_ran, env_of, info_of, with_session};
+use crate::session::{Current, with_session};
 
 struct Job {
     session: u64,

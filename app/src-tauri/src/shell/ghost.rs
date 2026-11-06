@@ -4,7 +4,7 @@ use tauri::{
     AppHandle, LogicalPosition, LogicalSize, Manager, Url, WebviewUrl, WebviewWindowBuilder,
 };
 
-use crate::web::MAIN;
+use crate::shell::web::MAIN;
 
 const LABEL: &str = "drag-ghost";
 
