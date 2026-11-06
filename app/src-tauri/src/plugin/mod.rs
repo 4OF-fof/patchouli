@@ -44,7 +44,6 @@ pub type Reads = BTreeMap<String, Value>;
 pub enum Part {
     Thumbnail,
     View,
-    Waveform,
     Hover,
     Details,
     Embed,
@@ -286,25 +285,6 @@ pub fn host_matches(pattern: &str, host: &str) -> bool {
             || host
                 .strip_suffix(pattern)
                 .is_some_and(|rest| rest.ends_with('.')))
-}
-
-pub const WAVEFORM_LIMIT_KEY: &str = "@waveformLimit";
-
-fn waveform_settings(m: &Manifest) -> Option<SettingDecl> {
-    m.formats
-        .iter()
-        .any(|d| d.script.contains(&Part::Waveform))
-        .then(|| SettingDecl {
-            key: WAVEFORM_LIMIT_KEY.into(),
-            label: "波形の作成時間の上限（秒）".into(),
-            help: Some("0 にすると、上限なしで最後まで作成します".into()),
-            kind: SettingKind::Number {
-                min: Some(0.0),
-                max: None,
-                step: Some(1.0),
-            },
-            default: Value::from(60),
-        })
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -603,8 +583,6 @@ pub struct FormatInfo {
     pub thumbnail: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_thumbnail: Option<UiRef>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ui_waveform: Option<UiRef>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub media: Option<Media>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1332,6 +1310,13 @@ impl Registry {
         self.formats.get(ext).map_or(DEFAULT_RATIO, |f| f.ratio)
     }
 
+    /// 本体が波形を作るか。
+    pub fn waves(&self, ext: &str) -> bool {
+        self.formats
+            .get(ext)
+            .is_some_and(|f| f.media == Some(Media::Audio))
+    }
+
     fn thumb_plugin(&self, ext: &str) -> Option<usize> {
         let by = self.handles(ext, Part::Thumbnail)?;
         Some(self.part(ext, Part::Thumbnail, by)?.0)
@@ -1489,7 +1474,6 @@ impl Registry {
                 plugin: id(f.owner),
                 thumbnail: self.handles(ext, Part::Thumbnail).is_some(),
                 ui_thumbnail: self.ui_of(ext, Part::Thumbnail),
-                ui_waveform: self.ui_of(ext, Part::Waveform),
                 media: f.media,
                 ui_hover: self.ui_of(ext, Part::Hover),
                 ui_embed: self.ui_of(ext, Part::Embed),
@@ -1924,16 +1908,14 @@ fn settings_of(
     m: &Manifest,
     problems: &mut Vec<Problem>,
 ) -> Vec<SettingDecl> {
-    let mut list = match wasm.map(|w| w.settings(&m.id)) {
+    match wasm.map(|w| w.settings(&m.id)) {
         None => Vec::new(),
         Some(Ok(s)) => s,
         Some(Err(e)) => {
             problems.push(error(format!("設定項目の読み込みに失敗しました：{e}")));
             Vec::new()
         }
-    };
-    list.extend(waveform_settings(m));
-    list
+    }
 }
 
 /// 形式 d の parts ごとの担当。受け持てないものは、問題に足して外す。

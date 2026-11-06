@@ -44,7 +44,6 @@ export interface FormatInfo {
   plugin: string
   thumbnail: boolean
   uiThumbnail?: UiRef
-  uiWaveform?: UiRef
   media?: Media
   uiHover?: UiRef
   uiEmbed?: UiRef

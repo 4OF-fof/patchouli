@@ -36,7 +36,7 @@ export interface RawManifest extends Omit<Manifest, 'formats' | 'links'> {
   formats?: RawFormat[]
 }
 
-const PARTS: readonly Part[] = ['thumbnail', 'view', 'details', 'excerpt', 'hover', 'embed', 'waveform', 'link']
+const PARTS: readonly Part[] = ['thumbnail', 'view', 'details', 'excerpt', 'hover', 'embed', 'link']
 const LINK_PARTS: readonly LinkPart[] = ['thumbnail', 'view', 'embed', 'details']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
 const MEDIA: readonly Media[] = ['image', 'video', 'audio']
@@ -130,7 +130,6 @@ export function resolveFormats(
         : undefined
     const uiLink = ui('link')
     const uiThumbnail = ui('thumbnail')
-    const uiWaveform = ui('waveform')
     const uiHover = ui('hover')
     const uiEmbed = ui('embed')
     formats.set(ext, {
@@ -142,7 +141,6 @@ export function resolveFormats(
       thumbnail: parts.includes('thumbnail') || parts.includes('link'),
       ...(uiLink && { uiLink }),
       ...(uiThumbnail && { uiThumbnail }),
-      ...(uiWaveform && { uiWaveform }),
       ...(d.media && { media: d.media }),
       ...(uiHover && { uiHover }),
       ...(uiEmbed && { uiEmbed }),

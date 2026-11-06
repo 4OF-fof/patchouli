@@ -9,13 +9,12 @@ import rules from './rules.json' with { type: 'json' }
  * - excerpt: 内容で探したり分けたりするときに読む区間
  * - hover: カーソルを合わせたときにサムネイルの上に重ねる表示
  * - embed: ノートに埋め込んだときの表示
- * - waveform: 音の波形
  * - link: ファイルが指す URL（ショートカットなど）。link を受け持つ形式のサムネイル・詳細の表示・埋め込み・ファイルの詳細は、
  *   ほかに受け持つものがなければ、URL に当てはまる links のプラグインか本体が受け持つ
  *
- * hover・embed・waveform・link は、スクリプトだけが受け持てる。
+ * hover・embed・link は、スクリプトだけが受け持てる。
  */
-export type Part = 'thumbnail' | 'view' | 'details' | 'excerpt' | 'hover' | 'embed' | 'waveform' | 'link'
+export type Part = 'thumbnail' | 'view' | 'details' | 'excerpt' | 'hover' | 'embed' | 'link'
 
 /** links で受け持てるもの。 */
 export type LinkPart = 'thumbnail' | 'view' | 'embed' | 'details'

@@ -354,6 +354,35 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 </Show>
               ),
             },
+            {
+              page: 'general' as const,
+              words: '音声 波形の作成時間の上限 秒',
+              body: () => (
+                <Show when={props.app}>
+                  {(a) => (
+                    <div class={styles.field}>
+                      <SettingField
+                        setting={{
+                          key: 'waveLimit',
+                          label: '波形の作成時間の上限（秒）',
+                          kind: 'number',
+                          min: 0,
+                          step: 1,
+                          default: 60,
+                          value: a().waveLimit,
+                          help: '0 にすると、上限なしで最後まで作成します',
+                        }}
+                        onChange={(v) =>
+                          typeof v === 'number' && v >= 0
+                            ? setApp({ waveLimit: Math.round(v) }, '波形の作成時間の上限を変更しています')
+                            : undefined
+                        }
+                      />
+                    </div>
+                  )}
+                </Show>
+              ),
+            },
           ]
         : []),
     ]),

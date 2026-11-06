@@ -48,19 +48,9 @@ const limitOf = (mod: UiModule) => {
 /** サムネイルの長いほうの辺の長さ（px）。src-tauri/src/thumb.rs と合わせる。 */
 export const EDGE = 512
 
-export const WAVE_POINTS = 4000
-
-export class WaveformTimeout extends Error {
-  readonly ms: number
-  constructor(ms: number) {
-    super(`波形の作成が ${ms / 1000} 秒以内に終わりませんでした`)
-    this.ms = ms
-  }
-}
-
 const loaded = new Map<string, Promise<UiModule>>()
 
-const MODULE_FNS = ['mount', 'thumbnail', 'waveform', 'hover', 'embed', 'details', 'menu', 'runMenu', 'excerpt', 'link']
+const MODULE_FNS = ['mount', 'thumbnail', 'hover', 'embed', 'details', 'menu', 'runMenu', 'excerpt', 'link']
 const LINK_FNS = ['thumbnail', 'mount', 'embed', 'details']
 
 const isFn = (v: unknown) => v === undefined || typeof v === 'function'
@@ -115,32 +105,6 @@ export async function uiThumbnail(url: string, api: Omit<ThumbnailApi, 'edge'>):
   const mod = await loadUi(url)
   if (!mod.thumbnail) throw new Error('サムネイル生成の関数（thumbnail）が見つかりません')
   return made(mod, mod.thumbnail({ ...api, edge: EDGE }))
-}
-
-export async function uiWaveform(url: string, api: UiApi, limit: number): Promise<Uint8Array | null> {
-  const mod = await loadUi(url)
-  if (!mod.waveform) throw new Error('波形を作成する関数（waveform）が見つかりません')
-  const stop = new AbortController()
-  let timer = 0
-  const late = new Promise<never>((_, reject) => {
-    if (limit > 0)
-      timer = window.setTimeout(() => {
-        const e = new WaveformTimeout(limit)
-        stop.abort(e)
-        reject(e)
-      }, limit)
-  })
-  const run = mod.waveform({ ...api, points: WAVE_POINTS, signal: stop.signal })
-  // 止めたあとに届く失敗は、もう誰も待っていない
-  run.catch(() => undefined)
-  const v = await Promise.race([run, late]).finally(() => clearTimeout(timer))
-  if (!v) return null
-  if (v.length !== WAVE_POINTS) throw new Error(`波形の区間の数（${v.length}）が ${WAVE_POINTS} と異なります`)
-  // 小さい音のものも細かさを落とさないよう、いちばん大きい区間を 255 に合わせる
-  const vals = Array.from(v, (x) => (Number.isFinite(x) && x > 0 ? x : 0))
-  const top = Math.max(...vals)
-  const scale = top > 0 ? 255 / top : 0
-  return Uint8Array.from(vals, (x) => Math.round(x * scale))
 }
 
 const isText = (v: unknown, k: string) => typeof Reflect.get(Object(v), k) === 'string'

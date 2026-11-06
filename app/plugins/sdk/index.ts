@@ -139,12 +139,6 @@ export interface RunMenuApi<T extends PluginTypes = PluginTypes> extends OwnApi<
   sandbox(): Promise<MenuOutput | undefined>
 }
 
-/** 波形を作るときの窓口。signal は、時間の上限を過ぎて止めてほしいときに中止になる。 */
-export interface WaveformApi<T extends PluginTypes = PluginTypes> extends Api<T> {
-  points: number
-  signal: AbortSignal
-}
-
 /** 内容で探したり分けたりするときに読む区間の上限。WIT の excerpt-budget と同じ。 */
 export interface ExcerptBudget {
   /** 画像の区間の数。 */
@@ -320,11 +314,6 @@ export interface PluginModule<T extends PluginTypes = PluginTypes> {
    * 返した関数は、埋め込みが消えるときに呼ぶ。
    */
   embed?(el: HTMLElement, api: Api<T>): void | (() => void)
-  /**
-   * 音の波形。素材の頭から終わりまでを points 個の区間に等分し、区間ごとの音の大きさ（二乗平均の平方根、0 以上）を返す。
-   * 作らないときは null。
-   */
-  waveform?(api: WaveformApi<T>): Promise<ArrayLike<number> | null>
   /** ファイルの詳細に足す行。 */
   details?(api: DetailsApi<T>): Promise<Detail[]>
   /** 右クリックメニューに足す項目。 */

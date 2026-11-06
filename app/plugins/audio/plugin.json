@@ -3,7 +3,6 @@
   "name": "音声",
   "version": "0.6.0",
   "description": "音声のジャケットと波形、再生、長さと BPM",
-  "script": "ui/waveform.js",
   "optional": {
     "commands": {
       "ffmpeg": {
@@ -18,8 +17,7 @@
       "label": "音声",
       "ratio": 1.6,
       "media": "audio",
-      "parts": ["thumbnail", "details", "excerpt", "waveform"],
-      "script": ["waveform"]
+      "parts": ["thumbnail", "details", "excerpt"]
     }
   ]
 }

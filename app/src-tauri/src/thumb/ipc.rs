@@ -100,7 +100,7 @@ pub(crate) fn plan_thumbs<'a>(
         it.wave_thumb = false;
         // 波形を作るものは、波形をサムネイルにすることがある
         let by = plugins.handles(&it.ext, Part::Thumbnail);
-        let waves = plugins.handles(&it.ext, Part::Waveform).is_some();
+        let waves = plugins.waves(&it.ext);
         if by.is_none() && !waves {
             continue;
         }
@@ -350,7 +350,7 @@ pub(crate) async fn missing_waveforms(
             .into_iter()
             .filter(|id| {
                 s.lib.asset(id).is_ok_and(|(path, ext)| {
-                    s.plugins.ui_of(&ext, Part::Waveform).is_some()
+                    s.plugins.waves(&ext)
                         && thumb::wave_path(&s.thumbs, id, path).is_some_and(|p| !p.exists())
                 })
             })
@@ -391,8 +391,8 @@ pub(crate) async fn put_waveform(
         .to_owned();
     let (src, ext, thumbs, plugins, cache) = with_session(&cur, |s| {
         let (path, ext) = s.lib.asset(&id)?;
-        if s.plugins.ui_of(&ext, Part::Waveform).is_none() {
-            return Err(format!("「.{ext}」の波形を作成するプラグインがありません"));
+        if !s.plugins.waves(&ext) {
+            return Err(format!("「.{ext}」は波形を作れる形式ではありません"));
         }
         Ok((
             path.to_owned(),

@@ -232,7 +232,7 @@ pub enum LinkOpen {
 }
 
 /// 本体の設定。
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSettings {
     #[serde(default)]
@@ -244,6 +244,25 @@ pub struct AppSettings {
     pub command_paths: HashMap<String, PathBuf>,
     #[serde(default)]
     pub link_open: LinkOpen,
+    /// 波形を作る時間の上限（秒）。0 は上限なし
+    #[serde(default = "wave_limit")]
+    pub wave_limit: u32,
+}
+
+fn wave_limit() -> u32 {
+    60
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            import_mode: ImportMode::default(),
+            thumb_size: ThumbSize::default(),
+            command_paths: HashMap::new(),
+            link_open: LinkOpen::default(),
+            wave_limit: wave_limit(),
+        }
+    }
 }
 
 pub fn app_settings(app: &AppHandle) -> Result<AppSettings, String> {

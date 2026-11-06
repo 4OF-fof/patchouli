@@ -45,8 +45,8 @@ import {
   uiMenu,
   uiRunMenu,
   uiThumbnail,
-  uiWaveform,
 } from '../plugins/ui'
+import { waveform } from '../media/waveform'
 import type {
   AutoTag,
   AutoTagProgress,
@@ -113,9 +113,6 @@ interface Elevated extends UiRef {
 }
 
 const uiItemOf = (it: ElevatedItem): UiItem => ({ id: it.id, name: it.name, ext: it.ext, url: convertFileSrc(it.file) })
-
-/** 波形を作る時間の上限（秒）の設定の key。src-tauri/src/plugin/mod.rs の WAVEFORM_LIMIT_KEY と合わせる。 */
-const WAVE_LIMIT = '@waveformLimit'
 
 const at = (p: { x: number; y: number }) => ({ x: p.x / devicePixelRatio, y: p.y / devicePixelRatio })
 
@@ -398,18 +395,15 @@ export function tauriBackend(): Backend {
   const waveQueue: TauriItem[] = []
   const waveIds = new Set<string>()
   let waving: TauriItem | undefined
-  const makeWave = async (it: TauriItem, ui: UiRef) => {
-    const limit = (await invoke<Record<string, SettingValue>>('plugin_settings', { plugin: ui.plugin }))[WAVE_LIMIT]
-    const api = uiApi(uiItemOf(it), 'waveform', ui.plugin)
-    const wave = await uiWaveform(
-      pluginUrl(ui.plugin, ui.module),
-      api,
-      typeof limit === 'number' ? limit * 1000 : 60_000,
-    )
-    if (wave) await invoke('put_waveform', wave, { headers: { id: it.id } })
+  const makeWave = async (it: TauriItem) => {
+    const { waveLimit } = await invoke<AppSettings>('app_settings')
+    const read = async (offset: number, length: number) =>
+      new Uint8Array(await invoke<ArrayBuffer>('plugin_read', { id: it.id, offset, length }))
+    const wave = await waveform(it.ext, read, waveLimit * 1000)
+    await invoke('put_waveform', wave, { headers: { id: it.id } })
   }
   const makeWaves = async (items: TauriItem[]) => {
-    const want = items.filter((it) => !it.note && !waveIds.has(it.id) && formats.get(it.ext)?.uiWaveform)
+    const want = items.filter((it) => !it.note && !waveIds.has(it.id) && formats.get(it.ext)?.media === 'audio')
     if (!want.length) return
     const missing = new Set(await invoke<string[]>('missing_waveforms', { ids: want.map((it) => it.id) }))
     for (const it of want)
@@ -421,9 +415,8 @@ export function tauriBackend(): Backend {
     try {
       for (let it = waveQueue.shift(); it; it = waveQueue.shift()) {
         waving = it
-        const ui = formats.get(it.ext)?.uiWaveform
         try {
-          if (ui) await makeWave(it, ui)
+          await makeWave(it)
         } catch (e) {
           console.warn(`波形を作れない: ${it.name}.${it.ext}`, e)
           if (!it.thumb && !thumbed.has(it.id)) sendThumb(it.id, { failed: true })

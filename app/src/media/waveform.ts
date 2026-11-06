@@ -4,10 +4,8 @@
  * そこで、区切ってよい位置でファイルを分け、頭（形式の情報）を付け直した小さなファイルにして 1 つずつデコードする。
  */
 
-import { type Api, definePlugin } from '@patchouli/plugin'
-
 type Bytes = Uint8Array<ArrayBuffer>
-type Read = (offset: number, length: number) => Promise<Bytes>
+export type Read = (offset: number, length: number) => Promise<Bytes>
 
 interface Layout {
   start: number
@@ -17,6 +15,8 @@ interface Layout {
   head(n: number): Bytes
   cut(a: Bytes): number
 }
+
+const POINTS = 4000
 
 const STEP = { mp3: 2 << 20, flac: 8 << 20, wav: 8 << 20 }
 
@@ -275,19 +275,17 @@ class Meter {
   }
 }
 
-async function waveform(api: Api & { points: number; signal: AbortSignal }) {
-  const ext = api.item.ext
-  if (!isFormat(ext)) return null
-  const read: Read = (offset, length) => api.read(offset, length)
+async function measure(ext: string, read: Read, signal: AbortSignal) {
+  if (!isFormat(ext)) throw new Error(`「.${ext}」の波形は作れません`)
   const f = await LAYOUTS[ext](read)
   const rate = Math.min(192000, Math.max(8000, f.rate || 44100))
-  const meter = new Meter(api.points)
+  const meter = new Meter(POINTS)
   const step = STEP[ext] - (f.align ? STEP[ext] % f.align : 0)
   let pos = f.start
   let carry: Bytes = new Uint8Array(0)
   let decoded = 0
   for (;;) {
-    if (api.signal.aborted) throw api.signal.reason
+    if (signal.aborted) throw signal.reason
     const want = Math.min(step, (f.end ?? Infinity) - pos)
     const got = want > 0 ? await read(pos, want) : new Uint8Array(0)
     pos += got.length
@@ -309,7 +307,25 @@ async function waveform(api: Api & { points: number; signal: AbortSignal }) {
     if (last) break
   }
   if (!decoded) throw new Error('音声のデコードに失敗しました')
-  return meter.finish(api.points)
+  return meter.finish(POINTS)
 }
 
-export default definePlugin({ waveform })
+/**
+ * 頭から終わりまでを等分した区間ごとの音の大きさ（二乗平均の平方根）を、いちばん大きい区間を 255 にそろえて返す。
+ * limit（ミリ秒）を過ぎたらやめる。0 は上限なし。
+ */
+export async function waveform(ext: string, read: Read, limit: number): Promise<Uint8Array> {
+  const stop = new AbortController()
+  const timer =
+    limit > 0
+      ? setTimeout(() => stop.abort(new Error(`波形の作成が ${limit / 1000} 秒以内に終わりませんでした`)), limit)
+      : undefined
+  try {
+    const v = Array.from(await measure(ext, read, stop.signal), (x) => (Number.isFinite(x) && x > 0 ? x : 0))
+    const top = Math.max(...v)
+    const scale = top > 0 ? 255 / top : 0
+    return Uint8Array.from(v, (x) => Math.round(x * scale))
+  } finally {
+    clearTimeout(timer)
+  }
+}

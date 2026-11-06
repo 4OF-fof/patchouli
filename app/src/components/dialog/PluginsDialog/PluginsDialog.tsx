@@ -42,7 +42,6 @@ export interface PluginsDialogProps {
 const PART: Record<CapPart, string> = {
   thumbnail: 'サムネイル',
   view: '詳細表示',
-  waveform: '波形',
   hover: 'ホバー表示',
   details: 'ファイルの詳細',
   embed: '埋め込み表示',

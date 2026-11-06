@@ -183,6 +183,8 @@ export interface AppSettings {
   commandPaths: Record<string, string>
   /** ノートのリンクの URL を、内蔵ブラウザ（タブ）で開くか、既定のアプリで開くか */
   linkOpen: 'builtin' | 'default'
+  /** 波形を作る時間の上限（秒）。0 は上限なし */
+  waveLimit: number
 }
 
 export interface AppSettingsActions {
