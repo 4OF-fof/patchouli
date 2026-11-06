@@ -6,6 +6,7 @@ license = "MIT"
 repository = ""
 edition = "2024"
 rust-version = "1.90"
+default-run = "patchouli"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -20,7 +21,7 @@ tauri-build = { version = "2.7.4", features = [] }
 serde_json = { version = "1.0", features = ["preserve_order"] }
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.12.5", features = ["protocol-asset", "unstable"] }
+tauri = { version = "2.12.5", features = ["protocol-asset", "tray-icon", "unstable"] }
 tauri-plugin-log = "2"
 serde_yaml_ng = { version = "0.10.0", default-features = false }
 imagesize = "0.15.0"
@@ -40,6 +41,7 @@ ureq = { version = "3.5.0", features = ["json"] }
 base64 = "0.23.1"
 fs4 = "1.1.0"
 encoding_rs = "0.8"
+interprocess = "2.4.7"
 
 # 開発中も画像の読み込みと縮小が遅くならないよう、依存クレートは最適化してビルドする
 [profile.dev.package."*"]
@@ -55,6 +57,7 @@ windows-sys = { version = "0.61.2", features = [
   "Win32_Graphics_Gdi",
   "Win32_UI_WindowsAndMessaging",
 ] }
+winreg = "0.56.0"
 
 [target."cfg(not(windows))".dependencies]
 flate2 = "1.1.10"

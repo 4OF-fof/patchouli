@@ -3,6 +3,7 @@ mod background;
 mod framed;
 pub mod library;
 pub mod plugin;
+mod remote;
 mod session;
 mod shell;
 pub mod thumb;
@@ -12,7 +13,7 @@ use tauri::Manager;
 use ai::embed;
 use plugin::ipc::manage::Staging;
 use session::Current;
-use shell::{ghost, settings, web};
+use shell::{ghost, settings, tray, web};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -119,8 +120,25 @@ pub fn run() {
             shell::ipc::browser_close_all,
             shell::ipc::ghost_show,
             shell::ipc::ghost_move,
-            shell::ipc::ghost_hide
+            shell::ipc::ghost_hide,
+            tray::close_to_tray,
+            tray::quit_app,
+            remote::ipc::remote_status,
+            remote::ipc::set_remote_path,
+            remote::ipc::install_skill,
+            remote::ipc::remove_skill,
+            remote::ipc::pick_skill_dir,
+            remote::ipc::add_extension,
+            remote::ipc::remove_extension,
+            remote::ipc::set_remote_client,
+            remote::ipc::forget_remote_client,
+            remote::ipc::remote_asks,
+            remote::ipc::answer_remote
         ]);
+    // 二重に起動したときは、動いているほうのウィンドウを出して終える
+    if remote::server::running(!tray::background()) {
+        return;
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(Current::default())
@@ -158,8 +176,15 @@ pub fn run() {
                 .clone();
             let handle = app.handle().clone();
             tauri::WebviewWindowBuilder::from_config(app.handle(), &conf)?
+                .visible(!tray::background())
                 .on_new_window(move |url, features| web::popout(&handle, url, features))
                 .build()?;
+            tray::init(app.handle())?;
+            remote::server::start(app.handle());
+            {
+                let app = app.handle().clone();
+                std::thread::spawn(move || remote::setup::refresh(&app));
+            }
             // 前に起動したときに広げた開発版は、もう使っていない
             if let Some(d) = plugin::ipc::dev_unpack_dir(app.handle()) {
                 let _ = std::fs::remove_dir_all(d);
@@ -184,9 +209,10 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|_, e| {
-            if let tauri::RunEvent::Exit = e {
-                embed::shutdown();
-            }
+        .run(|_app, e| match e {
+            tauri::RunEvent::Exit => embed::shutdown(),
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { .. } => tray::show_main(_app),
+            _ => {}
         });
 }

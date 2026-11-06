@@ -91,8 +91,17 @@ pub fn get(
     url: &Url,
     allow: impl Fn(&Url) -> Result<(), String>,
 ) -> Result<(Head, Vec<u8>), String> {
+    get_within(url, allow, LIMIT, TIMEOUT)
+}
+
+pub fn get_within(
+    url: &Url,
+    allow: impl Fn(&Url) -> Result<(), String>,
+    limit: u64,
+    timeout: Duration,
+) -> Result<(Head, Vec<u8>), String> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
-        .timeout_global(Some(TIMEOUT))
+        .timeout_global(Some(timeout))
         .http_status_as_error(false)
         .max_redirects(0)
         .user_agent(concat!("Patchouli/", env!("CARGO_PKG_VERSION")))
@@ -133,7 +142,7 @@ pub fn get(
     let body = res
         .body_mut()
         .with_config()
-        .limit(LIMIT)
+        .limit(limit)
         .read_to_vec()
         .map_err(err)?;
     Ok((head, body))

@@ -512,7 +512,7 @@ pub(crate) async fn delete_tag_cover(cur: State<'_, Current>, tag: String) -> Re
 }
 
 /// ファイルを動かしたあとで、ライブラリを突き合わせ直して画面に知らせる。
-fn recheck(app: &tauri::AppHandle) -> Result<(), String> {
+pub(crate) fn recheck(app: &tauri::AppHandle) -> Result<(), String> {
     let cur = app.state::<Current>();
     let (id, root, plugins, cache, thumbs) = with_session(&cur, |s| {
         Ok((

@@ -18,6 +18,7 @@ const TAG_SUGGEST: &str = "tagSuggest";
 const CONTENT_SEARCH: &str = "contentSearch";
 const DEVICE: &str = "device";
 const APP: &str = "app";
+const REMOTE: &str = "remote";
 
 /// タグの候補の扱い。auto は選択済みの候補をそのまま付け、confirm は分類の確認に出す。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -247,10 +248,17 @@ pub struct AppSettings {
     /// 波形を作る時間の上限（秒）。0 は上限なし
     #[serde(default = "wave_limit")]
     pub wave_limit: u32,
+    /// ウィンドウを閉じたとき、終了せずにタスクトレイに残る
+    #[serde(default = "yes")]
+    pub close_to_tray: bool,
 }
 
 fn wave_limit() -> u32 {
     60
+}
+
+fn yes() -> bool {
+    true
 }
 
 impl Default for AppSettings {
@@ -261,8 +269,66 @@ impl Default for AppSettings {
             command_paths: HashMap::new(),
             link_open: LinkOpen::default(),
             wave_limit: wave_limit(),
+            close_to_tray: yes(),
         }
     }
+}
+
+/// 外から操作してくる口。key は cli・extension:{ID}・app:{名前}。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteClient {
+    pub key: String,
+    pub name: String,
+    pub allowed: bool,
+    #[serde(default)]
+    pub permissions: Vec<String>,
+    /// 最後につないできた時刻（ミリ秒）
+    #[serde(default)]
+    pub last: f64,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Remote {
+    #[serde(default)]
+    pub clients: Vec<RemoteClient>,
+    /// Native Messaging でつないでよい拡張機能の ID
+    #[serde(default)]
+    pub extensions: Vec<String>,
+    /// skill を書き出したフォルダ
+    #[serde(default)]
+    pub skills: Vec<PathBuf>,
+    /// CLI を PATH に登録したか
+    #[serde(default)]
+    pub path: bool,
+}
+
+pub fn remote(app: &AppHandle) -> Result<Remote, String> {
+    Ok(read(app)?
+        .get(REMOTE)
+        .cloned()
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default())
+}
+
+pub fn update_remote<T>(
+    app: &AppHandle,
+    f: impl FnOnce(&mut Remote) -> Result<T, String>,
+) -> Result<T, String> {
+    update(app, |m| {
+        let mut r: Remote = m
+            .get(REMOTE)
+            .cloned()
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default();
+        let out = f(&mut r)?;
+        m.insert(
+            REMOTE.into(),
+            serde_json::to_value(r).map_err(|e| e.to_string())?,
+        );
+        Ok(out)
+    })
 }
 
 pub fn app_settings(app: &AppHandle) -> Result<AppSettings, String> {
