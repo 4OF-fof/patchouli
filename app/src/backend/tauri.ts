@@ -40,6 +40,7 @@ import {
   uiExcerpt,
   uiDetails,
   uiLinkDetails,
+  uiLinkExcerpt,
   uiLinkThumbnail,
   uiMenu,
   uiRunMenu,
@@ -426,6 +427,8 @@ export function tauriBackend(): Backend {
   // 自動分類で読む区間のうち、elevated が受け持つもの。Rust が頼んできたものを 1 つずつ作って返す
   interface ContentWanted extends ElevatedItem, UiRef {
     job: number
+    /** ショートカットが指す URL。links のスクリプトが区間を作る。 */
+    url?: string
   }
   let contentQueue: ContentWanted[] = []
   let contentStop = new AbortController()
@@ -441,12 +444,18 @@ export function tauriBackend(): Backend {
         const started = performance.now()
         const ms = () => `${performance.now() - started}`
         try {
-          const parts = await uiExcerpt(
-            pluginUrl(w.plugin, w.module),
-            { ...uiApi(uiItemOf(w), 'excerpt', w.plugin), sandbox: () => invoke('content_sandbox', { job: w.job }) },
-            budget,
-            contentStop.signal,
-          )
+          const module = pluginUrl(w.plugin, w.module)
+          const parts = w.url
+            ? await uiLinkExcerpt(module, linkApi(w.url, w.plugin), budget, contentStop.signal)
+            : await uiExcerpt(
+                module,
+                {
+                  ...uiApi(uiItemOf(w), 'excerpt', w.plugin),
+                  sandbox: () => invoke('content_sandbox', { job: w.job }),
+                },
+                budget,
+                contentStop.signal,
+              )
           await putContent(w.job, await packParts(parts), { ms: ms() })
         } catch (e) {
           await putContent(w.job, new Uint8Array(), {

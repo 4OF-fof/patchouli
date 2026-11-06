@@ -72,7 +72,7 @@ impl Part {
 }
 
 /// 本体が読むショートカットで、URL ごとに links のプラグインか本体が受け持つもの。
-const LINK_PARTS: [Part; 4] = [Part::Thumbnail, Part::View, Part::Embed, Part::Details];
+const SHORTCUT_PARTS: [Part; 4] = [Part::Thumbnail, Part::View, Part::Embed, Part::Details];
 
 /// 本体がそのまま出す種類。詳細の表示と、カーソルを合わせたとき・埋め込みの出し方を決める。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -139,8 +139,16 @@ fn lowercase<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::E
 
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct LinkDecl {
+    #[serde(deserialize_with = "lowercase")]
+    pub host: Vec<String>,
     #[serde(default)]
-    pub elevated: Vec<Part>,
+    pub parts: Vec<Part>,
+}
+
+impl LinkDecl {
+    fn hosts(&self) -> String {
+        self.host.join("・")
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -304,7 +312,7 @@ pub struct Manifest {
     #[serde(default)]
     pub formats: Vec<FormatDecl>,
     #[serde(default)]
-    pub links: BTreeMap<String, LinkDecl>,
+    pub links: Vec<LinkDecl>,
     #[serde(default)]
     pub screens: BTreeMap<String, ScreenDecl>,
     pub menu: Option<MenuDecl>,
@@ -348,7 +356,7 @@ impl Manifest {
 
     fn wants_script(&self) -> bool {
         self.formats.iter().any(|d| !d.script.is_empty())
-            || self.links.values().any(|d| !d.elevated.is_empty())
+            || self.links.iter().any(|d| !d.parts.is_empty())
             || !self.screens.is_empty()
             || self.menu_by(By::Elevated)
     }
@@ -363,8 +371,8 @@ impl Manifest {
                     by: d.by(part),
                 })
             })
-            .chain(self.links.values().flat_map(|d| {
-                d.elevated.iter().map(|&part| Cap {
+            .chain(self.links.iter().flat_map(|d| {
+                d.parts.iter().map(|&part| Cap {
                     part,
                     by: By::Elevated,
                 })
@@ -1066,38 +1074,37 @@ impl Registry {
     }
 
     fn resolve_links(&mut self) {
-        let mut claims: BTreeMap<String, Vec<usize>> = BTreeMap::new();
-        for (i, p) in self.plugins.iter().enumerate().filter(|(_, p)| !p.blocked) {
-            for host in p.manifest.links.keys() {
-                claims.entry(host_key(host)).or_default().push(i);
+        // ホスト名 → (プラグイン, links の何番目か)
+        let mut claims: BTreeMap<String, Vec<(usize, usize)>> = BTreeMap::new();
+        for (i, p) in self
+            .plugins
+            .iter_mut()
+            .enumerate()
+            .filter(|(_, p)| !p.blocked)
+        {
+            let mut seen = HashSet::new();
+            for (k, d) in p.manifest.links.iter().enumerate() {
+                for host in d.host.iter().map(|h| host_key(h)) {
+                    if !seen.insert(host.clone()) {
+                        p.problems
+                            .push(error(format!("「{host}」を links に 2 回書いています")));
+                        continue;
+                    }
+                    claims.entry(host).or_default().push((i, k));
+                }
             }
         }
         let mut links = HashMap::new();
         let mut conflicts = Vec::new();
-        for (host, by) in claims {
-            if let [only] = by[..] {
+        for (host, claimed) in claims {
+            if let [(only, k)] = claimed[..] {
                 let p = &self.plugins[only];
-                let decl = p
-                    .manifest
-                    .links
+                let parts = p.manifest.links[k]
+                    .parts
                     .iter()
-                    .find(|(h, _)| host_key(h) == host)
-                    .map(|(_, d)| d.clone())
-                    .unwrap_or_default();
-                let mut parts = Vec::new();
-                let mut bad = Vec::new();
-                for part in decl.elevated {
-                    if LINK_PARTS.contains(&part) {
-                        parts.push(part);
-                    } else if part != Part::Unknown {
-                        bad.push(error(format!(
-                            "「{host}」の links では {} を受け持てません",
-                            format!("{part:?}").to_lowercase()
-                        )));
-                    }
-                }
-                let p = &mut self.plugins[only];
-                p.problems.extend(bad);
+                    .copied()
+                    .filter(|&x| x != Part::Unknown && x != Part::Menu)
+                    .collect();
                 if p.script.is_some() {
                     links.insert(
                         host,
@@ -1109,6 +1116,7 @@ impl Registry {
                 }
                 continue;
             }
+            let by: Vec<usize> = claimed.iter().map(|&(i, _)| i).collect();
             for &i in &by {
                 let others: Vec<String> = by
                     .iter()
@@ -1150,6 +1158,31 @@ impl Registry {
             .collect();
         out.sort_by(|a, b| a.host.cmp(&b.host));
         out
+    }
+
+    /// url に当てはまる links。いちばん長いホスト名のものを使う。
+    fn link_for(&self, url: &str) -> Option<&LinkResolved> {
+        let u = tauri::Url::parse(url).ok()?;
+        let mut h = host_key(u.host_str()?);
+        loop {
+            if let Some(l) = self.links.get(&h) {
+                return Some(l);
+            }
+            h = h.split_once('.')?.1.to_owned();
+        }
+    }
+
+    /// url の excerpt を受け持つスクリプトと、そのプラグインの ID と版。版が変われば区間を作り直す。
+    pub fn link_excerpt(&self, url: &str) -> Option<(UiRef, String)> {
+        let l = self
+            .link_for(url)
+            .filter(|l| l.parts.contains(&Part::Excerpt))?;
+        let p = &self.plugins[l.plugin];
+        let ui = UiRef {
+            plugin: p.manifest.id.clone(),
+            module: p.script.clone()?,
+        };
+        Some((ui, format!("{}@{}", p.manifest.id, p.manifest.version)))
     }
 
     pub fn screens(&self) -> Vec<ScreenInfo> {
@@ -1281,14 +1314,14 @@ impl Registry {
     /// ショートカットは、URL ごとに受け持つものを画面が呼ぶので Elevated にする。
     pub fn handles(&self, ext: &str, part: Part) -> Option<By> {
         if ext == shortcut::EXT {
-            return LINK_PARTS.contains(&part).then_some(By::Elevated);
+            return SHORTCUT_PARTS.contains(&part).then_some(By::Elevated);
         }
         self.formats.get(ext)?.parts.get(&part).copied()
     }
 
     /// URL ごとに受け持つもの（links のプラグインか本体）に回すか。
     pub fn by_link(&self, ext: &str, part: Part) -> bool {
-        ext == shortcut::EXT && LINK_PARTS.contains(&part)
+        ext == shortcut::EXT && SHORTCUT_PARTS.contains(&part)
     }
 
     /// by が実際に使う担当のときだけ返す。
@@ -1650,7 +1683,10 @@ impl Registry {
                 };
                 formats.sort();
                 let mut links: Vec<String> = if p.blocked {
-                    m.links.keys().map(|h| host_key(h)).collect()
+                    m.links
+                        .iter()
+                        .flat_map(|d| d.host.iter().map(|h| host_key(h)))
+                        .collect()
                 } else {
                     self.links
                         .iter()
@@ -1842,7 +1878,11 @@ fn idle(
             .iter()
             .flat_map(|d| d.ext.iter().cloned())
             .collect(),
-        links: m.links.keys().map(|h| host_key(h)).collect(),
+        links: m
+            .links
+            .iter()
+            .flat_map(|d| d.host.iter().map(|h| host_key(h)))
+            .collect(),
         screens: screen_labels(m),
         permissions: permissions_of(m),
         script: m.wants_script(),
@@ -1874,10 +1914,16 @@ fn misspelled(m: &Manifest) -> Vec<Problem> {
             )));
         }
     }
-    for (host, d) in &m.links {
-        if d.elevated.contains(&Part::Unknown) {
+    for d in &m.links {
+        let host = d.hosts();
+        if d.parts.contains(&Part::Unknown) {
             out.push(error(format!(
-                "「{host}」の links の elevated に、受け持てないものが書かれています"
+                "「{host}」の links の parts に、受け持てないものが書かれています"
+            )));
+        }
+        if d.parts.contains(&Part::Menu) {
+            out.push(error(format!(
+                "「{host}」の links の parts に menu は書けません。右クリックメニューは plugin.json の menu に書きます"
             )));
         }
     }

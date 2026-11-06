@@ -358,7 +358,7 @@ export function createPlugins(d: PluginsDeps) {
     openUrl: backend.openUrl && ((url: string) => void backend.openUrl?.(url).catch(failOpen)),
     openLink: (url: string) => void openUrl(url),
   }
-  const { uiApi, uiUrl } = backend
+  const { uiApi, uiUrl, itemView, linkOf } = backend
   const hoverHost: HoverHost = {
     ui:
       uiApi &&
@@ -367,6 +367,13 @@ export function createPlugins(d: PluginsDeps) {
         url: uiUrl(ui),
         api: uiApi({ id: it.id, name: it.name, ext: it.ext, url: it.src }, 'hover', ui.plugin),
       })),
+    link:
+      itemView &&
+      linkOf &&
+      (async (it) => {
+        const v = await itemView(it.id)
+        return v?.kind === 'link' ? linkOf(v.url, 'hover').ui : undefined
+      }),
   }
 
   const [report] = createResource(plugged, () => backend.plugins().catch(() => undefined))

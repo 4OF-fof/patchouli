@@ -216,16 +216,26 @@ export interface LinkThumbnailApi<T extends PluginTypes = PluginTypes> extends L
   edge: number
 }
 
+/** URL の内容で探したり分けたりするときに読む区間を作る窓口。 */
+export interface LinkExcerptApi<T extends PluginTypes = PluginTypes> extends LinkApi<T> {
+  budget: ExcerptBudget
+  signal: AbortSignal
+}
+
 /** plugin.json の links で受け持つもの。 */
 export interface LinkModule<T extends PluginTypes = PluginTypes> {
   /** サムネイル。作らないときは null。 */
   thumbnail?(api: LinkThumbnailApi<T>): Promise<Thumbnail | null>
   /** 詳細の表示。返した関数は、閉じるときに呼ぶ。 */
   mount?(el: HTMLElement, api: LinkApi<T>): void | (() => void)
-  /** ノートに埋め込んだときの表示。ショートカットを埋め込んだときと、ノートに URL を埋め込んだときの両方に使う。 */
-  embed?(el: HTMLElement, api: LinkApi<T>): void | (() => void)
   /** ファイルの詳細に足す行。 */
   details?(api: LinkApi<T>): Promise<Detail[]>
+  /** ショートカットの内容で探したり分けたりするときに読む区間。budget を超えない。 */
+  excerpt?(api: LinkExcerptApi<T>): Promise<ExcerptPart[]>
+  /** ショートカットにカーソルを合わせたときに、サムネイルの上に重ねる表示。返した関数は、外れたときに呼ぶ。 */
+  hover?(el: HTMLElement, api: LinkApi<T>): void | (() => void)
+  /** ノートに埋め込んだときの表示。ショートカットを埋め込んだときと、ノートに URL を埋め込んだときの両方に使う。 */
+  embed?(el: HTMLElement, api: LinkApi<T>): void | (() => void)
 }
 
 /** 画面に渡す、ライブラリの項目。 */

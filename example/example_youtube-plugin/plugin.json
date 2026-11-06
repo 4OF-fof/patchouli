@@ -5,8 +5,5 @@
   "description": "YouTube の動画の URL を、サムネイルとプレーヤーで見せる",
   "script": "ui/youtube.js",
   "fetch": ["youtube.com", "ytimg.com"],
-  "links": {
-    "youtube.com": { "elevated": ["thumbnail", "view", "embed", "details"] },
-    "youtu.be": { "elevated": ["thumbnail", "view", "embed", "details"] }
-  }
+  "links": [{ "host": ["youtube.com", "youtu.be"], "parts": ["thumbnail", "view", "embed", "details"] }]
 }

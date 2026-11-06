@@ -12,10 +12,10 @@ import type {
 import type {
   ItemDetails,
   ItemView,
-  LinkPart,
   MenuGroup,
   MenuOutput,
   CapPart,
+  Part,
   PluginActions,
   PluginReport,
   ScreenInfo,
@@ -339,7 +339,7 @@ export interface Backend {
   ownApi?: (plugin: string) => OwnApi
   uiUrl?: (ui: UiRef) => string
   /** url の part を受け持つもの。 */
-  linkOf?: (url: string, part: LinkPart) => LinkShown
+  linkOf?: (url: string, part: Part) => LinkShown
   /** URL の素材と同じ作り方のサムネイル（blob の URL）。作れなければ undefined。使い終わったら呼び出し元で revoke する。 */
   linkThumb?: (url: string) => Promise<string | undefined>
   /** URL を既定のアプリで開く。 */

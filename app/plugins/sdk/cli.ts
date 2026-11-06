@@ -28,7 +28,7 @@ function readManifest(dir: string): Manifest {
   if (!id) throw missing('id')
   if (!name) throw missing('name')
   if (!version) throw missing('version')
-  if (!formats?.length && !isMap(links) && !isMap(screens) && !isMap(menu) && !isMap(hooks))
+  if (!formats?.length && !links?.length && !isMap(screens) && !isMap(menu) && !isMap(hooks))
     throw missing('formats・links・screens・menu・hooks のいずれか')
   if (script !== undefined && !script.endsWith('.js'))
     throw new Error(`${file}: 「script」には .js のパスを指定してください（${script}）`)

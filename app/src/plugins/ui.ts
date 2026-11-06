@@ -51,7 +51,7 @@ export const EDGE = 512
 const loaded = new Map<string, Promise<UiModule>>()
 
 const MODULE_FNS = ['mount', 'thumbnail', 'hover', 'embed', 'details', 'menu', 'runMenu', 'excerpt']
-const LINK_FNS = ['thumbnail', 'mount', 'embed', 'details']
+const LINK_FNS = ['thumbnail', 'mount', 'details', 'excerpt', 'hover', 'embed']
 
 const isFn = (v: unknown) => v === undefined || typeof v === 'function'
 const isLinks = (v: unknown) =>
@@ -179,6 +179,13 @@ export async function uiLinkDetails(url: string, api: LinkApi): Promise<Detail[]
 const CONTENT_LIMIT = 600_000
 
 /** stop が中止になるか、時間の上限を過ぎると、signal で止めてもらう。 */
+async function excerptOf(run: (signal: AbortSignal) => Promise<ExcerptPart[]>, stop: AbortSignal) {
+  const late = AbortSignal.timeout(CONTENT_LIMIT)
+  const parts = await run(AbortSignal.any([stop, late]))
+  if (late.aborted) throw new Error(`区間の作成が ${CONTENT_LIMIT / 1000} 秒以内に終わりませんでした`)
+  return Array.isArray(parts) ? parts : []
+}
+
 export async function uiExcerpt(
   url: string,
   api: Omit<ExcerptApi, 'budget' | 'signal'>,
@@ -187,9 +194,16 @@ export async function uiExcerpt(
 ): Promise<ExcerptPart[]> {
   const mod = await loadUi(url)
   if (!mod.excerpt) throw new Error('区間を作る関数（excerpt）が見つかりません')
-  const late = AbortSignal.timeout(CONTENT_LIMIT)
-  const signal = AbortSignal.any([stop, late])
-  const parts = await mod.excerpt({ ...api, budget, signal })
-  if (late.aborted) throw new Error(`区間の作成が ${CONTENT_LIMIT / 1000} 秒以内に終わりませんでした`)
-  return Array.isArray(parts) ? parts : []
+  return excerptOf((signal) => mod.excerpt?.({ ...api, budget, signal }) ?? Promise.resolve([]), stop)
+}
+
+export async function uiLinkExcerpt(
+  url: string,
+  api: LinkApi,
+  budget: ExcerptBudget,
+  stop: AbortSignal,
+): Promise<ExcerptPart[]> {
+  const links = (await loadUi(url)).links
+  if (!links?.excerpt) throw new Error('URL の区間を作る関数（links.excerpt）が見つかりません')
+  return excerptOf((signal) => links.excerpt?.({ ...api, budget, signal }) ?? Promise.resolve([]), stop)
 }

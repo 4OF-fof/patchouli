@@ -31,7 +31,7 @@ import { type Item, type Library, type Place, jacketOf, relDay, thumbOf } from '
 import { onFlush } from '../../model/persist'
 import { WebPage } from '../../components/media/WebPage/WebPage'
 import type { BrowserActions, LinkShown } from '../../backend/types'
-import type { ItemDetails, ItemView, LinkPart, Part } from '../../plugins/types'
+import type { ItemDetails, ItemView, Part } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
 import { useTagPicker } from '../useTagPicker'
 import shared from '../screen.module.css'
@@ -45,7 +45,7 @@ export interface AssetViewHost {
   ui?: (item: UiItem, part: Part, plugin: string) => UiApi
   waveform?: (id: string) => Promise<Uint8Array | null>
   details?: (id: string) => Promise<ItemDetails>
-  linkOf?: (url: string, part: LinkPart) => LinkShown
+  linkOf?: (url: string, part: Part) => LinkShown
   browser?: BrowserActions
   openUrl?: (url: string) => void
   /** 設定に合わせて、内蔵ブラウザか既定のアプリで開く。 */

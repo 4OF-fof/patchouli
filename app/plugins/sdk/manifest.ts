@@ -14,9 +14,6 @@ import rules from './rules.json' with { type: 'json' }
  */
 export type Part = 'thumbnail' | 'view' | 'details' | 'excerpt' | 'hover' | 'embed'
 
-/** links で受け持てるもの。本体が読むショートカット（.url）は、指す URL に当てはまる links のプラグインか本体が描く。 */
-export type LinkPart = 'thumbnail' | 'view' | 'embed' | 'details'
-
 /**
  * 本体がそのまま出す種類。詳細の表示に出し、カーソルを合わせたときは video を音を消して再生し、audio を鳴らす。
  * ノートに埋め込んだときも、そのまま出す。parts の view・hover・embed があれば、そちらを使う。
@@ -77,9 +74,18 @@ export interface FormatDecl {
   script?: Part[]
 }
 
-/** URL ごとに受け持つもの。ネットワークを使うことが多いので、elevated だけが受け持てる。 */
+/**
+ * 同じ扱いの URL のまとまり。受け持つものはすべてスクリプトが描く。
+ * 本体が読むショートカット（.url）も、指す URL に当てはまるものが描く。thumbnail・view・details・embed は、なければ本体がページの OGP から作る。
+ */
 export interface LinkDecl {
-  elevated?: LinkPart[]
+  /**
+   * ホスト名。サブドメインも含む（youtube.com は www.youtube.com にも当てはまる）。
+   * 当てはまるものが複数あるときは、いちばん長いホスト名のものを使う。同じホスト名を複数のプラグインが書いたら、どれも使わない。
+   */
+  host: string[]
+  /** 受け持つもの。書けるものは formats の parts と同じ。 */
+  parts?: Part[]
 }
 
 /** 本体に足す画面。ホームやすべてと並べて、場所のメニューやコマンドから開ける。描くのは elevated の screens。 */
@@ -136,11 +142,7 @@ export interface Manifest {
    */
   script?: string
   formats?: FormatDecl[]
-  /**
-   * URL のホスト名 → 受け持つもの。ホスト名はサブドメインも含む（youtube.com は www.youtube.com にも当てはまる）。
-   * 当てはまるものが複数あるときは、いちばん長いホスト名のものを使う。同じホスト名を複数のプラグインが書いたら、どれも使わない。
-   */
-  links?: Record<string, LinkDecl>
+  links?: LinkDecl[]
   /** 画面の id → 画面。id は英数字・ハイフン・下線で書く。 */
   screens?: Record<string, ScreenDecl>
   menu?: MenuDecl

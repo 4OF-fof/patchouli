@@ -4,13 +4,18 @@ import { prefs } from '../../../model/prefs'
 import { useFormats } from '../../../plugins/formats'
 import type { Fit, UiRef } from '../../../plugins/types'
 import { type UiApi, loadUi } from '../../../plugins/ui'
+import type { LinkApi } from '../../../../plugins/sdk'
 import { clock } from '../PlayerBar/clock'
 import { createMediaState } from '../PlayerBar/media'
 import styles from './HoverPreview.module.css'
 
 export interface HoverHost {
   ui?: (item: Item, ui: UiRef) => { url: string; api: UiApi }
+  /** ショートカットが指す URL の hover を受け持つ links のスクリプト。 */
+  link?: (item: Item) => Promise<{ url: string; api: LinkApi } | undefined>
 }
+
+type Draw = (el: HTMLElement) => void | (() => void)
 
 const Host = createContext<HoverHost>({})
 
@@ -31,8 +36,27 @@ export function useHoverPreview() {
     if (ui && make)
       return () => {
         const p = make(it, ui)
-        return <PluginHover url={p.url} api={p.api} />
+        return (
+          <PluginHover
+            draw={async () => {
+              const mod = await loadUi(p.url)
+              return mod.hover && ((el) => mod.hover?.(el, p.api))
+            }}
+          />
+        )
       }
+    const link = host.link
+    if (f?.link && link)
+      return () => (
+        <PluginHover
+          draw={async () => {
+            const p = await link(it)
+            if (!p) return undefined
+            const mod = await loadUi(p.url)
+            return mod.links?.hover && ((el) => mod.links?.hover?.(el, p.api))
+          }}
+        />
+      )
     const src = it.src
     if (f?.media === 'video' && src) return () => <VideoHover src={src} fit={it.fit} clock={opts?.clock} />
     if (f?.media === 'audio' && src)
@@ -124,16 +148,16 @@ export function VideoHover(props: { src: string; fit?: Fit; clock?: boolean }) {
   )
 }
 
-function PluginHover(props: { url: string; api: UiApi }) {
+function PluginHover(props: { draw: () => Promise<Draw | undefined> }) {
   let el!: HTMLSpanElement
   let off: (() => void) | undefined
   let closed = false
   onMount(() => {
-    const { url, api } = props
-    loadUi(url)
-      .then((mod) => {
-        if (closed || !mod.hover) return
-        off = mod.hover(el, api) ?? undefined
+    props
+      .draw()
+      .then((draw) => {
+        if (closed || !draw) return
+        off = draw(el) ?? undefined
       })
       .catch((e: unknown) => console.warn('ホバー表示を描けない', e))
   })
@@ -145,5 +169,5 @@ function PluginHover(props: { url: string; api: UiApi }) {
       console.warn('ホバー表示を閉じられない', e)
     }
   })
-  return <span ref={el} class={styles.root} data-ready />
+  return <span ref={el} class={styles.root} data-ready="true" />
 }

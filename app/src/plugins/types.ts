@@ -1,6 +1,6 @@
 /* プラグインの形。plugin.json と、Rust 側（src-tauri/src/plugin/）から届くもの。Rust 側と合わせる。 */
 
-import type { Deps, Fit, LinkPart, Media, Part, Permission, SettingValue } from '../../plugins/sdk'
+import type { Deps, Fit, Media, Part, Permission, SettingValue } from '../../plugins/sdk'
 
 export type {
   CommandDep,
@@ -8,7 +8,6 @@ export type {
   Fit,
   FormatDecl,
   LinkDecl,
-  LinkPart,
   Manifest,
   Media,
   MenuDecl,
@@ -55,7 +54,7 @@ export interface FormatInfo {
 /** URL のホスト名ごとに受け持つプラグイン。 */
 export interface LinkInfo extends UiRef {
   host: string
-  parts: LinkPart[]
+  parts: Part[]
 }
 
 /** プラグインが足す画面。 */

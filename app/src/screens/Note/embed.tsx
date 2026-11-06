@@ -8,7 +8,7 @@ import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
 import { type Item, jacketOf } from '../../model/library'
 import type { LinkShown } from '../../backend/types'
 import { hostOf } from '../../plugins/links'
-import type { FormatInfo, ItemView, LinkPart, Part, UiRef } from '../../plugins/types'
+import type { FormatInfo, ItemView, Part, UiRef } from '../../plugins/types'
 import type { UiApi, UiItem } from '../../plugins/ui'
 
 export interface EmbedHost {
@@ -17,7 +17,7 @@ export interface EmbedHost {
   waveform?: (id: string) => Promise<Uint8Array | null>
   ui?: (item: UiItem, part: Part, plugin: string) => UiApi
   uiUrl?: (ui: UiRef) => string
-  linkOf?: (url: string, part: LinkPart) => LinkShown
+  linkOf?: (url: string, part: Part) => LinkShown
 }
 
 /** URL の埋め込み。links のプラグインが受け持たなければ、ページの OGP からカードを作る。name はカードに出す名前。 */

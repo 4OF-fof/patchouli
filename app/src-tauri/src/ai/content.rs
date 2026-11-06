@@ -15,7 +15,7 @@ use tauri::Emitter;
 
 use crate::ai::embed;
 use crate::ai::vectors::{self, Store};
-use crate::library::StoredItem;
+use crate::library::{StoredItem, shortcut};
 use crate::plugin::{By, ExcerptBudget, ExcerptMedia, ExcerptPart, Part, Registry, Runner, UiRef};
 use crate::thumb;
 
@@ -71,6 +71,9 @@ struct Wanted {
     name: String,
     ext: String,
     file: PathBuf,
+    /// ショートカットが指す URL。links のスクリプトが区間を作る。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
 }
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -174,8 +177,22 @@ pub fn collect(
     for it in items.iter().filter(|it| !it.note) {
         let ext = it.ext.to_lowercase();
         let thumb = it.thumb.clone().filter(|t| t.is_file());
-        let by = plugins.handles(&ext, Part::Excerpt);
-        let sig = match (plugins.excerpt_owner(&ext), thumb.as_ref()) {
+        let link = (ext == shortcut::EXT)
+            .then(|| shortcut::url_of(&it.file))
+            .flatten()
+            .and_then(|url| {
+                plugins
+                    .link_excerpt(&url)
+                    .map(|(ui, owner)| (url, ui, owner))
+            });
+        let (by, owner) = match &link {
+            Some((_, _, owner)) => (Some(By::Elevated), Some(owner.clone())),
+            None => (
+                plugins.handles(&ext, Part::Excerpt),
+                plugins.excerpt_owner(&ext),
+            ),
+        };
+        let sig = match (owner, thumb.as_ref()) {
             (Some(owner), _) => format!("{}|{owner}|{key}", it.mtime),
             (None, Some(t)) => format!(
                 "{}|thumb|{}",
@@ -197,8 +214,12 @@ pub fn collect(
         match by {
             Some(By::Sandbox) => sandbox.push((ext, it.file.clone(), work)),
             Some(By::Elevated) => {
-                let Some(ui) = plugins.ui_of(&ext, Part::Excerpt) else {
-                    continue;
+                let (url, ui) = match link {
+                    Some((url, ui, _)) => (Some(url), ui),
+                    None => match plugins.ui_of(&ext, Part::Excerpt) {
+                        Some(ui) => (None, ui),
+                        None => continue,
+                    },
                 };
                 let job = NEXT.fetch_add(1, Ordering::Relaxed);
                 wanted.push(Wanted {
@@ -208,6 +229,7 @@ pub fn collect(
                     name: it.name.clone(),
                     ext: ext.clone(),
                     file: it.file.clone(),
+                    url,
                 });
                 if let Ok(mut j) = jobs().lock() {
                     j.insert(

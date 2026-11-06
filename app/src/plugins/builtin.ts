@@ -13,7 +13,6 @@ import type {
   Fit,
   FormatDecl,
   FormatInfo,
-  LinkPart,
   Manifest,
   Media,
   Part,
@@ -31,12 +30,11 @@ type RawFormat = Omit<FormatDecl, 'fit' | 'media' | 'parts' | 'script'> & {
 }
 
 export interface RawManifest extends Omit<Manifest, 'formats' | 'links'> {
-  links?: Record<string, { elevated?: string[] }>
+  links?: { host: string[]; parts?: string[] }[]
   formats?: RawFormat[]
 }
 
 const PARTS: readonly Part[] = ['thumbnail', 'view', 'details', 'excerpt', 'hover', 'embed']
-const LINK_PARTS: readonly LinkPart[] = ['thumbnail', 'view', 'embed', 'details']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
 const MEDIA: readonly Media[] = ['image', 'video', 'audio']
 
@@ -44,12 +42,7 @@ const partsOf = (raw?: string[]) => (raw ?? []).flatMap((p) => PARTS.find((x) =>
 
 export const readManifest = (raw: RawManifest): Manifest => ({
   ...raw,
-  links: Object.fromEntries(
-    Object.entries(raw.links ?? {}).map(([host, d]) => [
-      host,
-      { elevated: (d.elevated ?? []).flatMap((p) => LINK_PARTS.find((x) => x === p) ?? []) },
-    ]),
-  ),
+  links: (raw.links ?? []).map((d) => ({ host: d.host.map((h) => h.toLowerCase()), parts: partsOf(d.parts) })),
   formats: (raw.formats ?? []).map((d) => ({
     ...d,
     ext: d.ext.map((e) => e.toLowerCase()),
@@ -167,7 +160,7 @@ const capsOf = (m: Manifest): Cap[] => {
     ...(m.formats ?? []).flatMap((d) =>
       (d.parts ?? []).map((part): Cap => ({ part, by: d.script?.includes(part) ? 'elevated' : 'sandbox' })),
     ),
-    ...Object.values(m.links ?? {}).flatMap((d) => (d.elevated ?? []).map((part): Cap => ({ part, by: 'elevated' }))),
+    ...(m.links ?? []).flatMap((d) => (d.parts ?? []).map((part): Cap => ({ part, by: 'elevated' }))),
     ...(m.menu ? [{ part: 'menu', by: m.menu.by } as const] : []),
   ]
   return caps.filter((c, i) => caps.findIndex((x) => x.part === c.part && x.by === c.by) === i)
@@ -192,7 +185,7 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
     .filter((f) => f.plugin === m.id)
     .map((f) => f.ext)
     .toSorted(),
-  links: Object.keys(m.links ?? {}).toSorted(),
+  links: (m.links ?? []).flatMap((d) => d.host).toSorted(),
   screens: Object.values(m.screens ?? {}).map((d) => d.label),
   permissions: m.permissions ?? [],
   script: !!m.script,
