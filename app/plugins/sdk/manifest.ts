@@ -106,12 +106,21 @@ export interface MenuDecl {
   formats: string[] | 'all' | 'files'
 }
 
+/** フックの対象。formats の書き方は menu と同じ。 */
+export interface HookDecl {
+  formats: string[] | 'all' | 'files'
+}
+
 /**
- * 取り込みのフック。added に書いた形式のものを取り込んだとき、WASM の hook の added を裏で呼ぶ。
- * formats の書き方は menu と同じ。
+ * フック。書いたときに、formats に入るものを渡して WASM の hook を裏で呼ぶ。
+ * added は取り込んだとき（右クリックメニューで作ったノートと登録した素材も含む）、
+ * changed は中身が変わったとき（ノートは書き換えて離れたとき、ファイルはアプリの外で変わったのを見つけたとき）、
+ * edited は名前・タグ・置き場を変えたとき。フックの中で書き換えたものには、フックを呼ばない。
  */
 export interface HooksDecl {
-  added?: { formats: string[] | 'all' | 'files' }
+  added?: HookDecl
+  changed?: HookDecl
+  edited?: HookDecl
 }
 
 /**

@@ -15,7 +15,7 @@ use crate::library::{
     self, ItemPatch, Library, LibraryState, Opened, Place, StoredItem, StoredProject, import,
 };
 use crate::plugin::ipc::{dev_places, plugin_dir, plugin_ids};
-use crate::plugin::{Registry, Runner, hooks};
+use crate::plugin::{HookEvent, Registry, Runner, hooks};
 use crate::session::{
     Current, Session, cache_dir, library_root, next_session, root_of, with, with_session,
 };
@@ -185,6 +185,7 @@ pub(crate) fn check(
     if !changes.is_empty() {
         let _ = app.emit("library-changed", &changes);
     }
+    hooks::queue(app, HookEvent::Changed, &changes.changed_files);
     let items = settings::auto_tag(app)
         .unwrap_or(false)
         .then(|| {
@@ -240,7 +241,7 @@ pub(crate) async fn import_files(
         Ok((s.thumbs.clone(), Arc::clone(&s.plugins), s.lib.cache()))
     })?;
     let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut out.items);
-    hooks::queue(&app, &out.items);
+    hooks::queue_items(&app, HookEvent::Added, &out.items);
     if !jobs.is_empty() {
         background::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
@@ -272,7 +273,7 @@ pub(crate) async fn import_data(
     })?;
     let mut items = vec![item];
     let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut items);
-    hooks::queue(&app, &items);
+    hooks::queue_items(&app, HookEvent::Added, &items);
     if !jobs.is_empty() {
         background::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
     }
@@ -342,20 +343,39 @@ pub(crate) async fn forget_library(app: tauri::AppHandle, path: PathBuf) -> Resu
 
 #[tauri::command]
 pub(crate) async fn save_item(
+    app: tauri::AppHandle,
     cur: State<'_, Current>,
     id: String,
     patch: ItemPatch,
 ) -> Result<Option<StoredItem>, String> {
-    with(&cur, |l| l.save_item(&id, &patch))
+    let read = with(&cur, |l| l.save_item(&id, &patch))?;
+    if patch
+        .tags
+        .as_ref()
+        .is_some_and(|d| !d.add.is_empty() || !d.remove.is_empty())
+    {
+        hooks::queue(&app, HookEvent::Edited, std::slice::from_ref(&id));
+    }
+    Ok(read)
 }
 
 #[tauri::command]
 pub(crate) async fn move_item(
+    app: tauri::AppHandle,
     cur: State<'_, Current>,
     id: String,
     place: Place,
 ) -> Result<StoredItem, String> {
-    with(&cur, |l| l.move_item(&id, &place))
+    let (it, moved) = with(&cur, |l| {
+        let was = l.stored(&id)?.map(|it| (it.project, it.group));
+        let it = l.move_item(&id, &place)?;
+        let moved = was.is_none_or(|(p, g)| p != it.project || g != it.group);
+        Ok((it, moved))
+    })?;
+    if moved {
+        hooks::queue(&app, HookEvent::Edited, std::slice::from_ref(&id));
+    }
+    Ok(it)
 }
 
 #[tauri::command]
@@ -365,10 +385,11 @@ pub(crate) async fn rename_item(
     id: String,
     name: String,
 ) -> Result<StoredItem, String> {
-    let (it, renamed) = with(&cur, |l| {
+    let (it, old, renamed) = with(&cur, |l| {
         let old = l.stored(&id)?.map(|it| it.name).unwrap_or_default();
         let it = l.rename_item(&id, &name)?;
-        Ok((it, l.sync_link_names(&HashMap::from([(id.clone(), old)]))))
+        let renamed = l.sync_link_names(&HashMap::from([(id.clone(), old.clone())]));
+        Ok((it, old, renamed))
     })?;
     if !renamed.is_empty() {
         let changes = library::Changes {
@@ -377,7 +398,16 @@ pub(crate) async fn rename_item(
         };
         let _ = app.emit("library-changed", &changes);
     }
+    if old != it.name {
+        hooks::queue(&app, HookEvent::Edited, std::slice::from_ref(&id));
+    }
     Ok(it)
+}
+
+/// ノートを書き換えて離れたとき。中身が変わったときのフックを呼ぶ。
+#[tauri::command]
+pub(crate) async fn note_left(app: tauri::AppHandle, id: String) {
+    hooks::queue(&app, HookEvent::Changed, &[id]);
 }
 
 #[tauri::command]

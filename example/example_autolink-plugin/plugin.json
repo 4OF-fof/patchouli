@@ -2,7 +2,7 @@
   "id": "example_autolink",
   "name": "example_autolink",
   "version": "0.1.0",
-  "description": "取り込みのフックの例。md を取り込んだとき、本文に出てくるノートの名前のうち、内容の近いものをそのノートへのリンクにする。近さは EmbeddingGemma で測る",
-  "hooks": { "added": { "formats": ["md"] } },
+  "description": "フックの例。md を取り込んだときと、書き換えて離れたとき、本文に出てくるノートの名前のうち、内容の近いものをそのノートへのリンクにする。近さは EmbeddingGemma で測る",
+  "hooks": { "added": { "formats": ["md"] }, "changed": { "formats": ["md"] } },
   "permissions": ["library", "notes", "embed"]
 }

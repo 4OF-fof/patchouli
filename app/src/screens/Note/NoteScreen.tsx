@@ -1,5 +1,5 @@
 import { Portal } from 'solid-js/web'
-import { For, Show, createMemo, createResource, createSignal, onCleanup, onMount } from 'solid-js'
+import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { PlaceSelect } from '../../components/controls/PlaceSelect/PlaceSelect'
@@ -13,7 +13,7 @@ import { LinkCaption, LinkNone, LinkRow } from '../../components/nav/LinkRow/Lin
 import { middleClick } from '../../components/nav/TabPane/newTab'
 import { TopBar } from '../../components/overlay/TopBar/TopBar'
 import { menuBelow, useItemMenu } from '../../components/media/Thumb/Thumb'
-import { useTabActive } from '../../components/nav/TabPane/TabPane'
+import { useTabActive, useTabShown } from '../../components/nav/TabPane/TabPane'
 import { BarButton, useBarTools } from '../AppBar'
 import {
   type Embed,
@@ -39,6 +39,8 @@ export interface NoteScreenProps {
   onOpenTag?: (tag: string) => void
   onTogglePin?: (id: string) => void
   onBody?: (id: string, body: string) => void
+  /** 本文を書き換えたノートから離れたとき。ほかのノートに移ったときや、タブが見えなくなったとき。 */
+  onLeave?: (id: string) => void
   onRename?: (id: string, name: string) => void
   onMove?: (id: string, place: Place) => void
   onAliases?: (id: string, aliases: string[]) => void
@@ -109,6 +111,23 @@ export function NoteScreen(props: NoteScreenProps) {
     setFloatHeads(false)
   }
   onCleanup(() => props.editorRef?.(undefined))
+  let edited: string | undefined
+  const leave = () => {
+    if (edited) props.onLeave?.(edited)
+    edited = undefined
+  }
+  const shown = useTabShown()
+  createEffect(on(() => props.noteId, leave, { defer: true }))
+  createEffect(
+    on(
+      shown,
+      (s) => {
+        if (!s) leave()
+      },
+      { defer: true },
+    ),
+  )
+  onCleanup(leave)
 
   const {
     picking,
@@ -233,7 +252,10 @@ export function NoteScreen(props: NoteScreenProps) {
                 noteId={n().id}
                 place={placeOf(n())}
                 value={body()}
-                onChange={(md) => props.onBody?.(n().id, md)}
+                onChange={(md) => {
+                  edited = n().id
+                  props.onBody?.(n().id, md)
+                }}
                 onOpenRef={props.onOpenRef}
                 onCreateNote={async (name) => props.onCreateNote?.(name, placeOf(n()))}
                 embedOf={props.embedOf}

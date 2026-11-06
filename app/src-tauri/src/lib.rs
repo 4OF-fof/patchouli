@@ -69,6 +69,7 @@ pub fn run() {
             plugin::ipc::call::item_view,
             plugin::ipc::call::item_details,
             library::ipc::rename_item,
+            library::ipc::note_left,
             plugin::ipc::call::item_decoded,
             shell::ipc::reveal_item,
             shell::ipc::open_item_default,

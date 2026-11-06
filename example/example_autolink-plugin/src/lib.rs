@@ -1,4 +1,4 @@
-//! 取り込んだノートの本文に出てくるノートの名前のうち、内容の近いものを、そのノートへのリンクにする。
+//! 取り込んだノートと、書き換えて離れたノートの本文に出てくるノートの名前のうち、内容の近いものを、そのノートへのリンクにする。
 //! 近いノートは embed の similar で探す。自分の ID を知るのに library、本文を書き換えるのに notes を使う。
 
 wit_bindgen::generate!({
@@ -19,6 +19,7 @@ use std::ops::Range;
 use exports::patchouli::plugin as role;
 use patchouli::plugin::types::{File, Read, Run, Target};
 use patchouli::plugin::{embed, host, library, notes};
+use role::hook::HookEvent;
 
 /// 本文と比べて、これより近いノートだけをリンクにする。
 const MIN_SCORE: f32 = 0.2;
@@ -30,9 +31,15 @@ const CHUNK: u32 = 1 << 20;
 struct Autolink;
 
 impl role::hook::Guest for Autolink {
-    fn added(read: &Read, run: &Run, target: Target) -> Result<(), String> {
+    fn hook(read: &Read, run: &Run, event: HookEvent, target: Target) -> Result<(), String> {
         if !embed::available() {
-            return Err("AI 機能を有効にしてモデルを入れると、リンクを付けられます".into());
+            // 書き換えるたびには知らせない
+            return match event {
+                HookEvent::Added => {
+                    Err("AI 機能を有効にしてモデルを入れると、リンクを付けられます".into())
+                }
+                _ => Ok(()),
+            };
         }
         let me = library::item(read, &target.file)?;
         let text = read_all(&target.file)?;
@@ -91,7 +98,11 @@ fn body_of(text: &str) -> &str {
 }
 
 /// リンク・インラインのコード・コードブロック・見出しの外で最初に出てくる name を、リンクにする。
+/// すでに id へのリンクがあれば、何もしない。
 fn link_first(body: &mut String, name: &str, id: &str) -> bool {
+    if links_to(body, id) {
+        return false;
+    }
     let kept = protected(body);
     let found = body.match_indices(name).map(|(i, _)| i).find(|&i| {
         let end = i + name.len();
@@ -105,6 +116,14 @@ fn link_first(body: &mut String, name: &str, id: &str) -> bool {
         &format!("[{}](patchouli:{id})", escape(name)),
     );
     true
+}
+
+fn links_to(body: &str, id: &str) -> bool {
+    let key = format!("patchouli:{id}");
+    body.match_indices(&key).any(|(i, _)| {
+        !body[i + key.len()..]
+            .starts_with(|c: char| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    })
 }
 
 /// 英数字の名前は、前後が英数字でないときだけ当てる。

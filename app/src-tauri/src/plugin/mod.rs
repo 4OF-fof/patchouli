@@ -20,8 +20,8 @@ use serde_json::Value;
 use crate::library::shortcut;
 use record::{Record, Source, Stored};
 pub use runtime::{
-    Action, Env, ExcerptBudget, ExcerptMedia, ExcerptPart, ItemInfo, MenuRun, MenuShown, Ran,
-    Runner, TargetFile, UiOwner, ViewOut, read, set_compiled_dir,
+    Action, Env, ExcerptBudget, ExcerptMedia, ExcerptPart, HookEvent, ItemInfo, MenuRun, MenuShown,
+    Ran, Runner, TargetFile, UiOwner, ViewOut, read, set_compiled_dir,
 };
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -183,10 +183,32 @@ impl MenuDecl {
     }
 }
 
-/// 取り込みのフック。対象の書き方は menu と同じ。
+/// フックを呼ぶときごとの対象。対象の書き方は menu と同じ。
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct HooksDecl {
     pub added: Option<MenuDecl>,
+    pub changed: Option<MenuDecl>,
+    pub edited: Option<MenuDecl>,
+}
+
+impl HooksDecl {
+    fn of(&self, event: HookEvent) -> Option<&MenuDecl> {
+        match event {
+            HookEvent::Added => self.added.as_ref(),
+            HookEvent::Changed => self.changed.as_ref(),
+            HookEvent::Edited => self.edited.as_ref(),
+        }
+    }
+
+    fn all(&self) -> impl Iterator<Item = (&'static str, &MenuDecl)> {
+        [
+            ("added", &self.added),
+            ("changed", &self.changed),
+            ("edited", &self.edited),
+        ]
+        .into_iter()
+        .filter_map(|(k, d)| Some((k, d.as_ref()?)))
+    }
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -316,7 +338,7 @@ impl Manifest {
             .iter()
             .any(|d| d.parts.iter().any(|&p| d.by(p) == By::Wasm))
             || self.menu.is_some()
-            || self.hooks.added.is_some()
+            || self.hooks.all().next().is_some()
     }
 
     fn wants_script(&self) -> bool {
@@ -974,19 +996,19 @@ impl Registry {
                     "menu の formats には、拡張子の並びか all・files を書きます".into(),
                 ));
             }
-            if let Some(h) = &p.manifest.hooks.added {
+            for (k, h) in p.manifest.hooks.all() {
                 if matches!(h.formats, MenuFormats::Every(MenuEvery::Unknown)) {
-                    p.problems.push(error(
-                        "hooks の added の formats には、拡張子の並びか all・files を書きます"
-                            .into(),
-                    ));
+                    p.problems.push(error(format!(
+                        "hooks の {k} の formats には、拡張子の並びか all・files を書きます"
+                    )));
                 }
-                if p.wasm.as_ref().is_some_and(|w| !w.has(runtime::Role::Hook)) {
-                    p.problems.push(error(
-                        "hooks の added を書いていますが、plugin.wasm は hook を export していません"
-                            .into(),
-                    ));
-                }
+            }
+            if p.manifest.hooks.all().next().is_some()
+                && p.wasm.as_ref().is_some_and(|w| !w.has(runtime::Role::Hook))
+            {
+                p.problems.push(error(
+                    "hooks を書いていますが、plugin.wasm は hook を export していません".into(),
+                ));
             }
             for x in p
                 .manifest
@@ -1186,8 +1208,8 @@ impl Registry {
             .is_some_and(|p| p.manifest.permissions.iter().any(|x| x == permission))
     }
 
-    /// ext のものを取り込んだときに呼ぶフック。プラグインの一覧の順。
-    pub fn hooks_for(&self, ext: &str, note: bool) -> Vec<usize> {
+    /// ext のものに event のときに呼ぶフック。プラグインの一覧の順。
+    pub fn hooks_for(&self, event: HookEvent, ext: &str, note: bool) -> Vec<usize> {
         self.plugins
             .iter()
             .enumerate()
@@ -1196,8 +1218,7 @@ impl Registry {
                     && p.wasm.as_ref().is_some_and(|w| w.has(runtime::Role::Hook))
                     && p.manifest
                         .hooks
-                        .added
-                        .as_ref()
+                        .of(event)
                         .is_some_and(|h| h.covers(ext, note))
             })
             .map(|(i, _)| i)
@@ -1207,7 +1228,7 @@ impl Registry {
     pub fn has_hooks(&self) -> bool {
         self.plugins
             .iter()
-            .any(|p| !p.blocked && p.manifest.hooks.added.is_some())
+            .any(|p| !p.blocked && p.manifest.hooks.all().next().is_some())
     }
 
     pub fn plugin_name(&self, i: usize) -> &str {

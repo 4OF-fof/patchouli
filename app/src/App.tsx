@@ -375,6 +375,7 @@ export function App(props: AppProps) {
       onOpenTag={(tag) => go({ s: 'tag', tag })}
       onTogglePin={togglePin}
       onBody={(id, body) => editItem(id, { body }, { body })}
+      onLeave={(id) => void flushWrites().then(() => backend.noteLeft?.(id))}
       onRename={renameItem}
       onMove={moveItem}
       onAliases={setAliases}

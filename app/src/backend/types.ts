@@ -118,7 +118,7 @@ export interface MenuResult {
   failed: string[]
 }
 
-/** 取り込みのフックが失敗したこと。 */
+/** フックが失敗したこと。 */
 export interface HookFailed {
   plugin: string
   item: string
@@ -258,7 +258,7 @@ export interface TagDecisions {
 export interface PluginWork {
   thumbnails: string[]
   waveforms: string[]
-  /** 取り込みのフックを待っているもの。 */
+  /** フックを待っているもの。 */
   hooks: string[]
 }
 
@@ -267,6 +267,8 @@ export interface Backend {
   saveItem(id: string, patch: ItemPatch): Promise<Item | undefined>
   moveItem(id: string, place: Place): Promise<Item | undefined>
   renameItem(id: string, name: string): Promise<Item | undefined>
+  /** 本文を書き換えたノートから離れた。中身が変わったときのフックを呼ぶ。 */
+  noteLeft?: (id: string) => Promise<void>
   /** ファイルとメタ情報をごみ箱に移動する。 */
   deleteItem?: (id: string) => Promise<void>
   saveState(state: LibraryState): Promise<void>

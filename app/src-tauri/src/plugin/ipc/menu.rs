@@ -8,7 +8,9 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::background;
 use crate::library::{self, ItemPatch, Library, ListDiff, Place, StoredItem};
-use crate::plugin::{Action, ItemInfo, MenuRun, MenuShown, Ran, Runner, TargetFile};
+use crate::plugin::{
+    Action, HookEvent, ItemInfo, MenuRun, MenuShown, Ran, Runner, TargetFile, hooks,
+};
 
 use crate::library::ipc::import_paths;
 use crate::plugin::ipc::call::{Detail, rows_of};
@@ -96,6 +98,9 @@ fn finish_menu(
     };
     let ids: Vec<String> = ts.iter().map(|t| t.id.clone()).collect();
     let a = apply_ran(app, cur, &ids, run.ran)?;
+    hooks::queue_items(app, HookEvent::Added, &a.added);
+    hooks::queue(app, HookEvent::Changed, &a.changed);
+    hooks::queue(app, HookEvent::Edited, &a.edited);
     Ok(MenuDone {
         output,
         copy: a.copy,
@@ -105,16 +110,18 @@ fn finish_menu(
     })
 }
 
-/// 頼まれたことを起こした結果。
+/// 頼まれたことを起こした結果。changed は中身を、edited は名前やタグを書き換えたものの ID。
 #[derive(Default)]
 pub(crate) struct Applied {
     pub(crate) copy: Option<String>,
     pub(crate) added: Vec<StoredItem>,
+    pub(crate) changed: Vec<String>,
+    pub(crate) edited: Vec<String>,
     pub(crate) saved: Option<PathBuf>,
     pub(crate) failed: Vec<String>,
 }
 
-/// run-menu・added で頼まれたことを起こす。作るものの置き場は ids の先頭と同じにする。
+/// run-menu・hook で頼まれたことを起こす。作るものの置き場は ids の先頭と同じにする。
 /// 書き換えたものは library-changed で画面に知らせる。
 pub(crate) fn apply_ran(
     app: &tauri::AppHandle,
@@ -177,9 +184,21 @@ pub(crate) fn apply_ran(
             {
                 renamed.entry(id.clone()).or_insert(it.name);
             }
+            let content = matches!(a, Action::Body { .. } | Action::Replace { .. });
             match edit_item(&mut s.lib, ids, a) {
-                Ok(id) if !edited.contains(&id) => edited.push(id),
-                Ok(_) => {}
+                Ok(id) => {
+                    let by = if content {
+                        &mut out.changed
+                    } else {
+                        &mut out.edited
+                    };
+                    if !by.contains(&id) {
+                        by.push(id.clone());
+                    }
+                    if !edited.contains(&id) {
+                        edited.push(id);
+                    }
+                }
                 Err(e) => out.failed.push(e),
             }
         }

@@ -25,6 +25,7 @@ use crate::{library, thumb};
 // 役割ごとの export は WASM によってあったりなかったりするので、world 全体の型と import だけを使い、export は名前で呼ぶ
 wasmtime::component::bindgen!({ world: "full", path: "../plugins/sdk/wit" });
 
+pub use exports::patchouli::plugin::hook::HookEvent;
 use patchouli::plugin::commands::{CommandArg, CommandOutput};
 use patchouli::plugin::types::{self, File, MenuOutput, Read as ReadProof, Run as RunProof};
 pub use patchouli::plugin::types::{ExcerptBudget, ExcerptMedia, ExcerptPart};
@@ -395,7 +396,7 @@ impl HostState {
     fn menu_only(&self, what: &str) -> Result<(), String> {
         match self.context {
             Context::Menu => Ok(()),
-            Context::Hook => Err(format!("{what}は、取り込みのフックの中では使えません")),
+            Context::Hook => Err(format!("{what}は、フックの中では使えません")),
         }
     }
 
@@ -831,7 +832,7 @@ const ROLES: [(Role, &str, &[&str]); 8] = [
     (Role::Details, "details", &["details"]),
     (Role::Excerpt, "excerpt", &["excerpt"]),
     (Role::Menu, "menu", &["menu", "run-menu"]),
-    (Role::Hook, "hook", &["added"]),
+    (Role::Hook, "hook", &["hook"]),
     (Role::Settings, "settings", &["settings"]),
     (Role::Call, "call", &["call"]),
 ];
@@ -1103,16 +1104,22 @@ impl Plugin {
         Ok(r)
     }
 
-    fn call_added(
+    fn call_hook(
         &self,
         s: &mut Store<HostState>,
         read: Resource<ReadProof>,
         run: Resource<RunProof>,
+        event: HookEvent,
         target: &types::Target,
     ) -> wasmtime::Result<Result<(), String>> {
         let (r,) = self
-            .func::<(Resource<ReadProof>, Resource<RunProof>, &types::Target), _>(s, "added")?
-            .call(&mut *s, (read, run, target))?;
+            .func::<(
+                Resource<ReadProof>,
+                Resource<RunProof>,
+                HookEvent,
+                &types::Target,
+            ), _>(s, "hook")?
+            .call(&mut *s, (read, run, event, target))?;
         Ok(r)
     }
 
@@ -1445,18 +1452,19 @@ impl Runner {
         Ok(MenuRun { shown, ran })
     }
 
-    /// 取り込んだもの 1 つを、plugins の i 番目のフックに渡す。失敗したときは、頼まれたことを捨てる。
-    pub fn added(&mut self, i: usize, file: &TargetFile) -> Result<Ran, String> {
+    /// 1 つを、plugins の i 番目のフックに渡す。失敗したときは、頼まれたことを捨てる。
+    pub fn hook(&mut self, i: usize, event: HookEvent, file: &TargetFile) -> Result<Ran, String> {
         let (out, ran) = self.call_targets(
             i,
             std::slice::from_ref(file),
             Context::Hook,
             HOOK_LIMIT,
             |p, s, mut ts| {
-                p.call_added(
+                p.call_hook(
                     s,
                     Resource::new_borrow(0),
                     Resource::new_borrow(0),
+                    event,
                     &ts.remove(0),
                 )
             },

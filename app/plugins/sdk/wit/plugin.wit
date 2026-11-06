@@ -354,13 +354,23 @@ interface menu {
   run-menu: func(read: borrow<read>, run: borrow<run>, targets: list<target>, id: string) -> result<menu-output, string>;
 }
 
-/// 取り込みのフック。plugin.json の hooks の added に書いた形式のものを取り込んだときに使う。
+/// フック。plugin.json の hooks に書いたときに、そこに書いた形式のものを渡す。
 interface hook {
   use types.{target, read, run};
 
-  /// 取り込んだもの 1 つごとに、裏で呼ぶ。同じ形式のフックが複数あれば、プラグインの一覧の順に呼び、
-  /// 前のフックが書き換えたあとのものを渡す。
-  added: func(read: borrow<read>, run: borrow<run>, target: target) -> result<_, string>;
+  /// フックを呼ぶとき。
+  enum hook-event {
+    /// 取り込んだとき。右クリックメニューで作ったノートと登録した素材も含む。
+    added,
+    /// 中身が変わったとき。ノートは書き換えて離れたとき、ファイルはアプリの外で変わったのを見つけたとき。
+    changed,
+    /// 名前・タグ・置き場を変えたとき。
+    edited,
+  }
+
+  /// 1 つごとに、裏で呼ぶ。同じ形式のフックが複数あれば、プラグインの一覧の順に呼び、
+  /// 前のフックが書き換えたあとのものを渡す。フックの中で書き換えたものには、フックを呼ばない。
+  hook: func(read: borrow<read>, run: borrow<run>, event: hook-event, target: target) -> result<_, string>;
 }
 
 /// 設定の項目。

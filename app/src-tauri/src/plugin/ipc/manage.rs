@@ -63,7 +63,7 @@ pub(crate) fn stop_plugin_work() {
     thumb::stop();
 }
 
-/// 取り込みのフックを待っているものと、いま渡しているものの ID。
+/// フックを待っているものと、いま渡しているものの ID。
 #[tauri::command]
 pub(crate) fn hook_work() -> Vec<String> {
     hooks::pending()

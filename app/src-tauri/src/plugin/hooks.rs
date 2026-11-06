@@ -1,4 +1,5 @@
-//! 取り込みのフック。取り込んだものを 1 つずつ裏で、形式に合うプラグインのフックへ、プラグインの一覧の順に渡す。
+//! フック。取り込んだり変えたりしたものを 1 つずつ裏で、形式に合うプラグインのフックへ、プラグインの一覧の順に渡す。
+//! フックの中で書き換えたものは、ここへは入れない。
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -10,12 +11,13 @@ use tauri::{Emitter, Manager};
 use crate::library::StoredItem;
 use crate::plugin::ipc::menu::apply_ran;
 use crate::plugin::ipc::{Target, env_of, info_of};
-use crate::plugin::{Registry, Runner, TargetFile};
+use crate::plugin::{HookEvent, Registry, Runner, TargetFile};
 use crate::session::{Current, with_session};
 
 struct Job {
     session: u64,
     id: String,
+    event: HookEvent,
 }
 
 static QUEUE: Mutex<VecDeque<Job>> = Mutex::new(VecDeque::new());
@@ -32,30 +34,39 @@ struct HookFailed<'a> {
     message: &'a str,
 }
 
-/// 取り込んだもののうち、フックのあるものを待ち行列に入れる。
-pub fn queue(app: &tauri::AppHandle, items: &[StoredItem]) {
-    let Ok((session, reg)) = with_session(&app.state::<Current>(), |s| {
-        Ok((s.id, Arc::clone(&s.plugins)))
+pub fn queue_items(app: &tauri::AppHandle, event: HookEvent, items: &[StoredItem]) {
+    let ids: Vec<String> = items.iter().map(|it| it.id.clone()).collect();
+    queue(app, event, &ids);
+}
+
+/// ids のうち、event のフックのあるものを待ち行列に入れる。同じものを同じときで待っていれば、足さない。
+pub fn queue(app: &tauri::AppHandle, event: HookEvent, ids: &[String]) {
+    let Ok((session, jobs)) = with_session(&app.state::<Current>(), |s| {
+        if !s.plugins.has_hooks() {
+            return Ok((s.id, Vec::new()));
+        }
+        let mut jobs = Vec::new();
+        for id in ids {
+            if let Some(it) = s.lib.stored(id)?
+                && !s.plugins.hooks_for(event, &it.ext, it.note).is_empty()
+            {
+                jobs.push(id.clone());
+            }
+        }
+        Ok((s.id, jobs))
     }) else {
         return;
     };
-    if !reg.has_hooks() {
-        return;
-    }
-    let jobs: Vec<Job> = items
-        .iter()
-        .filter(|it| !reg.hooks_for(&it.ext, it.note).is_empty())
-        .map(|it| Job {
-            session,
-            id: it.id.clone(),
-        })
-        .collect();
     if jobs.is_empty() {
         return;
     }
     STOP.store(false, Ordering::Relaxed);
     if let Ok(mut q) = QUEUE.lock() {
-        q.extend(jobs);
+        for id in jobs {
+            if !q.iter().any(|j| j.id == id && j.event == event) {
+                q.push_back(Job { session, id, event });
+            }
+        }
     }
     if !WORKING.swap(true, Ordering::AcqRel) {
         let app = app.clone();
@@ -115,11 +126,11 @@ fn run(app: &tauri::AppHandle, runner: &mut Option<Runner>, job: &Job) {
     }) else {
         return;
     };
-    // 形式を変えたあとも、取り込んだときの形式のフックだけを続ける
+    // 形式を変えたあとも、待ち行列に入れたときの形式のフックだけを続ける
     let Ok(first) = Target::any(&cur, &job.id) else {
         return;
     };
-    let hooks = reg.hooks_for(&first.ext, first.note);
+    let hooks = reg.hooks_for(job.event, &first.ext, first.note);
     let r = match runner {
         Some(r) if Arc::ptr_eq(r.registry(), &reg) => r,
         _ => {
@@ -147,7 +158,7 @@ fn run(app: &tauri::AppHandle, runner: &mut Option<Runner>, job: &Job) {
             path: &t.path,
             info,
         };
-        let failed = match r.added(i, &file) {
+        let failed = match r.hook(i, job.event, &file) {
             Ok(ran) => match apply_ran(app, &cur, std::slice::from_ref(&job.id), ran) {
                 Ok(a) => a.failed,
                 Err(e) => vec![e],
@@ -164,7 +175,7 @@ fn run(app: &tauri::AppHandle, runner: &mut Option<Runner>, job: &Job) {
 
 fn tell_failed(app: &tauri::AppHandle, reg: &Registry, i: usize, item: &str, message: &str) {
     log::warn!(
-        "取り込みのフックに失敗した（{}・{item}）: {message}",
+        "フックに失敗した（{}・{item}）: {message}",
         reg.plugin_name(i)
     );
     let _ = app.emit(

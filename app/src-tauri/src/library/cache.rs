@@ -34,6 +34,10 @@ impl Sig {
         }
     }
 
+    pub fn same_file(&self, other: &Sig) -> bool {
+        self.file == other.file
+    }
+
     /// フォルダを読んだときに取れた更新日時から作る。of と同じ値になる
     pub fn from_times(file: f64, meta: f64, note: bool) -> Sig {
         Sig {

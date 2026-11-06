@@ -533,6 +533,7 @@ export function tauriBackend(): Backend {
       const it = await invoke<TauriItem>('rename_item', { id, name })
       return toItem(it, new Date(), formats, urlsOf(it))
     },
+    noteLeft: (id) => invoke('note_left', { id }),
     deleteItem: (id) => invoke('delete_item', { id }),
     saveState: (state) => invoke('save_state', { state }),
     tagHistory: () => invoke<string[]>('tag_history'),

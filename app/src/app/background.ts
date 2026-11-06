@@ -196,7 +196,7 @@ export function createBackground(d: BackgroundDeps) {
   const hooking = progress()
   const stopHookFailed =
     backend.onHookFailed?.((f) =>
-      notify(`プラグイン「${f.plugin}」が、取り込んだ「${f.item}」を処理できませんでした：${f.message}`, 'error'),
+      notify(`プラグイン「${f.plugin}」が「${f.item}」を処理できませんでした：${f.message}`, 'error'),
     ) ?? (() => {})
   onCleanup(stopHookFailed)
   const seenThumbs = backend.seenThumbs && watchSeen((ids) => backend.seenThumbs?.(ids))
@@ -220,7 +220,7 @@ export function createBackground(d: BackgroundDeps) {
     ...(checking() ? [{ key: 'check', icon: 'sync' as const, label: 'ライブラリの整合性を確認中' }] : []),
     ...working('thumbs', 'image', 'サムネイルを作成中', making, 'thumbnail'),
     ...working('waves', 'audio', '音声を解析中', waves, 'waveform'),
-    ...working('hooks', 'plugin', '取り込んだものをプラグインで処理中', hooking, 'hook'),
+    ...working('hooks', 'plugin', 'プラグインで処理中', hooking, 'hook'),
     ...(importing() ? [{ key: 'import', icon: 'import' as const, label: 'ファイルを取り込み中' }] : []),
   ]
   const flatSub = () => {
