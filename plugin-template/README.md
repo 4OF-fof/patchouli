@@ -191,6 +191,28 @@ WASM で次のことをするときは、plugin.json の上の階層の `permiss
 - スクリプトの `code.abc.render(el, api)` は `el` に描く。`api.source` がいまの中身で、`api.setSource(source)` で書き換えられる。中身が変わると `update(el, api)` が呼ばれる
 - WASM の `render(lang, source)` は、中身が変わるたびに呼ばれる。SVG では本体の CSS 変数（`--ink` など）を使える
 
+## 概要のカード
+
+タグやプロジェクトの概要にカードを足すときは plugin.json の上の階層に `covers` を書き、スクリプトの `covers` で描く。カードは「概要を編集」の「セクションを追加」から置く。
+
+```json
+"covers": {
+  "goal": { "label": "目標", "note": "件数の目標と進み具合", "on": ["tag", "project"] }
+}
+```
+
+| キー       | 中身                                                         |
+| ---------- | ------------------------------------------------------------ |
+| `label`    | カードの見出しと、「セクションを追加」の一覧に出す名前       |
+| `note`     | 「セクションを追加」の一覧で、名前の下に出す説明             |
+| `on`       | 置ける画面。`tag`・`project`。既定は両方                     |
+| `multiple` | 1 つの概要にいくつも置けるか。既定は `false`                 |
+
+- スクリプトの `covers.goal.mount(el, api)` は `el` に描く。`api.items()` が概要の横に並ぶ項目で、変わると `api.onChange` の関数が呼ばれる
+- `api.setValue(value)` で、カードごとに JSON の値を残せる。`api.value` で読む
+- `api.editing` は「概要を編集」を押しているか。切り替わりは `api.onEditing` で受け取る
+- プラグインを無効にするとカードは隠れ、有効にし直すと残した値ごと戻る
+
 ## スクリプトの書き方
 
 `@patchouli/plugin` から `definePlugin` を読み、`default` で書き出す。型の引数に、WASM の `call` で呼べるものと設定の型を書くと、`api.call` と `api.settings` に型が付く。

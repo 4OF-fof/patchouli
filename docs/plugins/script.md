@@ -25,7 +25,7 @@ export default definePlugin<Zip>({
 
 ## 書き出すもの
 
-`default` に、受け持つもの（plugin.json の `formats` の `script`・`links`・`screens`・`notes` の `script`）の分だけ書く。
+`default` に、受け持つもの（plugin.json の `formats` の `script`・`links`・`screens`・`notes` の `script`・`covers`）の分だけ書く。
 
 | 関数               | 受け持つもの | 返すもの                                                                          |
 | ------------------ | ------------ | --------------------------------------------------------------------------------- |
@@ -39,6 +39,7 @@ export default definePlugin<Zip>({
 | `links`            | `links`      | `thumbnail`・`mount`・`details`・`excerpt`・`hover`・`embed` を持つもの           |
 | `screens`          | `screens`    | 画面の ID → `{ mount(el, api) }`                                                  |
 | `code`             | `notes`      | 言語 → `{ render(el, api), update?(el, api) }`。`render` は消すときに呼ぶ関数を返す |
+| `covers`           | `covers`     | カードの ID → `{ mount(el, api) }`                                                |
 
 - `hover` はカーソルを合わせているカード 1 枚にだけ描くので、動画の再生や音を出すこともできる
 - `embed` の `el` の幅は本文の幅で、高さは描いたものに合わせて決まる
@@ -105,9 +106,27 @@ export default definePlugin<Zip>({
 
 `update` は、中身が変わるたび（ノートで書き換えているときと `setSource` のあと）に呼ぶ。書かなければ、`render` が返した関数を呼んでから `render` をもう一度呼ぶ。
 
+### covers
+
+概要のカードの `mount(el, api)` には、カード 1 枚の窓口（`CoverApi`）が渡る。`el` の幅は概要の列の幅で、高さは描いたものに合わせて決まる。
+
+| 窓口                                        | 中身                                                                                                 |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `on`                                        | 置いた画面。`tag` か `project`                                                                       |
+| `name`                                      | タグの名前か、プロジェクトの名前                                                                     |
+| `id`                                        | カードの ID。同じカードをいくつも置いたときに見分けられる                                            |
+| `value`・`setValue(value?)`                 | カードに残した値（JSON）。`value` を書かずに呼ぶと消す。カードを消すと残した値も消える               |
+| `editing`・`onEditing(fn)`                  | 「概要を編集」を押しているか。`onEditing` は編集を始めたときと終えたときに呼ぶ                       |
+| `items()`                                   | 概要の横に並ぶ項目。タグはサブタグで絞り込んでいればそのあと、プロジェクトは中のフォルダも含めたすべて |
+| `onChange(fn)`                              | 項目が変わったときと、残した値がほかから変わったときに呼ぶ                                           |
+| `open(id)`・`openTag(tag)`                  | 本体で開く。`{ newTab: true }` で新しいタブに開く                                                    |
+| `settings()` など                           | 自分の設定と残す値。`Api` と同じもの                                                                 |
+
+`onEditing`・`onChange` は返した関数で知らせをやめる。
+
 ## 描くとき
 
 - 本体の CSS 変数（`--ink`・`--muted`・`--card`・`--accent`・`--space-*`・`--fs-*` など）を使える。CSS は `<style>` を `el` の中に入れ、ほかとぶつからないクラス名にする
-- `mount`・`embed`・`screens`・`code` の中では、`button`・`input`・`select`・`textarea` に本体と同じ見た目が付く。プラグインの CSS で上書きできる
+- `mount`・`embed`・`screens`・`code`・`covers` の中では、`button`・`input`・`select`・`textarea` に本体と同じ見た目が付く。プラグインの CSS で上書きできる
 - `select` は、押すと本体と同じ一覧を出す。選んだあとは素の `select` と同じく `value` が変わり、`input` と `change` が届く
 - `data-tip` を付けた要素には、その文言で本体のツールチップが出る
