@@ -6,7 +6,7 @@ import {
   resolveNotes,
   statusOf,
 } from '../plugins/builtin'
-import type { FormatInfo, NotesInfo, PluginReport, ScreenInfo, UiRef } from '../plugins/types'
+import type { CoverInfo, FormatInfo, NotesInfo, PluginReport, ScreenInfo, UiRef } from '../plugins/types'
 import { EXAMPLE_PLUGINS } from './spec'
 
 const FOUND = import.meta.glob<RawManifest>('../../../example/*/plugin.json', { eager: true, import: 'default' })
@@ -38,6 +38,20 @@ export const SAMPLE_SCREENS: ScreenInfo[] = EXAMPLES.flatMap(({ manifest: m }) =
     label: d.label,
     icon: d.icon,
     place: d.place ?? true,
+    plugin: m.id,
+    module,
+  }))
+})
+
+export const SAMPLE_COVERS: CoverInfo[] = EXAMPLES.flatMap(({ manifest: m }) => {
+  const module = m.script
+  if (!module) return []
+  return Object.entries(m.covers ?? {}).map(([card, d]) => ({
+    card,
+    label: d.label,
+    note: d.note ?? '',
+    on: d.on ?? ['tag', 'project'],
+    multiple: d.multiple ?? false,
     plugin: m.id,
     module,
   }))

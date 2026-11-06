@@ -283,6 +283,7 @@ export function App(props: AppProps) {
     embedOf,
     urlPreviewOf,
     noteSyntax,
+    cardHost,
     plugged,
     reloading,
     reloadPlugins,
@@ -584,6 +585,7 @@ export function App(props: AppProps) {
                 onDelete={backend.deleteProject && (() => deleteProject(v.name))}
                 onOpenItem={openItem}
                 onOpenGroup={openGroup}
+                cards={cardHost()}
               />
             )
           }
@@ -625,6 +627,7 @@ export function App(props: AppProps) {
                 onToggleTagPin={() => toggleTagPin(v.tag)}
                 onRename={(to) => requestRenameTag(v.tag, to)}
                 onSaveCover={(cover) => saveTagCover(v.tag, cover)}
+                cards={cardHost()}
               />
             )
           }

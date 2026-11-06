@@ -233,6 +233,33 @@ fn yes() -> bool {
     true
 }
 
+/// 概要のカードを置ける画面。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CoverOn {
+    Tag,
+    Project,
+    #[serde(other)]
+    Unknown,
+}
+
+fn every_cover() -> Vec<CoverOn> {
+    vec![CoverOn::Tag, CoverOn::Project]
+}
+
+/// タグやプロジェクトの概要に足すカード。描くのはスクリプトの covers。
+#[derive(Debug, Clone, Deserialize)]
+pub struct CoverDecl {
+    pub label: String,
+    #[serde(default)]
+    pub note: String,
+    #[serde(default = "every_cover")]
+    pub on: Vec<CoverOn>,
+    /// 1 つの概要に、いくつも置けるか。
+    #[serde(default)]
+    pub multiple: bool,
+}
+
 /// ノートに足すもの。code は ``` の後ろに書く言語の名前で、小文字で探すので読むときにそろえる。
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct NotesDecl {
@@ -351,6 +378,9 @@ pub struct Manifest {
     pub hooks: HooksDecl,
     #[serde(default)]
     pub notes: NotesDecl,
+    /// 概要のカードの id → カード。id は画面の id と同じ決まりで書く。
+    #[serde(default)]
+    pub covers: BTreeMap<String, CoverDecl>,
     /// WASM に渡すホストの interface。書いていないものを使う WASM は読み込まない。
     #[serde(default)]
     pub permissions: Vec<String>,
@@ -389,6 +419,7 @@ impl Manifest {
             || self.links.iter().any(|d| !d.parts.is_empty())
             || !self.screens.is_empty()
             || !self.notes.script.is_empty()
+            || !self.covers.is_empty()
     }
 
     fn caps(&self) -> Vec<Cap> {
@@ -590,6 +621,18 @@ pub struct ScreenInfo {
     pub ui: UiRef,
 }
 
+/// プラグインが概要に足すカード。画面に渡す。
+#[derive(Debug, Clone, Serialize)]
+pub struct CoverInfo {
+    pub card: String,
+    pub label: String,
+    pub note: String,
+    pub on: Vec<CoverOn>,
+    pub multiple: bool,
+    #[serde(flatten)]
+    pub ui: UiRef,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct UiRef {
     pub plugin: String,
@@ -693,6 +736,8 @@ pub struct PluginStatus {
     pub formats: Vec<String>,
     pub links: Vec<String>,
     pub screens: Vec<String>,
+    /// 概要に足すカードの名前。
+    pub covers: Vec<String>,
     /// 描くコードブロックの言語。
     pub code: Vec<String>,
     pub permissions: Vec<String>,
@@ -892,6 +937,7 @@ impl Registry {
                     formats: Vec::new(),
                     links: Vec::new(),
                     screens: Vec::new(),
+                    covers: Vec::new(),
                     code: Vec::new(),
                     permissions: Vec::new(),
                     script: false,
@@ -1086,6 +1132,22 @@ impl Registry {
                 p.problems.push(error(format!(
                     "画面の ID「{id}」には、英数字・ハイフン・下線しか使えません"
                 )));
+            }
+            for (id, d) in &p.manifest.covers {
+                if !screen_id_ok(id) {
+                    p.problems.push(error(format!(
+                        "カードの ID「{id}」には、英数字・ハイフン・下線しか使えません"
+                    )));
+                }
+                if d.label.trim().is_empty() {
+                    p.problems
+                        .push(error(format!("カード「{id}」の label が空です")));
+                }
+                if d.on.is_empty() {
+                    p.problems.push(error(format!(
+                        "カード「{id}」の on が空です。tag・project のどちらかを書きます"
+                    )));
+                }
             }
             for h in p.manifest.fetch.iter().filter(|h| !fetch_host_ok(h)) {
                 p.problems.push(error(format!(
@@ -1335,6 +1397,36 @@ impl Registry {
                         label: d.label.clone(),
                         icon: d.icon.clone(),
                         place: d.place,
+                        ui: UiRef {
+                            plugin: p.manifest.id.clone(),
+                            module: module.clone(),
+                        },
+                    })
+            })
+            .collect()
+    }
+
+    pub fn covers(&self) -> Vec<CoverInfo> {
+        self.plugins
+            .iter()
+            .filter(|p| !p.blocked)
+            .filter_map(|p| Some((p, p.script.clone()?)))
+            .flat_map(|(p, module)| {
+                p.manifest
+                    .covers
+                    .iter()
+                    .filter(|(id, _)| screen_id_ok(id))
+                    .map(move |(id, d)| CoverInfo {
+                        card: id.clone(),
+                        label: d.label.clone(),
+                        note: d.note.clone(),
+                        on: d
+                            .on
+                            .iter()
+                            .copied()
+                            .filter(|&o| o != CoverOn::Unknown)
+                            .collect(),
+                        multiple: d.multiple,
                         ui: UiRef {
                             plugin: p.manifest.id.clone(),
                             module: module.clone(),
@@ -1863,6 +1955,7 @@ impl Registry {
                 };
                 code.sort();
                 let screens = screen_labels(m);
+                let covers = cover_labels(m);
                 let settings = p
                     .settings
                     .iter()
@@ -1893,6 +1986,7 @@ impl Registry {
                     formats,
                     links,
                     screens,
+                    covers,
                     code,
                     permissions: permissions_of(m),
                     script: m.wants_script(),
@@ -2052,6 +2146,7 @@ fn idle(
             .flat_map(|d| d.host.iter().map(|h| host_key(h)))
             .collect(),
         screens: screen_labels(m),
+        covers: cover_labels(m),
         code: m.notes.code.clone(),
         permissions: permissions_of(m),
         script: m.wants_script(),
@@ -2096,6 +2191,13 @@ fn misspelled(m: &Manifest) -> Vec<Problem> {
             )));
         }
     }
+    for (id, d) in &m.covers {
+        if d.on.contains(&CoverOn::Unknown) {
+            out.push(error(format!(
+                "カード「{id}」の on には tag・project のどれかを書きます"
+            )));
+        }
+    }
     out
 }
 
@@ -2129,6 +2231,10 @@ fn fetch_of(m: &Manifest) -> Vec<String> {
 
 fn screen_labels(m: &Manifest) -> Vec<String> {
     m.screens.values().map(|d| d.label.clone()).collect()
+}
+
+fn cover_labels(m: &Manifest) -> Vec<String> {
+    m.covers.values().map(|d| d.label.clone()).collect()
 }
 
 fn settings_of(

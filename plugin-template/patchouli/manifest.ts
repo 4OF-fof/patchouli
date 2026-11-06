@@ -147,6 +147,21 @@ export interface NotesDecl {
   slash?: SlashDecl[]
 }
 
+/** 概要のカードを置ける画面。tag はタグの概要、project はプロジェクトの概要。 */
+export type CoverOn = 'tag' | 'project'
+
+/** タグやプロジェクトの概要に足すカード。描くのはスクリプトの covers。 */
+export interface CoverDecl {
+  /** カードの見出しと、「セクションを追加」の一覧に出す名前。 */
+  label: string
+  /** 「セクションを追加」の一覧で、名前の下に出す説明。 */
+  note?: string
+  /** 置ける画面。書かなければ両方。 */
+  on?: CoverOn[]
+  /** 1 つの概要に、いくつも置けるか。書かなければ 1 つだけ。 */
+  multiple?: boolean
+}
+
 /**
  * WASM に渡すホストの interface（WIT）。書いていないものを使う WASM は読み込まない。
  * library はライブラリの情報（名前・タグ・メモなど）を読み、embed は EmbeddingGemma で文章をベクトルにする。
@@ -166,7 +181,7 @@ export interface Manifest {
   /** あれば使うもの。 */
   optional?: Deps
   /**
-   * formats の script、links、screens、notes の script を受け持つ ES モジュール（plugin.json からの相対パス、.js）。
+   * formats の script、links、screens、notes の script、covers を受け持つ ES モジュール（plugin.json からの相対パス、.js）。
    * 中身は PluginModule で、本体の画面と同じ WebView で、本体と同じ権限で動く。ビルドでは、拡張子を .ts にしたものから作る。
    */
   script?: string
@@ -177,6 +192,8 @@ export interface Manifest {
   menu?: MenuDecl
   hooks?: HooksDecl
   notes?: NotesDecl
+  /** 概要のカードの id → カード。id は英数字・ハイフン・下線で書く。 */
+  covers?: Record<string, CoverDecl>
   permissions?: Permission[]
   /** スクリプトの api.fetch と WASM の host の fetch で取りに行けるホスト名。サブドメインも含む。「com」のようなトップレベルドメインだけのものは書けない。 */
   fetch?: string[]
@@ -184,6 +201,8 @@ export interface Manifest {
 
 /** permissions に書けるもの。 */
 export const PERMISSIONS: readonly string[] = rules.permissions
+
+const COVER_ON: readonly string[] = ['tag', 'project'] satisfies CoverOn[]
 
 /** plugin.json からの相対パスで、外に出ないもの。 */
 const inside = (rel: string) =>
@@ -216,8 +235,7 @@ export function checkManifest(m: Manifest): { errors: string[]; warnings: string
   }
   const code = m.notes?.code ?? []
   for (const lang of code) {
-    if (!new RegExp(rules.codeLang).test(lang))
-      errors.push(`notes の code の「${lang}」には、空白と \` を使えません`)
+    if (!new RegExp(rules.codeLang).test(lang)) errors.push(`notes の code の「${lang}」には、空白と \` を使えません`)
     if (lang !== lang.toLowerCase()) warnings.push(`notes の code の「${lang}」は、小文字にそろえて読みます`)
   }
   for (const lang of m.notes?.script ?? [])
@@ -225,5 +243,13 @@ export function checkManifest(m: Manifest): { errors: string[]; warnings: string
       errors.push(`notes の script の「${lang}」は、code にも書きます`)
   for (const s of m.notes?.slash ?? [])
     if (!s.label || typeof s.insert !== 'string') errors.push('notes の slash には、label と insert を書きます')
+  for (const [id, c] of Object.entries(m.covers ?? {})) {
+    if (!new RegExp(rules.screenId).test(id))
+      errors.push(`カードの ID「${id}」には、英数字・ハイフン・下線しか使えません`)
+    if (!c.label?.trim()) errors.push(`カード「${id}」の label が空です`)
+    if (c.on && !c.on.length) errors.push(`カード「${id}」の on が空です。tag・project のどちらかを書きます`)
+    if (c.on?.some((o) => !COVER_ON.includes(o)))
+      errors.push(`カード「${id}」の on には tag・project のどれかを書きます`)
+  }
   return { errors, warnings }
 }

@@ -10,14 +10,18 @@ import type { PartKind } from '../Detail/parts'
 import styles from './CoverPart.module.css'
 import { Icon } from '../../components/base/Icon/Icon'
 
-export const PARTS: Record<CoverPart['type'], PartKind> = {
+export type PartType = Exclude<CoverPart['type'], 'plugin'>
+
+export const PARTS: Record<PartType, PartKind> = {
   desc: { label: '説明', note: 'テキスト', multiple: false },
   todo: { label: 'タスク', note: 'チェックリストと期日', multiple: false },
   links: { label: 'リンク', note: '外部 URL', multiple: false },
 }
-export const PART_TYPES = ['desc', 'todo', 'links'] as const satisfies readonly CoverPart['type'][]
+export const PART_TYPES = ['desc', 'todo', 'links'] as const satisfies readonly PartType[]
 
-export function emptyPart(type: CoverPart['type']): CoverPart {
+export const isPartType = (t: string): t is PartType => PART_TYPES.some((x) => x === t)
+
+export function emptyPart(type: PartType): CoverPart {
   const id = newCardId()
   return type === 'desc' ? { id, type, text: '' } : { id, type, items: [] }
 }
@@ -203,6 +207,7 @@ export function CoverPartView(props: CoverPartViewProps) {
   const todo = () => (props.part.type === 'todo' ? props.part : undefined)
   const label = () => {
     const c = props.part
+    if (c.type === 'plugin') return ''
     return c.type === 'todo'
       ? `タスク | ${c.items.filter((x) => x.done).length} / ${c.items.length}`
       : PARTS[c.type].label

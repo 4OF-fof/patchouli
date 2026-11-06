@@ -1,10 +1,12 @@
 /* プラグインの形。plugin.json と、Rust 側（src-tauri/src/plugin/）から届くもの。Rust 側と合わせる。 */
 
-import type { Deps, Detail, Fit, Media, Part, Permission, SettingValue } from '../../plugins/sdk'
+import type { CoverOn, Deps, Detail, Fit, Media, Part, Permission, SettingValue } from '../../plugins/sdk'
 import type { ToastLevel } from '../components/overlay/Toast/Toast'
 
 export type {
   CommandDep,
+  CoverDecl,
+  CoverOn,
   Deps,
   Fit,
   FormatDecl,
@@ -95,6 +97,15 @@ export interface NotesInfo {
   core: string[]
 }
 
+/** プラグインが概要に足すカード。card は plugin.json の covers の id。 */
+export interface CoverInfo extends UiRef {
+  card: string
+  label: string
+  note: string
+  on: CoverOn[]
+  multiple: boolean
+}
+
 /** プラグインが足す画面。 */
 export interface ScreenInfo extends UiRef {
   id: string
@@ -146,6 +157,8 @@ export interface PluginStatus {
   links?: string[]
   /** 足す画面の名前。 */
   screens?: string[]
+  /** 概要に足すカードの名前。 */
+  covers?: string[]
   /** 描くコードブロックの言語。 */
   code?: string[]
   permissions?: Permission[]

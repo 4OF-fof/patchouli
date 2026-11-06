@@ -13,6 +13,7 @@ import { flush as flushWrites } from '../model/persist'
 import { BUILTIN_NOTES } from '../plugins/builtin'
 import type { MenuGroup, ScreenInfo } from '../plugins/types'
 import type { BarRequest } from '../screens/AppBar'
+import type { CardHost } from '../screens/Detail/pluginCards'
 import { noteSyntax as syntaxFor } from '../screens/Note/code'
 import { embedOf as embedFor } from '../screens/Note/embed'
 import { PluginScreen } from '../screens/Plugin/PluginScreen'
@@ -173,6 +174,16 @@ export function createPlugins(d: PluginsDeps) {
       fetch: backend.pluginFetch,
     })
   })
+  const cardHost = createMemo((): CardHost => {
+    plugged()
+    return {
+      cards: backend.covers?.() ?? [],
+      url: (ui) => backend.uiUrl?.(ui),
+      own: (p) => backend.ownApi?.(p) ?? NO_OWN,
+      open: (id, o) => openWith(o, () => openItem(id)),
+      openTag: (tag, o) => openWith(o, () => go({ s: 'tag', tag })),
+    }
+  })
   const [reloading, setReloading] = createSignal<{ step: 'ask' | 'wait' | 'load'; work?: number; quiet?: boolean }>()
   let answer: ((a: 'wait' | 'stop') => void) | undefined
   /** quiet のときは、読み込んでいるあいだの表示を出さない。 */
@@ -310,6 +321,7 @@ export function createPlugins(d: PluginsDeps) {
     embedOf,
     urlPreviewOf,
     noteSyntax,
+    cardHost,
     plugged,
     reloading,
     reloadPlugins,

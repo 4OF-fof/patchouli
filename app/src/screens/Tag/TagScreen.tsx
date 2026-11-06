@@ -10,20 +10,28 @@ import { type Library, type TagCoverPart, hasTag, newCardId } from '../../model/
 import { AddPart } from '../Detail/AddPart'
 import { DetailPart } from '../Detail/DetailPart'
 import { DetailScreen } from '../Detail/DetailScreen'
-import { type PartKind, addable, moved } from '../Detail/parts'
+import { PluginCardView } from '../Detail/PluginCardView'
+import { type PartKind, addable } from '../Detail/parts'
+import { type CardHost, addableCards, movedShown, newPluginCard, shownCards, withValue } from '../Detail/pluginCards'
 import shared from '../screen.module.css'
 import styles from './TagScreen.module.css'
 
-export const TAG_PARTS: Record<TagCoverPart['type'], PartKind> = {
+type TagPartType = Exclude<TagCoverPart['type'], 'plugin'>
+
+export const TAG_PARTS: Record<TagPartType, PartKind> = {
   desc: { label: '説明', note: 'テキスト', multiple: false },
   kids: { label: 'サブタグ', note: '階層下のタグで絞り込み', multiple: false },
   exts: { label: 'ファイル形式', note: '拡張子ごとの件数', multiple: false },
   together: { label: '関連タグ', note: 'よく併用されるタグ', multiple: false },
 }
-const TAG_PART_TYPES = ['desc', 'kids', 'exts', 'together'] as const satisfies readonly TagCoverPart['type'][]
+const TAG_PART_TYPES = ['desc', 'kids', 'exts', 'together'] as const satisfies readonly TagPartType[]
 
-const emptyTagPart = (type: TagCoverPart['type']): TagCoverPart =>
+const emptyTagPart = (type: TagPartType): TagCoverPart =>
   type === 'desc' ? { id: newCardId(), type, text: '' } : { id: type, type }
+
+const isTagPartType = (t: string): t is TagPartType => TAG_PART_TYPES.some((x) => x === t)
+
+const labelOf = (c: TagCoverPart) => (c.type === 'plugin' ? '' : TAG_PARTS[c.type].label)
 
 const near = (tag: string, t: string) => t === tag || t.startsWith(tag + '/') || tag.startsWith(t + '/')
 
@@ -40,6 +48,8 @@ export interface TagScreenProps {
   onToggleTagPin?: () => void
   onRename?: (to: string) => void
   onSaveCover?: (cover: TagCoverPart[]) => void
+  /** プラグインが足すカード。ないときは、プラグインのカードを出さない。 */
+  cards?: CardHost
 }
 
 export function TagScreen(props: TagScreenProps) {
@@ -65,7 +75,14 @@ export function TagScreen(props: TagScreenProps) {
     setAddOpen(false)
   }
   const cover = () => lib().tagCovers.get(props.tag) ?? []
+  const shownCover = createMemo(() => shownCards(props.cards, 'tag', cover()))
   const save = (next: TagCoverPart[]) => props.onSaveCover?.(next)
+  const isShown = (c: TagCoverPart) => shownCover().includes(c)
+  const pick = (type: string) => {
+    const part = isTagPartType(type) ? emptyTagPart(type) : newPluginCard(props.cards, type)
+    if (part) save([...cover(), part])
+    setAddOpen(false)
+  }
   const all = createMemo(() => lib().items.filter((i) => hasTag(i, props.tag)))
   const shown = createMemo(() => (sub() ? all().filter((i) => hasTag(i, sub())) : all()))
   const kids = createMemo(() =>
@@ -80,13 +97,14 @@ export function TagScreen(props: TagScreenProps) {
     counted(shown().flatMap((i) => [...new Set(i.tags)].filter((t) => !near(props.tag, t)))).slice(0, 6),
   )
 
-  const body = (c: TagCoverPart, i: number): JSX.Element => {
+  const body = (c: TagCoverPart): JSX.Element => {
+    if (c.type === 'plugin') return null
     if (c.type === 'desc')
       return editing() ? (
         <textarea
           aria-label="説明"
           value={c.text}
-          onChange={(e) => save(cover().map((y, k) => (k === i ? { ...c, text: e.currentTarget.value } : y)))}
+          onChange={(e) => save(cover().map((y) => (y.id === c.id ? { ...c, text: e.currentTarget.value } : y)))}
         />
       ) : (
         <span>{c.text || <NoneText>説明はまだありません</NoneText>}</span>
@@ -178,27 +196,45 @@ export function TagScreen(props: TagScreenProps) {
       sideLabel="概要"
       side={
         <>
-          <Index each={cover()}>
-            {(c, i) => (
-              <DetailPart
-                label={TAG_PARTS[c().type].label}
-                editing={editing()}
-                onMove={(by) => save(moved(cover(), i, by))}
-                onRemove={() => save(cover().filter((_, k) => k !== i))}
-              >
-                {body(c(), i)}
-              </DetailPart>
-            )}
+          <Index each={shownCover()}>
+            {(c, i) => {
+              const move = (by: number) => save(movedShown(cover(), isShown, i, by))
+              const remove = () => save(cover().filter((y) => y.id !== c().id))
+              return (
+                <Show
+                  when={c().type === 'plugin' && c().id}
+                  keyed
+                  fallback={
+                    <DetailPart label={labelOf(c())} editing={editing()} onMove={move} onRemove={remove}>
+                      {body(c())}
+                    </DetailPart>
+                  }
+                >
+                  {(id) => (
+                    <PluginCardView
+                      lib={lib()}
+                      host={props.cards}
+                      on="tag"
+                      name={props.tag}
+                      id={id}
+                      cover={cover()}
+                      items={shown()}
+                      editing={editing()}
+                      onValue={(v) => save(withValue(cover(), id, v))}
+                      onMove={move}
+                      onRemove={remove}
+                    />
+                  )}
+                </Show>
+              )
+            }}
           </Index>
           <Show when={editing()}>
             <AddPart
-              parts={addable(TAG_PARTS, TAG_PART_TYPES, cover())}
+              parts={[...addable(TAG_PARTS, TAG_PART_TYPES, cover()), ...addableCards(props.cards, 'tag', cover())]}
               open={addOpen()}
               onToggle={() => setAddOpen(!addOpen())}
-              onPick={(type) => {
-                save([...cover(), emptyTagPart(type)])
-                setAddOpen(false)
-              }}
+              onPick={pick}
             />
           </Show>
         </>

@@ -68,9 +68,8 @@
   background: var(--warm);
   color: var(--danger);
 }
-.root textarea,
-.root input[type='text'],
-.root input[type='url'] {
+/* プラグインのカードの中では、プラグインの CSS で上書きできるよう :where で弱める */
+.root :where(textarea, input[type='text'], input[type='url']) {
   width: 100%;
   padding: var(--space-4) var(--space-8);
   border: 1px solid var(--line-2);
@@ -79,9 +78,7 @@
   color: var(--ink);
   font-size: var(--fs-list);
 }
-.root textarea:focus-visible,
-.root input[type='text']:focus-visible,
-.root input[type='url']:focus-visible {
+.root :where(textarea, input[type='text'], input[type='url']):focus-visible {
   border-color: var(--accent);
   outline: 0;
 }

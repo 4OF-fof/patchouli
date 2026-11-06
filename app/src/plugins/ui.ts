@@ -49,7 +49,7 @@ const LINK_FNS = ['thumbnail', 'mount', 'details', 'excerpt', 'hover', 'embed']
 const isFn = (v: unknown) => v === undefined || typeof v === 'function'
 const isLinks = (v: unknown) =>
   v === undefined || (typeof v === 'object' && v !== null && LINK_FNS.every((k) => isFn(Reflect.get(v, k))))
-const isScreens = (v: unknown) =>
+const isMounts = (v: unknown) =>
   v === undefined ||
   (typeof v === 'object' &&
     v !== null &&
@@ -70,8 +70,9 @@ const isModule = (m: unknown): m is UiModule =>
   m !== null &&
   MODULE_FNS.every((k) => isFn(Reflect.get(m, k))) &&
   isLinks(Reflect.get(m, 'links')) &&
-  isScreens(Reflect.get(m, 'screens')) &&
-  isCode(Reflect.get(m, 'code'))
+  isMounts(Reflect.get(m, 'screens')) &&
+  isCode(Reflect.get(m, 'code')) &&
+  isMounts(Reflect.get(m, 'covers'))
 
 export const loadUi = (url: string): Promise<UiModule> => {
   let m = loaded.get(url)
@@ -80,7 +81,7 @@ export const loadUi = (url: string): Promise<UiModule> => {
       const mod: unknown = typeof ns === 'object' && ns !== null ? Reflect.get(ns, 'default') : undefined
       if (!isModule(mod))
         throw new Error(
-          `default で書き出したものの ${MODULE_FNS.join('・')}、links の ${LINK_FNS.join('・')}、screens の mount、code の render・update のいずれかが関数ではありません`,
+          `default で書き出したものの ${MODULE_FNS.join('・')}、links の ${LINK_FNS.join('・')}、screens の mount、code の render・update、covers の mount のいずれかが関数ではありません`,
         )
       return mod
     })

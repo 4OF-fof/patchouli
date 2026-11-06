@@ -15,6 +15,7 @@ import type {
   MenuGroup,
   MenuOutput,
   CapPart,
+  CoverInfo,
   NotesInfo,
   Part,
   PluginActions,
@@ -341,6 +342,8 @@ export interface Backend {
   ownApi?: (plugin: string) => OwnApi
   /** ノートに足すもの（コードブロックを描くものと / の項目）。プラグインを読み直すと変わる。 */
   notes?: () => NotesInfo
+  /** プラグインが概要に足すカード。プラグインを読み直すと変わる。 */
+  covers?: () => CoverInfo[]
   /** plugin の WASM でコードブロックを描く。 */
   renderCode?: (plugin: string, lang: string, source: string) => Promise<CodeImage>
   /** plugin の fetch に書いたホストへ取りに行く。 */

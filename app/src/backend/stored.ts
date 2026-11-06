@@ -11,7 +11,7 @@ import {
   daysBefore,
   touchedLabel,
 } from '../model/library'
-import type { FormatInfo, LinkInfo, NotesInfo, ScreenInfo } from '../plugins/types'
+import type { CoverInfo, FormatInfo, LinkInfo, NotesInfo, ScreenInfo } from '../plugins/types'
 import type { Changed, LibraryState, Opened, Orphan } from './types'
 
 export interface StoredItem {
@@ -57,6 +57,7 @@ export interface StoredLibrary<I extends StoredItem = StoredItem> {
   formats: FormatInfo[]
   links?: LinkInfo[]
   screens?: ScreenInfo[]
+  covers?: CoverInfo[]
   notes?: NotesInfo
   problems: string[]
 }
@@ -121,11 +122,15 @@ export function toItem(
   }
 }
 
+/** プラグインのカードは、どのプラグインのどのカードかが書いてあるものだけを読む。 */
+const known = (types: ReadonlySet<string>, c: CoverPart | TagCoverPart) =>
+  types.has(c.type) && (c.type !== 'plugin' || (typeof c.plugin === 'string' && typeof c.card === 'string'))
+
 export const toProject = (s: StoredProject, today: Date): Project => ({
   name: s.name,
   hue: hueOfName(s.name),
   touched: touchedLabel(today, new Date(s.mtime)),
-  cover: s.cover.filter((c) => COVER_TYPES.has(c.type)),
+  cover: s.cover.filter((c) => known(COVER_TYPES, c)),
 })
 
 export const toGroup = (s: StoredGroup, today: Date): Group => ({
@@ -140,7 +145,7 @@ export const toGroup = (s: StoredGroup, today: Date): Group => ({
 
 // 並びにだけ書かれた知らない id は、中身のない種類として届くので外す
 const toTagCovers = (s: Record<string, TagCoverPart[]>) =>
-  new Map(Object.entries(s).map(([t, c]) => [t, c.filter((x) => TAG_COVER_TYPES.has(x.type))]))
+  new Map(Object.entries(s).map(([t, c]) => [t, c.filter((x) => known(TAG_COVER_TYPES, x))]))
 
 export function toOpened<I extends StoredItem>(s: StoredLibrary<I>, today: Date, urlsOf: (it: I) => ItemUrls): Opened {
   const formats = new Map(s.formats.map((f) => [f.ext, f]))

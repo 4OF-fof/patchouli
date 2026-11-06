@@ -23,6 +23,7 @@ import type {
   MenuOutput,
   NotesInfo,
   CapPart,
+  CoverInfo,
   PluginReport,
   PluginSource,
   SettingValue,
@@ -221,6 +222,7 @@ export function tauriBackend(): Backend {
   let formats = new Map<string, FormatInfo>()
   let links = new Map<string, LinkInfo>()
   let notes: NotesInfo = { code: [], slash: [], core: [] }
+  let covers: CoverInfo[] = []
   // 前に開いていた画面が出した外のページは、読み直すと持ち主がいなくなる
   void invoke('browser_close_all').catch((e: unknown) => console.warn('外のページを閉じられない', e))
 
@@ -476,6 +478,7 @@ export function tauriBackend(): Backend {
     formats = new Map(s.formats.map((f) => [f.ext, f]))
     links = new Map((s.links ?? []).map((l) => [l.host, l]))
     notes = s.notes ?? notes
+    covers = s.covers ?? []
     const items = s.items.toSorted((a, b) => b.mtime - a.mtime)
     void makeUiThumbs(items)
     void makeWaves(items)
@@ -711,6 +714,7 @@ export function tauriBackend(): Backend {
     uiApi,
     ownApi,
     notes: () => notes,
+    covers: () => covers,
     async renderCode(plugin, lang, source) {
       const b = new Uint8Array(await invoke<ArrayBuffer>('render_code', { plugin, lang, source }))
       // Rust は PNG をそのまま、SVG を UTF-8 で返す。PNG の先頭の 0x89 は UTF-8 の文字の先頭にならない

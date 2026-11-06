@@ -1,3 +1,4 @@
+import type { Json } from '../../plugins/sdk'
 import { BUILTIN_FORMATS } from '../plugins/builtin'
 import type { Fit, FormatInfo } from '../plugins/types'
 
@@ -39,11 +40,20 @@ export interface Item {
   fit?: Fit
 }
 
+/** プラグインが足したカード。card は plugin.json の covers の id、value はプラグインが残した値。 */
+export interface PluginCard {
+  type: 'plugin'
+  plugin: string
+  card: string
+  value?: Json
+}
+
 /** 概要のカード。中身を持たないカード（タグの kids など）は、種類をそのまま id にする。 */
 export type CoverPart = { id: string } & (
   | { type: 'desc'; text: string }
   | { type: 'todo'; items: { t: string; ref?: string; done: boolean; due?: string }[] }
   | { type: 'links'; items: { t: string; u: string }[] }
+  | PluginCard
 )
 
 export type TagCoverPart = { id: string } & (
@@ -51,10 +61,17 @@ export type TagCoverPart = { id: string } & (
   | { type: 'kids' }
   | { type: 'exts' }
   | { type: 'together' }
+  | PluginCard
 )
 
-export const COVER_TYPES: ReadonlySet<string> = new Set<CoverPart['type']>(['desc', 'todo', 'links'])
-export const TAG_COVER_TYPES: ReadonlySet<string> = new Set<TagCoverPart['type']>(['desc', 'kids', 'exts', 'together'])
+export const COVER_TYPES: ReadonlySet<string> = new Set<CoverPart['type']>(['desc', 'todo', 'links', 'plugin'])
+export const TAG_COVER_TYPES: ReadonlySet<string> = new Set<TagCoverPart['type']>([
+  'desc',
+  'kids',
+  'exts',
+  'together',
+  'plugin',
+])
 
 export interface Project {
   name: string

@@ -1,4 +1,4 @@
-import { Index, Show, createEffect, createSignal, on } from 'solid-js'
+import { Index, Show, createEffect, createMemo, createSignal, on } from 'solid-js'
 import { Icon } from '../../components/base/Icon/Icon'
 import { Kbd } from '../../components/base/Kbd/Kbd'
 import { Button } from '../../components/controls/Button/Button'
@@ -8,9 +8,11 @@ import { ConfirmDialog } from '../../components/dialog/ConfirmDialog/ConfirmDial
 import type { CoverPart, Library } from '../../model/library'
 import { AddPart } from '../Detail/AddPart'
 import { DetailScreen } from '../Detail/DetailScreen'
-import { addable, moved } from '../Detail/parts'
+import { PluginCardView } from '../Detail/PluginCardView'
+import { addable } from '../Detail/parts'
+import { type CardHost, addableCards, movedShown, newPluginCard, shownCards, withValue } from '../Detail/pluginCards'
 import shared from '../screen.module.css'
-import { CoverPartView, PARTS, PART_TYPES, emptyPart } from './CoverPart'
+import { CoverPartView, PARTS, PART_TYPES, emptyPart, isPartType } from './CoverPart'
 
 export interface ProjectScreenProps {
   lib: Library
@@ -25,6 +27,8 @@ export interface ProjectScreenProps {
   onSaveCover?: (cover: CoverPart[]) => void
   onRename?: (to: string) => void
   onDelete?: () => void
+  /** プラグインが足すカード。ないときは、プラグインのカードを出さない。 */
+  cards?: CardHost
 }
 
 export function ProjectScreen(props: ProjectScreenProps) {
@@ -46,7 +50,14 @@ export function ProjectScreen(props: ProjectScreenProps) {
   const here = () => ({ project: props.name, group: null })
   const list = () => (flat() ? lib().inProject(props.name) : lib().inPlace(here()))
   const cover = () => p()?.cover ?? []
+  const shownCover = createMemo(() => shownCards(props.cards, 'project', cover()))
+  const isShown = (c: CoverPart) => shownCover().includes(c)
   const save = (next: CoverPart[]) => props.onSaveCover?.(next)
+  const pick = (type: string) => {
+    const part = isPartType(type) ? emptyPart(type) : newPluginCard(props.cards, type)
+    if (part) save([...cover(), part])
+    setAddOpen(false)
+  }
   const toggleEdit = () => {
     if (editing()) {
       const to = draft().trim()
@@ -122,27 +133,50 @@ export function ProjectScreen(props: ProjectScreenProps) {
           sideLabel="概要"
           side={
             <>
-              <Index each={cover()}>
-                {(c, i) => (
-                  <CoverPartView
-                    lib={lib()}
-                    part={c()}
-                    editing={editing()}
-                    onChange={(x) => save(cover().map((y, k) => (k === i ? x : y)))}
-                    onMove={(by) => save(moved(cover(), i, by))}
-                    onRemove={() => save(cover().filter((_, k) => k !== i))}
-                  />
-                )}
+              <Index each={shownCover()}>
+                {(c, i) => {
+                  const move = (by: number) => save(movedShown(cover(), isShown, i, by))
+                  const remove = () => save(cover().filter((y) => y.id !== c().id))
+                  return (
+                    <Show
+                      when={c().type === 'plugin' && c().id}
+                      keyed
+                      fallback={
+                        <CoverPartView
+                          lib={lib()}
+                          part={c()}
+                          editing={editing()}
+                          onChange={(x) => save(cover().map((y) => (y.id === x.id ? x : y)))}
+                          onMove={move}
+                          onRemove={remove}
+                        />
+                      }
+                    >
+                      {(id) => (
+                        <PluginCardView
+                          lib={lib()}
+                          host={props.cards}
+                          on="project"
+                          name={props.name}
+                          id={id}
+                          cover={cover()}
+                          items={lib().inProject(props.name)}
+                          editing={editing()}
+                          onValue={(v) => save(withValue(cover(), id, v))}
+                          onMove={move}
+                          onRemove={remove}
+                        />
+                      )}
+                    </Show>
+                  )
+                }}
               </Index>
               <Show when={editing()}>
                 <AddPart
-                  parts={addable(PARTS, PART_TYPES, cover())}
+                  parts={[...addable(PARTS, PART_TYPES, cover()), ...addableCards(props.cards, 'project', cover())]}
                   open={addOpen()}
                   onToggle={() => setAddOpen(!addOpen())}
-                  onPick={(type) => {
-                    save([...cover(), emptyPart(type)])
-                    setAddOpen(false)
-                  }}
+                  onPick={pick}
                 />
               </Show>
             </>

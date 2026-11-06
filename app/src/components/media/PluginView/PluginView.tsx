@@ -1,5 +1,5 @@
 import { Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
-import type { CodeApi, CodeModule, LinkApi, ScreenApi } from '../../../../plugins/sdk'
+import type { CodeApi, CodeModule, CoverApi, LinkApi, ScreenApi } from '../../../../plugins/sdk'
 import { type UiApi, loadUi } from '../../../plugins/ui'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { SelectList } from '../../controls/Select/Select'
@@ -14,13 +14,15 @@ export type PluginViewProps = {
   /** 読み込めたとき。読めなかったときも呼ぶ */
   onReady?: () => void
 } & (
-  | { api: UiApi; link?: false; screen?: undefined; code?: undefined }
+  | { api: UiApi; link?: false; screen?: undefined; code?: undefined; cover?: undefined }
   /** links の関数で、URL を描く */
-  | { api: LinkApi; link: true; screen?: undefined; code?: undefined }
+  | { api: LinkApi; link: true; screen?: undefined; code?: undefined; cover?: undefined }
   /** screens の mount で、画面を描く */
-  | { api: ScreenApi; link?: false; screen: string; code?: undefined }
+  | { api: ScreenApi; link?: false; screen: string; code?: undefined; cover?: undefined }
   /** code の render で、ノートのコードブロックを描く。api.source が変わると update を呼ぶ */
-  | { api: CodeApi; link?: false; screen?: undefined; code: string }
+  | { api: CodeApi; link?: false; screen?: undefined; code: string; cover?: undefined }
+  /** covers の mount で、概要のカードを描く */
+  | { api: CoverApi; link?: false; screen?: undefined; code?: undefined; cover: string }
 )
 
 /** 素の select が一覧を開くキー。 */
@@ -109,6 +111,12 @@ export function PluginView(props: PluginViewProps) {
           unmount = screen.mount(el, props.api) ?? undefined
           return
         }
+        if (props.cover !== undefined) {
+          const cover = mod.covers?.[props.cover]
+          if (!cover) throw new Error(`カードの関数（covers.${props.cover}.mount）が見つかりません`)
+          unmount = cover.mount(el, props.api) ?? undefined
+          return
+        }
         if (props.link) {
           const fn = mod.links?.[draw]
           if (!fn) throw new Error(`URL の${what}の関数（links.${draw}）が見つかりません`)
@@ -134,7 +142,7 @@ export function PluginView(props: PluginViewProps) {
     <div ref={root} class={`${styles.root} ${props.class ?? ''}`}>
       {/* 埋め込みは中身の高さで並べるので、本文のスクロールを止めないよう送る枠にしない */}
       <Show
-        when={props.draw === 'embed' || props.code !== undefined}
+        when={props.draw === 'embed' || props.code !== undefined || props.cover !== undefined}
         fallback={<ScrollArea ref={el} class={styles.mount} />}
       >
         <div ref={el} class={styles.mount} />

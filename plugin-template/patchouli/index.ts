@@ -4,13 +4,18 @@
  * スクリプトからは `@patchouli/plugin` として読む（ビルドでは cli.ts が、型の確認では tsconfig の paths がここを指す）。
  *
  * スクリプトは本体の画面と同じ文書で描くので、本体の CSS 変数（--ink・--card・--accent・--space-* など）を使える。
- * mount・embed・screens・code で描く場所の中では、素の要素が本体の部品と同じに見える。
+ * mount・embed・screens・code・covers で描く場所の中では、素の要素が本体の部品と同じに見える。
  * - button・input・select・textarea などに、本体と同じ見た目が付く（プラグインの CSS で上書きできる）
  * - select は、押すと本体と同じ一覧を出す。選んだあとは素の select と同じく value が変わり、input と change が届く
  * - data-tip を付けた要素には、その文言で本体のツールチップが出る
  */
 
+import type { CoverOn } from './manifest.ts'
+
 export type SettingValue = boolean | number | string
+
+/** JSON で書ける値。 */
+export type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
 
 export type * from './manifest.ts'
 
@@ -287,6 +292,36 @@ export interface ScreenModule<T extends PluginTypes = PluginTypes> {
   mount(el: HTMLElement, api: ScreenApi<T>): void | (() => void)
 }
 
+/** タグやプロジェクトの概要に置いた、カード 1 枚の窓口。 */
+export interface CoverApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
+  /** 置いた画面。tag はタグの概要、project はプロジェクトの概要。 */
+  on: CoverOn
+  /** タグの名前か、プロジェクトの名前。 */
+  name: string
+  /** カードの ID。同じ概要に同じカードをいくつも置いたときに見分けられる。 */
+  id: string
+  /** カードに残した値。何も残していなければ undefined。 */
+  readonly value: Json | undefined
+  /** 値をカードに残す。value を書かなければ消す。カードを消すと、残した値も消える。 */
+  setValue(value?: Json): void
+  /** 「概要を編集」を押しているか。 */
+  readonly editing: boolean
+  /** 編集を始めたときと終えたときに呼ぶ。返した関数で知らせをやめる。 */
+  onEditing(fn: (editing: boolean) => void): () => void
+  /** 概要の横に並ぶ項目。タグはサブタグで絞り込んでいればそのあと、プロジェクトは中のフォルダも含めたすべて。 */
+  items(): LibraryItem[]
+  /** 項目が変わったときと、残した値がほかから変わったときに呼ぶ。返した関数で知らせをやめる。 */
+  onChange(fn: () => void): () => void
+  open(id: string, opts?: OpenOptions): void
+  openTag(tag: string, opts?: OpenOptions): void
+}
+
+/** plugin.json の covers の 1 つ。 */
+export interface CoverModule<T extends PluginTypes = PluginTypes> {
+  /** el の中に描く。el の幅は概要の列の幅で、高さは描いたものに合わせて決まる。返した関数は、消すときに呼ぶ。 */
+  mount(el: HTMLElement, api: CoverApi<T>): void | (() => void)
+}
+
 /** スクリプトの ES モジュールが default で書き出すもの。受け持つもの（plugin.json の formats の script など）の分だけあればよい。 */
 export interface PluginModule<T extends PluginTypes = PluginTypes> {
   /** 詳細の表示。el の中に描く。返した関数は、閉じるときに呼ぶ。 */
@@ -315,6 +350,8 @@ export interface PluginModule<T extends PluginTypes = PluginTypes> {
   screens?: Record<string, ScreenModule<T>>
   /** plugin.json の notes の script に書いた言語（小文字） → コードブロックを描くもの。 */
   code?: Record<string, CodeModule<T>>
+  /** plugin.json の covers の id → 概要のカード。 */
+  covers?: Record<string, CoverModule<T>>
 }
 
 /**

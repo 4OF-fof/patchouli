@@ -191,6 +191,7 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
     .toSorted(),
   links: (m.links ?? []).flatMap((d) => d.host).toSorted(),
   screens: Object.values(m.screens ?? {}).map((d) => d.label),
+  covers: Object.values(m.covers ?? {}).map((d) => d.label),
   code: (m.notes?.code ?? []).map((l) => l.toLowerCase()).toSorted(),
   permissions: m.permissions ?? [],
   script: !!m.script,

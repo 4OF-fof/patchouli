@@ -23,13 +23,14 @@ const isMap = (v: unknown) => !!v && typeof v === 'object'
 function readManifest(dir: string): Manifest {
   const file = path.join(dir, 'plugin.json')
   const m: Partial<Manifest> = JSON.parse(fs.readFileSync(file, 'utf8'))
-  const { id, name, version, formats, links, screens, menu, hooks, notes, script } = m
+  const { id, name, version, formats, links, screens, menu, hooks, notes, covers, script } = m
   const missing = (k: string) => new Error(`${file}: 「${k}」が指定されていません`)
   if (!id) throw missing('id')
   if (!name) throw missing('name')
   if (!version) throw missing('version')
-  if (!formats?.length && !links?.length && !isMap(screens) && !isMap(menu) && !isMap(hooks) && !isMap(notes))
-    throw missing('formats・links・screens・menu・hooks・notes のいずれか')
+  const any = [screens, menu, hooks, notes, covers].some(isMap)
+  if (!formats?.length && !links?.length && !any)
+    throw missing('formats・links・screens・menu・hooks・notes・covers のいずれか')
   if (script !== undefined && !script.endsWith('.js'))
     throw new Error(`${file}: 「script」には .js のパスを指定してください（${script}）`)
   const manifest = { ...m, id, name, version }

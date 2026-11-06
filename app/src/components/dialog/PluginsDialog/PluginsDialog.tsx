@@ -384,6 +384,14 @@ export function PluginsDialog(props: PluginsDialogProps) {
               </span>
             </section>
           </Show>
+          <Show when={p().covers?.length}>
+            <section>
+              <h4>概要のカード</h4>
+              <span class={styles.chips}>
+                <For each={p().covers}>{(s) => <span class={styles.cap}>{s}</span>}</For>
+              </span>
+            </section>
+          </Show>
           <Show when={p().code?.length}>
             <section>
               <h4>コードブロック</h4>
