@@ -38,7 +38,7 @@ mod probe;
 struct Video;
 
 impl role::thumbnail::Guest for Video {
-    /// elevated が WebView で読めなかったときに呼ぶ。FFmpeg でコマを取り出す。
+    /// スクリプトが WebView で読めなかったときに呼ぶ。FFmpeg でコマを取り出す。
     fn thumbnail(_format: String, f: File, edge: u32) -> Result<Option<ThumbnailImage>, String> {
         // 最初のコマは黒いことが多いので 1 秒目から取る。それより短ければ最初のコマ
         let png = frame::frame(&f, 1.0, edge).or_else(|_| frame::frame(&f, 0.0, edge))?;
@@ -68,7 +68,7 @@ impl role::details::Guest for Video {
 }
 
 impl role::excerpt::Guest for Video {
-    /// 音声トラックだけを返す。コマは elevated が WebView で取る。
+    /// 音声トラックだけを返す。コマはスクリプトが WebView で取る。
     fn excerpt(format: String, f: File, budget: ExcerptBudget) -> Result<Vec<ExcerptPart>, String> {
         match pcm::audio(&format, &f, &budget) {
             Ok(parts) => Ok(parts),
@@ -81,7 +81,7 @@ impl role::excerpt::Guest for Video {
 }
 
 impl role::call::Guest for Video {
-    /// WebView で読めなかったもののために、elevated から呼ぶ。
+    /// WebView で読めなかったもののために、スクリプトから呼ぶ。
     /// secs：長さ（秒）。わからなければ null。
     /// frames：区間のコマを FFmpeg で取り出す。args は「start,span,every,count,edge」の JSON の文字列で、
     /// JPEG を base64 にした配列の JSON を返す。

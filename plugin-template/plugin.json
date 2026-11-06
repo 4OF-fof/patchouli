@@ -3,8 +3,15 @@
   "name": "CSV",
   "version": "0.1.0",
   "description": "CSV の表の表示とサムネイル生成",
-  "elevated": "ui.js",
-  "formats": {
-    "csv": { "label": "CSV", "ratio": 1.4, "fit": "top", "elevated": ["thumbnail", "view"] }
-  }
+  "script": "ui.js",
+  "formats": [
+    {
+      "ext": ["csv"],
+      "label": "CSV",
+      "ratio": 1.4,
+      "fit": "top",
+      "parts": ["thumbnail", "view"],
+      "script": ["thumbnail", "view"]
+    }
+  ]
 }

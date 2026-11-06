@@ -1,6 +1,6 @@
 /// 版は semver で上げる。足すだけの変更はパッチ版、壊す変更は 0.x のマイナー版を上げる。
 /// アプリは、同じマイナー版で、アプリの版以下のものを読む。版を上げたら src-tauri/src/plugin/runtime.rs の WIT_VERSION も合わせる。
-package patchouli:plugin@0.12.0;
+package patchouli:plugin@0.13.0;
 
 interface types {
   /// アプリが渡すファイル。中身はホストの関数を通して読む。
@@ -19,24 +19,20 @@ interface types {
     height: u32,
   }
 
+  /// host の fetch で取ってきたもの。url はリダイレクトをたどったあとのもの。
+  record fetched {
+    status: u16,
+    url: string,
+    content-type: option<string>,
+    body: list<u8>,
+  }
+
   /// できたサムネイル。
   record thumbnail-image {
     /// 長いほうの辺が edge 以下の PNG。
     png: list<u8>,
     /// 素材そのものの大きさ。わからなければ none（サムネイルの縦横比を使う）。
     size: option<dimensions>,
-  }
-
-  /// 素材の詳細に出すもの。
-  variant view-kind {
-    /// アプリが画像として出す。
-    image,
-    /// アプリが動画として出す。サムネイルを最初の絵にする。
-    video,
-    /// アプリが音声として出す。サムネイルをジャケットにする。
-    audio,
-    /// アプリが読めない画像。decode で PNG にしたものを、アプリが画像として出す。
-    decoded,
   }
 
   /// ファイルの詳細に足す 1 行。
@@ -58,8 +54,8 @@ interface types {
     toast(toast),
     /// 行の並びを画面に重ねて見せる。行ごとに値をコピーできる。
     overlay(overlay),
-    /// plugin.json の screens の画面を開く。画面には targets を渡す。
-    screen(open-screen),
+    /// plugin.json の screens の id の画面を開く。画面には targets を渡す。
+    screen(string),
   }
 
   record toast {
@@ -78,13 +74,6 @@ interface types {
   record overlay {
     title: option<string>,
     rows: list<detail>,
-  }
-
-  record open-screen {
-    /// plugin.json の screens の id。
-    id: string,
-    /// 別のウィンドウで開く。同じ画面のウィンドウがあれば、前に出して中身を入れ替える。
-    window: bool,
   }
 
   /// ライブラリが持つ、素材やノートの情報。
@@ -145,8 +134,8 @@ interface types {
     default: setting-value,
   }
 
-  /// content に渡す上限。
-  record content-budget {
+  /// excerpt に渡す上限。
+  record excerpt-budget {
     /// 画像の区間の数。
     max-image-parts: u32,
     /// 音声の区間の数。
@@ -161,7 +150,7 @@ interface types {
     max-audio-secs: f64,
   }
 
-  variant content-media {
+  variant excerpt-media {
     /// PNG か JPEG。複数あれば、まとめて 1 つの区間として読む。
     images(list<list<u8>>),
     /// WAV。
@@ -170,11 +159,11 @@ interface types {
   }
 
   /// 内容で探したり分けたりするときに、アプリが読む区間。
-  record content-part {
+  record excerpt-part {
     /// 区間の始まりと終わり（秒）。素材全体なら none。
     start: option<f64>,
     end: option<f64>,
-    media: content-media,
+    media: excerpt-media,
   }
 
   /// menu・run-menu・added の呼び出しの中だけで渡る証明。library・embed の関数に渡す。
@@ -186,7 +175,7 @@ interface types {
 
 /// アプリが用意する処理。重い処理はここに任せる。
 interface host {
-  use types.{file, dimensions, setting-value};
+  use types.{file, dimensions, setting-value, fetched};
 
   /// 中身を offset から最大 len バイト読む。
   read: func(f: file, offset: u64, len: u32) -> result<list<u8>, string>;
@@ -205,6 +194,9 @@ interface host {
 
   /// 値を残す。none なら消す。
   set-data: func(key: string, value: option<string>) -> result<_, string>;
+
+  /// url を GET で取ってくる（16 MB まで）。行けるのは plugin.json の fetch に書いたホストだけで、リダイレクトの行き先も同じ。
+  fetch: func(url: string) -> result<fetched, string>;
 
   log: func(message: string);
 }
@@ -327,24 +319,21 @@ interface embed {
 }
 
 /// 役割ごとに export する interface。プラグインは、受け持つ役割の world（下の *-role）を include でまとめた world を作る。
-/// アプリは読み込むときに export を調べ、plugin.json の formats で sandbox を true にした形式に、ある役割を受け持たせる。
+/// plugin.json の formats の parts のうち、script に書いていないものを受け持つ interface を export する。
 
 /// サムネイル。
 interface thumbnail {
   use types.{file, thumbnail-image};
 
-  /// 作らないときは none。format は受け持つ形式（拡張子）。
+  /// 作らないときは none。format は拡張子（小文字）。
   thumbnail: func(format: string, f: file, edge: u32) -> result<option<thumbnail-image>, string>;
 }
 
-/// 詳細の表示。
+/// 詳細の表示。アプリが読めない画像を PNG にし、アプリが画像として出す。
 interface view {
-  use types.{file, view-kind};
+  use types.{file};
 
-  /// 詳細に出すもの。none ならアプリがサムネイルを大きく出す。
-  view: func(format: string, f: file) -> option<view-kind>;
-
-  /// view が decoded を返したときに、詳細に出す PNG（素材そのものの大きさ）。
+  /// 詳細に出す PNG（素材そのものの大きさ）。
   decode: func(format: string, f: file) -> result<list<u8>, string>;
 }
 
@@ -357,14 +346,14 @@ interface details {
 }
 
 /// 内容で探したり分けたりするときに読む区間。
-interface content {
-  use types.{file, content-budget, content-part};
+interface excerpt {
+  use types.{file, excerpt-budget, excerpt-part};
 
   /// 区間の分け方はプラグインが決め、budget を超えない。空なら、アプリがサムネイルを読む。
-  content: func(format: string, f: file, budget: content-budget) -> result<list<content-part>, string>;
+  excerpt: func(format: string, f: file, budget: excerpt-budget) -> result<list<excerpt-part>, string>;
 }
 
-/// 右クリックメニュー。plugin.json の menu の by を sandbox にしたときに使う。
+/// 右クリックメニュー。plugin.json の menu を書いたときに使う。
 interface menu {
   use types.{target, menu-item, menu-output, read, run};
 
@@ -376,13 +365,23 @@ interface menu {
   run-menu: func(read: borrow<read>, run: borrow<run>, targets: list<target>, id: string) -> result<menu-output, string>;
 }
 
-/// 取り込みのフック。plugin.json の hooks の added に書いた形式のものを取り込んだときに使う。
+/// フック。plugin.json の hooks に書いたときに、そこに書いた形式のものを渡す。
 interface hook {
   use types.{target, read, run};
 
-  /// 取り込んだもの 1 つごとに、裏で呼ぶ。同じ形式のフックが複数あれば、プラグインの一覧の順に呼び、
-  /// 前のフックが書き換えたあとのものを渡す。
-  added: func(read: borrow<read>, run: borrow<run>, target: target) -> result<_, string>;
+  /// フックを呼ぶとき。
+  enum hook-event {
+    /// 取り込んだとき。右クリックメニューで作ったノートと登録した素材も含む。
+    added,
+    /// 中身が変わったとき。ノートは書き換えて離れたとき、ファイルはアプリの外で変わったのを見つけたとき。
+    changed,
+    /// 名前・タグ・置き場を変えたとき。
+    edited,
+  }
+
+  /// 1 つごとに、裏で呼ぶ。同じ形式のフックが複数あれば、プラグインの一覧の順に呼び、
+  /// 前のフックが書き換えたあとのものを渡す。フックの中で書き換えたものには、フックを呼ばない。
+  hook: func(read: borrow<read>, run: borrow<run>, event: hook-event, target: target) -> result<_, string>;
 }
 
 /// 設定の項目。
@@ -393,7 +392,7 @@ interface settings {
   settings: func() -> list<setting>;
 }
 
-/// elevated（plugin.json の elevated）から呼ばれる関数。
+/// スクリプト（plugin.json の script）から呼ばれる関数。
 interface call {
   use types.{file};
 
@@ -429,9 +428,9 @@ world details-role {
   export details;
 }
 
-world content-role {
+world excerpt-role {
   include imports;
-  export content;
+  export excerpt;
 }
 
 world menu-role {
@@ -459,7 +458,7 @@ world full {
   include thumbnail-role;
   include view-role;
   include details-role;
-  include content-role;
+  include excerpt-role;
   include menu-role;
   include hook-role;
   include settings-role;

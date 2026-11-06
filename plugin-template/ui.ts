@@ -1,4 +1,4 @@
-// elevated。アプリの画面と同じ WebView で動き、詳細の表示とサムネイルを描く。ビルドすると ui.js（plugin.json の elevated）になる。
+// スクリプト。アプリの画面と同じ WebView で動き、詳細の表示とサムネイルを描く。ビルドすると ui.js（plugin.json の script）になる。
 // 簡単のため、CSV の引用符は扱わない。
 import { definePlugin } from '@patchouli/plugin'
 

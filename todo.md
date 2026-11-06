@@ -18,29 +18,8 @@
   - 本体の中の部品：AI、内蔵ブラウザ、ノートの書式、概要カード。アプリの中の窓口でコアにつなぐ
   - プラグイン：形式ごとの読み取りと表示、メニュー、画面
 - 進める順
-  1. plugin.json の形を変える（下の「plugin.json の形」）
-  2. 画像・動画・音声の基盤を本体に入れ、組み込みのプラグインはそれを使うだけにする
-     - 音声の波形は本体が作る。作る時間の上限は本体の設定にする
-     - decoded の PNG は、本体のキャッシュにいつも取っておく
-  3. AI・ノートの書式・概要カードを、本体の中の部品として切り分ける。ノートの書式の窓口は、うまくいったらプラグインにも開く
-
-### plugin.json の形
-
-- `elevated` は `script` と呼び、スクリプトのパスを書く
-- `formats` は配列にし、同じ扱いの拡張子を `ext` に並べる。`extends` はなくす
-- 形式に書くもの
-  - `ext`・`label`・`ratio`・`fit`
-  - `media`：本体がそのまま出す種類（image・video・audio）。カーソルを合わせたときと埋め込みの本体の出し方もこれで決め、`hover`・`embed` のキーはなくす
-  - `parts`：受け持つもの（thumbnail・view・details・excerpt・hover・embed）。`content` は `excerpt` と呼ぶ。`waveform`・`link` はなくす
-  - `script`：`parts` のうちスクリプトで受け持つもの。ほかは WASM が受け持つ。`sandbox` のキーはなくす
-- `keepDecoded` はなくす
-- ショートカット（.url）は本体が読み、指す URL を `links` に渡す。組み込みの shortcut プラグインはなくす
-- `links` は配列にし、同じ扱いのホストを `host` に並べる。`parts` は `formats` とそろえる（thumbnail・view・details・excerpt・hover・embed）。担当はスクリプトだけ
-- `screens` の `window` はなくし、画面はすべてタブで開く。メニューの結果の `screen.window` もなくす
-- `menu`・`hooks` は WASM だけが受け持つ。`by` はなくす。例の graph は、メニューを WASM で返すように直す
-- `hooks` に、取り込んだとき（`added`）のほか、中身が変わったとき（`changed`）と、名前・タグ・置き場を変えたとき（`edited`）を足す
-- WIT の `host` に `fetch` を足す。スクリプトの `api.fetch` と同じ本体の処理を使い、`fetch` に書いたホストへ GET だけできる
-- スクリプトから同じ part の WASM を呼ぶ `api.sandbox()` は `api.wasm()` と呼ぶ
+  1. 画像・動画・音声の基盤を本体に入れ、組み込みのプラグインはそれを使うだけにする
+  2. AI・ノートの書式・概要カードを、本体の中の部品として切り分ける。ノートの書式の窓口は、うまくいったらプラグインにも開く
 
 ## ノート
 
@@ -58,7 +37,7 @@
 ### 例のプラグインとドキュメント
 
 - `example/` と `docs/plugins/` を直す。もっとよいサンプルができたら example を入れ替え、docs の例と表も合わせる
-- 例がまだ使っていないもの：`content`、elevated の `thumbnail`・`details`・`hover`・`embed`・`waveform`・`link`、`extends`、`api.sandbox()`、設定、コマンド、ほかのプラグインへの依存、`clipboard`・`edit`・`assets`・`export`、メニューの結果の `overlay`・`save`
+- 例がまだ使っていないもの：`excerpt`、`media`、スクリプトの `thumbnail`・`details`・`hover`・`embed`、`links` の `excerpt`・`hover`、`api.wasm()`、設定、コマンド、ほかのプラグインへの依存、`clipboard`・`edit`・`assets`・`export`、`host::fetch`、メニューの結果の `overlay`、フックの `edited`
 
 ### 公式プラグイン
 

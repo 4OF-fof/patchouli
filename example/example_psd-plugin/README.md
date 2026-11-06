@@ -6,13 +6,13 @@ WASM だけで受け持つ拡張子のプラグインの例です。PSD の合�
 - 合成画像は、圧縮なしと PackBits を読めます。PSB（大きなドキュメント）も読めます。
 - 色は RGB・グレースケール・CMYK・インデックスカラー・白黒 2 値を読みます。ほかの色の形式は明るさだけで灰色にします。
 - ビット数は 1・8・16・32 を読みます。32 ビットは見た目の明るさに直します。
-- アプリは PSD を読めないので、詳細は `view` で `decoded` を返し、`decode` が元の大きさの PNG を作ります。`keepDecoded` を書いているので、作った PNG を取っておくかを本体の設定で選べます。
+- アプリは PSD を読めないので、詳細の表示は `decode` が元の大きさの PNG を作ります。作った PNG は本体が取っておきます。
 
 ## 作り
 
 | ファイル      | 中身                                                                                                    |
 | ------------- | ------------------------------------------------------------------------------------------------------- |
-| `plugin.json` | `formats` の `psd` で `sandbox` と `keepDecoded` を true にする                                         |
+| `plugin.json` | `formats` の `psd` の `parts` に `thumbnail`・`view`・`details` を書く                                  |
 | `src/lib.rs`  | `thumbnail-role`・`view-role`・`details-role` を export し、合成画像を PNG にする                       |
 | `src/psd.rs`  | PSD の頭とレイヤーの数を読み、合成画像を縮めながら RGB か RGBA にする                                   |
 

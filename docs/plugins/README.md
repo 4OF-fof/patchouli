@@ -4,36 +4,36 @@
 
 - アプリが読めない形式や URL のサムネイルと表示
 - 右クリックメニューの項目
-- 取り込んだときの処理
+- 取り込んだとき・中身が変わったとき・名前やタグや置き場を変えたときの処理（フック）
 - ホームやすべてと並ぶ画面
 
-| リファレンス                   | 中身                                                       |
-| ------------------------------ | ---------------------------------------------------------- |
-| [manifest.md](manifest.md)     | plugin.json                                                |
-| [wasm.md](wasm.md)             | sandbox（WASM）の役割と、ホストの関数                      |
-| [elevated.md](elevated.md)     | elevated（TypeScript）の書き方と窓口                       |
+| リファレンス               | 中身                                 |
+| -------------------------- | ------------------------------------ |
+| [manifest.md](manifest.md) | plugin.json                          |
+| [wasm.md](wasm.md)         | WASM の役割と、ホストの関数          |
+| [script.md](script.md)     | スクリプト（TypeScript）の書き方と窓口 |
 
-## sandbox と elevated
+## WASM とスクリプト
 
 プラグインは 2 つの部分でできていて、どちらか一方だけでもよい。
 
-| 部分     | 書くもの                     | 動く場所                     | できること                                                                                  |
-| -------- | ---------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------- |
-| sandbox  | Rust（`plugin.wasm`）        | 権限を絞った WASM            | アプリが渡したファイルを読む。ネットワークは使えない。`permissions` に書いた関数を呼べる     |
-| elevated | TypeScript（`ui.js`）        | アプリの画面と同じ WebView   | DOM に描く。WASM を `api.call` で呼ぶ。`fetch` に書いたホストへ取りに行ける                  |
+| 部分       | 書くもの                | 動く場所                   | 受け持つもの                                       | できること                                                                                           |
+| ---------- | ----------------------- | -------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| WASM       | Rust（`plugin.wasm`）   | 権限を絞った WASM          | `formats` の `parts`、`menu`、`hooks`              | アプリが渡したファイルを読む。`fetch` に書いたホストへ GET する。`permissions` に書いた関数を呼べる |
+| スクリプト | TypeScript（`ui.js`）   | アプリの画面と同じ WebView | `formats` の `parts` のうち `script` に書いたもの、`links`、`screens` | DOM に描く。WASM を `api.call` で呼ぶ。`fetch` に書いたホストへ取りに行ける                          |
 
-権限を絞れるのは sandbox だけで、`permissions` も sandbox にだけ効く。elevated はアプリと同じ権限で動き、プラグインの一覧にも「フルアクセス」と出る。`fetch` の制限は `api.fetch` を使うときの約束で、elevated を閉じ込めるものではない。また、sandbox から `commands` で動かすコマンドはアプリと同じ権限で動くので、どのファイルも読み書きでき、ネットワークも使える。
+権限を絞れるのは WASM だけで、`permissions` も WASM にだけ効く。スクリプトはアプリと同じ権限で動き、プラグインの一覧にも「フルアクセス」と出る。`fetch` の制限は、スクリプトでは `api.fetch` を使うときの約束にとどまる。WASM から `commands` で動かすコマンドもアプリと同じ権限で動くので、どのファイルも読み書きでき、ネットワークも使える。
 
-同じものを両方に書いたときは elevated を使い、中から `api.sandbox()` で sandbox の同じものを呼べる。重い処理やファイルの中身を解くところは sandbox に、描くところは elevated に置くとよい。
+スクリプトの中からは `api.wasm()` で WASM の同じものを呼べる。重い処理やファイルの中身を解くところは WASM に、描くところはスクリプトに置くとよい。
 
 ## 作り方
 
 1. `plugin-template/` を丸ごと写す。中の `patchouli/` は SDK（型・CLI・WIT）なので書き換えない。
 2. 要るものを入れる。
    - Node 22.18 以上（CLI を TypeScript のまま動かす）
-   - Rust と `rustup target add wasm32-wasip2`（sandbox を書くとき）
+   - Rust と `rustup target add wasm32-wasip2`（WASM を書くとき）
 3. `plugin.json` に、id・名前・版と受け持つものを書く（[manifest.md](manifest.md)）。
-4. sandbox は `src/lib.rs`（[wasm.md](wasm.md)）、elevated は `ui.ts`（[elevated.md](elevated.md)）に書く。いらないほうは消し、elevated を消したら plugin.json の `elevated` も消す。
+4. WASM は `src/lib.rs`（[wasm.md](wasm.md)）、スクリプトは `ui.ts`（[script.md](script.md)）に書く。いらないほうは消し、スクリプトを消したら plugin.json の `script` も消す。
 5. ビルドする。
 
    ```bash
@@ -43,7 +43,7 @@
 
    - `dist/` に、アプリに入れられる形（`plugin.json`・`plugin.wasm`・`ui.js`）ができる
    - `plugin.wasm` は `Cargo.toml` があるときだけ、`cargo build --release --target wasm32-wasip2` で作る
-   - `ui.js` は、plugin.json の `elevated` の拡張子を `.ts` にしたものを esbuild で 1 つの ES モジュールにまとめたもの。`@patchouli/plugin` は SDK を指す
+   - `ui.js` は、plugin.json の `script` の拡張子を `.ts` にしたものを esbuild で 1 つの ES モジュールにまとめたもの。`@patchouli/plugin` は SDK を指す
 
 6. アプリで試す。設定の「開発者モード」を有効にして、どちらかを登録し、「再読み込み」を押す。
    - 開発用プラグインのフォルダ：プラグインのフォルダを登録する。中のフォルダのうち plugin.json のあるもの（`dist/`）を読む
@@ -60,7 +60,7 @@
 ## インストールと更新
 
 - プラグインの本体は、アプリのデータフォルダの `plugins/` の下に、ライブラリごとに置く。ライブラリには入れず、`.patchouli/library.json` の `plugins` に、版・取得先・ハッシュ・GitHub のタグを記録する
-- 入れる前に、使う権限・外部ツール・接続先と、本体と同じ権限で動くか（elevated）を見せて確かめる。更新のときは、前の版より増えたときだけ確かめる
+- 入れる前に、使う権限・外部ツール・接続先と、本体と同じ権限で動くか（スクリプト）を見せて確かめる。更新のときは、前の版より増えたときだけ確かめる
 - GitHub から入れたものは、一覧の「更新を確認」で最新のリリースを調べる。記録したタグと違えば、「<タグ> に更新」のボタンに変わる。プラグインごとに、プレリリースも対象にするかを切り替えられる（初期値はオフ）
 - ライブラリの記録はあるのに本体がないときは、記録したタグと最新のリリースのどちらを入れるかを選べる。記録したタグを入れるときは、ハッシュも確かめる
 
@@ -75,14 +75,14 @@ node patchouli/cli.ts zip [フォルダ] [--out <file>]
 
 `example/` にある。`node scripts/dev-library.ts` が SDK の CLI でビルドし、開発中のアプリに入れる（example_youtube は入れない）。
 
-| 例                                                               | 受け持つもの                                       | 主に使っているもの                                                                     |
-| ---------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [example_psd](../../example/example_psd-plugin/)                 | PSD のサムネイル・詳細の表示・ファイルの詳細       | sandbox の `thumbnail`・`view`（`decoded`）・`details`、`keepDecoded`                   |
-| [example_zip](../../example/example_zip-plugin/)                 | zip のサムネイルと、中身をフォルダの木で見せる詳細 | sandbox の `thumbnail`・`call`、elevated の `mount`                                     |
-| [example_youtube](../../example/example_youtube-plugin/)         | YouTube の URL                                     | `links`、`fetch`                                                                       |
-| [example_collect](../../example/example_collect-plugin/)         | 選んだものをまとめたノートを作るメニュー           | sandbox の `menu`、`library`・`notes`                                                  |
-| [example_graph](../../example/example_graph-plugin/)             | ページの関係図を別のウィンドウで開くメニュー       | elevated の `menu`、`screens`（`place: false`・`window`）                              |
-| [example_page](../../example/example_page-plugin/)               | ノートをカードで並べる画面                         | `screens`                                                                              |
-| [example_autolink](../../example/example_autolink-plugin/)       | 取り込んだ md に、ノートへのリンクを付ける         | `hooks`、`library`・`notes`・`embed`                                                   |
+| 例                                                         | 受け持つもの                                          | 主に使っているもの                                         |
+| ---------------------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------- |
+| [example_psd](../../example/example_psd-plugin/)           | PSD のサムネイル・詳細の表示・ファイルの詳細          | WASM の `thumbnail`・`view`・`details`                     |
+| [example_zip](../../example/example_zip-plugin/)           | zip のサムネイルと、中身をフォルダの木で見せる詳細    | WASM の `thumbnail`・`call`、スクリプトの `mount`          |
+| [example_youtube](../../example/example_youtube-plugin/)   | YouTube の URL                                        | `links`、`fetch`                                           |
+| [example_collect](../../example/example_collect-plugin/)   | 選んだものをまとめたノートを作るメニュー              | `menu`、`library`・`notes`                                 |
+| [example_graph](../../example/example_graph-plugin/)       | ページの関係図を開くメニュー                          | `menu` の結果の `screen`、`screens`（`place: false`）      |
+| [example_page](../../example/example_page-plugin/)         | ノートをカードで並べる画面                            | `screens`                                                  |
+| [example_autolink](../../example/example_autolink-plugin/) | md を取り込んだときと書き換えたときに、リンクを付ける | `hooks` の `added`・`changed`、`library`・`notes`・`embed` |
 
-組み込みのプラグイン（`app/plugins/`）も同じ形で書いてある。elevated の `thumbnail`・`content` とコマンドは video、`waveform` は audio、`link` は shortcut が使っている。
+組み込みのプラグイン（`app/plugins/`）も同じ形で書いてある。スクリプトの `thumbnail`・`excerpt` と `api.wasm()` は video、`links` は youtube が使っている。
