@@ -36,7 +36,7 @@ export!(Zip);
 
 ## 役割
 
-`thumbnail`・`view`・`details`・`excerpt` は、`formats` の `parts` に書き、`script` に書いていないものを受け持つ。`parts` に書いたのに export していないものは、一覧の「問題」に出る。
+`thumbnail`・`view`・`details`・`excerpt` は、`formats` の `parts` に書き、`script` に書いていないものを受け持つ。`render` は、`notes` の `code` に書き、`script` に書いていないものを受け持つ。書いたのに export していないものは、一覧の「問題」に出る。
 
 | world            | 実装する関数                                              | 呼ばれるとき                                                 | 時間の上限 |
 | ---------------- | --------------------------------------------------------- | ------------------------------------------------------------ | ---------- |
@@ -46,6 +46,7 @@ export!(Zip);
 | `excerpt-role`   | `excerpt(format, f, budget)`                              | 内容を読むとき（AI 機能）                                    | 120 秒     |
 | `menu-role`      | `menu(read, targets)`・`run-menu(read, run, targets, id)` | `menu` の `formats` に入るもののメニューを開いたとき・選んだとき | 30 秒      |
 | `hook-role`      | `hook(read, run, event, target)`                          | `hooks` に書いたとき                                         | 60 秒      |
+| `code-role`      | `render(lang, source)`                                    | ノートのコードブロックを描くとき・スクリプトの `api.wasm()`  | 10 秒      |
 | `settings-role`  | `settings()`                                              | ライブラリを開いたとき                                       | 2 秒       |
 | `call-role`      | `call(format, f, method, args)`                           | スクリプトの `api.call`                                      | 30 秒      |
 
@@ -95,6 +96,15 @@ export!(Zip);
 - `Err` を返すと、そのたびに知らせを出す
 - 同じ形式のフックが複数あれば、前のフックが書き換えたあとのものを渡す
 - フックの中で書き換えたものには、フックを呼ばない
+
+### render
+
+`lang` はコードブロックの言語（小文字）、`source` は囲みの ```` ``` ```` の行を除いた中身で、中身が変わるたびに呼ぶ。`code-image` を返し、本文の幅を超えるものは縮めて出す。`Err` を返すと、その文言を下に出す。
+
+| `code-image` | 中身                                                                                                                         |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `svg`        | SVG の文書。アプリが script・アニメーション・イベントの属性・外への参照を取り除き、本体の画面と切り離して出す。本体の CSS 変数（`--ink` など）を使える |
+| `png`        | PNG                                                                                                                          |
 
 ### settings
 

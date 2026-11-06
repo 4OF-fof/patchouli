@@ -25,7 +25,7 @@ export default definePlugin<Zip>({
 
 ## 書き出すもの
 
-`default` に、受け持つもの（plugin.json の `formats` の `script`・`links`・`screens`）の分だけ書く。
+`default` に、受け持つもの（plugin.json の `formats` の `script`・`links`・`screens`・`notes` の `script`）の分だけ書く。
 
 | 関数               | 受け持つもの | 返すもの                                                                          |
 | ------------------ | ------------ | --------------------------------------------------------------------------------- |
@@ -38,6 +38,7 @@ export default definePlugin<Zip>({
 | `excerpt(api)`     | `excerpt`    | `{ start?, end?, images? / audio? / text? }` の並び。`api.budget` を超えない      |
 | `links`            | `links`      | `thumbnail`・`mount`・`details`・`excerpt`・`hover`・`embed` を持つもの           |
 | `screens`          | `screens`    | 画面の ID → `{ mount(el, api) }`                                                  |
+| `code`             | `notes`      | 言語 → `{ render(el, api), update?(el, api) }`。`render` は消すときに呼ぶ関数を返す |
 
 - `hover` はカーソルを合わせているカード 1 枚にだけ描くので、動画の再生や音を出すこともできる
 - `embed` の `el` の幅は本文の幅で、高さは描いたものに合わせて決まる
@@ -89,9 +90,24 @@ export default definePlugin<Zip>({
 
 ノートの本文では、ほかの項目へのリンクを `[名前](patchouli:<id>)`、埋め込みを `![名前](patchouli:<id>)` と書く。
 
+### code
+
+コードブロックの `render(el, api)` と `update(el, api)` には、コードブロックの窓口（`CodeApi`）が渡る。`el` の幅は本文の幅で、高さは描いたものに合わせて決まる。`el` の中のクリックやキー入力は本文に渡らない。
+
+| 窓口                | 中身                                                                |
+| ------------------- | ------------------------------------------------------------------- |
+| `lang`              | ```` ``` ```` の後ろに書いた言語（小文字）                          |
+| `source`            | いまの中身。囲みの ```` ``` ```` の行は含めない                     |
+| `setSource(source)` | 中身を書き換える                                                    |
+| `wasm()`            | 自分の WASM の `render` を、いまの中身で呼ぶ。`{ svg }` か `{ png }` |
+| `fetch(url)`        | `LinkApi` と同じもの                                                |
+| `settings()` など   | 自分の設定と残す値。`Api` と同じもの                                |
+
+`update` は、中身が変わるたび（ノートで書き換えているときと `setSource` のあと）に呼ぶ。書かなければ、`render` が返した関数を呼んでから `render` をもう一度呼ぶ。
+
 ## 描くとき
 
 - 本体の CSS 変数（`--ink`・`--muted`・`--card`・`--accent`・`--space-*`・`--fs-*` など）を使える。CSS は `<style>` を `el` の中に入れ、ほかとぶつからないクラス名にする
-- `mount`・`embed`・`screens` の中では、`button`・`input`・`select`・`textarea` に本体と同じ見た目が付く。プラグインの CSS で上書きできる
+- `mount`・`embed`・`screens`・`code` の中では、`button`・`input`・`select`・`textarea` に本体と同じ見た目が付く。プラグインの CSS で上書きできる
 - `select` は、押すと本体と同じ一覧を出す。選んだあとは素の `select` と同じく `value` が変わり、`input` と `change` が届く
 - `data-tip` を付けた要素には、その文言で本体のツールチップが出る

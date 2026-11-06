@@ -6,6 +6,7 @@
 - 右クリックメニューの項目
 - 取り込んだとき・中身が変わったとき・名前やタグや置き場を変えたときの処理（フック）
 - ホームやすべてと並ぶ画面
+- ノートのコードブロックの表示と、`/` のメニューの項目
 
 | リファレンス               | 中身                                 |
 | -------------------------- | ------------------------------------ |
@@ -19,8 +20,8 @@
 
 | 部分       | 書くもの                | 動く場所                   | 受け持つもの                                       | できること                                                                                           |
 | ---------- | ----------------------- | -------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| WASM       | Rust（`plugin.wasm`）   | 権限を絞った WASM          | `formats` の `parts`、`menu`、`hooks`              | アプリが渡したファイルを読む。`fetch` に書いたホストへ GET する。`permissions` に書いた関数を呼べる |
-| スクリプト | TypeScript（`ui.js`）   | アプリの画面と同じ WebView | `formats` の `parts` のうち `script` に書いたもの、`links`、`screens` | DOM に描く。WASM を `api.call` で呼ぶ。`fetch` に書いたホストへ取りに行ける                          |
+| WASM       | Rust（`plugin.wasm`）   | 権限を絞った WASM          | `formats` の `parts`、`notes` の `code`、`menu`、`hooks` | アプリが渡したファイルを読む。`fetch` に書いたホストへ GET する。`permissions` に書いた関数を呼べる |
+| スクリプト | TypeScript（`ui.js`）   | アプリの画面と同じ WebView | `formats` の `parts` と `notes` の `code` のうち `script` に書いたもの、`links`、`screens` | DOM に描く。WASM を `api.call` で呼ぶ。`fetch` に書いたホストへ取りに行ける                          |
 
 権限を絞れるのは WASM だけで、`permissions` も WASM にだけ効く。スクリプトはアプリと同じ権限で動き、プラグインの一覧にも「フルアクセス」と出る。`fetch` の制限は、スクリプトでは `api.fetch` を使うときの約束にとどまる。WASM から `commands` で動かすコマンドもアプリと同じ権限で動くので、どのファイルも読み書きでき、ネットワークも使える。
 
@@ -84,5 +85,6 @@ node patchouli/cli.ts zip [フォルダ] [--out <file>]
 | [example_graph](../../example/example_graph-plugin/)       | ページの関係図を開くメニュー                          | `menu` の結果の `screen`、`screens`（`place: false`）      |
 | [example_page](../../example/example_page-plugin/)         | ノートをカードで並べる画面                            | `screens`                                                  |
 | [example_autolink](../../example/example_autolink-plugin/) | md を取り込んだときと書き換えたときに、リンクを付ける | `hooks` の `added`・`changed`、`library`・`notes`・`embed` |
+| [example_chart](../../example/example_chart-plugin/)       | ノートの棒グラフと、押して数える表のコードブロック    | `notes`、WASM の `render`、スクリプトの `code`・`setSource` |
 
-コア機能（`app/plugins/`）も同じ形で書いてある。スクリプトの `thumbnail`・`excerpt` と `api.wasm()` は video、`links` は youtube が使っている。
+コア機能（`app/plugins/`）も同じ形で書いてある。スクリプトの `thumbnail`・`excerpt` と `api.wasm()` は video、`links` は youtube、`notes` は mermaid と math が使っている。mermaid と math のコードブロックは本体が描く。

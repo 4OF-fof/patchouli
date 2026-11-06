@@ -78,6 +78,7 @@ impl role::call::Guest for Csv { /* ... */ }
 | `excerpt-role`   | `excerpt`          | `parts` の `excerpt`                               |
 | `menu-role`      | `menu`             | plugin.json の `menu`（右クリックメニュー）        |
 | `hook-role`      | `hook`             | plugin.json の `hooks`                             |
+| `code-role`      | `code`（`render`） | plugin.json の `notes` の `code`。SVG か PNG を返す |
 | `settings-role`  | `settings`         | 設定の項目                                         |
 | `call-role`      | `call`             | スクリプトの `api.call`                            |
 
@@ -168,6 +169,27 @@ WASM で次のことをするときは、plugin.json の上の階層の `permiss
 
 - `place` が `false` の画面は、右クリックメニューの戻り値の `MenuOutput::Screen` で開く
 - 画面の `api.targets()` で、右クリックメニューで選んでいたものを読める
+
+## ノートのコードブロック
+
+ノートの ```` ```abc ```` のようなコードブロックを描くときは、plugin.json の上の階層に `notes` を書く。
+
+```json
+"notes": {
+  "code": ["abc"],
+  "script": ["abc"],
+  "slash": [{ "label": "楽譜", "keys": "abc gakufu", "insert": "```abc\n$0\n```" }]
+}
+```
+
+| キー     | 中身                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------ |
+| `code`   | 描く言語の並び                                                                                         |
+| `script` | `code` のうち、スクリプトの `code` で描くもの。ほかは WASM の `render` が SVG か PNG を返して描く      |
+| `slash`  | ノートの `/` のメニューに足す項目。`insert` を入れ、`$0` の位置にカーソルを置く                        |
+
+- スクリプトの `code.abc.render(el, api)` は `el` に描く。`api.source` がいまの中身で、`api.setSource(source)` で書き換えられる。中身が変わると `update(el, api)` が呼ばれる
+- WASM の `render(lang, source)` は、中身が変わるたびに呼ばれる。SVG では本体の CSS 変数（`--ink` など）を使える
 
 ## スクリプトの書き方
 
