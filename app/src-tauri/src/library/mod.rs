@@ -20,7 +20,7 @@ use serde_json::{Map, Value, json};
 use cache::{Cache, Row, Sig};
 use orphan::Orphan;
 
-use crate::plugin::{FormatInfo, LinkInfo, Registry, ScreenInfo};
+use crate::plugin::{FormatInfo, LinkInfo, NotesInfo, Registry, ScreenInfo};
 
 pub const ID_KEY: &str = "patchouli-id";
 pub const TYPE_KEY: &str = "patchouli-type";
@@ -137,6 +137,7 @@ pub struct Opened {
     pub formats: Vec<FormatInfo>,
     pub links: Vec<LinkInfo>,
     pub screens: Vec<ScreenInfo>,
+    pub notes: NotesInfo,
     pub problems: Vec<String>,
 }
 
@@ -351,6 +352,7 @@ impl Library {
             formats: self.plugins.formats(),
             links: self.plugins.links(),
             screens: self.plugins.screens(),
+            notes: self.plugins.notes(),
             problems: vec![],
         })
     }
@@ -436,6 +438,7 @@ impl Library {
         let formats = lib.plugins.formats();
         let links = lib.plugins.links();
         let screens = lib.plugins.screens();
+        let notes = lib.plugins.notes();
         Some((
             lib,
             Opened {
@@ -449,6 +452,7 @@ impl Library {
                 formats,
                 links,
                 screens,
+                notes,
                 problems: vec![],
             },
         ))
@@ -582,6 +586,7 @@ impl Library {
             formats: self.plugins.formats(),
             links: self.plugins.links(),
             screens: self.plugins.screens(),
+            notes: self.plugins.notes(),
             problems: scan.problems,
         }
     }

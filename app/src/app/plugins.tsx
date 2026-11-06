@@ -10,8 +10,10 @@ import { asNewTab } from '../components/nav/TabPane/newTab'
 import { Toast, type ToastLevel } from '../components/overlay/Toast/Toast'
 import { type Item, type Library, type Suggestion, withChanged, withSuggestions } from '../model/library'
 import { flush as flushWrites } from '../model/persist'
+import { BUILTIN_NOTES } from '../plugins/builtin'
 import type { MenuGroup, ScreenInfo } from '../plugins/types'
 import type { BarRequest } from '../screens/AppBar'
+import { noteSyntax as syntaxFor } from '../screens/Note/code'
 import { embedOf as embedFor } from '../screens/Note/embed'
 import { PluginScreen } from '../screens/Plugin/PluginScreen'
 import { messageOf } from './notice'
@@ -162,6 +164,15 @@ export function createPlugins(d: PluginsDeps) {
   }
 
   const [plugged, setPlugged] = createSignal(0)
+  const noteSyntax = createMemo(() => {
+    plugged()
+    return syntaxFor(backend.notes?.() ?? BUILTIN_NOTES, {
+      uiUrl: backend.uiUrl,
+      own: (p) => backend.ownApi?.(p) ?? NO_OWN,
+      renderCode: backend.renderCode,
+      fetch: backend.pluginFetch,
+    })
+  })
   const [reloading, setReloading] = createSignal<{ step: 'ask' | 'wait' | 'load'; work?: number; quiet?: boolean }>()
   let answer: ((a: 'wait' | 'stop') => void) | undefined
   /** quiet のときは、読み込んでいるあいだの表示を出さない。 */
@@ -298,6 +309,7 @@ export function createPlugins(d: PluginsDeps) {
     embedHost,
     embedOf,
     urlPreviewOf,
+    noteSyntax,
     plugged,
     reloading,
     reloadPlugins,

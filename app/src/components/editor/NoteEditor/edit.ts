@@ -79,12 +79,12 @@ export function runSlash(view: EditorView, a: SlashAction) {
     case 'code':
       insertBlock(view, '```\n\n```', 4)
       return undefined
-    case 'diagram':
-      insertBlock(view, '```mermaid\n\n```', 11)
+    case 'insert': {
+      const at = a.text.indexOf('$0')
+      const text = at < 0 ? a.text : a.text.slice(0, at) + a.text.slice(at + 2)
+      insertBlock(view, text, at < 0 ? text.length : at)
       return undefined
-    case 'math':
-      insertBlock(view, '$$\n\n$$', 3)
-      return undefined
+    }
     case 'rule':
       insertBlock(view, '---\n', 4)
       return undefined

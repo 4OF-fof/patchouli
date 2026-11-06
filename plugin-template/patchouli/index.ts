@@ -4,7 +4,7 @@
  * スクリプトからは `@patchouli/plugin` として読む（ビルドでは cli.ts が、型の確認では tsconfig の paths がここを指す）。
  *
  * スクリプトは本体の画面と同じ文書で描くので、本体の CSS 変数（--ink・--card・--accent・--space-* など）を使える。
- * mount・embed・screens で描く場所の中では、素の要素が本体の部品と同じに見える。
+ * mount・embed・screens・code で描く場所の中では、素の要素が本体の部品と同じに見える。
  * - button・input・select・textarea などに、本体と同じ見た目が付く（プラグインの CSS で上書きできる）
  * - select は、押すと本体と同じ一覧を出す。選んだあとは素の select と同じく value が変わり、input と change が届く
  * - data-tip を付けた要素には、その文言で本体のツールチップが出る
@@ -189,6 +189,38 @@ export interface LinkModule<T extends PluginTypes = PluginTypes> {
   embed?(el: HTMLElement, api: LinkApi<T>): void | (() => void)
 }
 
+/** WASM の code の render が描いたもの。svg は SVG の文書、png は PNG。 */
+export type CodeImage = { svg: string } | { png: Uint8Array<ArrayBuffer> }
+
+/**
+ * ノートのコードブロック 1 つの窓口。fetch は LinkApi と同じく、plugin.json の fetch に書いたホストだけに取りに行ける。
+ */
+export interface CodeApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
+  /** ``` の後ろに書いた言語（小文字）。 */
+  lang: string
+  /** いまの中身。囲みの ``` の行は含めない。 */
+  readonly source: string
+  /** 中身を書き換える。書き換えると、update（なければ render）がもう一度呼ばれる。 */
+  setSource(source: string): void
+  /** WASM の code の render を、いまの中身で呼ぶ。plugin.wasm が code を export していなければ失敗する。 */
+  wasm(): Promise<CodeImage>
+  fetch(url: string): Promise<Fetched>
+}
+
+/** plugin.json の notes の script に書いた言語の、コードブロックを描くもの。 */
+export interface CodeModule<T extends PluginTypes = PluginTypes> {
+  /**
+   * el の中に描く。el の幅は本文の幅で、高さは描いたものに合わせて決まる。返した関数は、消すときに呼ぶ。
+   * el の中のクリックやキー入力は、本文に渡さずにプラグインが受け取る。
+   */
+  render(el: HTMLElement, api: CodeApi<T>): void | (() => void)
+  /**
+   * 中身が変わったとき（書き換えているときや setSource のあと）に、描いたものを作り直さずに直す。api.source がいまの中身。
+   * 書かなければ、render が返した関数を呼んでから、render をもう一度呼ぶ。
+   */
+  update?(el: HTMLElement, api: CodeApi<T>): void
+}
+
 /** 画面に渡す、ライブラリの項目。 */
 export interface LibraryItem {
   id: string
@@ -281,6 +313,8 @@ export interface PluginModule<T extends PluginTypes = PluginTypes> {
   links?: LinkModule<T>
   /** plugin.json の screens の id → 画面。 */
   screens?: Record<string, ScreenModule<T>>
+  /** plugin.json の notes の script に書いた言語（小文字） → コードブロックを描くもの。 */
+  code?: Record<string, CodeModule<T>>
 }
 
 /**

@@ -12,9 +12,9 @@ import {
 import { Decoration, type DecorationSet, EditorView, ViewPlugin, WidgetType, keymap } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import { GFM, parser as markdownParser } from '@lezer/markdown'
-import type { Mounted } from 'pele/lazy'
 import { targetOf } from '../../../model/library'
-import { MathSyntax, MathView, blockEnd, mathElement, mathSource } from './math'
+import { type CodeView, CodeWidget, fenceOf } from './code'
+import { MathSyntax, MathView, mathElement, mathSource } from './math'
 import { TableWidget, enterTable } from './table'
 
 export const idOfHref = (href: unknown) => (typeof href === 'string' ? targetOf(href)?.id : undefined)
@@ -43,6 +43,10 @@ export interface LiveHooks {
   /** URL を埋め込んだときの表示。image は、まだ画像として読んでいないか。undefined なら画像として出す */
   urlEmbedOf?: (url: string, image: boolean) => Promise<Embed | undefined>
   onOpenRef: (id: string) => void
+  /** コードブロックの言語（小文字）ごとの描き方。なければコードのまま見せる。 */
+  codeOf?: (lang: string) => CodeView | undefined
+  /** $…$ と $$…$$ を数式として読むか。 */
+  math?: boolean
   classes: Record<string, string | undefined>
 }
 
@@ -492,85 +496,7 @@ class EmbedView extends WidgetType {
   }
 }
 
-let pele: Promise<typeof import('pele/lazy')> | undefined
-const diagrams = new WeakMap<HTMLElement, { src: string; mounted?: Mounted; loading?: boolean; gone?: boolean }>()
-
-function draw(dom: HTMLElement) {
-  const s = diagrams.get(dom)
-  if (!s) return
-  if (!s.src.trim()) {
-    s.mounted?.destroy()
-    s.mounted = undefined
-    dom.replaceChildren()
-    return
-  }
-  if (s.mounted) {
-    if (s.mounted.source !== s.src) s.mounted.update(s.src)
-    return
-  }
-  if (s.loading) return
-  s.loading = true
-  const src = s.src
-  void (pele ??= import('pele/lazy'))
-    .then((p) => p.mountAsync(dom, src))
-    .then((m) => {
-      s.loading = false
-      if (s.gone) return m.destroy()
-      s.mounted = m
-      if (m.source !== s.src) draw(dom)
-      return undefined
-    })
-}
-
-class Diagram extends WidgetType {
-  readonly src: string
-  readonly cls: string
-
-  constructor(src: string, cls: string) {
-    super()
-    this.src = src
-    this.cls = cls
-  }
-
-  eq(o: Diagram) {
-    return o.src === this.src && o.cls === this.cls
-  }
-
-  toDOM(view: EditorView) {
-    const dom = document.createElement('div')
-    dom.className = this.cls
-    diagrams.set(dom, { src: this.src })
-    draw(dom)
-    dom.addEventListener('mousedown', (e) => {
-      e.preventDefault()
-      const pos = blockEnd(view.state, view.posAtDOM(dom))
-      view.dispatch({ selection: { anchor: pos } })
-      view.focus()
-    })
-    return dom
-  }
-
-  updateDOM(dom: HTMLElement) {
-    const s = diagrams.get(dom)
-    if (!s) return false
-    s.src = this.src
-    draw(dom)
-    return true
-  }
-
-  destroy(dom: HTMLElement) {
-    const s = diagrams.get(dom)
-    if (!s) return
-    s.gone = true
-    s.mounted?.destroy()
-  }
-
-  ignoreEvent() {
-    return true
-  }
-}
-
-const cellParser = markdownParser.configure([GFM, MathSyntax])
+const cellParsers = { math: markdownParser.configure([GFM, MathSyntax]), plain: markdownParser.configure([GFM]) }
 const MARKS = new Set(['EmphasisMark', 'StrikethroughMark', 'CodeMark', 'LinkMark', 'MathMark', 'URL'])
 
 /** 書式の記号に挟まれたところ。 */
@@ -584,7 +510,11 @@ function inline(src: string, h: LiveHooks): Node {
   const frag = document.createDocumentFragment()
   const doc = `|${src}|
 |-|`
-  const cell = cellParser.parse(doc).topNode.getChild('Table')?.getChild('TableHeader')?.getChild('TableCell')
+  const cell = cellParsers[h.math ? 'math' : 'plain']
+    .parse(doc)
+    .topNode.getChild('Table')
+    ?.getChild('TableHeader')
+    ?.getChild('TableCell')
   if (!cell) {
     frag.append(src)
     return frag
@@ -913,21 +843,23 @@ function build(state: EditorState, h: LiveHooks, version: number, embeds: Embeds
           return false
         case 'FencedCode':
         case 'CodeBlock': {
-          const first = lineOf(n.from)
-          const last = lastLine(n)
           const fenced = n.name === 'FencedCode'
-          const info = n.getChild('CodeInfo')
-          const lang = info ? state.sliceDoc(info.from, info.to).trim() : ''
-          const close = fenced && n.lastChild?.name === 'CodeMark' && n.lastChild.from > first.to
+          const fence = fenced ? fenceOf(state, n) : undefined
+          const first = fence?.first ?? lineOf(n.from)
+          const last = fence?.last ?? lastLine(n)
+          const close = !!fence?.close
           const show = near(first.from, last.to)
-          const body = { from: fenced ? first.to + 1 : first.from, to: close ? last.from - 1 : last.to }
-          const src = body.from <= body.to ? state.sliceDoc(body.from, body.to) : ''
+          const info = n.getChild('CodeInfo')
+          const lang = info ? (state.sliceDoc(info.from, info.to).trim().split(/\s/)[0] ?? '').toLowerCase() : ''
+          const view = fence && lang ? h.codeOf?.(lang) : undefined
+          const body = fence?.body
           const widget =
-            lang === 'mermaid'
-              ? new Diagram(src, cls('diagram'))
-              : lang === 'math'
-                ? new MathView(src.trim(), true, mathClasses)
-                : undefined
+            view && body
+              ? new CodeWidget(view, lang, body.from <= body.to ? state.sliceDoc(body.from, body.to) : '', {
+                  view: cls('codeView'),
+                  edit: cls('codeEdit'),
+                })
+              : undefined
           if (widget) {
             if (!show) {
               out.push(Decoration.replace({ widget, block: true }).range(first.from, last.to))

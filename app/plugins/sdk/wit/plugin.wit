@@ -35,6 +35,15 @@ interface types {
     size: option<dimensions>,
   }
 
+  /// ノートのコードブロックを描いたもの。本文の幅を超えるときは、縮めて出す。
+  variant code-image {
+    /// SVG の文書。アプリが script・アニメーション・イベントの属性・外への参照を取り除き、本体の画面と切り離して出す。
+    /// アプリの CSS 変数（--ink など）を使える。
+    svg(string),
+    /// PNG。
+    png(list<u8>),
+  }
+
   /// ファイルの詳細に足す 1 行。
   record detail {
     label: string,
@@ -384,6 +393,15 @@ interface hook {
   hook: func(read: borrow<read>, run: borrow<run>, event: hook-event, target: target) -> result<_, string>;
 }
 
+/// ノートのコードブロック。plugin.json の notes の code のうち、script に書いていないものを描く。
+interface code {
+  use types.{code-image};
+
+  /// lang は ``` の後ろに書いた言語（小文字）、source は中身（囲みの ``` の行を除いたもの）。
+  /// 中身が変わるたびに呼ぶ。
+  render: func(lang: string, source: string) -> result<code-image, string>;
+}
+
 /// 設定の項目。
 interface settings {
   use types.{setting};
@@ -443,6 +461,11 @@ world hook-role {
   export hook;
 }
 
+world code-role {
+  include imports;
+  export code;
+}
+
 world settings-role {
   include imports;
   export settings;
@@ -461,6 +484,7 @@ world full {
   include excerpt-role;
   include menu-role;
   include hook-role;
+  include code-role;
   include settings-role;
   include call-role;
 }

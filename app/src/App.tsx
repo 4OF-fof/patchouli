@@ -282,6 +282,7 @@ export function App(props: AppProps) {
     embedHost,
     embedOf,
     urlPreviewOf,
+    noteSyntax,
     plugged,
     reloading,
     reloadPlugins,
@@ -386,6 +387,7 @@ export function App(props: AppProps) {
       embedOf={embedOf}
       urlEmbedOf={(url, image) => urlEmbedFor(url, embedHost(), image)}
       urlPreviewOf={urlPreviewOf}
+      syntax={noteSyntax()}
       onOpenPage={openPage}
       onImport={backend.importData && importFiles}
       editorRef={tab ? (api) => (api ? editors.set(tab.id, api) : editors.delete(tab.id)) : undefined}

@@ -1,0 +1,12 @@
+{
+  "id": "patchouli.mermaid",
+  "name": "Mermaid",
+  "version": "0.1.0",
+  "description": "ノートの mermaid のコードブロックを図にする",
+  "notes": {
+    "code": ["mermaid"],
+    "slash": [
+      { "label": "図（Mermaid）", "icon": "diagram", "keys": "mermaid diagram zu", "insert": "```mermaid\n$0\n```" }
+    ]
+  }
+}

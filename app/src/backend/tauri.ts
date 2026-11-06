@@ -21,6 +21,7 @@ import type {
   LinkInfo,
   MenuGroup,
   MenuOutput,
+  NotesInfo,
   CapPart,
   PluginReport,
   PluginSource,
@@ -219,6 +220,7 @@ export function tauriBackend(): Backend {
     }))
   let formats = new Map<string, FormatInfo>()
   let links = new Map<string, LinkInfo>()
+  let notes: NotesInfo = { code: [], slash: [], core: [] }
   // 前に開いていた画面が出した外のページは、読み直すと持ち主がいなくなる
   void invoke('browser_close_all').catch((e: unknown) => console.warn('外のページを閉じられない', e))
 
@@ -473,6 +475,7 @@ export function tauriBackend(): Backend {
   const openedOf = (s: StoredLibrary<TauriItem>) => {
     formats = new Map(s.formats.map((f) => [f.ext, f]))
     links = new Map((s.links ?? []).map((l) => [l.host, l]))
+    notes = s.notes ?? notes
     const items = s.items.toSorted((a, b) => b.mtime - a.mtime)
     void makeUiThumbs(items)
     void makeWaves(items)
@@ -707,6 +710,13 @@ export function tauriBackend(): Backend {
     },
     uiApi,
     ownApi,
+    notes: () => notes,
+    async renderCode(plugin, lang, source) {
+      const b = new Uint8Array(await invoke<ArrayBuffer>('render_code', { plugin, lang, source }))
+      // Rust は PNG をそのまま、SVG を UTF-8 で返す。PNG の先頭の 0x89 は UTF-8 の文字の先頭にならない
+      return b[0] === 0x89 ? { png: b } : { svg: new TextDecoder().decode(b) }
+    },
+    pluginFetch: (plugin, url) => fetchVia(plugin, url),
     uiUrl: (ui) => pluginUrl(ui.plugin, ui.module),
     linkOf(url, part) {
       const h = handlerOf(links, url)

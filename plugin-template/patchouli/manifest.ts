@@ -123,6 +123,30 @@ export interface HooksDecl {
   edited?: HookDecl
 }
 
+/** ノートの / のメニューに足す項目。 */
+export interface SlashDecl {
+  /** メニューに出す名前。 */
+  label: string
+  /** 本体のアイコンの名前（codeBlock・diagram・math など）。書かないときや、本体にないものは、プラグインのアイコンにする。 */
+  icon?: string
+  /** 打った文字で探すときに、名前のほかに当てる言葉。空白で区切る。 */
+  keys?: string
+  /** 入れる文字。カーソルの行が空ならそこに、空でなければ次の段落として入れる。$0 の位置にカーソルを置き、なければ終わりに置く。 */
+  insert: string
+}
+
+/**
+ * ノートに足すもの。
+ * code は、``` の後ろに書く言語の名前。そのコードブロックをプラグインが描く。小文字にそろえて読む。
+ * 同じ言語を複数の外部のプラグインが書くと、どれも使わない。外部のプラグインとコア機能が書くと、外部のものを使う。
+ */
+export interface NotesDecl {
+  code?: string[]
+  /** code のうち、スクリプトで描くもの。ほかは WASM の code の render が、SVG か PNG を返して描く。 */
+  script?: string[]
+  slash?: SlashDecl[]
+}
+
 /**
  * WASM に渡すホストの interface（WIT）。書いていないものを使う WASM は読み込まない。
  * library はライブラリの情報（名前・タグ・メモなど）を読み、embed は EmbeddingGemma で文章をベクトルにする。
@@ -142,7 +166,7 @@ export interface Manifest {
   /** あれば使うもの。 */
   optional?: Deps
   /**
-   * formats の script、links、screens を受け持つ ES モジュール（plugin.json からの相対パス、.js）。
+   * formats の script、links、screens、notes の script を受け持つ ES モジュール（plugin.json からの相対パス、.js）。
    * 中身は PluginModule で、本体の画面と同じ WebView で、本体と同じ権限で動く。ビルドでは、拡張子を .ts にしたものから作る。
    */
   script?: string
@@ -152,6 +176,7 @@ export interface Manifest {
   screens?: Record<string, ScreenDecl>
   menu?: MenuDecl
   hooks?: HooksDecl
+  notes?: NotesDecl
   permissions?: Permission[]
   /** スクリプトの api.fetch と WASM の host の fetch で取りに行けるホスト名。サブドメインも含む。「com」のようなトップレベルドメインだけのものは書けない。 */
   fetch?: string[]
@@ -189,5 +214,16 @@ export function checkManifest(m: Manifest): { errors: string[]; warnings: string
     for (const p of d.script ?? [])
       if (!d.parts?.includes(p)) errors.push(`「.${d.ext.join('・.')}」の script の ${p} は、parts にも書きます`)
   }
+  const code = m.notes?.code ?? []
+  for (const lang of code) {
+    if (!new RegExp(rules.codeLang).test(lang))
+      errors.push(`notes の code の「${lang}」には、空白と \` を使えません`)
+    if (lang !== lang.toLowerCase()) warnings.push(`notes の code の「${lang}」は、小文字にそろえて読みます`)
+  }
+  for (const lang of m.notes?.script ?? [])
+    if (!code.some((c) => c.toLowerCase() === lang.toLowerCase()))
+      errors.push(`notes の script の「${lang}」は、code にも書きます`)
+  for (const s of m.notes?.slash ?? [])
+    if (!s.label || typeof s.insert !== 'string') errors.push('notes の slash には、label と insert を書きます')
   return { errors, warnings }
 }

@@ -20,8 +20,8 @@ use serde_json::Value;
 use crate::library::shortcut;
 use record::{Record, Source, Stored};
 pub use runtime::{
-    Action, Env, ExcerptBudget, ExcerptMedia, ExcerptPart, HookEvent, ItemInfo, MenuRun, MenuShown,
-    Ran, Runner, TargetFile, UiOwner, ViewOut, read, set_compiled_dir,
+    Action, CodeOut, Env, ExcerptBudget, ExcerptMedia, ExcerptPart, HookEvent, ItemInfo, MenuRun,
+    MenuShown, Ran, Runner, TargetFile, UiOwner, ViewOut, read, set_compiled_dir,
 };
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -100,6 +100,15 @@ pub enum Fit {
 pub enum By {
     Wasm,
     Script,
+}
+
+/// コードブロックを描くもの。App は本体で、WASM のないコア機能だけが使う。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CodeBy {
+    Wasm,
+    Script,
+    App,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -224,6 +233,34 @@ fn yes() -> bool {
     true
 }
 
+/// ノートに足すもの。code は ``` の後ろに書く言語の名前で、小文字で探すので読むときにそろえる。
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct NotesDecl {
+    #[serde(default, deserialize_with = "lowercase")]
+    pub code: Vec<String>,
+    /// code のうちスクリプトが描くもの。ほかは WASM が描く。
+    #[serde(default, deserialize_with = "lowercase")]
+    pub script: Vec<String>,
+    #[serde(default)]
+    pub slash: Vec<SlashDecl>,
+}
+
+impl NotesDecl {
+    fn by_wasm(&self) -> impl Iterator<Item = &String> {
+        self.code.iter().filter(|l| !self.script.contains(l))
+    }
+}
+
+/// ノートの / のメニューに足す項目。
+#[derive(Debug, Clone, Deserialize)]
+pub struct SlashDecl {
+    pub label: String,
+    pub icon: Option<String>,
+    #[serde(default)]
+    pub keys: String,
+    pub insert: String,
+}
+
 /// ホスト名をそろえる。大文字と末尾の点は区別しない。
 pub fn host_key(h: &str) -> String {
     h.trim_end_matches('.').to_ascii_lowercase()
@@ -234,6 +271,7 @@ pub struct Rules {
     id: regex::Regex,
     screen_id: regex::Regex,
     fetch_host: regex::Regex,
+    code_lang: regex::Regex,
     /// permissions に書けるもの。WIT の interface の名前と同じ。
     pub permissions: Vec<String>,
 }
@@ -244,6 +282,7 @@ struct RulesJson {
     id: String,
     screen_id: String,
     fetch_host: String,
+    code_lang: String,
     permissions: Vec<String>,
 }
 
@@ -257,6 +296,7 @@ pub fn rules() -> &'static Rules {
             id: re(&j.id),
             screen_id: re(&j.screen_id),
             fetch_host: re(&j.fetch_host),
+            code_lang: re(&j.code_lang),
             permissions: j.permissions,
         }
     })
@@ -309,6 +349,8 @@ pub struct Manifest {
     pub menu: Option<MenuDecl>,
     #[serde(default)]
     pub hooks: HooksDecl,
+    #[serde(default)]
+    pub notes: NotesDecl,
     /// WASM に渡すホストの interface。書いていないものを使う WASM は読み込まない。
     #[serde(default)]
     pub permissions: Vec<String>,
@@ -339,12 +381,14 @@ impl Manifest {
             .any(|d| d.parts.iter().any(|&p| d.by(p) == By::Wasm))
             || self.menu.is_some()
             || self.hooks.all().next().is_some()
+            || self.notes.by_wasm().next().is_some()
     }
 
     fn wants_script(&self) -> bool {
         self.formats.iter().any(|d| !d.script.is_empty())
             || self.links.iter().any(|d| !d.parts.is_empty())
             || !self.screens.is_empty()
+            || !self.notes.script.is_empty()
     }
 
     fn caps(&self) -> Vec<Cap> {
@@ -552,6 +596,40 @@ pub struct UiRef {
     pub module: String,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct CodeResolved {
+    plugin: usize,
+    by: CodeBy,
+}
+
+/// コードブロックの言語ごとに描くもの。画面に渡す。module は、スクリプトが描くときの ES モジュール。
+#[derive(Debug, Clone, Serialize)]
+pub struct CodeInfo {
+    pub lang: String,
+    pub plugin: String,
+    pub by: CodeBy,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub module: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SlashInfo {
+    pub plugin: String,
+    pub label: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
+    pub keys: String,
+    pub insert: String,
+}
+
+/// ノートに足すもの。画面に渡す。core は、有効なコア機能の ID。
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct NotesInfo {
+    pub code: Vec<CodeInfo>,
+    pub slash: Vec<SlashInfo>,
+    pub core: Vec<String>,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Cap {
     pub part: Part,
@@ -615,6 +693,8 @@ pub struct PluginStatus {
     pub formats: Vec<String>,
     pub links: Vec<String>,
     pub screens: Vec<String>,
+    /// 描くコードブロックの言語。
+    pub code: Vec<String>,
     pub permissions: Vec<String>,
     /// スクリプトを持つか。持つものは本体と同じ権限で動く。
     pub script: bool,
@@ -680,6 +760,7 @@ pub struct Registry {
     conflicts: Vec<Conflict>,
     links: HashMap<String, LinkResolved>,
     link_conflicts: Vec<LinkConflict>,
+    code: HashMap<String, CodeResolved>,
     others: Vec<PluginStatus>,
     record: Record,
     stored: RwLock<HashMap<String, Stored>>,
@@ -701,6 +782,7 @@ impl Registry {
             conflicts: Vec::new(),
             links: HashMap::new(),
             link_conflicts: Vec::new(),
+            code: HashMap::new(),
             others: Vec::new(),
             record: Record::default(),
             stored: RwLock::new(HashMap::new()),
@@ -810,6 +892,7 @@ impl Registry {
                     formats: Vec::new(),
                     links: Vec::new(),
                     screens: Vec::new(),
+                    code: Vec::new(),
                     permissions: Vec::new(),
                     script: false,
                     fetch: Vec::new(),
@@ -843,6 +926,7 @@ impl Registry {
             conflicts: Vec::new(),
             links: HashMap::new(),
             link_conflicts: Vec::new(),
+            code: HashMap::new(),
             others,
             record,
             stored: RwLock::new(stored),
@@ -905,42 +989,8 @@ impl Registry {
         let mut claim: HashMap<String, usize> = HashMap::new();
         let mut conflicts = Vec::new();
         for (ext, by) in claims {
-            // 外部のプラグインをコア機能より先に使う。同じ側に複数あるものは、どれも使わない
-            let (outside, inside): (Vec<usize>, Vec<usize>) =
-                by.iter().partition(|&&i| !self.plugins[i].builtin);
-            let mut owner = None;
-            for side in [outside, inside] {
-                if side.is_empty() {
-                    continue;
-                }
-                if let Some(o) = owner {
-                    let text = format!(
-                        "「.{ext}」は「{}」が対応しているため、使用していません",
-                        self.name(o)
-                    );
-                    for &i in &side {
-                        self.plugins[i].problems.push(Problem {
-                            level: Level::Warning,
-                            text: text.clone(),
-                        });
-                    }
-                    continue;
-                }
-                if let [only] = side[..] {
-                    owner = Some(only);
-                    continue;
-                }
-                for &i in &side {
-                    let others: Vec<String> = side
-                        .iter()
-                        .filter(|&&j| j != i)
-                        .map(|&j| format!("「{}」", self.name(j)))
-                        .collect();
-                    self.plugins[i].problems.push(error(format!(
-                        "「.{ext}」は{}も対応しているため、使用していません",
-                        others.join("")
-                    )));
-                }
+            let (owner, clashes) = self.pick(&format!("「.{ext}」"), &by);
+            for side in clashes {
                 conflicts.push(Conflict {
                     ext: ext.clone(),
                     plugins: side
@@ -955,6 +1005,7 @@ impl Registry {
         }
         self.conflicts = conflicts;
         self.resolve_links();
+        self.resolve_code();
 
         let mut formats = HashMap::new();
         for (ext, &owner) in &claim {
@@ -973,7 +1024,8 @@ impl Registry {
             );
         }
         for (i, p) in self.plugins.iter_mut().enumerate() {
-            if p.manifest.wants_wasm() && p.wasm.is_none() && p.problems.is_empty() {
+            // WASM のないコア機能のコードブロックは本体が描く
+            if p.manifest.wants_wasm() && p.wasm.is_none() && p.problems.is_empty() && !p.builtin {
                 p.problems.push(error(
                     "plugin.wasm が見つからないため、WASM で受け持つものを処理できません".into(),
                 ));
@@ -984,6 +1036,15 @@ impl Registry {
             {
                 p.problems.push(error(
                     "menu を書いていますが、plugin.wasm は menu と run-menu を export していません"
+                        .into(),
+                ));
+            }
+            if let Some(w) = &p.wasm
+                && p.manifest.notes.by_wasm().next().is_some()
+                && !w.has(runtime::Role::Code)
+            {
+                p.problems.push(error(
+                    "notes の code を書いていますが、plugin.wasm は code の render を export していません"
                         .into(),
                 ));
             }
@@ -1045,6 +1106,106 @@ impl Registry {
             );
         }
         self.formats = formats;
+    }
+
+    /// 同じものを書いたプラグインから、使うものを決める。外部のプラグインをコア機能より先に使い、同じ側に複数あるものはどれも使わない。
+    /// 使わないものには、subject（「.png」など）を添えて問題を足す。どれも使わなかった側も返す。
+    fn pick(&mut self, subject: &str, by: &[usize]) -> (Option<usize>, Vec<Vec<usize>>) {
+        let (outside, inside): (Vec<usize>, Vec<usize>) =
+            by.iter().partition(|&&i| !self.plugins[i].builtin);
+        let mut owner = None;
+        let mut clashes = Vec::new();
+        for side in [outside, inside] {
+            if side.is_empty() {
+                continue;
+            }
+            if let Some(o) = owner {
+                let text = format!(
+                    "{subject}は「{}」が対応しているため、使用していません",
+                    self.name(o)
+                );
+                for &i in &side {
+                    self.plugins[i].problems.push(Problem {
+                        level: Level::Warning,
+                        text: text.clone(),
+                    });
+                }
+                continue;
+            }
+            if let [only] = side[..] {
+                owner = Some(only);
+                continue;
+            }
+            for &i in &side {
+                let others: Vec<String> = side
+                    .iter()
+                    .filter(|&&j| j != i)
+                    .map(|&j| format!("「{}」", self.name(j)))
+                    .collect();
+                self.plugins[i].problems.push(error(format!(
+                    "{subject}は{}も対応しているため、使用していません",
+                    others.join("")
+                )));
+            }
+            clashes.push(side);
+        }
+        (owner, clashes)
+    }
+
+    fn resolve_code(&mut self) {
+        let mut claims: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for (i, p) in self
+            .plugins
+            .iter_mut()
+            .enumerate()
+            .filter(|(_, p)| !p.blocked)
+        {
+            let n = &p.manifest.notes;
+            let mut bad = Vec::new();
+            let mut seen = HashSet::new();
+            for lang in &n.code {
+                if !rules().code_lang.is_match(lang) {
+                    bad.push(error(format!(
+                        "notes の code の「{lang}」には、空白と ` を使えません"
+                    )));
+                } else if !seen.insert(lang) {
+                    bad.push(error(format!(
+                        "「{lang}」を notes の code に 2 回書いています"
+                    )));
+                } else {
+                    claims.entry(lang.clone()).or_default().push(i);
+                }
+            }
+            for lang in n.script.iter().filter(|l| !n.code.contains(l)) {
+                bad.push(error(format!(
+                    "notes の script の「{lang}」は、code にも書きます"
+                )));
+            }
+            for s in &n.slash {
+                if s.label.trim().is_empty() {
+                    bad.push(error("notes の slash の label が空です".into()));
+                }
+            }
+            p.problems.extend(bad);
+        }
+        let mut code = HashMap::new();
+        for (lang, by) in claims {
+            let (owner, _) = self.pick(&format!("コードブロックの「{lang}」"), &by);
+            let Some(o) = owner else { continue };
+            let p = &self.plugins[o];
+            let by = if p.manifest.notes.script.contains(&lang) {
+                p.script.is_some().then_some(CodeBy::Script)
+            } else {
+                match &p.wasm {
+                    Some(w) => w.has(runtime::Role::Code).then_some(CodeBy::Wasm),
+                    None => p.builtin.then_some(CodeBy::App),
+                }
+            };
+            if let Some(by) = by {
+                code.insert(lang, CodeResolved { plugin: o, by });
+            }
+        }
+        self.code = code;
     }
 
     fn resolve_links(&mut self) {
@@ -1181,6 +1342,42 @@ impl Registry {
                     })
             })
             .collect()
+    }
+
+    pub fn notes(&self) -> NotesInfo {
+        let mut code: Vec<CodeInfo> = self
+            .code
+            .iter()
+            .map(|(lang, c)| {
+                let p = &self.plugins[c.plugin];
+                CodeInfo {
+                    lang: lang.clone(),
+                    plugin: p.manifest.id.clone(),
+                    by: c.by,
+                    module: p.script.clone().filter(|_| c.by == CodeBy::Script),
+                }
+            })
+            .collect();
+        code.sort_by(|a, b| a.lang.cmp(&b.lang));
+        let active = || self.plugins.iter().filter(|p| !p.blocked);
+        NotesInfo {
+            code,
+            slash: active()
+                .flat_map(|p| {
+                    p.manifest.notes.slash.iter().map(|s| SlashInfo {
+                        plugin: p.manifest.id.clone(),
+                        label: s.label.clone(),
+                        icon: s.icon.clone(),
+                        keys: s.keys.clone(),
+                        insert: s.insert.clone(),
+                    })
+                })
+                .collect(),
+            core: active()
+                .filter(|p| p.builtin)
+                .map(|p| p.manifest.id.clone())
+                .collect(),
+        }
     }
 
     /// 右クリックメニューに項目を足すプラグイン。targets（拡張子とノートか）のすべてを対象にするものだけを、並び順に返す。
@@ -1655,6 +1852,16 @@ impl Registry {
                         .collect()
                 };
                 links.sort();
+                let mut code: Vec<String> = if p.blocked {
+                    m.notes.code.clone()
+                } else {
+                    self.code
+                        .iter()
+                        .filter(|(_, c)| c.plugin == i)
+                        .map(|(l, _)| l.clone())
+                        .collect()
+                };
+                code.sort();
                 let screens = screen_labels(m);
                 let settings = p
                     .settings
@@ -1686,6 +1893,7 @@ impl Registry {
                     formats,
                     links,
                     screens,
+                    code,
                     permissions: permissions_of(m),
                     script: m.wants_script(),
                     fetch: fetch_of(m),
@@ -1844,6 +2052,7 @@ fn idle(
             .flat_map(|d| d.host.iter().map(|h| host_key(h)))
             .collect(),
         screens: screen_labels(m),
+        code: m.notes.code.clone(),
         permissions: permissions_of(m),
         script: m.wants_script(),
         fetch: fetch_of(m),

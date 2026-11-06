@@ -2,20 +2,9 @@ import type { IconName } from '../../base/Icon/Icon'
 
 export type SlashAction =
   | { type: 'heading'; level: number }
-  | {
-      type:
-        | 'bullets'
-        | 'numbers'
-        | 'tasks'
-        | 'quote'
-        | 'code'
-        | 'table'
-        | 'rule'
-        | 'diagram'
-        | 'math'
-        | 'link'
-        | 'embed'
-    }
+  | { type: 'bullets' | 'numbers' | 'tasks' | 'quote' | 'code' | 'table' | 'rule' | 'link' | 'embed' }
+  /** text をブロックとして入れる。$0 の位置にカーソルを置く。 */
+  | { type: 'insert'; text: string }
 
 export interface SlashItem {
   label: string
@@ -24,7 +13,7 @@ export interface SlashItem {
   action: SlashAction
 }
 
-export const SLASH_ITEMS: SlashItem[] = [
+const BLOCKS: SlashItem[] = [
   { label: '見出し 1', icon: 'h1', keys: 'h1 heading midashi', action: { type: 'heading', level: 1 } },
   { label: '見出し 2', icon: 'h2', keys: 'h2 heading midashi', action: { type: 'heading', level: 2 } },
   { label: '見出し 3', icon: 'h3', keys: 'h3 heading midashi', action: { type: 'heading', level: 3 } },
@@ -35,13 +24,16 @@ export const SLASH_ITEMS: SlashItem[] = [
   { label: 'コード', icon: 'codeBlock', keys: 'code block ko-do', action: { type: 'code' } },
   { label: '表', icon: 'table', keys: 'table hyou', action: { type: 'table' } },
   { label: '区切り線', icon: 'rule', keys: 'hr rule divider line', action: { type: 'rule' } },
-  { label: '図（Mermaid）', icon: 'diagram', keys: 'mermaid diagram zu', action: { type: 'diagram' } },
-  { label: '数式', icon: 'math', keys: 'math tex katex suushiki', action: { type: 'math' } },
+]
+
+const REFS: SlashItem[] = [
   { label: 'リンク', icon: 'link', keys: 'link rinku', action: { type: 'link' } },
   { label: '素材を埋め込む', icon: 'image', keys: 'embed image video audio umekomi', action: { type: 'embed' } },
 ]
 
-export const slashMatches = (q: string) => {
+/** / のメニューの項目。plugins は、プラグイン（コア機能を含む）が足す項目で、ブロックとリンクのあいだに並べる。 */
+export const slashMatches = (q: string, plugins: SlashItem[] = []) => {
+  const all = [...BLOCKS, ...plugins, ...REFS]
   const t = q.trim().toLowerCase()
-  return t ? SLASH_ITEMS.filter((i) => i.label.toLowerCase().includes(t) || i.keys.includes(t)) : SLASH_ITEMS
+  return t ? all.filter((i) => i.label.toLowerCase().includes(t) || i.keys.includes(t)) : all
 }

@@ -6,7 +6,7 @@ use tauri::{Manager, State};
 
 use crate::library::shortcut;
 use crate::plugin::ipc::{ScriptCall, Target};
-use crate::plugin::{self, Part, Reads, UiOwner, ViewOut};
+use crate::plugin::{self, CodeOut, Part, Reads, Runner, UiOwner, ViewOut};
 use crate::session::{Current, with, with_session};
 use crate::shell::web;
 use crate::thumb;
@@ -187,6 +187,29 @@ pub(crate) async fn plugin_call(
         s.ui_reads.entry(id).or_default().extend(reads);
     }
     r
+}
+
+/// ノートのコードブロックを WASM で描く。SVG は UTF-8 の文字、PNG はそのままで返し、画面は先頭のバイトで見分ける
+/// （PNG の先頭の 0x89 は、UTF-8 の文字の先頭にならない）。
+#[tauri::command]
+pub(crate) async fn render_code(
+    cur: State<'_, Current>,
+    plugin: String,
+    lang: String,
+    source: String,
+) -> Result<tauri::ipc::Response, String> {
+    let (runner, plugins) = with_session(&cur, |s| {
+        Ok((Arc::clone(&s.runner), Arc::clone(&s.plugins)))
+    })?;
+    let render = |r: &mut Runner| r.render_code(&plugin, &lang, &source);
+    let out = match runner.try_lock() {
+        Ok(mut r) => render(&mut r),
+        Err(_) => render(&mut Runner::new(plugins)),
+    }?;
+    Ok(tauri::ipc::Response::new(match out {
+        CodeOut::Svg(s) => s.into_bytes(),
+        CodeOut::Png(b) => b,
+    }))
 }
 
 #[tauri::command]

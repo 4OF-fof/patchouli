@@ -1,18 +1,20 @@
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown, commonmarkLanguage } from '@codemirror/lang-markdown'
 import { languages } from '@codemirror/language-data'
-import { EditorState, Prec, Transaction } from '@codemirror/state'
+import { Compartment, EditorState, Prec, type StateEffect, Transaction } from '@codemirror/state'
 import { EditorView, type ViewUpdate, keymap } from '@codemirror/view'
 import { GFM } from '@lezer/markdown'
 import { For, Show, createEffect, createMemo, createResource, createSignal, on, onCleanup, onMount } from 'solid-js'
+import { BUILTIN_NOTES } from '../../../plugins/builtin'
 import { hostOf } from '../../../plugins/links'
+import type { CodeInfo, NotesInfo } from '../../../plugins/types'
 import { EMBED_SCALES, type Item, type Library, type Place, hrefOf, plainText, thumbOf } from '../../../model/library'
 import { onFlush } from '../../../model/persist'
-import { Icon, type IconName } from '../../base/Icon/Icon'
+import { ICON_NAMES, Icon, type IconName } from '../../base/Icon/Icon'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { LinkPicker } from '../../nav/LinkPicker/LinkPicker'
 import { QuickView } from '../../overlay/QuickView/QuickView'
-import { type SlashAction, slashMatches } from './commands'
+import { type SlashAction, type SlashItem, slashMatches } from './commands'
 import { asNewTab } from '../../nav/TabPane/newTab'
 import { runSlash, toggleWrap, unlinkAt } from './edit'
 import { codeHighlight } from './highlight'
@@ -29,11 +31,59 @@ import {
   refAt,
   refresh,
 } from './live'
+import { type CodeView, mathView, mermaidView } from './code'
 import { MathSyntax } from './math'
 import styles from './NoteEditor.module.css'
 import { backLayer, selectionLayer } from './selection'
 
 export type { Embed } from './live'
+export type { CodeBlock, CodeMounted, CodeView } from './code'
+
+/** ノートの書き方のうち、プラグイン（コア機能を含む）が足すもの。 */
+export interface NoteSyntax {
+  /** コードブロックの言語（小文字）ごとの描き方。 */
+  codeOf: (lang: string) => CodeView | undefined
+  /** $…$ と $$…$$ を数式として読むか。 */
+  math: boolean
+  /** / のメニューに足す項目。 */
+  slash: SlashItem[]
+}
+
+const MATH_PLUGIN = 'patchouli.math'
+
+/** コア機能が本体で描くコードブロック。キーは、プラグインの ID と言語。 */
+const CORE_CODE: Record<string, CodeView> = {
+  'patchouli.mermaid:mermaid': mermaidView(styles.diagram ?? ''),
+  'patchouli.math:math': mathView({
+    inline: styles.math ?? '',
+    block: styles.mathBlock ?? '',
+    error: styles.mathError ?? '',
+  }),
+}
+
+/** ノートに足すものから、書き方を作る。codeOf は、本体で描かないコードブロックの描き方。 */
+export function syntaxOf(info: NotesInfo, codeOf?: (c: CodeInfo) => CodeView | undefined): NoteSyntax {
+  const views = new Map<string, CodeView>()
+  for (const c of info.code) {
+    const v = c.by === 'app' ? CORE_CODE[`${c.plugin}:${c.lang}`] : codeOf?.(c)
+    if (v) views.set(c.lang, v)
+  }
+  return {
+    codeOf: (lang) => views.get(lang),
+    math: info.core.includes(MATH_PLUGIN),
+    slash: info.slash.map((s) => ({
+      label: s.label,
+      icon: ICON_NAMES.find((n) => n === s.icon) ?? 'plugin',
+      keys: s.keys.toLowerCase(),
+      action: { type: 'insert', text: s.insert },
+    })),
+  }
+}
+
+const CORE_SYNTAX = syntaxOf(BUILTIN_NOTES)
+
+const markdownOf = (math: boolean) =>
+  markdown({ base: commonmarkLanguage, extensions: math ? [GFM, MathSyntax] : [GFM], codeLanguages: languages })
 
 export interface Point {
   x: number
@@ -66,6 +116,8 @@ export interface NoteEditorProps {
   onOpenPage?: (url: string) => void
   /** 貼り付けたり落としたりしたファイルを素材として取り込む。 */
   onImport?: (files: File[]) => Promise<Item[]>
+  /** なければ、コア機能の書き方だけを使う。 */
+  syntax?: NoteSyntax
   ref?: (api: NoteEditorApi) => void
   class?: string
 }
@@ -191,7 +243,10 @@ export function NoteEditor(props: NoteEditorProps) {
   const [active, setActive] = createSignal<Ref & At>()
   const [hover, setHover] = createSignal<Hover>()
   const [caret, setCaret] = createSignal<At>()
-  const items = () => slashMatches(slash()?.query ?? '')
+  const syntax = () => props.syntax ?? CORE_SYNTAX
+  const items = () => slashMatches(slash()?.query ?? '', syntax().slash)
+  const language = new Compartment()
+  let math = syntax().math
 
   const flush = () => {
     if (timer) clearTimeout(timer)
@@ -210,6 +265,10 @@ export function NoteEditor(props: NoteEditorProps) {
     },
     urlEmbedOf: async (url, image) => props.urlEmbedOf?.(url, image),
     onOpenRef: (id) => props.onOpenRef?.(id),
+    codeOf: (lang) => syntax().codeOf(lang),
+    get math() {
+      return math
+    },
     classes: styles,
   }
 
@@ -351,7 +410,7 @@ export function NoteEditor(props: NoteEditorProps) {
         doc: props.value,
         extensions: [
           history(),
-          markdown({ base: commonmarkLanguage, extensions: [GFM, MathSyntax], codeLanguages: languages }),
+          language.of(markdownOf(math)),
           codeHighlight(styles),
           Prec.highest(
             keymap.of(['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].map((key) => ({ key, run: menuKey(key) }))),
@@ -495,6 +554,23 @@ export function NoteEditor(props: NoteEditorProps) {
     on(
       () => props.lib,
       () => view?.dispatch({ effects: refresh.of(null) }),
+      { defer: true },
+    ),
+  )
+
+  createEffect(
+    on(
+      syntax,
+      (s) => {
+        const v = view
+        if (!v) return
+        const effects: StateEffect<unknown>[] = [refresh.of(null)]
+        if (s.math !== math) {
+          math = s.math
+          effects.push(language.reconfigure(markdownOf(math)))
+        }
+        v.dispatch({ effects })
+      },
       { defer: true },
     ),
   )

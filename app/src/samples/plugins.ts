@@ -1,5 +1,12 @@
-import { BUILTIN_MANIFESTS, type RawManifest, readManifest, resolveFormats, statusOf } from '../plugins/builtin'
-import type { FormatInfo, PluginReport, ScreenInfo, UiRef } from '../plugins/types'
+import {
+  BUILTIN_MANIFESTS,
+  type RawManifest,
+  readManifest,
+  resolveFormats,
+  resolveNotes,
+  statusOf,
+} from '../plugins/builtin'
+import type { FormatInfo, NotesInfo, PluginReport, ScreenInfo, UiRef } from '../plugins/types'
 import { EXAMPLE_PLUGINS } from './spec'
 
 const FOUND = import.meta.glob<RawManifest>('../../../example/*/plugin.json', { eager: true, import: 'default' })
@@ -15,9 +22,13 @@ const EXAMPLES = EXAMPLE_PLUGINS.flatMap((dir) => {
   return raw ? [{ dir, manifest: readManifest(raw) }] : []
 })
 
-const resolved = resolveFormats([...BUILTIN_MANIFESTS, ...EXAMPLES.map((e) => e.manifest)])
+const MANIFESTS = [...BUILTIN_MANIFESTS, ...EXAMPLES.map((e) => e.manifest)]
+
+const resolved = resolveFormats(MANIFESTS)
 
 export const SAMPLE_FORMATS: ReadonlyMap<string, FormatInfo> = resolved.formats
+
+export const SAMPLE_NOTES: NotesInfo = resolveNotes(MANIFESTS)
 
 export const SAMPLE_SCREENS: ScreenInfo[] = EXAMPLES.flatMap(({ manifest: m }) => {
   const module = m.script

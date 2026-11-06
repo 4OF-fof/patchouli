@@ -1,5 +1,5 @@
-import { Show, createSignal, onCleanup, onMount } from 'solid-js'
-import type { LinkApi, ScreenApi } from '../../../../plugins/sdk'
+import { Show, createEffect, createSignal, on, onCleanup, onMount } from 'solid-js'
+import type { CodeApi, CodeModule, LinkApi, ScreenApi } from '../../../../plugins/sdk'
 import { type UiApi, loadUi } from '../../../plugins/ui'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { SelectList } from '../../controls/Select/Select'
@@ -14,11 +14,13 @@ export type PluginViewProps = {
   /** 読み込めたとき。読めなかったときも呼ぶ */
   onReady?: () => void
 } & (
-  | { api: UiApi; link?: false; screen?: undefined }
+  | { api: UiApi; link?: false; screen?: undefined; code?: undefined }
   /** links の関数で、URL を描く */
-  | { api: LinkApi; link: true; screen?: undefined }
+  | { api: LinkApi; link: true; screen?: undefined; code?: undefined }
   /** screens の mount で、画面を描く */
-  | { api: ScreenApi; link?: false; screen: string }
+  | { api: ScreenApi; link?: false; screen: string; code?: undefined }
+  /** code の render で、ノートのコードブロックを描く。api.source が変わると update を呼ぶ */
+  | { api: CodeApi; link?: false; screen?: undefined; code: string }
 )
 
 /** 素の select が一覧を開くキー。 */
@@ -65,12 +67,42 @@ export function PluginView(props: PluginViewProps) {
   })
   let unmount: (() => void) | undefined
   let closed = false
+  const [code, setCode] = createSignal<CodeModule>()
+  const codeApi = () => (props.code !== undefined ? props.api : undefined)
+  createEffect(
+    on(
+      () => codeApi()?.source,
+      () => {
+        const c = code()
+        const api = codeApi()
+        if (!c || !api) return
+        try {
+          if (c.update) c.update(el, api)
+          else {
+            unmount?.()
+            el.replaceChildren()
+            unmount = c.render(el, api) ?? undefined
+          }
+        } catch (e) {
+          setError(`プラグインの表示に失敗しました：${message(e)}`)
+        }
+      },
+      { defer: true },
+    ),
+  )
   onMount(() => {
     const draw = props.draw ?? 'mount'
     const what = draw === 'mount' ? '詳細表示' : '埋め込み表示'
     loadUi(props.url)
       .then((mod) => {
         if (closed) return
+        if (props.code !== undefined) {
+          const c = mod.code?.[props.code]
+          if (!c) throw new Error(`コードブロックの関数（code.${props.code}.render）が見つかりません`)
+          unmount = c.render(el, props.api) ?? undefined
+          setCode(() => c)
+          return
+        }
         if (props.screen !== undefined) {
           const screen = mod.screens?.[props.screen]
           if (!screen) throw new Error(`画面の関数（screens.${props.screen}.mount）が見つかりません`)
@@ -101,7 +133,10 @@ export function PluginView(props: PluginViewProps) {
   return (
     <div ref={root} class={`${styles.root} ${props.class ?? ''}`}>
       {/* 埋め込みは中身の高さで並べるので、本文のスクロールを止めないよう送る枠にしない */}
-      <Show when={props.draw === 'embed'} fallback={<ScrollArea ref={el} class={styles.mount} />}>
+      <Show
+        when={props.draw === 'embed' || props.code !== undefined}
+        fallback={<ScrollArea ref={el} class={styles.mount} />}
+      >
         <div ref={el} class={styles.mount} />
       </Show>
       <Show when={error()}>

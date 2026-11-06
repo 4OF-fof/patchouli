@@ -19,6 +19,7 @@ import {
   type Embed,
   NoteEditor,
   type NoteEditorApi,
+  type NoteSyntax,
   type UrlPreview,
 } from '../../components/editor/NoteEditor/NoteEditor'
 import { type Item, type Library, type Place, headingsOf, placeOf, refsOf, relDay } from '../../model/library'
@@ -51,6 +52,7 @@ export interface NoteScreenProps {
   embedOf?: (it: Item) => Promise<Embed | undefined>
   urlEmbedOf?: (url: string, image: boolean) => Promise<Embed | undefined>
   urlPreviewOf?: (url: string) => Promise<UrlPreview>
+  syntax?: NoteSyntax
   onOpenPage?: (url: string) => void
   onImport?: (files: File[], place: Place) => Promise<Item[]>
   editorRef?: (api: NoteEditorApi | undefined) => void
@@ -261,6 +263,7 @@ export function NoteScreen(props: NoteScreenProps) {
                 embedOf={props.embedOf}
                 urlEmbedOf={props.urlEmbedOf}
                 urlPreviewOf={props.urlPreviewOf}
+                syntax={props.syntax}
                 onOpenPage={props.onOpenPage}
                 onImport={props.onImport && ((files) => props.onImport?.(files, placeOf(n())) ?? Promise.resolve([]))}
                 ref={(api) => {

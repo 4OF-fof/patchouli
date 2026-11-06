@@ -11,7 +11,7 @@ import {
   daysBefore,
   touchedLabel,
 } from '../model/library'
-import type { FormatInfo, LinkInfo, ScreenInfo } from '../plugins/types'
+import type { FormatInfo, LinkInfo, NotesInfo, ScreenInfo } from '../plugins/types'
 import type { Changed, LibraryState, Opened, Orphan } from './types'
 
 export interface StoredItem {
@@ -57,6 +57,7 @@ export interface StoredLibrary<I extends StoredItem = StoredItem> {
   formats: FormatInfo[]
   links?: LinkInfo[]
   screens?: ScreenInfo[]
+  notes?: NotesInfo
   problems: string[]
 }
 

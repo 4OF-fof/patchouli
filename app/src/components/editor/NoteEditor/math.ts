@@ -158,6 +158,13 @@ export function mathElement(src: string, display: boolean, classes: MathClasses)
   return dom
 }
 
+/** mathElement で作った要素を、src の数式に描き直す。 */
+export function updateMath(dom: HTMLElement, src: string, display: boolean, classes: MathClasses) {
+  if (dom.dataset.src === src) return
+  dom.dataset.src = src
+  render(dom, src, display, classes.error)
+}
+
 export class MathView extends WidgetType {
   readonly src: string
   readonly display: boolean
@@ -195,9 +202,7 @@ export class MathView extends WidgetType {
 
   updateDOM(dom: HTMLElement) {
     if (dom.tagName !== (this.display ? 'DIV' : 'SPAN')) return false
-    if (dom.dataset.src === this.src) return true
-    dom.dataset.src = this.src
-    render(dom, this.src, this.display, this.classes.error)
+    updateMath(dom, this.src, this.display, this.classes)
     return true
   }
 

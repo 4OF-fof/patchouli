@@ -1,6 +1,6 @@
 import { emptyNote, emptyProject } from '../model/library'
 import { PINNED_PROJECTS, PINNED_TAGS, sampleLibrary } from '../samples/library'
-import { SAMPLE_SCREENS, sampleReport, sampleUiUrl } from '../samples/plugins'
+import { SAMPLE_NOTES, SAMPLE_SCREENS, sampleReport, sampleUiUrl } from '../samples/plugins'
 import type { SettingValue } from '../../plugins/sdk'
 import type { Backend } from './types'
 
@@ -56,6 +56,7 @@ export function sampleBackend(): Backend {
     onThumbnail: () => () => {},
     plugins: async () => sampleReport(),
     uiUrl: sampleUiUrl,
+    notes: () => SAMPLE_NOTES,
     ownApi: (plugin) => ({
       settings: async () => ({ ...settings.get(plugin) }),
       setSetting: async (key, value) => void settings.set(plugin, { ...settings.get(plugin), [key]: value }),

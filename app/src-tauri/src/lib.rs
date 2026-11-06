@@ -83,6 +83,7 @@ pub fn run() {
             library::ipc::delete_item,
             plugin::ipc::call::plugin_read,
             plugin::ipc::call::plugin_call,
+            plugin::ipc::call::render_code,
             plugin::ipc::call::plugin_settings,
             plugin::ipc::call::plugin_data,
             plugin::ipc::call::set_plugin_data,

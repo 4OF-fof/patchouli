@@ -54,12 +54,24 @@ const isScreens = (v: unknown) =>
   (typeof v === 'object' &&
     v !== null &&
     Object.values(v).every((s: unknown) => typeof s === 'object' && s !== null && isFn(Reflect.get(s, 'mount'))))
+const isCode = (v: unknown) =>
+  v === undefined ||
+  (typeof v === 'object' &&
+    v !== null &&
+    Object.values(v).every(
+      (c: unknown) =>
+        typeof c === 'object' &&
+        c !== null &&
+        typeof Reflect.get(c, 'render') === 'function' &&
+        isFn(Reflect.get(c, 'update')),
+    ))
 const isModule = (m: unknown): m is UiModule =>
   typeof m === 'object' &&
   m !== null &&
   MODULE_FNS.every((k) => isFn(Reflect.get(m, k))) &&
   isLinks(Reflect.get(m, 'links')) &&
-  isScreens(Reflect.get(m, 'screens'))
+  isScreens(Reflect.get(m, 'screens')) &&
+  isCode(Reflect.get(m, 'code'))
 
 export const loadUi = (url: string): Promise<UiModule> => {
   let m = loaded.get(url)
@@ -68,7 +80,7 @@ export const loadUi = (url: string): Promise<UiModule> => {
       const mod: unknown = typeof ns === 'object' && ns !== null ? Reflect.get(ns, 'default') : undefined
       if (!isModule(mod))
         throw new Error(
-          `default で書き出したものの ${MODULE_FNS.join('・')}、links の ${LINK_FNS.join('・')}、screens の mount のいずれかが関数ではありません`,
+          `default で書き出したものの ${MODULE_FNS.join('・')}、links の ${LINK_FNS.join('・')}、screens の mount、code の render・update のいずれかが関数ではありません`,
         )
       return mod
     })

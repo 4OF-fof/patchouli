@@ -278,6 +278,35 @@
   display: none;
 }
 
+.codeView {
+  position: relative;
+  display: block;
+  line-height: normal;
+  white-space: normal;
+}
+.codeEdit {
+  position: absolute;
+  top: var(--space-4);
+  right: 0;
+  padding: var(--space-2) var(--space-8);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--side);
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.codeView:hover > .codeEdit,
+.codeEdit:focus-visible {
+  opacity: 1;
+}
+.codeEdit:hover {
+  color: var(--ink);
+}
+
 /* 左右を空け、隣に来たカーソルを選んだときの枠の外に出す。--embed-room は、その分を除いた本文の幅 */
 .embed {
   --embed-room: calc(100cqw - 12px);

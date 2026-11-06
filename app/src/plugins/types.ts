@@ -12,12 +12,14 @@ export type {
   Manifest,
   Media,
   MenuDecl,
+  NotesDecl,
   Part,
   Permission,
   PluginDep,
   Probe,
   ScreenDecl,
   SettingValue,
+  SlashDecl,
 } from '../../plugins/sdk'
 
 export type By = 'wasm' | 'script'
@@ -64,6 +66,33 @@ export interface FormatInfo {
 export interface LinkInfo extends UiRef {
   host: string
   parts: Part[]
+}
+
+/** コードブロックを描くもの。app は本体で、WASM のないコア機能だけが使う。 */
+export type CodeBy = 'wasm' | 'script' | 'app'
+
+/** コードブロックの言語ごとに描くもの。module は、スクリプトが描くときの ES モジュール。 */
+export interface CodeInfo {
+  lang: string
+  plugin: string
+  by: CodeBy
+  module?: string
+}
+
+/** ノートの / のメニューに足す項目。 */
+export interface SlashInfo {
+  plugin: string
+  label: string
+  icon?: string
+  keys: string
+  insert: string
+}
+
+/** ノートに足すもの。core は、有効なコア機能の ID。 */
+export interface NotesInfo {
+  code: CodeInfo[]
+  slash: SlashInfo[]
+  core: string[]
 }
 
 /** プラグインが足す画面。 */
@@ -117,6 +146,8 @@ export interface PluginStatus {
   links?: string[]
   /** 足す画面の名前。 */
   screens?: string[]
+  /** 描くコードブロックの言語。 */
+  code?: string[]
   permissions?: Permission[]
   /** スクリプトを持つか。持つものは本体と同じ権限で動く。 */
   script?: boolean

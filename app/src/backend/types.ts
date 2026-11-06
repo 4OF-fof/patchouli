@@ -15,13 +15,14 @@ import type {
   MenuGroup,
   MenuOutput,
   CapPart,
+  NotesInfo,
   Part,
   PluginActions,
   PluginReport,
   ScreenInfo,
   UiRef,
 } from '../plugins/types'
-import type { LinkApi, OwnApi } from '../../plugins/sdk'
+import type { CodeImage, Fetched, LinkApi, OwnApi } from '../../plugins/sdk'
 import type { Page } from '../plugins/links'
 import type { UiApi, UiItem } from '../plugins/ui'
 
@@ -338,6 +339,12 @@ export interface Backend {
   uiApi?: (item: UiItem, part: CapPart, plugin: string) => UiApi
   /** プラグインの、自分の設定と残した値の窓口。 */
   ownApi?: (plugin: string) => OwnApi
+  /** ノートに足すもの（コードブロックを描くものと / の項目）。プラグインを読み直すと変わる。 */
+  notes?: () => NotesInfo
+  /** plugin の WASM でコードブロックを描く。 */
+  renderCode?: (plugin: string, lang: string, source: string) => Promise<CodeImage>
+  /** plugin の fetch に書いたホストへ取りに行く。 */
+  pluginFetch?: (plugin: string, url: string) => Promise<Fetched>
   uiUrl?: (ui: UiRef) => string
   /** url の part を受け持つもの。 */
   linkOf?: (url: string, part: Part) => LinkShown

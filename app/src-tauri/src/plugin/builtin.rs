@@ -2,7 +2,7 @@ use std::sync::{Arc, OnceLock};
 
 use super::{Loaded, Manifest, error, files, runtime::Prepared, settings_of};
 
-const ALL: [(&str, &str, Option<&[u8]>); 4] = [
+const ALL: [(&str, &str, Option<&[u8]>); 6] = [
     (
         "image",
         include_str!("../../../plugins/image/plugin.json"),
@@ -21,6 +21,16 @@ const ALL: [(&str, &str, Option<&[u8]>); 4] = [
     (
         "youtube",
         include_str!("../../../plugins/youtube/plugin.json"),
+        None,
+    ),
+    (
+        "mermaid",
+        include_str!("../../../plugins/mermaid/plugin.json"),
+        None,
+    ),
+    (
+        "math",
+        include_str!("../../../plugins/math/plugin.json"),
         None,
     ),
 ];

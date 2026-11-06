@@ -76,6 +76,10 @@ const HOOK_LIMIT: Budget = Budget {
     time: Duration::from_secs(60),
     memory: 1 << 30,
 };
+const RENDER_LIMIT: Budget = Budget {
+    time: Duration::from_secs(10),
+    memory: 1 << 30,
+};
 
 /// 1 つの Store に入れてよいインスタンス・テーブル・メモリの数。Store にはプラグインをいくつも入れる。
 const STORE_ITEMS: usize = 1000;
@@ -842,10 +846,11 @@ pub enum Role {
     Hook,
     Settings,
     Call,
+    Code,
 }
 
 /// 役割ごとに export する interface と、その中の関数。
-const ROLES: [(Role, &str, &[&str]); 8] = [
+const ROLES: [(Role, &str, &[&str]); 9] = [
     (Role::Thumbnail, "thumbnail", &["thumbnail"]),
     (Role::View, "view", &["decode"]),
     (Role::Details, "details", &["details"]),
@@ -854,6 +859,7 @@ const ROLES: [(Role, &str, &[&str]); 8] = [
     (Role::Hook, "hook", &["hook"]),
     (Role::Settings, "settings", &["settings"]),
     (Role::Call, "call", &["call"]),
+    (Role::Code, "code", &["render"]),
 ];
 
 /// 関数の名前ごとの、export の場所。
@@ -1142,6 +1148,24 @@ impl Plugin {
         Ok(r)
     }
 
+    fn call_render(
+        &self,
+        s: &mut Store<HostState>,
+        lang: &str,
+        source: &str,
+    ) -> wasmtime::Result<Result<types::CodeImage, String>> {
+        let (r,): (Result<types::CodeImage, String>,) = self
+            .func::<(&str, &str), _>(s, "render")?
+            .call(&mut *s, (lang, source))?;
+        Ok(r.and_then(|c| {
+            within(match &c {
+                types::CodeImage::Svg(t) => t.len(),
+                types::CodeImage::Png(b) => b.len(),
+            })?;
+            Ok(c)
+        }))
+    }
+
     fn call_settings(&self, s: &mut Store<HostState>) -> wasmtime::Result<Vec<types::Setting>> {
         let (r,) = self.func::<(), _>(s, "settings")?.call(&mut *s, ())?;
         Ok(r)
@@ -1195,6 +1219,12 @@ pub enum ViewOut {
     Link {
         url: String,
     },
+}
+
+/// WASM が描いたノートのコードブロック。
+pub enum CodeOut {
+    Svg(String),
+    Png(Vec<u8>),
 }
 
 /// スクリプトから WASM を呼ぶときに、どのプラグインのものかを決める元。
@@ -1502,6 +1532,34 @@ impl Runner {
             |p, s, fmt, file| p.call_decode(s, fmt, &file),
         )
         .ok_or("詳細表示に対応するプラグインがありません")??
+    }
+
+    /// ノートのコードブロックを、plugin の WASM の code の render で描く。
+    pub fn render_code(
+        &mut self,
+        plugin: &str,
+        lang: &str,
+        source: &str,
+    ) -> Result<CodeOut, String> {
+        let i = self.reg.index_of(plugin)?;
+        let p = &self.reg.plugins[i];
+        if p.blocked || !p.manifest.notes.code.iter().any(|l| l == lang) {
+            return Err(format!(
+                "プラグイン「{plugin}」は、コードブロックの「{lang}」を描きません"
+            ));
+        }
+        if !p.wasm.as_ref().is_some_and(|w| w.has(Role::Code)) {
+            return Err(format!(
+                "プラグイン「{plugin}」の WASM は code の render を export していません"
+            ));
+        }
+        let out = self.run_files(i, &[], RENDER_LIMIT, |p, s, _| {
+            p.call_render(s, lang, source)
+        })??;
+        Ok(match out {
+            types::CodeImage::Svg(s) => CodeOut::Svg(s),
+            types::CodeImage::Png(b) => CodeOut::Png(b),
+        })
     }
 
     pub fn call_ui(

@@ -4,10 +4,13 @@
  */
 import audio from '../../plugins/audio/plugin.json'
 import image from '../../plugins/image/plugin.json'
+import math from '../../plugins/math/plugin.json'
+import mermaid from '../../plugins/mermaid/plugin.json'
 import video from '../../plugins/video/plugin.json'
 import youtube from '../../plugins/youtube/plugin.json'
 import type {
   Cap,
+  CodeInfo,
   Conflict,
   Deps,
   Fit,
@@ -15,6 +18,7 @@ import type {
   FormatInfo,
   Manifest,
   Media,
+  NotesInfo,
   Part,
   PluginReport,
   PluginStatus,
@@ -53,7 +57,7 @@ export const readManifest = (raw: RawManifest): Manifest => ({
   })),
 })
 
-export const BUILTIN_MANIFESTS = [image, video, audio, youtube].map(readManifest)
+export const BUILTIN_MANIFESTS = [image, video, audio, youtube, mermaid, math].map(readManifest)
 
 const DEFAULT_RATIO = 1.6
 
@@ -187,6 +191,7 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
     .toSorted(),
   links: (m.links ?? []).flatMap((d) => d.host).toSorted(),
   screens: Object.values(m.screens ?? {}).map((d) => d.label),
+  code: (m.notes?.code ?? []).map((l) => l.toLowerCase()).toSorted(),
   permissions: m.permissions ?? [],
   script: !!m.script,
   fetch: m.fetch ?? [],
@@ -195,6 +200,44 @@ export const statusOf = (m: Manifest, r: Resolved, builtin: boolean): PluginStat
 })
 
 export const BUILTIN_FORMATS: ReadonlyMap<string, FormatInfo> = resolvedBuiltin.formats
+
+const one = (side: Manifest[]) => (side.length === 1 ? side[0] : undefined)
+
+/**
+ * ノートに足すもの。コードブロックは形式と同じく、外部のプラグインをコア機能より先に使い、同じ側に複数あるものはどれも使わない。
+ * src-tauri/src/plugin/mod.rs と同じ決まりで、WASM の export や、スクリプトが本当にあるかは確かめない。
+ */
+export function resolveNotes(
+  manifests: Manifest[],
+  builtin: (m: Manifest) => boolean = (m) => BUILTIN_MANIFESTS.includes(m),
+): NotesInfo {
+  const claims = new Map<string, Manifest[]>()
+  for (const m of manifests)
+    for (const lang of new Set((m.notes?.code ?? []).map((l) => l.toLowerCase())))
+      claims.set(lang, [...(claims.get(lang) ?? []), m])
+  const code = [...claims].flatMap(([lang, by]): CodeInfo[] => {
+    const owner = one(by.filter((m) => !builtin(m))) ?? one(by.filter(builtin))
+    if (!owner) return []
+    const script = owner.notes?.script?.some((l) => l.toLowerCase() === lang)
+    if (script) return owner.script ? [{ lang, plugin: owner.id, by: 'script', module: owner.script }] : []
+    return [{ lang, plugin: owner.id, by: builtin(owner) ? 'app' : 'wasm' }]
+  })
+  return {
+    code: code.toSorted((a, b) => (a.lang < b.lang ? -1 : 1)),
+    slash: manifests.flatMap((m) =>
+      (m.notes?.slash ?? []).map((s) => ({
+        plugin: m.id,
+        label: s.label,
+        icon: s.icon,
+        keys: s.keys ?? '',
+        insert: s.insert,
+      })),
+    ),
+    core: manifests.filter(builtin).map((m) => m.id),
+  }
+}
+
+export const BUILTIN_NOTES: NotesInfo = resolveNotes(BUILTIN_MANIFESTS)
 
 export const builtinReport = (): PluginReport => ({
   plugins: BUILTIN_MANIFESTS.map((m) => statusOf(m, resolvedBuiltin, true)),

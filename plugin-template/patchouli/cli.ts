@@ -23,13 +23,13 @@ const isMap = (v: unknown) => !!v && typeof v === 'object'
 function readManifest(dir: string): Manifest {
   const file = path.join(dir, 'plugin.json')
   const m: Partial<Manifest> = JSON.parse(fs.readFileSync(file, 'utf8'))
-  const { id, name, version, formats, links, screens, menu, hooks, script } = m
+  const { id, name, version, formats, links, screens, menu, hooks, notes, script } = m
   const missing = (k: string) => new Error(`${file}: 「${k}」が指定されていません`)
   if (!id) throw missing('id')
   if (!name) throw missing('name')
   if (!version) throw missing('version')
-  if (!formats?.length && !links?.length && !isMap(screens) && !isMap(menu) && !isMap(hooks))
-    throw missing('formats・links・screens・menu・hooks のいずれか')
+  if (!formats?.length && !links?.length && !isMap(screens) && !isMap(menu) && !isMap(hooks) && !isMap(notes))
+    throw missing('formats・links・screens・menu・hooks・notes のいずれか')
   if (script !== undefined && !script.endsWith('.js'))
     throw new Error(`${file}: 「script」には .js のパスを指定してください（${script}）`)
   const manifest = { ...m, id, name, version }
@@ -115,7 +115,7 @@ async function bundle(dir: string, ui: string, out: string) {
 export interface BuildOptions {
   /** 並べる先。中は消してから作る。 */
   out?: string
-  /** WASM を作らない（組み込みのプラグインは、アプリのビルドがまとめて作る）。 */
+  /** WASM を作らない（コア機能は、アプリのビルドがまとめて作る）。 */
   wasm?: boolean
 }
 

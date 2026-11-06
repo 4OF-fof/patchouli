@@ -122,10 +122,7 @@ pub fn stage(
     let m = Manifest::read(&root)?;
     check_id(&m.id)?;
     if builtin.contains(&m.id) {
-        return Err(format!(
-            "「{}」はコア機能と ID が重複しています",
-            m.id
-        ));
+        return Err(format!("「{}」はコア機能と ID が重複しています", m.id));
     }
     let old = Manifest::read(&dir.join(&m.id)).ok();
     if let Some(id) = update {
