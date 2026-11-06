@@ -89,4 +89,4 @@ node patchouli/cli.ts zip [フォルダ] [--out <file>]
 | [example_chart](../../example/example_chart-plugin/)       | ノートの棒グラフと、押して数える表のコードブロック    | `notes`、WASM の `render`、スクリプトの `code`・`setSource` |
 | [example_cover](../../example/example_cover-plugin/)       | タグとプロジェクトの概要の、件数の目標と月ごとの件数  | `covers`、スクリプトの `setValue`・`onEditing`             |
 
-コア機能（`app/plugins/`）も同じ形で書いてある。スクリプトの `thumbnail`・`excerpt` と `api.wasm()` は video、`links` は youtube、`notes` は mermaid と math が使っている。mermaid と math のコードブロックは本体が描く。
+コア機能（`app/plugins/`）も同じ形で書いてある。スクリプトの `thumbnail`・`excerpt` と `api.wasm()` は video、`links` は youtube、スクリプトの `code` は mermaid が使っている。math のコードブロックと `$…$`・`$$…$$` は本体が描く。

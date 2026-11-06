@@ -31,7 +31,7 @@ import {
   refAt,
   refresh,
 } from './live'
-import { type CodeView, mathView, mermaidView } from './code'
+import { type CodeView, mathView } from './code'
 import { MathSyntax } from './math'
 import styles from './NoteEditor.module.css'
 import { backLayer, selectionLayer } from './selection'
@@ -53,7 +53,6 @@ const MATH_PLUGIN = 'patchouli.math'
 
 /** コア機能が本体で描くコードブロック。キーは、プラグインの ID と言語。 */
 const CORE_CODE: Record<string, CodeView> = {
-  'patchouli.mermaid:mermaid': mermaidView(styles.diagram ?? ''),
   'patchouli.math:math': mathView({
     inline: styles.math ?? '',
     block: styles.mathBlock ?? '',

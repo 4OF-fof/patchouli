@@ -4,7 +4,7 @@ use std::{env, fs};
 
 const WASM_PLUGINS: [&str; 3] = ["image", "video", "audio"];
 
-const UI_PLUGINS: [&str; 2] = ["video", "youtube"];
+const UI_PLUGINS: [&str; 3] = ["video", "youtube", "mermaid"];
 
 fn build_ui() {
     let here = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());

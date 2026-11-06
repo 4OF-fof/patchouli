@@ -3,8 +3,10 @@
   "name": "Mermaid",
   "version": "0.1.0",
   "description": "ノートの mermaid のコードブロックを図にする",
+  "script": "ui/mermaid.js",
   "notes": {
     "code": ["mermaid"],
+    "script": ["mermaid"],
     "slash": [
       { "label": "図（Mermaid）", "icon": "diagram", "keys": "mermaid diagram zu", "insert": "```mermaid\n$0\n```" }
     ]

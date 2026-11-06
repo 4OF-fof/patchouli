@@ -2,7 +2,6 @@ import { syntaxTree } from '@codemirror/language'
 import type { EditorState } from '@codemirror/state'
 import { type EditorView, WidgetType } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
-import type { Mounted } from 'pele/lazy'
 import { type MathClasses, blockEnd, updateMath } from './math'
 
 /** 描くコードブロック 1 つ。source は、囲みの ``` の行を除いた中身。 */
@@ -163,55 +162,6 @@ export class CodeWidget extends WidgetType {
 
   ignoreEvent() {
     return true
-  }
-}
-
-let pele: Promise<typeof import('pele/lazy')> | undefined
-
-/** Mermaid の図。 */
-export function mermaidView(cls: string): CodeView {
-  return {
-    class: cls,
-    mount(el, block) {
-      let src = block.source
-      let mounted: Mounted | undefined
-      let loading = false
-      let gone = false
-      const draw = () => {
-        if (!src.trim()) {
-          mounted?.destroy()
-          mounted = undefined
-          el.replaceChildren()
-          return
-        }
-        if (mounted) {
-          if (mounted.source !== src) mounted.update(src)
-          return
-        }
-        if (loading) return
-        loading = true
-        void (pele ??= import('pele/lazy'))
-          .then((p) => p.mountAsync(el, src))
-          .then((m) => {
-            loading = false
-            if (gone) return m.destroy()
-            mounted = m
-            if (m.source !== src) draw()
-            return undefined
-          })
-      }
-      draw()
-      return {
-        update: (b) => {
-          src = b.source
-          draw()
-        },
-        destroy: () => {
-          gone = true
-          mounted?.destroy()
-        },
-      }
-    },
   }
 }
 

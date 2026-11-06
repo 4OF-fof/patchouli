@@ -258,26 +258,6 @@
   white-space: pre-wrap;
 }
 
-.diagram {
-  --pele-bg: transparent;
-  --pele-fg: var(--ink);
-  --pele-muted: var(--muted);
-  --pele-line: var(--ink-2);
-  --pele-surface: var(--side);
-  --pele-surface-alt: var(--card);
-  --pele-border: var(--line-2);
-  --pele-accent: var(--accent);
-  --pele-font: inherit;
-  --pele-radius: var(--radius-sm);
-  padding: var(--space-8) 0;
-  overflow-x: auto;
-  line-height: normal;
-  cursor: text;
-}
-.diagram:empty {
-  display: none;
-}
-
 .codeView {
   position: relative;
   display: block;

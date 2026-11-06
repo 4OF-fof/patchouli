@@ -126,8 +126,10 @@ function wasmView(c: CodeInfo, renderCode: Render): CodeView {
 export function noteSyntax(info: NotesInfo, host: CodeHost): NoteSyntax {
   const { uiUrl, renderCode } = host
   return syntaxOf(info, (c) => {
-    if (c.by === 'script')
-      return c.module && uiUrl ? scriptView(c, uiUrl({ plugin: c.plugin, module: c.module }), host) : undefined
+    if (c.by === 'script') {
+      const url = c.module && uiUrl?.({ plugin: c.plugin, module: c.module })
+      return url ? scriptView(c, url, host) : undefined
+    }
     if (c.by === 'wasm') return renderCode ? wasmView(c, renderCode) : undefined
     return undefined
   })
