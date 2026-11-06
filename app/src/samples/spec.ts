@@ -19,6 +19,7 @@ export const EXAMPLE_PLUGINS: string[] = [
   'example_autolink-plugin',
   'example_zip-plugin',
   'example_psd-plugin',
+  'example_chart-plugin',
 ]
 
 export type SpecItem = Item & {
@@ -279,6 +280,19 @@ const SHOWCASE = [
   '```mermaid',
   'flowchart LR',
   '  A[下書き] --> B[見直し] --> C[入稿]',
+  '```',
+  '',
+  '## プラグインで描くもの',
+  '',
+  '```bars',
+  '下書き: 3',
+  '見直し: 5',
+  '入稿: 2',
+  '```',
+  '',
+  '```tally',
+  '写真: 12',
+  '配色: 4',
   '```',
   '',
 ].join('\n')

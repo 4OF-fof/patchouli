@@ -67,6 +67,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-chart-plugin"
+version = "0.1.0"
+dependencies = [
+ "wit-bindgen",
+]
+
+[[package]]
 name = "example-collect-plugin"
 version = "0.1.0"
 dependencies = [

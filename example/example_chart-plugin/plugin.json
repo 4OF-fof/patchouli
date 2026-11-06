@@ -1,0 +1,15 @@
+{
+  "id": "example_chart",
+  "name": "example_chart",
+  "version": "0.1.0",
+  "description": "ノートのコードブロックの例。bars を棒グラフにし、tally を押して数える表にする",
+  "script": "ui.js",
+  "notes": {
+    "code": ["bars", "tally"],
+    "script": ["tally"],
+    "slash": [
+      { "label": "棒グラフ", "keys": "bars chart graph bou", "insert": "```bars\n$0\n```" },
+      { "label": "数える表", "icon": "plus", "keys": "tally count kazoeru", "insert": "```tally\n$0\n```" }
+    ]
+  }
+}
