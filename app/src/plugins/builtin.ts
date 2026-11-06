@@ -4,7 +4,6 @@
  */
 import audio from '../../plugins/audio/plugin.json'
 import image from '../../plugins/image/plugin.json'
-import shortcut from '../../plugins/shortcut/plugin.json'
 import video from '../../plugins/video/plugin.json'
 import youtube from '../../plugins/youtube/plugin.json'
 import type {
@@ -36,7 +35,7 @@ export interface RawManifest extends Omit<Manifest, 'formats' | 'links'> {
   formats?: RawFormat[]
 }
 
-const PARTS: readonly Part[] = ['thumbnail', 'view', 'details', 'excerpt', 'hover', 'embed', 'link']
+const PARTS: readonly Part[] = ['thumbnail', 'view', 'details', 'excerpt', 'hover', 'embed']
 const LINK_PARTS: readonly LinkPart[] = ['thumbnail', 'view', 'embed', 'details']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
 const MEDIA: readonly Media[] = ['image', 'video', 'audio']
@@ -61,9 +60,19 @@ export const readManifest = (raw: RawManifest): Manifest => ({
   })),
 })
 
-export const BUILTIN_MANIFESTS = [image, video, audio, shortcut, youtube].map(readManifest)
+export const BUILTIN_MANIFESTS = [image, video, audio, youtube].map(readManifest)
 
 const DEFAULT_RATIO = 1.6
+
+/** 本体が読むショートカット。src-tauri/src/library/shortcut.rs と合わせる。 */
+const SHORTCUT: FormatInfo = {
+  ext: 'url',
+  label: 'ショートカット',
+  ratio: 1.91,
+  fit: 'center',
+  thumbnail: true,
+  link: true,
+}
 
 export interface Resolved {
   formats: Map<string, FormatInfo>
@@ -87,6 +96,10 @@ export function resolveFormats(
     const own = new Map<string, FormatDecl>()
     for (const d of m.formats ?? [])
       for (const ext of d.ext) {
+        if (ext === SHORTCUT.ext) {
+          add(m.id, `「.${ext}」は本体が読むため、使用していません`, 'warning')
+          continue
+        }
         if (own.has(ext)) {
           add(m.id, `「.${ext}」を formats に 2 回書いています`)
           continue
@@ -119,7 +132,7 @@ export function resolveFormats(
     }
     if (owner) claim.set(ext, owner)
   }
-  const formats = new Map<string, FormatInfo>()
+  const formats = new Map<string, FormatInfo>([[SHORTCUT.ext, SHORTCUT]])
   for (const [ext, owner] of claim) {
     const d = declOf.get(owner)?.get(ext)
     if (!d) continue
@@ -128,7 +141,6 @@ export function resolveFormats(
       owner.script && parts.includes(p) && d.script?.includes(p)
         ? { plugin: owner.id, module: owner.script }
         : undefined
-    const uiLink = ui('link')
     const uiThumbnail = ui('thumbnail')
     const uiHover = ui('hover')
     const uiEmbed = ui('embed')
@@ -138,8 +150,7 @@ export function resolveFormats(
       ratio: d.ratio ?? DEFAULT_RATIO,
       fit: d.fit ?? 'center',
       plugin: owner.id,
-      thumbnail: parts.includes('thumbnail') || parts.includes('link'),
-      ...(uiLink && { uiLink }),
+      thumbnail: parts.includes('thumbnail'),
       ...(uiThumbnail && { uiThumbnail }),
       ...(d.media && { media: d.media }),
       ...(uiHover && { uiHover }),

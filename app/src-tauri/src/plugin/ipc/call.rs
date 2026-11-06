@@ -4,6 +4,7 @@ use serde::Serialize;
 use serde_json::Value;
 use tauri::{Manager, State};
 
+use crate::library::shortcut;
 use crate::plugin::ipc::{Elevated, Target};
 use crate::plugin::{self, Part, Reads, UiOwner, ViewOut};
 use crate::session::{Current, with, with_session};
@@ -16,6 +17,9 @@ pub(crate) async fn item_view(
     id: String,
 ) -> Result<Option<ViewOut>, String> {
     let t = Target::of(&cur, &id)?;
+    if t.plugins.by_link(&t.ext, Part::View) {
+        return Ok(shortcut::url_of(&t.path).map(|url| ViewOut::Link { url }));
+    }
     Ok(t.plugins.view(&t.ext))
 }
 
@@ -31,9 +35,9 @@ pub(crate) struct Details {
     rows: Vec<Detail>,
     #[serde(skip_serializing_if = "Option::is_none")]
     elevated: Option<Elevated>,
-    /// URL ごとに受け持つものが行を作るときの、link を受け持つもの。
+    /// ショートカットが指す URL。URL ごとに受け持つものが行を作る。
     #[serde(skip_serializing_if = "Option::is_none")]
-    link: Option<Elevated>,
+    url: Option<String>,
 }
 
 pub(crate) fn rows_of(rows: Vec<(String, String)>) -> Vec<Detail> {
@@ -49,17 +53,12 @@ pub(crate) async fn item_details(cur: State<'_, Current>, id: String) -> Result<
     let size = std::fs::metadata(&t.path)
         .map_err(|e| format!("{}: {e}", t.path.display()))?
         .len();
-    if t.plugins.by_link(&t.ext, Part::Details)
-        && let Some(ui) = t.plugins.link_of(&t.ext)
-    {
+    if t.plugins.by_link(&t.ext, Part::Details) {
         return Ok(Details {
             size,
             rows: Vec::new(),
             elevated: None,
-            link: Some(Elevated {
-                ui,
-                items: vec![t.item()],
-            }),
+            url: shortcut::url_of(&t.path),
         });
     }
     if let Some(ui) = t.plugins.ui_of(&t.ext, Part::Details) {
@@ -70,7 +69,7 @@ pub(crate) async fn item_details(cur: State<'_, Current>, id: String) -> Result<
                 ui,
                 items: vec![t.item()],
             }),
-            link: None,
+            url: None,
         });
     }
     let rows = t
@@ -83,7 +82,7 @@ pub(crate) async fn item_details(cur: State<'_, Current>, id: String) -> Result<
         size,
         rows: rows_of(rows),
         elevated: None,
-        link: None,
+        url: None,
     })
 }
 

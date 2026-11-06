@@ -41,14 +41,15 @@ export interface FormatInfo {
   label: string
   ratio: number
   fit: Fit
-  plugin: string
+  /** 受け持つプラグイン。本体が読む形式にはない。 */
+  plugin?: string
   thumbnail: boolean
   uiThumbnail?: UiRef
   media?: Media
   uiHover?: UiRef
   uiEmbed?: UiRef
-  /** ファイルが指す URL を読むもの。あれば、ほかに受け持つもののない部分は URL ごとに受け持つものが描く。 */
-  uiLink?: UiRef
+  /** 本体が読むショートカット。URL ごとに受け持つものが描く。 */
+  link?: boolean
 }
 
 /** URL のホスト名ごとに受け持つプラグイン。 */

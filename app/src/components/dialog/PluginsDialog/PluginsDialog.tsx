@@ -47,7 +47,6 @@ const PART: Record<CapPart, string> = {
   embed: '埋め込み表示',
   menu: '右クリックメニュー',
   excerpt: '内容の読み取り',
-  link: 'URL の読み取り',
 }
 
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [

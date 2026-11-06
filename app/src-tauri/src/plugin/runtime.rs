@@ -1168,8 +1168,10 @@ pub enum ViewOut {
     Audio,
     Decoded,
     Ui(UiRef),
-    /// ファイルが指す URL を画面に読んでもらい、URL ごとに受け持つものが描く。中は link を受け持つもの。
-    Link(UiRef),
+    /// ショートカットが指す URL。URL ごとに受け持つものが描く。
+    Link {
+        url: String,
+    },
 }
 
 /// elevated から WASM を呼ぶときに、どのプラグインのものかを決める元。

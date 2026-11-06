@@ -1,15 +1,8 @@
 import { emptyNote, emptyProject } from '../model/library'
-import type { ItemView } from '../plugins/types'
 import { PINNED_PROJECTS, PINNED_TAGS, sampleLibrary } from '../samples/library'
 import { SAMPLE_SCREENS, sampleReport, sampleUiUrl } from '../samples/plugins'
 import type { SettingValue } from '../../plugins/sdk'
 import type { Backend } from './types'
-
-const VIEW: Record<string, ItemView> = {
-  'patchouli.image': { kind: 'image' },
-  'patchouli.video': { kind: 'video' },
-  'patchouli.audio': { kind: 'audio' },
-}
 
 export function sampleBackend(): Backend {
   let n = 0
@@ -83,8 +76,8 @@ ${key}`,
     }),
     async itemView(id) {
       const ext = lib.byId.get(id)?.ext ?? imported.get(id)
-      const plugin = ext && lib.formats.get(ext)?.plugin
-      return (plugin && VIEW[plugin]) || null
+      const media = ext && lib.formats.get(ext)?.media
+      return media ? { kind: media } : null
     },
   }
 }

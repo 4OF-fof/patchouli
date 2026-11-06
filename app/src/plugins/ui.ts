@@ -50,7 +50,7 @@ export const EDGE = 512
 
 const loaded = new Map<string, Promise<UiModule>>()
 
-const MODULE_FNS = ['mount', 'thumbnail', 'hover', 'embed', 'details', 'menu', 'runMenu', 'excerpt', 'link']
+const MODULE_FNS = ['mount', 'thumbnail', 'hover', 'embed', 'details', 'menu', 'runMenu', 'excerpt']
 const LINK_FNS = ['thumbnail', 'mount', 'embed', 'details']
 
 const isFn = (v: unknown) => v === undefined || typeof v === 'function'
@@ -159,14 +159,6 @@ export async function uiRunMenu(url: string, api: RunMenuApi): Promise<MenuOutpu
   const mod = await loadUi(url)
   if (!mod.runMenu) throw new Error('右クリックメニューの項目を実行する関数（runMenu）が見つかりません')
   return menuOutputOf(await mod.runMenu(api))
-}
-
-/** ファイルが指す URL。http か https でなければ undefined。 */
-export async function uiLink(url: string, api: Api): Promise<string | undefined> {
-  const mod = await loadUi(url)
-  if (!mod.link) throw new Error('URL を読む関数（link）が見つかりません')
-  const u = await mod.link(api)
-  return typeof u === 'string' && /^https?:\/\//i.test(u) ? u : undefined
 }
 
 export async function uiLinkThumbnail(url: string, api: Omit<LinkThumbnailApi, 'edge'>): Promise<MadeThumbnail | null> {

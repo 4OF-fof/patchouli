@@ -1,8 +1,0 @@
-{
-  "id": "patchouli.shortcut",
-  "name": "ショートカット",
-  "version": "0.2.0",
-  "description": "インターネットショートカット（.url）が指す URL",
-  "script": "ui/shortcut.js",
-  "formats": [{ "ext": ["url"], "label": "ショートカット", "ratio": 1.91, "parts": ["link"], "script": ["link"] }]
-}

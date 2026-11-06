@@ -322,8 +322,6 @@ export interface PluginModule<T extends PluginTypes = PluginTypes> {
   runMenu?(api: RunMenuApi<T>): Promise<MenuOutput | undefined | void>
   /** 内容で探したり分けたりするときに読む区間。区間の分け方はプラグインが決め、budget を超えない。 */
   excerpt?(api: ExcerptApi<T>): Promise<ExcerptPart[]>
-  /** ファイルが指す URL。指していなければ undefined。 */
-  link?(api: Api<T>): Promise<string | undefined>
   /** plugin.json の links で受け持つもの。 */
   links?: LinkModule<T>
   /** plugin.json の screens の id → 画面。 */

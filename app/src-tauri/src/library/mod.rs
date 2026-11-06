@@ -4,6 +4,7 @@ pub mod import;
 pub(crate) mod ipc;
 pub mod note;
 pub(crate) mod orphan;
+pub mod shortcut;
 
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};

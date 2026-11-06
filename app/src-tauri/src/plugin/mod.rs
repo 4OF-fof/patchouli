@@ -17,6 +17,7 @@ use std::sync::{Arc, RwLock};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::library::shortcut;
 use record::{Record, Source, Stored};
 pub use runtime::{
     Action, Env, ExcerptBudget, ExcerptMedia, ExcerptPart, ItemInfo, MenuRun, MenuShown, Ran,
@@ -49,7 +50,6 @@ pub enum Part {
     Embed,
     Menu,
     Excerpt,
-    Link,
     #[serde(other)]
     Unknown,
 }
@@ -71,7 +71,7 @@ impl Part {
     }
 }
 
-/// link を受け持つ形式で、ほかに受け持つものがなければ、URL ごとに links のプラグインか本体が受け持つもの。
+/// 本体が読むショートカットで、URL ごとに links のプラグインか本体が受け持つもの。
 const LINK_PARTS: [Part; 4] = [Part::Thumbnail, Part::View, Part::Embed, Part::Details];
 
 /// 本体がそのまま出す種類。詳細の表示と、カーソルを合わせたとき・埋め込みの出し方を決める。
@@ -579,7 +579,8 @@ pub struct FormatInfo {
     pub label: String,
     pub ratio: f64,
     pub fit: Fit,
-    pub plugin: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub plugin: Option<String>,
     pub thumbnail: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_thumbnail: Option<UiRef>,
@@ -589,8 +590,9 @@ pub struct FormatInfo {
     pub ui_hover: Option<UiRef>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ui_embed: Option<UiRef>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ui_link: Option<UiRef>,
+    /// 本体が読むショートカット。URL ごとに受け持つものが描く。
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub link: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -892,6 +894,16 @@ impl Registry {
             }
             for (k, d) in p.manifest.formats.iter().enumerate() {
                 for ext in &d.ext {
+                    if ext == shortcut::EXT {
+                        problems.push((
+                            i,
+                            Problem {
+                                level: Level::Warning,
+                                text: format!("「.{ext}」は本体が読むため、使用していません"),
+                            },
+                        ));
+                        continue;
+                    }
                     if own[i].contains_key(ext) {
                         problems.push((
                             i,
@@ -1262,28 +1274,21 @@ impl Registry {
         }
     }
 
-    pub fn link_of(&self, ext: &str) -> Option<UiRef> {
-        self.ui_of(ext, Part::Link)
-    }
-
     fn name(&self, i: usize) -> &str {
         &self.plugins[i].manifest.name
     }
 
+    /// ショートカットは、URL ごとに受け持つものを画面が呼ぶので Elevated にする。
     pub fn handles(&self, ext: &str, part: Part) -> Option<By> {
-        let parts = &self.formats.get(ext)?.parts;
-        parts.get(&part).copied().or_else(|| {
-            let linked =
-                LINK_PARTS.contains(&part) && parts.get(&Part::Link) == Some(&By::Elevated);
-            linked.then_some(By::Elevated)
-        })
+        if ext == shortcut::EXT {
+            return LINK_PARTS.contains(&part).then_some(By::Elevated);
+        }
+        self.formats.get(ext)?.parts.get(&part).copied()
     }
 
     /// URL ごとに受け持つもの（links のプラグインか本体）に回すか。
     pub fn by_link(&self, ext: &str, part: Part) -> bool {
-        self.handles(ext, part) == Some(By::Elevated)
-            && self.slot(ext, part, By::Elevated).is_none()
-            && self.link_of(ext).is_some()
+        ext == shortcut::EXT && LINK_PARTS.contains(&part)
     }
 
     /// by が実際に使う担当のときだけ返す。
@@ -1307,6 +1312,9 @@ impl Registry {
     }
 
     pub fn ratio_of(&self, ext: &str) -> f64 {
+        if ext == shortcut::EXT {
+            return shortcut::RATIO;
+        }
         self.formats.get(ext).map_or(DEFAULT_RATIO, |f| f.ratio)
     }
 
@@ -1349,9 +1357,6 @@ impl Registry {
 
     /// 詳細に出すもの。parts の view があれば、media より先に使う。
     pub fn view(&self, ext: &str) -> Option<ViewOut> {
-        if self.by_link(ext, Part::View) {
-            return self.link_of(ext).map(ViewOut::Link);
-        }
         match self.handles(ext, Part::View) {
             Some(By::Elevated) => return self.ui_of(ext, Part::View).map(ViewOut::Ui),
             Some(By::Sandbox) => return Some(ViewOut::Decoded),
@@ -1471,15 +1476,28 @@ impl Registry {
                 label: f.label.clone(),
                 ratio: f.ratio,
                 fit: f.fit,
-                plugin: id(f.owner),
+                plugin: Some(id(f.owner)),
                 thumbnail: self.handles(ext, Part::Thumbnail).is_some(),
                 ui_thumbnail: self.ui_of(ext, Part::Thumbnail),
                 media: f.media,
                 ui_hover: self.ui_of(ext, Part::Hover),
                 ui_embed: self.ui_of(ext, Part::Embed),
-                ui_link: self.link_of(ext),
+                link: false,
             })
             .collect();
+        out.push(FormatInfo {
+            ext: shortcut::EXT.into(),
+            label: shortcut::LABEL.into(),
+            ratio: shortcut::RATIO,
+            fit: Fit::Center,
+            plugin: None,
+            thumbnail: true,
+            ui_thumbnail: None,
+            media: None,
+            ui_hover: None,
+            ui_embed: None,
+            link: true,
+        });
         out.sort_by(|a, b| a.ext.cmp(&b.ext));
         out
     }

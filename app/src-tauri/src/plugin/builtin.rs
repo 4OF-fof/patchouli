@@ -2,7 +2,7 @@ use std::sync::{Arc, OnceLock};
 
 use super::{Loaded, Manifest, error, files, runtime::Prepared, settings_of};
 
-const ALL: [(&str, &str, Option<&[u8]>); 5] = [
+const ALL: [(&str, &str, Option<&[u8]>); 4] = [
     (
         "image",
         include_str!("../../../plugins/image/plugin.json"),
@@ -17,11 +17,6 @@ const ALL: [(&str, &str, Option<&[u8]>); 5] = [
         "audio",
         include_str!("../../../plugins/audio/plugin.json"),
         Some(include_bytes!(concat!(env!("OUT_DIR"), "/audio.wasm"))),
-    ),
-    (
-        "shortcut",
-        include_str!("../../../plugins/shortcut/plugin.json"),
-        None,
     ),
     (
         "youtube",
