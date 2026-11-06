@@ -123,7 +123,7 @@ pub fn stage(
     check_id(&m.id)?;
     if builtin.contains(&m.id) {
         return Err(format!(
-            "「{}」は組み込みプラグインと ID が重複しています",
+            "「{}」はコア機能と ID が重複しています",
             m.id
         ));
     }

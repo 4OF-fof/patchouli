@@ -85,4 +85,4 @@ node patchouli/cli.ts zip [フォルダ] [--out <file>]
 | [example_page](../../example/example_page-plugin/)         | ノートをカードで並べる画面                            | `screens`                                                  |
 | [example_autolink](../../example/example_autolink-plugin/) | md を取り込んだときと書き換えたときに、リンクを付ける | `hooks` の `added`・`changed`、`library`・`notes`・`embed` |
 
-組み込みのプラグイン（`app/plugins/`）も同じ形で書いてある。スクリプトの `thumbnail`・`excerpt` と `api.wasm()` は video、`links` は youtube が使っている。
+コア機能（`app/plugins/`）も同じ形で書いてある。スクリプトの `thumbnail`・`excerpt` と `api.wasm()` は video、`links` は youtube が使っている。

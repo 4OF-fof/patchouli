@@ -49,10 +49,13 @@ const PART: Record<CapPart, string> = {
   excerpt: '内容の読み取り',
 }
 
+const added = (p: PluginStatus) => !p.dev && !p.builtin
+
 const GROUPS: { label: string; has: (p: PluginStatus) => boolean }[] = [
-  { label: 'ファイル形式', has: (p) => !p.dev && p.formats.length > 0 },
-  { label: 'URL', has: (p) => !p.dev && p.formats.length === 0 && !!p.links?.length },
-  { label: 'その他', has: (p) => !p.dev && p.formats.length === 0 && !p.links?.length },
+  { label: 'コア機能', has: (p) => p.builtin },
+  { label: 'ファイル形式', has: (p) => added(p) && p.formats.length > 0 },
+  { label: 'URL', has: (p) => added(p) && p.formats.length === 0 && !!p.links?.length },
+  { label: 'その他', has: (p) => added(p) && p.formats.length === 0 && !p.links?.length },
   { label: '開発版', has: (p) => p.dev },
 ]
 
@@ -287,9 +290,6 @@ export function PluginsDialog(props: PluginsDialogProps) {
             <h3>{p().name}</h3>
             <Show when={p().version}>
               <span class={styles.mono}>{p().version}</span>
-            </Show>
-            <Show when={p().builtin}>
-              <span class={styles.badge}>組み込み</span>
             </Show>
             <Show when={p().dev}>
               <span class={styles.badge}>開発版</span>

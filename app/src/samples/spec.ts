@@ -543,7 +543,7 @@ const TAG_POOL: Record<string, string[]> = {
 
 const JACKETS = ['theme-demo']
 
-/** ショートカット（.url）の名前 → 指す URL。YouTube のものは組み込みの YouTube のプラグインが受け持つ */
+/** ショートカット（.url）の名前 → 指す URL。YouTube のものはコア機能の YouTube が受け持つ */
 const LINKS: Record<string, string> = {
   印刷所の入稿ルール: 'https://example.com/',
   'Tauri のリポジトリ': 'https://github.com/tauri-apps/tauri',

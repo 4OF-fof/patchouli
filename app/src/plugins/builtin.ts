@@ -1,5 +1,5 @@
 /*
- * 組み込みのプラグインの plugin.json と、そこから決めた形式。デスクトップでは Rust 側が同じ決まりで決めて渡すので、
+ * コア機能の plugin.json と、そこから決めた形式。デスクトップでは Rust 側が同じ決まりで決めて渡すので、
  * ここで決めたものは見本と Storybook で使う。
  */
 import audio from '../../plugins/audio/plugin.json'

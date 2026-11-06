@@ -68,7 +68,7 @@ pub(super) fn load() -> Vec<Loaded> {
         .zip(prepared())
         .map(|((dir, json, _), pre)| {
             let manifest: Manifest =
-                serde_json::from_str(json).expect("組み込みのプラグインの plugin.json が読めない");
+                serde_json::from_str(json).expect("コア機能の plugin.json が読めない");
             let mut problems = Vec::new();
             let wasm = match pre {
                 Some(Ok(p)) => Some(Arc::clone(p)),
@@ -82,7 +82,7 @@ pub(super) fn load() -> Vec<Loaded> {
                 let ok = embedded(dir, m).is_some();
                 if !ok {
                     problems.push(error(format!(
-                        "script のファイル（{m}）が見つかりません（組み込みのプラグインは build.rs の UI_PLUGINS に書いたものだけビルドします）"
+                        "script のファイル（{m}）が見つかりません（コア機能は build.rs の UI_PLUGINS に書いたものだけビルドします）"
                     )));
                 }
                 ok

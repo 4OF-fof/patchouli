@@ -115,7 +115,7 @@ async function bundle(dir: string, ui: string, out: string) {
 export interface BuildOptions {
   /** 並べる先。中は消してから作る。 */
   out?: string
-  /** WASM を作らない（組み込みのプラグインは、アプリのビルドがまとめて作る）。 */
+  /** WASM を作らない（コア機能は、アプリのビルドがまとめて作る）。 */
   wasm?: boolean
 }
 

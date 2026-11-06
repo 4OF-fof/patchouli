@@ -738,7 +738,7 @@ impl Registry {
         for (manifest, at) in dev_found {
             let enabled = record.dev.contains(&manifest.id);
             if builtin_ids.contains(&manifest.id) {
-                let e = error("組み込みプラグインと ID が重複しています".into());
+                let e = error("コア機能と ID が重複しています".into());
                 others.push(idle(&manifest, true, false, None, vec![e]));
             } else if !found.insert(manifest.id.clone()) {
                 log::warn!("開発版の ID が重複しているので読まない: {}", manifest.id);
@@ -905,7 +905,7 @@ impl Registry {
         let mut claim: HashMap<String, usize> = HashMap::new();
         let mut conflicts = Vec::new();
         for (ext, by) in claims {
-            // 外部のプラグインを組み込みより先に使う。同じ側に複数あるものは、どれも使わない
+            // 外部のプラグインをコア機能より先に使う。同じ側に複数あるものは、どれも使わない
             let (outside, inside): (Vec<usize>, Vec<usize>) =
                 by.iter().partition(|&&i| !self.plugins[i].builtin);
             let mut owner = None;

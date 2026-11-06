@@ -22,8 +22,8 @@
 - SDK（型・`definePlugin`・build / zip の CLI・WIT）の正本は `app/plugins/sdk/`。直したら `node scripts/plugin-template.ts` で `plugin-template/patchouli/` に写す。写した側は手で直さない。
 - npm には上げない。外部の作者には、SDK を同梱した `plugin-template/` を写して使ってもらう。
 - plugin.json の形式ごとの `parts` のうち、`script` に書いたものは画面と同じ WebView で動く TypeScript（スクリプト）、ほかは権限を絞った WASM が受け持つ。スクリプトの中から `api.wasm()` で WASM の同じものを呼べる。`links`・`screens` はスクリプト、`menu`・`hooks` は WASM が受け持つ。
-- スクリプトは、組み込みも外部も TypeScript で書き、`@patchouli/plugin` から読む。plugin.json の上の階層の `script` はビルド後の `.js` のパスで、元は拡張子を `.ts` にしたもの。
-- 組み込みのプラグインのスクリプトは、`build.rs` が CLI でビルドして埋め込む。スクリプトのあるものは `build.rs` の `UI_PLUGINS` に書く。
+- スクリプトは、コア機能も外部のプラグインも TypeScript で書き、`@patchouli/plugin` から読む。plugin.json の上の階層の `script` はビルド後の `.js` のパスで、元は拡張子を `.ts` にしたもの。
+- コア機能のスクリプトは、`build.rs` が CLI でビルドして埋め込む。スクリプトのあるものは `build.rs` の `UI_PLUGINS` に書く。
 
 ## ブランチと版
 
