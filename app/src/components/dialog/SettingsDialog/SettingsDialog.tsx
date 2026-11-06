@@ -1,4 +1,4 @@
-import { For, type JSX, Show, createMemo, createResource, createSignal } from 'solid-js'
+import { type Component, For, type JSX, Show, createMemo, createResource, createSignal } from 'solid-js'
 import type {
   AppSettings,
   AutoTag,
@@ -6,6 +6,8 @@ import type {
   CacheKind,
   CacheUsage,
   Developer,
+  RemoteActions,
+  RemoteStatus,
   TagSuggest,
   UnusedPlugin,
 } from '../../../backend/types'
@@ -15,6 +17,14 @@ import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Button } from '../../controls/Button/Button'
 import { SettingField } from '../../controls/SettingField/SettingField'
 import { type Notices, NoticesView } from './Notices'
+import {
+  AppClientSetting,
+  CliAccessSetting,
+  CliPathSetting,
+  ExtensionSetting,
+  type RemoteSettingsProps,
+  SkillSetting,
+} from './RemoteSettings'
 import { SchemeEditor } from './SchemeEditor'
 import { DialogFrame } from '../DialogFrame/DialogFrame'
 import styles from './SettingsDialog.module.css'
@@ -22,7 +32,7 @@ import { Icon } from '../../base/Icon/Icon'
 import { IconButton } from '../../controls/IconButton/IconButton'
 import { createBusy, message } from '../../../model/busy'
 
-export type SettingsPage = 'general' | 'view' | 'colors' | 'note' | 'developer' | 'about'
+export type SettingsPage = 'general' | 'view' | 'colors' | 'note' | 'connectors' | 'developer' | 'about'
 
 export interface SettingsDialogProps {
   version: string
@@ -57,6 +67,10 @@ export interface SettingsDialogProps {
   onDeveloperChange?: (d: Developer) => Promise<void>
   onPickDevPath?: (kind: 'dir' | 'repo') => Promise<string | undefined>
   onReload?: () => void
+  remote?: RemoteStatus
+  remoteActions?: RemoteActions
+  /** コネクタの設定を変えたあとに、状態を読み直す。 */
+  onRemoteChanged?: () => Promise<void>
   /** 権利表示を読む。一覧が大きいので、開いたときに読む。 */
   loadNotices?: () => Promise<Notices>
   onClose?: () => void
@@ -193,6 +207,47 @@ export function SettingsDialog(props: SettingsDialogProps) {
     return a && change ? run(label, () => change({ ...a, ...patch })) : undefined
   }
 
+  const remotePart = (actions: RemoteActions, Part: Component<RemoteSettingsProps>, first?: boolean) => () => (
+    <Show when={props.remote} fallback={first && <p class={styles.loading}>読み込み中…</p>}>
+      {(s) => (
+        <Part
+          status={s()}
+          actions={actions}
+          busy={busy() !== undefined}
+          run={run}
+          onChanged={async () => await props.onRemoteChanged?.()}
+        />
+      )}
+    </Show>
+  )
+  const connectors = (actions: RemoteActions): Entry[] => [
+    ...grouped('CLI', [
+      {
+        page: 'connectors',
+        words: 'CLI コマンド PATH に登録 解除 端末',
+        body: remotePart(actions, CliPathSetting, true),
+      },
+      {
+        page: 'connectors',
+        words: 'CLI skill SKILL.md AI エージェント インストール 更新 削除 フォルダを選択',
+        body: remotePart(actions, SkillSetting),
+      },
+      { page: 'connectors', words: 'CLI 接続の許可 権限 拒否 削除', body: remotePart(actions, CliAccessSetting) },
+    ]),
+    ...grouped('外部アプリ', [
+      {
+        page: 'connectors',
+        words: '外部アプリ ブラウザの拡張機能 Native Messaging ID ホスト名',
+        body: remotePart(actions, ExtensionSetting),
+      },
+      {
+        page: 'connectors',
+        words: `外部アプリ 接続したアプリ 権限 許可 拒否 削除 ${(props.remote?.clients ?? []).map((c) => c.name).join(' ')}`,
+        body: remotePart(actions, AppClientSetting),
+      },
+    ]),
+  ]
+
   const entries = (): Entry[] => [
     ...grouped('起動', [
       pref('general', 'start', '起動時に開く画面', [
@@ -211,6 +266,41 @@ export function SettingsDialog(props: SettingsDialogProps) {
         ],
         'ノートのリンクを押したとき。中クリックでは、いつも新しいタブで開きます',
       ),
+      ...(props.onAppChange
+        ? [
+            {
+              page: 'general' as const,
+              words: 'ウィンドウを閉じたとき タスクトレイに残す 終了 常駐',
+              body: () => (
+                <Show when={props.app}>
+                  {(a) => (
+                    <div class={styles.field}>
+                      <SettingField
+                        setting={{
+                          key: 'closeToTray',
+                          label: 'ウィンドウを閉じたとき',
+                          kind: 'choice',
+                          choices: [
+                            { value: 'tray', label: 'タスクトレイに残す' },
+                            { value: 'quit', label: '終了' },
+                          ],
+                          default: 'tray',
+                          value: a().closeToTray ? 'tray' : 'quit',
+                          help: a().closeToTray
+                            ? 'ウィンドウを閉じても、CLI や拡張機能からの操作を受け付けます。終了するときは、タスクトレイのメニューから選択します'
+                            : 'ウィンドウを閉じると、アプリを終了します',
+                        }}
+                        onChange={(v) =>
+                          setApp({ closeToTray: v !== 'quit' }, 'ウィンドウを閉じたときの動作を変更しています')
+                        }
+                      />
+                    </div>
+                  )}
+                </Show>
+              ),
+            },
+          ]
+        : []),
     ]),
     pref('view', 'theme', 'テーマ', [
       { value: 'system', label: 'システムに合わせる' },
@@ -486,6 +576,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
           ]
         : []),
     ]),
+    ...(props.remoteActions ? connectors(props.remoteActions) : []),
     ...(props.onDeveloperChange
       ? [
           {
@@ -523,6 +614,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     { id: 'view', label: '表示' },
     { id: 'colors', label: '配色' },
     { id: 'note', label: 'ノート' },
+    { id: 'connectors', label: 'コネクタ' },
     { id: 'developer', label: '開発者モード' },
     { id: 'about', label: '情報' },
   ]

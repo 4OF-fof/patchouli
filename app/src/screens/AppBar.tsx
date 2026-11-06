@@ -21,6 +21,7 @@ import type {
   ContentSearch,
   DeveloperActions,
   LibraryActions,
+  RemoteActions,
   TidyActions,
 } from '../backend/types'
 import { Icon, type IconName } from '../components/base/Icon/Icon'
@@ -111,6 +112,7 @@ export interface AppBarProps {
   /** あれば、メニューから新しいウィンドウを開ける。 */
   onNewWindow?: () => void
   appSettings?: AppSettingsActions
+  remote?: RemoteActions
   /** ファイルに書き出し、書き出した場所を返す。選ぶのをやめたら undefined。 */
   exportFile?: (name: string, data: string) => Promise<string | undefined>
   screens?: ScreenPlace[]
@@ -411,6 +413,14 @@ export function AppBar(props: AppBarProps) {
     () => (state() === 'settings' && props.autoTag) || undefined,
     (a) => a.get(),
   )
+  const [remote, { refetch: reloadRemote }] = createResource(
+    () => (state() === 'settings' && props.remote) || undefined,
+    (r) => r.status(),
+  )
+  createEffect(() => {
+    const r = props.remote
+    if (r) onCleanup(r.onAskClosed(() => state() === 'settings' && void reloadRemote()))
+  })
   const [autoTagProgress, setAutoTagProgress] = createSignal<AutoTagProgress>()
   createEffect(() => {
     const a = props.autoTag
@@ -681,6 +691,9 @@ export function AppBar(props: AppBarProps) {
           }
           onPickDevPath={props.developer && ((kind) => props.developer!.pick(kind))}
           onReload={props.onPluginsChanged && (() => void props.onPluginsChanged!())}
+          remote={remote.latest}
+          remoteActions={props.remote}
+          onRemoteChanged={async () => void (await reloadRemote())}
           onClose={close}
         />
       </Show>

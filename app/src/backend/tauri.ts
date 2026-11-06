@@ -59,6 +59,8 @@ import type {
   KnownLibrary,
   MenuResult,
   PageAt,
+  RemoteAsk,
+  RemoteStatus,
   SavedTabs,
   Suggestions,
   UnusedPlugin,
@@ -584,6 +586,31 @@ export function tauriBackend(): Backend {
       get: () => invoke<AppSettings>('app_settings'),
       set: (settings) => invoke('set_app_settings', { settings }),
       pickCommand: async (name) => (await invoke<string | null>('pick_command', { name })) ?? undefined,
+    },
+    remote: {
+      status: () => invoke<RemoteStatus>('remote_status'),
+      setPath: (on) => invoke('set_remote_path', { on }),
+      installSkill: (dir) => invoke('install_skill', { dir }),
+      removeSkill: (dir) => invoke('remove_skill', { dir }),
+      pickSkillDir: async () => (await invoke<string | null>('pick_skill_dir')) ?? undefined,
+      addExtension: (id) => invoke('add_extension', { id }),
+      removeExtension: (id) => invoke('remove_extension', { id }),
+      setClient: (key, allowed, permissions) => invoke('set_remote_client', { key, allowed, permissions }),
+      forgetClient: (key) => invoke('forget_remote_client', { key }),
+      asks: () => invoke<RemoteAsk[]>('remote_asks'),
+      answer: (id, permissions) => invoke('answer_remote', { id, permissions: permissions ?? null }),
+      onAsk(cb) {
+        const off = listen<RemoteAsk>('remote-ask', (e) => cb(e.payload))
+        return () => void off.then((f) => f())
+      },
+      onAskClosed(cb) {
+        const off = listen<number>('remote-ask-closed', (e) => cb(e.payload))
+        return () => void off.then((f) => f())
+      },
+      onOpen(cb) {
+        const off = listen<string>('remote-open', (e) => cb(e.payload))
+        return () => void off.then((f) => f())
+      },
     },
     contentSearch: {
       prepare: () => invoke('prepare_content_search'),

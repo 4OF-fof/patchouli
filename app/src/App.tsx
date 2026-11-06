@@ -12,6 +12,8 @@ import {
   untrack,
 } from 'solid-js'
 import { type Backend, type Orphan, sampleBackend } from './backend'
+import type { RemoteAsk, RemotePermission } from './backend/types'
+import { RemoteAskDialog } from './components/dialog/RemoteAskDialog/RemoteAskDialog'
 import { DropZone } from './components/overlay/DropZone/DropZone'
 import { ReloadOverlay } from './components/overlay/ReloadOverlay/ReloadOverlay'
 import { DeleteDialog } from './components/dialog/DeleteDialog/DeleteDialog'
@@ -368,6 +370,24 @@ export function App(props: AppProps) {
   onMount(() => window.addEventListener('keydown', onKey))
   onCleanup(() => window.removeEventListener('keydown', onKey))
 
+  const [asks, setAsks] = createSignal<RemoteAsk[]>([])
+  const addAsks = (list: RemoteAsk[]) =>
+    setAsks((now) => [...now, ...list.filter((a) => !now.some((b) => b.id === a.id))])
+  onMount(() => {
+    const r = backend.remote
+    if (!r) return
+    onCleanup(r.onAsk((a) => addAsks([a])))
+    onCleanup(r.onAskClosed((id) => setAsks((now) => now.filter((a) => a.id !== id))))
+    onCleanup(r.onOpen((id) => asNewTab(() => openItem(id))))
+    void r.asks().then(addAsks, failLoad)
+  })
+  const answerAsk = (a: RemoteAsk, permissions: RemotePermission[] | undefined) => {
+    setAsks((now) => now.filter((b) => b.id !== a.id))
+    void backend.remote
+      ?.answer(a.id, permissions)
+      .catch((e: unknown) => notify(`接続の許可に失敗しました：${messageOf(e)}`, 'error'))
+  }
+
   const noteScreen = (noteId: string, tab?: Tab) => (
     <NoteScreen
       lib={lib()}
@@ -694,6 +714,7 @@ export function App(props: AppProps) {
                       tidy={backend.tidy}
                       developer={backend.developer}
                       appSettings={backend.appSettings}
+                      remote={backend.remote}
                       exportFile={backend.exportFile}
                       autoTag={backend.autoTag}
                       contentSearch={backend.contentSearch}
@@ -859,6 +880,9 @@ export function App(props: AppProps) {
                       }
                       onClose={() => setOrphansHeld(true)}
                     />
+                  </Show>
+                  <Show when={asks()[0]} keyed>
+                    {(a) => <RemoteAskDialog ask={a} onAnswer={(p) => answerAsk(a, p)} />}
                   </Show>
                   <Show when={deleting()} keyed>
                     {(ids) => {

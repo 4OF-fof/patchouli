@@ -186,6 +186,72 @@ export interface AppSettings {
   linkOpen: 'builtin' | 'default'
   /** 波形を作る時間の上限（秒）。0 は上限なし */
   waveLimit: number
+  /** ウィンドウを閉じたとき、終了せずにタスクトレイに残る */
+  closeToTray: boolean
+}
+
+/** 外から操作してくる口に渡す権限。src-tauri/src/remote/proto.rs の PERMISSIONS と合わせる。 */
+export type RemotePermission = 'library' | 'assets' | 'notes' | 'edit' | 'delete' | 'window'
+
+/** 外から操作してくる口。key は cli・extension:{ID}・app:{名前}。 */
+export interface RemoteClient {
+  key: string
+  name: string
+  allowed: boolean
+  permissions: RemotePermission[]
+  /** 最後につないできた時刻（ミリ秒） */
+  last: number
+}
+
+/** 初めてつないできた口が、許可を待っているもの。 */
+export interface RemoteAsk {
+  id: number
+  key: string
+  name: string
+  permissions: RemotePermission[]
+}
+
+export interface SkillPlace {
+  dir: string
+  installed: boolean
+  /** 候補として出す場所か。ほかは選択したフォルダ */
+  suggested: boolean
+}
+
+export interface RemoteStatus {
+  /** アプリと一緒に入れた CLI。見つからなければ undefined */
+  cli?: string
+  /** PATH に置くコマンド */
+  command: string
+  /** CLI を PATH に登録したか */
+  path: boolean
+  /** Native Messaging のホストの名前 */
+  host: string
+  skills: SkillPlace[]
+  /** Native Messaging でつないでよい拡張機能の ID */
+  extensions: string[]
+  clients: RemoteClient[]
+}
+
+export interface RemoteActions {
+  status(): Promise<RemoteStatus>
+  setPath(on: boolean): Promise<void>
+  installSkill(dir: string): Promise<void>
+  removeSkill(dir: string): Promise<void>
+  pickSkillDir(): Promise<string | undefined>
+  addExtension(id: string): Promise<void>
+  removeExtension(id: string): Promise<void>
+  setClient(key: string, allowed: boolean, permissions: RemotePermission[]): Promise<void>
+  forgetClient(key: string): Promise<void>
+  /** 許可を待っているもの。 */
+  asks(): Promise<RemoteAsk[]>
+  /** permissions が undefined なら拒否する。 */
+  answer(id: number, permissions: RemotePermission[] | undefined): Promise<void>
+  onAsk(cb: (a: RemoteAsk) => void): () => void
+  /** 許可を待つのをやめたとき（答えたときと、時間切れのとき）。 */
+  onAskClosed(cb: (id: number) => void): () => void
+  /** 外から素材かノートを開くよう頼まれたとき。 */
+  onOpen(cb: (id: string) => void): () => void
 }
 
 export interface AppSettingsActions {
@@ -306,6 +372,7 @@ export interface Backend {
   tidy?: TidyActions
   developer?: DeveloperActions
   appSettings?: AppSettingsActions
+  remote?: RemoteActions
   autoTag?: AutoTagActions
   contentSearch?: ContentSearch
   tagDecisions?: TagDecisions
