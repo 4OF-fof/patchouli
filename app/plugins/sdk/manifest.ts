@@ -46,7 +46,7 @@ export interface PluginDep {
 export interface Deps {
   /**
    * 手元のコマンド（名前 → 版の下限など）。PATH から探す。
-   * コマンドは sandbox の外で、本体と同じ権限で動く。シェルやインタプリタを書けば、何でも実行できる。
+   * コマンドは WASM の外で、本体と同じ権限で動く。シェルやインタプリタを書けば、何でも実行できる。
    */
   commands?: Record<string, CommandDep>
   /** ほかのプラグイン（id → 版の下限）。 */
@@ -69,7 +69,7 @@ export interface FormatDecl {
    * parts のうち、スクリプト（plugin.json の上の階層の script）で受け持つもの。ほかは WASM（plugin.wasm）が受け持つ。
    * WASM は、ファイルは本体が渡したものだけを読め、ネットワークは使えない。
    * ただし commands で動かすコマンドは本体と同じ権限で動くので、どのファイルも読み書きでき、ネットワークも使える。
-   * スクリプトの中から api.sandbox() で、WASM の同じものを呼べる。
+   * スクリプトの中から api.wasm() で、WASM の同じものを呼べる。
    */
   script?: Part[]
 }
@@ -153,7 +153,7 @@ export interface Manifest {
   menu?: MenuDecl
   hooks?: HooksDecl
   permissions?: Permission[]
-  /** api.fetch で取りに行けるホスト名。サブドメインも含む。「com」のようなトップレベルドメインだけのものは書けない。 */
+  /** スクリプトの api.fetch と WASM の host の fetch で取りに行けるホスト名。サブドメインも含む。「com」のようなトップレベルドメインだけのものは書けない。 */
   fetch?: string[]
 }
 

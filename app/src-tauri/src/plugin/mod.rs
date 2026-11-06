@@ -1247,7 +1247,12 @@ impl Registry {
     /// plugin が host へ取りに行けるか。plugin が None のときは本体（どのホストにも行ける）。
     pub fn may_fetch(&self, plugin: Option<&str>, host: &str) -> Result<(), String> {
         let Some(id) = plugin else { return Ok(()) };
-        let p = &self.plugins[self.index_of(id)?];
+        self.may_fetch_at(self.index_of(id)?, host)
+    }
+
+    /// plugins の i 番目が host へ取りに行けるか。
+    pub fn may_fetch_at(&self, i: usize, host: &str) -> Result<(), String> {
+        let p = &self.plugins[i];
         let host = host_key(host);
         if p.manifest
             .fetch

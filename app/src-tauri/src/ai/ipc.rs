@@ -9,8 +9,8 @@ use crate::session::{Current, root_of, with_session};
 use crate::shell::settings;
 
 #[tauri::command]
-pub(crate) async fn content_sandbox(job: u64) -> Result<Vec<content::SandboxPart>, String> {
-    tauri::async_runtime::spawn_blocking(move || content::sandbox(job))
+pub(crate) async fn content_wasm(job: u64) -> Result<Vec<content::WasmPart>, String> {
+    tauri::async_runtime::spawn_blocking(move || content::wasm(job))
         .await
         .map_err(|e| e.to_string())?
 }

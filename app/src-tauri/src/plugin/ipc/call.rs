@@ -129,7 +129,7 @@ pub(crate) async fn plugin_fetch(
 }
 
 #[tauri::command]
-pub(crate) async fn sandbox_details(
+pub(crate) async fn wasm_details(
     cur: State<'_, Current>,
     id: String,
 ) -> Result<Vec<Detail>, String> {

@@ -68,20 +68,29 @@ pub fn parse(url: &str) -> Result<Url, String> {
     Ok(u)
 }
 
+/// 取ってきたものの見出し。url はリダイレクトをたどったあとのもの。
 #[derive(Serialize)]
-struct Head {
-    status: u16,
-    url: String,
+pub struct Head {
+    pub status: u16,
+    pub url: String,
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    kind: Option<String>,
+    pub kind: Option<String>,
 }
 
 /// たどるリダイレクトの数。
 const REDIRECTS: usize = 5;
 
 /// 取ってきたもの。頭の 4 バイトが見出しの JSON の長さで、JSON、中身と続く。
-/// リダイレクトは 1 回ずつたどり、行き先ごとに allow で確かめる。
 pub fn fetch(url: &Url, allow: impl Fn(&Url) -> Result<(), String>) -> Result<Vec<u8>, String> {
+    let (head, body) = get(url, allow)?;
+    crate::framed::join(&head, &body)
+}
+
+/// GET で取ってくる。リダイレクトは 1 回ずつたどり、行き先ごとに allow で確かめる。
+pub fn get(
+    url: &Url,
+    allow: impl Fn(&Url) -> Result<(), String>,
+) -> Result<(Head, Vec<u8>), String> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(TIMEOUT))
         .http_status_as_error(false)
@@ -127,7 +136,7 @@ pub fn fetch(url: &Url, allow: impl Fn(&Url) -> Result<(), String>) -> Result<Ve
         .limit(LIMIT)
         .read_to_vec()
         .map_err(err)?;
-    crate::framed::join(&head, &body)
+    Ok((head, body))
 }
 
 /// タブの中に出す外のページの位置と大きさ（CSS の px）。

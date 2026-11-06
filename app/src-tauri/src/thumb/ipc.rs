@@ -275,10 +275,10 @@ struct ThumbReady<'a> {
     wave: bool,
 }
 
-/// elevated の中から呼ぶ sandbox の thumbnail。頭の 8 バイトに素材の幅と高さ（わからなければ 0）、続けて PNG。
+/// スクリプトの中から呼ぶ WASM の thumbnail。頭の 8 バイトに素材の幅と高さ（わからなければ 0）、続けて PNG。
 /// 作らなければ空。
 #[tauri::command]
-pub(crate) async fn sandbox_thumbnail(
+pub(crate) async fn wasm_thumbnail(
     cur: State<'_, Current>,
     id: String,
     edge: u32,

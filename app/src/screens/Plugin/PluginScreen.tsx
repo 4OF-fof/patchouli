@@ -9,7 +9,7 @@ import { libraryItemOf } from './libraryItem'
 
 export interface PluginScreenProps {
   lib: Library
-  /** 画面を描く elevated の URL。ないときは、プラグインが有効でないことを出す。 */
+  /** 画面を描くスクリプトの URL。ないときは、プラグインが有効でないことを出す。 */
   url?: string
   /** plugin.json の screens の id。 */
   screen: string

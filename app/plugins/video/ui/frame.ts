@@ -1,6 +1,6 @@
 /*
  * 動画のサムネイルと、内容を読むときのコマ。WebView のデコーダーで取る（詳細での再生と同じもので読む）。
- * WebView で読めないものは、サムネイルは sandbox の thumbnail、コマは WASM の call（frames）で、FFmpeg があれば取り出す。
+ * WebView で読めないものは、サムネイルは WASM の thumbnail、コマは WASM の call（frames）で、FFmpeg があれば取り出す。
  * 音声トラックは WASM の excerpt が読む。
  */
 
@@ -133,14 +133,14 @@ export default definePlugin<Video>({
         failed = message(e)
       }
     }
-    return api.sandbox().catch((e: unknown) => {
+    return api.wasm().catch((e: unknown) => {
       throw new Error(failed ? `${failed} / ${message(e)}` : message(e))
     })
   },
   async excerpt(api) {
     const { budget, signal } = api
     // 音声は裏の WASM が読むので、コマを取るのと並べて進める
-    const audio = api.sandbox().catch((e: unknown) => console.warn('音声トラックを読めない', e))
+    const audio = api.wasm().catch((e: unknown) => console.warn('音声トラックを読めない', e))
     try {
       if (api.item.url) {
         try {

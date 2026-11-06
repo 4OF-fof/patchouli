@@ -75,7 +75,7 @@ export interface Api<T extends PluginTypes = PluginTypes> extends Caller<Methods
 export interface ThumbnailApi<T extends PluginTypes = PluginTypes> extends Api<T> {
   edge: number
   /** WASM の thumbnail を呼ぶ。plugin.wasm が thumbnail を export していなければ失敗する。 */
-  sandbox(): Promise<Thumbnail | null>
+  wasm(): Promise<Thumbnail | null>
 }
 
 /** ファイルの詳細に足す 1 行。 */
@@ -87,7 +87,7 @@ export interface Detail {
 /** ファイルの詳細を作るときの窓口。 */
 export interface DetailsApi<T extends PluginTypes = PluginTypes> extends Api<T> {
   /** WASM の details を呼ぶ。plugin.wasm が details を export していなければ失敗する。 */
-  sandbox(): Promise<Detail[]>
+  wasm(): Promise<Detail[]>
 }
 
 /** 内容で探したり分けたりするときに読む区間の上限。WIT の excerpt-budget と同じ。 */
@@ -118,7 +118,7 @@ export interface ExcerptPart {
 }
 
 /** WASM が作った区間。中身は本体が持っていて、ここには位置と種類だけが来る。 */
-export interface SandboxPart {
+export interface WasmPart {
   start?: number
   end?: number
   kind: 'images' | 'audio' | 'text'
@@ -132,7 +132,7 @@ export interface ExcerptApi<T extends PluginTypes = PluginTypes> extends Api<T> 
    * WASM の excerpt を呼ぶ。返した区間は、excerpt が返す区間に本体が足す（excerpt で返し直さない）。
    * plugin.wasm が excerpt を export していなければ失敗する。
    */
-  sandbox(): Promise<SandboxPart[]>
+  wasm(): Promise<WasmPart[]>
 }
 
 /** できたサムネイル。png は長いほうの辺が edge 以下の PNG。width と height は素材そのものの大きさ。 */

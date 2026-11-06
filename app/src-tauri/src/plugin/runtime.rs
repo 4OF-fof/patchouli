@@ -20,6 +20,7 @@ use super::{
     By, Choice, Manifest, Part, Reads, Registry, SettingDecl, SettingKind, UiRef, commands,
 };
 use crate::ai::{embed, search};
+use crate::shell::web;
 use crate::{library, thumb};
 
 // 役割ごとの export は WASM によってあったりなかったりするので、world 全体の型と import だけを使い、export は名前で呼ぶ
@@ -545,6 +546,24 @@ impl patchouli::plugin::host::Host for HostState {
             .as_ref()
             .ok_or("現在は値を保存できません")?
             .set_data(self.index, &key, value)
+    }
+
+    fn fetch(&mut self, url: String) -> Result<types::Fetched, String> {
+        let reg = Arc::clone(self.reg.as_ref().ok_or("現在は接続できません")?);
+        let i = self.index;
+        let allow = |u: &tauri::Url| reg.may_fetch_at(i, u.host_str().unwrap_or_default());
+        let url = web::parse(&url)?;
+        allow(&url)?;
+        let begun = Instant::now();
+        let got = web::get(&url, allow);
+        self.outside += begun.elapsed();
+        let (head, body) = got?;
+        Ok(types::Fetched {
+            status: head.status,
+            url: head.url,
+            content_type: head.kind,
+            body,
+        })
     }
 
     fn log(&mut self, message: String) {

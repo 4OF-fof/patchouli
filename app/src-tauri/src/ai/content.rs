@@ -1,6 +1,6 @@
 //! 自動分類で読む区間を、プラグインに作らせてベクトルにする。
 //! WASM が受け持つ形式は裏で呼び、スクリプトが受け持つ形式は画面に頼む（content-wanted）。
-//! スクリプトが api.sandbox() で呼んだ WASM の区間は、画面に渡さずにここで持ち、画面が返した区間と合わせる。
+//! スクリプトが api.wasm() で呼んだ WASM の区間は、画面に渡さずにここで持ち、画面が返した区間と合わせる。
 //! ベクトルにするのは 1 つのスレッドで、区間を作る側はそこへ 1 件ずつ渡す。
 
 use serde::{Deserialize, Serialize};
@@ -444,9 +444,9 @@ fn embed_work(w: &Work, stop: &AtomicBool) -> Result<Option<Embedded>, String> {
     Ok(Some((whole, parts)))
 }
 
-/// elevated の中から呼ぶ sandbox の content。区間はここで持ち、位置と種類だけを返す。
+/// スクリプトの中から呼ぶ WASM の excerpt。区間はここで持ち、位置と種類だけを返す。
 #[derive(Serialize)]
-pub struct SandboxPart {
+pub struct WasmPart {
     start: Option<f64>,
     end: Option<f64>,
     kind: &'static str,
@@ -460,7 +460,7 @@ fn kind_of(m: &ExcerptMedia) -> &'static str {
     }
 }
 
-pub fn sandbox(job: u64) -> Result<Vec<SandboxPart>, String> {
+pub fn wasm(job: u64) -> Result<Vec<WasmPart>, String> {
     let (ext, file, plugins, stop) = {
         let j = jobs().lock().map_err(|e| e.to_string())?;
         let j = j.get(&job).ok_or("区間を待っていない項目です")?;
@@ -475,10 +475,10 @@ pub fn sandbox(job: u64) -> Result<Vec<SandboxPart>, String> {
     runner.set_stop(stop);
     let parts = runner
         .excerpt(&ext, &file, budget())
-        .ok_or("この形式の sandbox は content を受け持っていません")??;
+        .ok_or("この形式の WASM は excerpt を受け持っていません")??;
     let out = parts
         .iter()
-        .map(|p| SandboxPart {
+        .map(|p| WasmPart {
             start: p.start,
             end: p.end,
             kind: kind_of(&p.media),

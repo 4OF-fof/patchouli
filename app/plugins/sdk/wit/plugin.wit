@@ -19,6 +19,14 @@ interface types {
     height: u32,
   }
 
+  /// host の fetch で取ってきたもの。url はリダイレクトをたどったあとのもの。
+  record fetched {
+    status: u16,
+    url: string,
+    content-type: option<string>,
+    body: list<u8>,
+  }
+
   /// できたサムネイル。
   record thumbnail-image {
     /// 長いほうの辺が edge 以下の PNG。
@@ -167,7 +175,7 @@ interface types {
 
 /// アプリが用意する処理。重い処理はここに任せる。
 interface host {
-  use types.{file, dimensions, setting-value};
+  use types.{file, dimensions, setting-value, fetched};
 
   /// 中身を offset から最大 len バイト読む。
   read: func(f: file, offset: u64, len: u32) -> result<list<u8>, string>;
@@ -186,6 +194,9 @@ interface host {
 
   /// 値を残す。none なら消す。
   set-data: func(key: string, value: option<string>) -> result<_, string>;
+
+  /// url を GET で取ってくる（16 MB まで）。行けるのは plugin.json の fetch に書いたホストだけで、リダイレクトの行き先も同じ。
+  fetch: func(url: string) -> result<fetched, string>;
 
   log: func(message: string);
 }

@@ -155,9 +155,9 @@ async function packParts(parts: ExcerptPart[]) {
   return out
 }
 
-/** 頭の 8 バイトは素材の幅と高さ（わからなければ 0）。src-tauri/src/lib.rs の sandbox_thumbnail と合わせる。 */
-const sandboxThumbnail = async (id: string) => {
-  const b = new Uint8Array(await invoke<ArrayBuffer>('sandbox_thumbnail', { id, edge: EDGE }))
+/** 頭の 8 バイトは素材の幅と高さ（わからなければ 0）。src-tauri/src/lib.rs の wasm_thumbnail と合わせる。 */
+const wasmThumbnail = async (id: string) => {
+  const b = new Uint8Array(await invoke<ArrayBuffer>('wasm_thumbnail', { id, edge: EDGE }))
   if (!b.length) return null
   const v = new DataView(b.buffer, b.byteOffset, 8)
   const [width, height] = [v.getUint32(0, true), v.getUint32(4, true)]
@@ -299,7 +299,7 @@ export function tauriBackend(): Backend {
     if (!it) return d
     const rows = await uiDetails(pluginUrl(e.plugin, e.module), {
       ...uiApi(uiItemOf(it), 'details', e.plugin),
-      sandbox: () => invoke('sandbox_details', { id: it.id }),
+      wasm: () => invoke('wasm_details', { id: it.id }),
     }).catch((err: unknown) => {
       console.warn(`ファイルの詳細を足せない: ${it.name}.${it.ext}`, err)
       return []
@@ -330,7 +330,7 @@ export function tauriBackend(): Backend {
     const t = await uiThumbnail(pluginUrl(ui.plugin, ui.module), {
       ...api,
       settings: async () => watched(await api.settings(), read),
-      sandbox: () => sandboxThumbnail(it.id),
+      wasm: () => wasmThumbnail(it.id),
     }).catch(lateThumb(it))
     if (!t) return
     const headers: Record<string, string> = { id: it.id, settings: asciiJson([...read]) }
@@ -434,7 +434,7 @@ export function tauriBackend(): Backend {
                 module,
                 {
                   ...uiApi(uiItemOf(w), 'excerpt', w.plugin),
-                  sandbox: () => invoke('content_sandbox', { job: w.job }),
+                  wasm: () => invoke('content_wasm', { job: w.job }),
                 },
                 budget,
                 contentStop.signal,
