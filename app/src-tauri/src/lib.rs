@@ -77,8 +77,6 @@ pub fn run() {
             plugin::ipc::menu::run_item_menu,
             thumb::ipc::sandbox_thumbnail,
             plugin::ipc::call::sandbox_details,
-            plugin::ipc::menu::sandbox_menu,
-            plugin::ipc::menu::sandbox_run_menu,
             ai::ipc::content_sandbox,
             ai::ipc::put_content,
             library::ipc::delete_item,

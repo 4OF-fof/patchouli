@@ -19,7 +19,6 @@ import type {
   FormatInfo,
   ItemDetails,
   LinkInfo,
-  MenuEntry,
   MenuGroup,
   MenuOutput,
   CapPart,
@@ -40,8 +39,6 @@ import {
   uiLinkDetails,
   uiLinkExcerpt,
   uiLinkThumbnail,
-  uiMenu,
-  uiRunMenu,
   uiThumbnail,
 } from '../plugins/ui'
 import { waveform } from '../media/waveform'
@@ -99,19 +96,19 @@ const watched = (s: Record<string, SettingValue>, read: Set<string>) =>
 const asciiJson = (v: unknown) =>
   JSON.stringify(v).replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`)
 
-/** Rust が elevated に回してきた素材。 */
-interface ElevatedItem {
+/** Rust がスクリプトに回してきた素材。 */
+interface ScriptItem {
   id: string
   name: string
   ext: string
   file: string
 }
 
-interface Elevated extends UiRef {
-  items: ElevatedItem[]
+interface ScriptCall extends UiRef {
+  items: ScriptItem[]
 }
 
-const uiItemOf = (it: ElevatedItem): UiItem => ({ id: it.id, name: it.name, ext: it.ext, url: convertFileSrc(it.file) })
+const uiItemOf = (it: ScriptItem): UiItem => ({ id: it.id, name: it.name, ext: it.ext, url: convertFileSrc(it.file) })
 
 const at = (p: { x: number; y: number }) => ({ x: p.x / devicePixelRatio, y: p.y / devicePixelRatio })
 
@@ -297,18 +294,7 @@ export function tauriBackend(): Backend {
     }
   }
 
-  const menuApi = (e: Elevated) => ({
-    ...ownApi(e.plugin),
-    targets: e.items.map((it) => uiApi(uiItemOf(it), 'menu', e.plugin)),
-  })
-
-  const elevatedMenu = async (ids: string[], e: Elevated): Promise<MenuEntry[]> =>
-    uiMenu(pluginUrl(e.plugin, e.module), {
-      ...menuApi(e),
-      sandbox: () => invoke('sandbox_menu', { ids, plugin: e.plugin }),
-    })
-
-  const elevatedDetails = async (d: ItemDetails, e: Elevated): Promise<ItemDetails> => {
+  const scriptDetails = async (d: ItemDetails, e: ScriptCall): Promise<ItemDetails> => {
     const [it] = e.items
     if (!it) return d
     const rows = await uiDetails(pluginUrl(e.plugin, e.module), {
@@ -421,8 +407,8 @@ export function tauriBackend(): Backend {
     }
   }
 
-  // 自動分類で読む区間のうち、elevated が受け持つもの。Rust が頼んできたものを 1 つずつ作って返す
-  interface ContentWanted extends ElevatedItem, UiRef {
+  // 自動分類で読む区間のうち、スクリプトが受け持つもの。Rust が頼んできたものを 1 つずつ作って返す
+  interface ContentWanted extends ScriptItem, UiRef {
     job: number
     /** ショートカットが指す URL。links のスクリプトが区間を作る。 */
     url?: string
@@ -700,9 +686,9 @@ export function tauriBackend(): Backend {
       return { kind: 'image', url: URL.createObjectURL(new Blob([png], { type: 'image/png' })) }
     },
     async itemDetails(id) {
-      const d = await invoke<ItemDetails & { elevated?: Elevated }>('item_details', { id })
+      const d = await invoke<ItemDetails & { script?: ScriptCall }>('item_details', { id })
       if (d.url) return linkDetails(d, d.url)
-      return d.elevated ? elevatedDetails(d, d.elevated) : d
+      return d.script ? scriptDetails(d, d.script) : d
     },
     revealItem: (id) => invoke('reveal_item', { id }),
     openItemDefault: (id) => invoke('open_item_default', { id }),
@@ -711,48 +697,9 @@ export function tauriBackend(): Backend {
         headers: { name: asciiJson(name) },
       })) ?? undefined,
     itemPath: (id) => invoke('item_path', { id }),
-    async itemMenu(ids) {
-      const groups = await invoke<(MenuGroup & { elevated?: Elevated })[]>('item_menu', { ids })
-      const all = await Promise.all(
-        groups.map(async ({ plugin, items, elevated }): Promise<MenuGroup> => {
-          if (!elevated) return { plugin, items }
-          const made = await elevatedMenu(ids, elevated).catch((err: unknown) => {
-            console.warn(`右クリックメニューの項目を作れない（${plugin}）`, err)
-            return []
-          })
-          return { plugin, items: made }
-        }),
-      )
-      return all.filter((g) => g.items.length > 0)
-    },
-    async runItemMenu(ids, plugin, entry) {
-      const r = await invoke<MenuDone & { elevated?: Elevated }>('run_item_menu', { ids, plugin, entry })
-      const e = r.elevated
-      if (!e) return menuResultOf(r)
-      // elevated の中で sandbox() が頼んだことも、まとめて返す
-      const done: MenuResult = { items: [], failed: [] }
-      const take = (d: MenuDone) => {
-        const m = menuResultOf(d)
-        done.copy = m.copy ?? done.copy
-        done.saved = m.saved ?? done.saved
-        done.items.push(...m.items)
-        done.failed.push(...m.failed)
-        return m.output
-      }
-      done.output = await uiRunMenu(pluginUrl(e.plugin, e.module), {
-        ...menuApi(e),
-        id: entry,
-        sandbox: async () => take(await invoke<MenuDone>('sandbox_run_menu', { ids, plugin: e.plugin, entry })),
-      })
-      if (done.output && 'save' in done.output) {
-        const { name, data } = done.output.save
-        done.output = undefined
-        const body = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data)
-        const to = await invoke<string | null>('export_data', body, { headers: { name: JSON.stringify(name) } })
-        done.saved = to ?? done.saved
-      }
-      return done
-    },
+    itemMenu: (ids) => invoke<MenuGroup[]>('item_menu', { ids }),
+    runItemMenu: async (ids, plugin, entry) =>
+      menuResultOf(await invoke<MenuDone>('run_item_menu', { ids, plugin, entry })),
     async waveform(id) {
       const wave = new Uint8Array(await invoke<ArrayBuffer>('waveform', { id }))
       return wave.length > 0 ? wave : null

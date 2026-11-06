@@ -9,7 +9,7 @@ WASM の右クリックメニューで、ライブラリを読んでノートを
 
 | ファイル      | 中身                                                                                    |
 | ------------- | --------------------------------------------------------------------------------------- |
-| `plugin.json` | `menu` を `"all"`・`sandbox` にし、`permissions` に `library` と `notes` を書く         |
+| `plugin.json` | `menu` を `"all"` にし、`permissions` に `library` と `notes` を書く                    |
 | `src/lib.rs`  | `menu-role` を export し、`run_menu` で `library::item` を読んで `notes::create` を呼ぶ |
 
 `node scripts/dev-library.ts` が SDK の CLI でビルドし、開発中のアプリに入れます。

@@ -95,13 +95,11 @@ pub enum Fit {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum By {
-    Sandbox,
-    Elevated,
-    #[serde(other)]
-    Unknown,
+    Wasm,
+    Script,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -123,9 +121,9 @@ pub struct FormatDecl {
 impl FormatDecl {
     fn by(&self, part: Part) -> By {
         if self.script.contains(&part) {
-            By::Elevated
+            By::Script
         } else {
-            By::Sandbox
+            By::Wasm
         }
     }
 }
@@ -172,7 +170,6 @@ pub enum MenuFormats {
 #[derive(Debug, Clone, Deserialize)]
 pub struct MenuDecl {
     pub formats: MenuFormats,
-    pub by: By,
 }
 
 impl MenuDecl {
@@ -314,15 +311,11 @@ impl Manifest {
             .or_else(|| self.optional.commands.get(command))
     }
 
-    fn menu_by(&self, by: By) -> bool {
-        self.menu.as_ref().is_some_and(|m| m.by == by)
-    }
-
-    fn wants_sandbox(&self) -> bool {
+    fn wants_wasm(&self) -> bool {
         self.formats
             .iter()
-            .any(|d| d.parts.iter().any(|&p| d.by(p) == By::Sandbox))
-            || self.menu_by(By::Sandbox)
+            .any(|d| d.parts.iter().any(|&p| d.by(p) == By::Wasm))
+            || self.menu.is_some()
             || self.hooks.added.is_some()
     }
 
@@ -330,7 +323,6 @@ impl Manifest {
         self.formats.iter().any(|d| !d.script.is_empty())
             || self.links.iter().any(|d| !d.parts.is_empty())
             || !self.screens.is_empty()
-            || self.menu_by(By::Elevated)
     }
 
     fn caps(&self) -> Vec<Cap> {
@@ -346,14 +338,14 @@ impl Manifest {
             .chain(self.links.iter().flat_map(|d| {
                 d.parts.iter().map(|&part| Cap {
                     part,
-                    by: By::Elevated,
+                    by: By::Script,
                 })
             }))
-            .chain(self.menu.as_ref().map(|m| Cap {
+            .chain(self.menu.as_ref().map(|_| Cap {
                 part: Part::Menu,
-                by: m.by,
+                by: By::Wasm,
             }))
-            .filter(|c| c.part != Part::Unknown && c.by != By::Unknown)
+            .filter(|c| c.part != Part::Unknown)
             .collect();
         out.sort();
         out.dedup();
@@ -530,13 +522,6 @@ pub struct ScreenInfo {
     pub place: bool,
     #[serde(flatten)]
     pub ui: UiRef,
-}
-
-/// 右クリックメニューに項目を足すプラグイン。ui は elevated が受け持つときの読み込み先。
-#[derive(Debug, Clone)]
-pub struct MenuSide {
-    pub plugin: String,
-    pub ui: Option<UiRef>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -966,23 +951,23 @@ impl Registry {
             );
         }
         for (i, p) in self.plugins.iter_mut().enumerate() {
-            if p.manifest.wants_sandbox() && p.wasm.is_none() && p.problems.is_empty() {
+            if p.manifest.wants_wasm() && p.wasm.is_none() && p.problems.is_empty() {
                 p.problems.push(error(
                     "plugin.wasm が見つからないため、WASM で受け持つものを処理できません".into(),
                 ));
             }
             if let Some(w) = &p.wasm
-                && p.manifest.menu_by(By::Sandbox)
+                && p.manifest.menu.is_some()
                 && !w.has(runtime::Role::Menu)
             {
                 p.problems.push(error(
-                    "menu の by が sandbox ですが、plugin.wasm は menu と run-menu を export していません".into(),
+                    "menu を書いていますが、plugin.wasm は menu と run-menu を export していません"
+                        .into(),
                 ));
             }
             p.problems.extend(misspelled(&p.manifest));
             if let Some(MenuDecl {
                 formats: MenuFormats::Every(MenuEvery::Unknown),
-                ..
             }) = &p.manifest.menu
             {
                 p.problems.push(error(
@@ -996,11 +981,7 @@ impl Registry {
                             .into(),
                     ));
                 }
-                if h.by != By::Sandbox {
-                    p.problems.push(error(
-                        "hooks の added の by には sandbox しか書けません".into(),
-                    ));
-                } else if p.wasm.as_ref().is_some_and(|w| !w.has(runtime::Role::Hook)) {
+                if p.wasm.as_ref().is_some_and(|w| !w.has(runtime::Role::Hook)) {
                     p.problems.push(error(
                         "hooks の added を書いていますが、plugin.wasm は hook を export していません"
                             .into(),
@@ -1181,7 +1162,7 @@ impl Registry {
     }
 
     /// 右クリックメニューに項目を足すプラグイン。targets（拡張子とノートか）のすべてを対象にするものだけを、並び順に返す。
-    pub fn menus(&self, targets: &[(&str, bool)]) -> Vec<MenuSide> {
+    pub fn menus(&self, targets: &[(&str, bool)]) -> Vec<String> {
         if targets.is_empty() {
             return Vec::new();
         }
@@ -1191,25 +1172,9 @@ impl Registry {
                     .iter()
                     .all(|&(ext, note)| self.menu_covers(i, ext, note))
             })
-            .filter_map(|i| {
-                let p = &self.plugins[i];
-                let by = p.manifest.menu.as_ref()?.by;
-                let ui = match by {
-                    By::Sandbox => {
-                        p.wasm.as_ref().filter(|w| w.has(runtime::Role::Menu))?;
-                        None
-                    }
-                    By::Elevated => Some(UiRef {
-                        plugin: p.manifest.id.clone(),
-                        module: p.script.clone()?,
-                    }),
-                    By::Unknown => return None,
-                };
-                Some(MenuSide {
-                    plugin: p.manifest.id.clone(),
-                    ui,
-                })
-            })
+            .map(|i| &self.plugins[i])
+            .filter(|p| p.wasm.as_ref().is_some_and(|w| w.has(runtime::Role::Menu)))
+            .map(|p| p.manifest.id.clone())
             .collect()
     }
 
@@ -1233,7 +1198,7 @@ impl Registry {
                         .hooks
                         .added
                         .as_ref()
-                        .is_some_and(|h| h.by == By::Sandbox && h.covers(ext, note))
+                        .is_some_and(|h| h.covers(ext, note))
             })
             .map(|(i, _)| i)
             .collect()
@@ -1281,10 +1246,10 @@ impl Registry {
         &self.plugins[i].manifest.name
     }
 
-    /// ショートカットは、URL ごとに受け持つものを画面が呼ぶので Elevated にする。
+    /// ショートカットは、URL ごとに受け持つものを画面が呼ぶので Script にする。
     pub fn handles(&self, ext: &str, part: Part) -> Option<By> {
         if ext == shortcut::EXT {
-            return SHORTCUT_PARTS.contains(&part).then_some(By::Elevated);
+            return SHORTCUT_PARTS.contains(&part).then_some(By::Script);
         }
         self.formats.get(ext)?.parts.get(&part).copied()
     }
@@ -1304,12 +1269,11 @@ impl Registry {
     fn slot(&self, ext: &str, part: Part, by: By) -> Option<(usize, &str)> {
         let (key, f) = self.formats.get_key_value(ext)?;
         let ok = match by {
-            By::Elevated => f.parts.get(&part) == Some(&By::Elevated),
-            By::Sandbox => part
+            By::Script => f.parts.get(&part) == Some(&By::Script),
+            By::Wasm => part
                 .wasm_role()
                 .zip(self.plugins[f.owner].wasm.as_ref())
                 .is_some_and(|(r, w)| w.has(r)),
-            By::Unknown => false,
         };
         ok.then_some((f.owner, key.as_str()))
     }
@@ -1345,12 +1309,12 @@ impl Registry {
 
     /// WASM が詳細用に PNG にしたものを取っておくときの、プラグインの ID と形式。
     pub fn keeps_decoded(&self, ext: &str) -> Option<(&str, &str)> {
-        let (i, format) = self.part(ext, Part::View, By::Sandbox)?;
+        let (i, format) = self.part(ext, Part::View, By::Wasm)?;
         Some((self.plugins[i].manifest.id.as_str(), format))
     }
 
     pub fn ui_of(&self, ext: &str, part: Part) -> Option<UiRef> {
-        let (i, _) = self.part(ext, part, By::Elevated)?;
+        let (i, _) = self.part(ext, part, By::Script)?;
         let p = &self.plugins[i];
         Some(UiRef {
             plugin: p.manifest.id.clone(),
@@ -1361,8 +1325,8 @@ impl Registry {
     /// 詳細に出すもの。parts の view があれば、media より先に使う。
     pub fn view(&self, ext: &str) -> Option<ViewOut> {
         match self.handles(ext, Part::View) {
-            Some(By::Elevated) => return self.ui_of(ext, Part::View).map(ViewOut::Ui),
-            Some(By::Sandbox) => return Some(ViewOut::Decoded),
+            Some(By::Script) => return self.ui_of(ext, Part::View).map(ViewOut::Ui),
+            Some(By::Wasm) => return Some(ViewOut::Decoded),
             _ => {}
         }
         Some(match self.formats.get(ext)?.media? {
@@ -1613,7 +1577,7 @@ impl Registry {
                         });
                     }
                 }
-                // elevated は依存先の関数を呼べるので、依存先が動かせるコマンドも見せる
+                // スクリプトは依存先の関数を呼べるので、依存先が動かせるコマンドも見せる
                 let via = if m.wants_script() {
                     self.reachable(i)
                         .into_iter()
@@ -1897,11 +1861,6 @@ fn misspelled(m: &Manifest) -> Vec<Problem> {
             )));
         }
     }
-    if m.menu.as_ref().is_some_and(|x| x.by == By::Unknown) {
-        out.push(error(
-            "menu の by には sandbox・elevated のどちらかを書きます".into(),
-        ));
-    }
     out
 }
 
@@ -1974,8 +1933,8 @@ fn format_parts(p: &Loaded, d: &FormatDecl, problems: &mut Vec<Problem>) -> Hash
         }
         let by = d.by(part);
         let ok = match by {
-            By::Elevated => p.script.is_some(),
-            By::Sandbox => match (part.wasm_role(), &p.wasm) {
+            By::Script => p.script.is_some(),
+            By::Wasm => match (part.wasm_role(), &p.wasm) {
                 (None, _) => {
                     problems.push(error(format!(
                         "「.{ext}」の {} はスクリプトでしか受け持てないため、script にも書きます",
@@ -1992,7 +1951,6 @@ fn format_parts(p: &Loaded, d: &FormatDecl, problems: &mut Vec<Problem>) -> Hash
                 }
                 (Some(_), w) => w.is_some(),
             },
-            By::Unknown => false,
         };
         if ok {
             out.insert(part, by);

@@ -5,7 +5,7 @@ use serde_json::Value;
 use tauri::{Manager, State};
 
 use crate::library::shortcut;
-use crate::plugin::ipc::{Elevated, Target};
+use crate::plugin::ipc::{ScriptCall, Target};
 use crate::plugin::{self, Part, Reads, UiOwner, ViewOut};
 use crate::session::{Current, with, with_session};
 use crate::shell::web;
@@ -34,7 +34,7 @@ pub(crate) struct Details {
     size: u64,
     rows: Vec<Detail>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    elevated: Option<Elevated>,
+    script: Option<ScriptCall>,
     /// ショートカットが指す URL。URL ごとに受け持つものが行を作る。
     #[serde(skip_serializing_if = "Option::is_none")]
     url: Option<String>,
@@ -46,7 +46,7 @@ pub(crate) fn rows_of(rows: Vec<(String, String)>) -> Vec<Detail> {
         .collect()
 }
 
-/// elevated が受け持つときは、行を作らずに elevated を返す（画面が作る）。
+/// スクリプトが受け持つときは、行を作らずに script を返す（画面が作る）。
 #[tauri::command]
 pub(crate) async fn item_details(cur: State<'_, Current>, id: String) -> Result<Details, String> {
     let t = Target::of(&cur, &id)?;
@@ -57,7 +57,7 @@ pub(crate) async fn item_details(cur: State<'_, Current>, id: String) -> Result<
         return Ok(Details {
             size,
             rows: Vec::new(),
-            elevated: None,
+            script: None,
             url: shortcut::url_of(&t.path),
         });
     }
@@ -65,7 +65,7 @@ pub(crate) async fn item_details(cur: State<'_, Current>, id: String) -> Result<
         return Ok(Details {
             size,
             rows: Vec::new(),
-            elevated: Some(Elevated {
+            script: Some(ScriptCall {
                 ui,
                 items: vec![t.item()],
             }),
@@ -81,7 +81,7 @@ pub(crate) async fn item_details(cur: State<'_, Current>, id: String) -> Result<
     Ok(Details {
         size,
         rows: rows_of(rows),
-        elevated: None,
+        script: None,
         url: None,
     })
 }

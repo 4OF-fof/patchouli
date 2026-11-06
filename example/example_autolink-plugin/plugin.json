@@ -3,6 +3,6 @@
   "name": "example_autolink",
   "version": "0.1.0",
   "description": "取り込みのフックの例。md を取り込んだとき、本文に出てくるノートの名前のうち、内容の近いものをそのノートへのリンクにする。近さは EmbeddingGemma で測る",
-  "hooks": { "added": { "formats": ["md"], "by": "sandbox" } },
+  "hooks": { "added": { "formats": ["md"] } },
   "permissions": ["library", "notes", "embed"]
 }

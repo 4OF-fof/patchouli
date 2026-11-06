@@ -422,7 +422,7 @@ pub(crate) async fn set_plugin_setting(
         }
     }
     items.retain(|it| {
-        it.thumb.is_none() && plugins.handles(&it.ext, Part::Thumbnail) == Some(By::Elevated)
+        it.thumb.is_none() && plugins.handles(&it.ext, Part::Thumbnail) == Some(By::Script)
     });
     if !jobs.is_empty() {
         background::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));

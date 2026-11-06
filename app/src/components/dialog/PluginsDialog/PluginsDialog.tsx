@@ -107,7 +107,7 @@ const need = (d: { need: string; min?: string; from?: string }) =>
 
 // フルアクセスはほかの権限を含むので、それと並べるのは外部ツールの実行だけにする
 const perms = (p: PluginStatus) => {
-  const full = p.script || p.caps.some((c) => c.by === 'elevated')
+  const full = p.script || p.caps.some((c) => c.by === 'script')
   return [
     ...(full ? [{ ...FULL_ACCESS, full: true }] : []),
     ...(!full && p.formats.length

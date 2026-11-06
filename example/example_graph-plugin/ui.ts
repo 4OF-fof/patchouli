@@ -232,11 +232,5 @@ function mount(root: HTMLElement, api: ScreenApi) {
 }
 
 export default definePlugin({
-  async menu() {
-    return [{ id: 'graph', label: 'ページの関係図を開く' }]
-  },
-  async runMenu() {
-    return { screen: { id: 'graph' } }
-  },
   screens: { graph: { mount } },
 })

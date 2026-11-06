@@ -1171,7 +1171,7 @@ pub enum ViewOut {
     },
 }
 
-/// elevated から WASM を呼ぶときに、どのプラグインのものかを決める元。
+/// スクリプトから WASM を呼ぶときに、どのプラグインのものかを決める元。
 pub enum UiOwner<'a> {
     /// 拡張子の part を受け持つもの。
     Format(Part),
@@ -1306,7 +1306,7 @@ impl Runner {
             r.call(
                 ext,
                 Part::Thumbnail,
-                By::Sandbox,
+                By::Wasm,
                 path,
                 THUMBNAIL_LIMIT,
                 |p, s, fmt, file| p.call_thumbnail(s, fmt, &file, edge),
@@ -1320,7 +1320,7 @@ impl Runner {
         let r = self.call(
             ext,
             Part::Details,
-            By::Sandbox,
+            By::Wasm,
             path,
             DETAILS_LIMIT,
             |p, s, fmt, file| p.call_details(s, fmt, &file),
@@ -1339,7 +1339,7 @@ impl Runner {
         let r = self.call(
             ext,
             Part::Excerpt,
-            By::Sandbox,
+            By::Wasm,
             path,
             CONTENT_LIMIT,
             |p, s, fmt, file| p.call_excerpt(s, fmt, &file, budget),
@@ -1469,7 +1469,7 @@ impl Runner {
         self.call(
             ext,
             Part::View,
-            By::Sandbox,
+            By::Wasm,
             path,
             VIEW_LIMIT,
             |p, s, fmt, file| p.call_decode(s, fmt, &file),
@@ -1499,8 +1499,8 @@ impl Runner {
             UiOwner::Format(part) => {
                 let (i, format) = self
                     .reg
-                    .part(ext, part, By::Elevated)
-                    .ok_or("elevated で対応するプラグインがありません")?;
+                    .part(ext, part, By::Script)
+                    .ok_or("スクリプトで対応するプラグインがありません")?;
                 (i, format.to_owned())
             }
         };

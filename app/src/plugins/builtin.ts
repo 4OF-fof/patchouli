@@ -158,10 +158,10 @@ const resolvedBuiltin = resolveFormats(BUILTIN_MANIFESTS)
 const capsOf = (m: Manifest): Cap[] => {
   const caps: Cap[] = [
     ...(m.formats ?? []).flatMap((d) =>
-      (d.parts ?? []).map((part): Cap => ({ part, by: d.script?.includes(part) ? 'elevated' : 'sandbox' })),
+      (d.parts ?? []).map((part): Cap => ({ part, by: d.script?.includes(part) ? 'script' : 'wasm' })),
     ),
-    ...(m.links ?? []).flatMap((d) => (d.parts ?? []).map((part): Cap => ({ part, by: 'elevated' }))),
-    ...(m.menu ? [{ part: 'menu', by: m.menu.by } as const] : []),
+    ...(m.links ?? []).flatMap((d) => (d.parts ?? []).map((part): Cap => ({ part, by: 'script' }))),
+    ...(m.menu ? [{ part: 'menu', by: 'wasm' } as const] : []),
   ]
   return caps.filter((c, i) => caps.findIndex((x) => x.part === c.part && x.by === c.by) === i)
 }

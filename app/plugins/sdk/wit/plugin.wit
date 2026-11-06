@@ -342,7 +342,7 @@ interface excerpt {
   excerpt: func(format: string, f: file, budget: excerpt-budget) -> result<list<excerpt-part>, string>;
 }
 
-/// 右クリックメニュー。plugin.json の menu の by を sandbox にしたときに使う。
+/// 右クリックメニュー。plugin.json の menu を書いたときに使う。
 interface menu {
   use types.{target, menu-item, menu-output, read, run};
 

@@ -88,7 +88,7 @@ export interface LinkDecl {
   parts?: Part[]
 }
 
-/** 本体に足す画面。ホームやすべてと並べて、場所のメニューやコマンドから開ける。描くのは elevated の screens。 */
+/** 本体に足す画面。ホームやすべてと並べて、場所のメニューやコマンドから開ける。描くのはスクリプトの screens。 */
 export interface ScreenDecl {
   /** 場所のメニューやタブに出す名前。 */
   label: string
@@ -99,21 +99,19 @@ export interface ScreenDecl {
 }
 
 /**
- * 右クリックメニューに項目を足す対象と担当。formats は拡張子の並び、all（ノートも含めたすべて）、files（ノートを除いたすべて）のどれか。
+ * 右クリックメニューに項目を足す対象。WASM の menu・run-menu で項目を作る。formats は拡張子の並び、all（ノートも含めたすべて）、files（ノートを除いたすべて）のどれか。
  * ノートの拡張子は md。選んだものがすべて対象のときだけ、項目を足す。同じものを対象にするプラグインが複数あれば、プラグインごとに並べる。
  */
 export interface MenuDecl {
   formats: string[] | 'all' | 'files'
-  /** sandbox は WASM の menu・run-menu、elevated は PluginModule の menu・runMenu で項目を作る。 */
-  by: 'sandbox' | 'elevated'
 }
 
 /**
  * 取り込みのフック。added に書いた形式のものを取り込んだとき、WASM の hook の added を裏で呼ぶ。
- * formats の書き方は menu と同じで、by は sandbox だけ。
+ * formats の書き方は menu と同じ。
  */
 export interface HooksDecl {
-  added?: { formats: string[] | 'all' | 'files'; by: 'sandbox' }
+  added?: { formats: string[] | 'all' | 'files' }
 }
 
 /**
@@ -135,7 +133,7 @@ export interface Manifest {
   /** あれば使うもの。 */
   optional?: Deps
   /**
-   * formats の script、links、screens、by が elevated の menu を受け持つ ES モジュール（plugin.json からの相対パス、.js）。
+   * formats の script、links、screens を受け持つ ES モジュール（plugin.json からの相対パス、.js）。
    * 中身は PluginModule で、本体の画面と同じ WebView で、本体と同じ権限で動く。ビルドでは、拡張子を .ts にしたものから作る。
    */
   script?: string

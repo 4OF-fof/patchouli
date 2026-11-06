@@ -129,8 +129,8 @@ impl Target {
         }
     }
 
-    pub(crate) fn item(&self) -> ElevatedItem {
-        ElevatedItem {
+    pub(crate) fn item(&self) -> ScriptItem {
+        ScriptItem {
             id: self.id.clone(),
             name: self
                 .path
@@ -143,21 +143,21 @@ impl Target {
     }
 }
 
-/// elevated に渡す素材。
+/// スクリプトに渡す素材。
 #[derive(Serialize)]
-pub(crate) struct ElevatedItem {
+pub(crate) struct ScriptItem {
     id: String,
     name: String,
     ext: String,
     file: PathBuf,
 }
 
-/// elevated が受け持つときに、画面に呼んでもらう先。
+/// スクリプトが受け持つときに、画面に呼んでもらう先。
 #[derive(Serialize)]
-pub(crate) struct Elevated {
+pub(crate) struct ScriptCall {
     #[serde(flatten)]
     ui: UiRef,
-    items: Vec<ElevatedItem>,
+    items: Vec<ScriptItem>,
 }
 
 pub(crate) fn targets(cur: &State<Current>, ids: &[String]) -> Result<Vec<Target>, String> {
@@ -188,13 +188,6 @@ pub(crate) fn env_of(app: &tauri::AppHandle, thumbs: &Path) -> Arc<Env> {
                 .map(info_of)
         }),
     })
-}
-
-pub(crate) fn elevated_of(ui: UiRef, ts: &[Target]) -> Elevated {
-    Elevated {
-        ui,
-        items: ts.iter().map(Target::item).collect(),
-    }
 }
 
 /// プラグインの置き場と、そこを使うライブラリ。最近開いたものにないライブラリは、使っていないことにする。

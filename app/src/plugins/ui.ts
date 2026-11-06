@@ -13,17 +13,10 @@ import type {
   Item,
   LinkApi,
   LinkThumbnailApi,
-  MenuApi,
-  MenuItem,
-  MenuOutput,
   PluginModule,
-  RunMenuApi,
   Thumbnail,
   ThumbnailApi,
-  ToastLevel,
 } from '../../plugins/sdk'
-
-const TOAST_LEVELS: ToastLevel[] = ['info', 'success', 'warning', 'error']
 
 export type UiApi = Api
 export type UiItem = Item
@@ -50,7 +43,7 @@ export const EDGE = 512
 
 const loaded = new Map<string, Promise<UiModule>>()
 
-const MODULE_FNS = ['mount', 'thumbnail', 'hover', 'embed', 'details', 'menu', 'runMenu', 'excerpt']
+const MODULE_FNS = ['mount', 'thumbnail', 'hover', 'embed', 'details', 'excerpt']
 const LINK_FNS = ['thumbnail', 'mount', 'details', 'excerpt', 'hover', 'embed']
 
 const isFn = (v: unknown) => v === undefined || typeof v === 'function'
@@ -110,55 +103,13 @@ export async function uiThumbnail(url: string, api: Omit<ThumbnailApi, 'edge'>):
 const isText = (v: unknown, k: string) => typeof Reflect.get(Object(v), k) === 'string'
 
 /** label と value が文字列のものだけを残す。 */
-const pairs = <T extends Detail | MenuItem>(v: unknown, keys: [string, string]): T[] =>
-  Array.isArray(v) ? v.filter((x): x is T => keys.every((k) => isText(x, k))) : []
+const details = (v: unknown): Detail[] =>
+  Array.isArray(v) ? v.filter((x): x is Detail => isText(x, 'label') && isText(x, 'value')) : []
 
 export async function uiDetails(url: string, api: DetailsApi): Promise<Detail[]> {
   const mod = await loadUi(url)
   if (!mod.details) throw new Error('ファイルの詳細を作る関数（details）が見つかりません')
-  return pairs(await mod.details(api), ['label', 'value'])
-}
-
-export async function uiMenu(url: string, api: MenuApi): Promise<MenuItem[]> {
-  const mod = await loadUi(url)
-  if (!mod.menu) throw new Error('右クリックメニューの項目を作る関数（menu）が見つかりません')
-  return pairs(await mod.menu(api), ['id', 'label'])
-}
-
-/** 形の合わないものは出さない。 */
-export const menuOutputOf = (v: unknown): MenuOutput | undefined => {
-  const toast: unknown = Reflect.get(Object(v), 'toast')
-  if (typeof toast === 'string') {
-    const level = TOAST_LEVELS.find((l) => l === Reflect.get(Object(v), 'level'))
-    return level ? { toast, level } : { toast }
-  }
-  const save: unknown = Reflect.get(Object(v), 'save')
-  if (typeof save === 'object' && save !== null) {
-    const name: unknown = Reflect.get(save, 'name')
-    const data: unknown = Reflect.get(save, 'data')
-    const ok = typeof data === 'string' || data instanceof Uint8Array || data instanceof ArrayBuffer
-    return typeof name === 'string' && ok ? { save: { name, data } } : undefined
-  }
-  const s: unknown = Reflect.get(Object(v), 'screen')
-  if (typeof s === 'object' && s !== null) {
-    const id: unknown = Reflect.get(s, 'id')
-    return typeof id === 'string' ? { screen: { id } } : undefined
-  }
-  const o: unknown = Reflect.get(Object(v), 'overlay')
-  if (typeof o !== 'object' || o === null) return undefined
-  const title: unknown = Reflect.get(o, 'title')
-  return {
-    overlay: {
-      title: typeof title === 'string' ? title : undefined,
-      rows: pairs(Reflect.get(o, 'rows'), ['label', 'value']),
-    },
-  }
-}
-
-export async function uiRunMenu(url: string, api: RunMenuApi): Promise<MenuOutput | undefined> {
-  const mod = await loadUi(url)
-  if (!mod.runMenu) throw new Error('右クリックメニューの項目を実行する関数（runMenu）が見つかりません')
-  return menuOutputOf(await mod.runMenu(api))
+  return details(await mod.details(api))
 }
 
 export async function uiLinkThumbnail(url: string, api: Omit<LinkThumbnailApi, 'edge'>): Promise<MadeThumbnail | null> {
@@ -172,7 +123,7 @@ export async function uiLinkDetails(url: string, api: LinkApi): Promise<Detail[]
   const mod = await loadUi(url)
   const links = mod.links
   if (!links?.details) throw new Error('URL の詳細を作る関数（links.details）が見つかりません')
-  return pairs(await links.details(api), ['label', 'value'])
+  return details(await links.details(api))
 }
 
 /** 区間を作るのを待つ長さ。長い動画では数百回シークする。 */

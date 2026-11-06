@@ -90,54 +90,6 @@ export interface DetailsApi<T extends PluginTypes = PluginTypes> extends Api<T> 
   sandbox(): Promise<Detail[]>
 }
 
-/** 知らせの重要度。info と success は 4 秒で消え、warning と error は閉じるまで残る。 */
-export type ToastLevel = 'info' | 'success' | 'warning' | 'error'
-
-/** 右クリックメニューに足す項目。id は runMenu で受け取る。 */
-export interface MenuItem {
-  id: string
-  label: string
-}
-
-/** 右クリックメニューの窓口。targets は選んでいるものごとの窓口で、どれも plugin.json の menu の対象。 */
-export interface MenuApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
-  targets: Api<T>[]
-  /** WASM の menu を呼ぶ。plugin.wasm がなければ失敗する。 */
-  sandbox(): Promise<MenuItem[]>
-}
-
-/**
- * 右クリックメニューの項目を実行したあとの出し方。WIT の menu-output と同じ。
- * toast は終わったことなどの短い知らせで、level で色が変わる（既定は info）。
- * overlay は行の並びを画面に重ねて見せる（行ごとに値をコピーできる）。
- * screen は plugin.json の screens の画面をタブで開き、選んだものを渡す。
- */
-export type MenuOutput =
-  | { toast: string; level?: ToastLevel }
-  | { overlay: { title?: string; rows: Detail[] } }
-  | { screen: { id: string } }
-  | { save: SaveFile }
-
-/**
- * ライブラリの外へ書き出すファイル。本体が保存先を聞いて書く。name は拡張子を含めた既定の名前。
- * 書き出せるのは 1 つだけなので、複数あるときは zip などにまとめる。文字列は UTF-8 で書く。
- */
-export interface SaveFile {
-  name: string
-  data: Uint8Array | ArrayBuffer | string
-}
-
-/** 右クリックメニューの項目が選ばれたときの窓口。id は選ばれた項目。 */
-export interface RunMenuApi<T extends PluginTypes = PluginTypes> extends OwnApi<T> {
-  targets: Api<T>[]
-  id: string
-  /**
-   * WASM の run-menu を呼ぶ。plugin.wasm がなければ失敗する。
-   * WASM が頼んだコピー・ノートの作成・素材の登録は、本体が済ませてから返す。
-   */
-  sandbox(): Promise<MenuOutput | undefined>
-}
-
 /** 内容で探したり分けたりするときに読む区間の上限。WIT の excerpt-budget と同じ。 */
 export interface ExcerptBudget {
   /** 画像の区間の数。 */
@@ -323,10 +275,6 @@ export interface PluginModule<T extends PluginTypes = PluginTypes> {
   embed?(el: HTMLElement, api: Api<T>): void | (() => void)
   /** ファイルの詳細に足す行。 */
   details?(api: DetailsApi<T>): Promise<Detail[]>
-  /** 右クリックメニューに足す項目。 */
-  menu?(api: MenuApi<T>): Promise<MenuItem[]>
-  /** menu で返した項目が選ばれたとき。文字列を返すと、本体が通知として出す。 */
-  runMenu?(api: RunMenuApi<T>): Promise<MenuOutput | undefined | void>
   /** 内容で探したり分けたりするときに読む区間。区間の分け方はプラグインが決め、budget を超えない。 */
   excerpt?(api: ExcerptApi<T>): Promise<ExcerptPart[]>
   /** plugin.json の links で受け持つもの。 */

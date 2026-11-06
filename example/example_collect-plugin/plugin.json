@@ -3,6 +3,6 @@
   "name": "example_collect",
   "version": "0.1.0",
   "description": "WASM で右クリックメニューに項目を足す例。選んだ素材を埋め込み、選んだノートへのリンクを並べたページを作る",
-  "menu": { "formats": "all", "by": "sandbox" },
+  "menu": { "formats": "all" },
   "permissions": ["library", "notes"]
 }

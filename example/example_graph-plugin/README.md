@@ -8,9 +8,10 @@
 
 ## 作り
 
-| ファイル      | 中身                                                                                                         |
-| ------------- | ------------------------------------------------------------------------------------------------------------ |
-| `plugin.json` | `menu` を `md`・`elevated` にし、`screens` に `place: false` の画面 `graph` を書く |
-| `ui.ts`       | `runMenu` で `{ screen: { id: 'graph' } }` を返し、`screens.graph.mount` で図を描く            |
+| ファイル      | 中身                                                                                |
+| ------------- | ----------------------------------------------------------------------------------- |
+| `plugin.json` | `menu` を `md` にし、`screens` に `place: false` の画面 `graph` を書く              |
+| `src/lib.rs`  | `menu-role` を export し、`run_menu` で `MenuOutput::Screen("graph")` を返す        |
+| `ui.ts`       | `screens.graph.mount` で図を描く                                                    |
 
 `node scripts/dev-library.ts` が SDK の CLI でビルドし、開発中のアプリに入れます。

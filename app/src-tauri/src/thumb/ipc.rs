@@ -136,7 +136,7 @@ pub(crate) fn plan_thumbs<'a>(
             }
             it.wave_thumb = thumb::is_wave_thumb(&found);
             it.thumb = Some(found);
-        } else if by == Some(By::Sandbox) {
+        } else if by == Some(By::Wasm) {
             thumb::start_making(&it.file);
             jobs.push(thumb::Job {
                 id: it.id.clone(),
@@ -321,7 +321,7 @@ pub(crate) async fn put_thumbnail(
     let (src, out, cache, reads) = with_session(&cur, |s| {
         let mut reads = s.ui_reads.remove(&id).unwrap_or_default();
         let (path, ext) = s.lib.asset(&id)?;
-        if s.plugins.handles(&ext, Part::Thumbnail) != Some(By::Elevated) {
+        if s.plugins.handles(&ext, Part::Thumbnail) != Some(By::Script) {
             return Err(format!(
                 "「.{ext}」のサムネイルは UI ファイルで生成する設定になっていません"
             ));

@@ -8,11 +8,11 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::background;
 use crate::library::{self, ItemPatch, Library, ListDiff, Place, StoredItem};
-use crate::plugin::{self, Action, ItemInfo, MenuRun, MenuShown, Ran, Runner, TargetFile};
+use crate::plugin::{Action, ItemInfo, MenuRun, MenuShown, Ran, Runner, TargetFile};
 
 use crate::library::ipc::import_paths;
 use crate::plugin::ipc::call::{Detail, rows_of};
-use crate::plugin::ipc::{Elevated, Target, elevated_of, env_of, info_of, targets};
+use crate::plugin::ipc::{Target, env_of, info_of, targets};
 use crate::session::{Current, with, with_session};
 use crate::thumb::ipc::{make_thumbs, plan_thumbs};
 
@@ -69,7 +69,7 @@ pub(crate) enum MenuOutput {
 
 /// run-menu の結果。copy は写すもの、items は作ったノートと登録した素材、saved は書き出した先、
 /// failed は起こせなかったこと。書き換えたものは library-changed で知らせる。
-#[derive(Serialize, Default)]
+#[derive(Serialize)]
 pub(crate) struct MenuDone {
     output: Option<MenuOutput>,
     copy: Option<String>,
@@ -320,7 +320,7 @@ fn note_with(
 }
 
 /// 右クリックメニューに項目を足すプラグイン。
-fn menu_sides(ts: &[Target]) -> Vec<plugin::MenuSide> {
+fn menu_plugins(ts: &[Target]) -> Vec<String> {
     let Some(first) = ts.first() else {
         return Vec::new();
     };
@@ -328,7 +328,7 @@ fn menu_sides(ts: &[Target]) -> Vec<plugin::MenuSide> {
     first.plugins.menus(&keys)
 }
 
-/// elevated の runMenu が返した save を、聞いた保存先へ書く。やめたときは None。
+/// 本文の中身を、聞いた保存先へ書く。やめたときは None。
 #[tauri::command]
 pub(crate) async fn export_data(
     app: tauri::AppHandle,
@@ -365,21 +365,11 @@ fn entries_of(items: Vec<(String, String)>) -> Vec<MenuEntry> {
         .collect()
 }
 
-/// プラグイン 1 つが右クリックメニューに足すもの。elevated が受け持つときは、items は空で画面が作る。
+/// プラグイン 1 つが右クリックメニューに足すもの。
 #[derive(Serialize)]
 pub(crate) struct MenuGroup {
     plugin: String,
     items: Vec<MenuEntry>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    elevated: Option<Elevated>,
-}
-
-#[derive(Serialize)]
-pub(crate) struct RunMenuOut {
-    #[serde(flatten)]
-    done: MenuDone,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    elevated: Option<Elevated>,
 }
 
 /// 項目を作れなかったプラグインは、ほかのプラグインの項目を出せるよう、記録して飛ばす。
@@ -391,23 +381,15 @@ pub(crate) async fn item_menu(
 ) -> Result<Vec<MenuGroup>, String> {
     let ts = targets(&cur, &ids)?;
     let mut out = Vec::new();
-    for side in menu_sides(&ts) {
-        let (items, elevated) = match side.ui {
-            Some(ui) => (Vec::new(), Some(elevated_of(ui, &ts))),
-            None => match run_menu_of(&app, &cur, &ts, |r, files| r.menu(&side.plugin, files)) {
-                Ok(items) if items.is_empty() => continue,
-                Ok(items) => (entries_of(items), None),
-                Err(e) => {
-                    log::warn!("右クリックメニューの項目を作れない（{}）: {e}", side.plugin);
-                    continue;
-                }
-            },
-        };
-        out.push(MenuGroup {
-            plugin: side.plugin,
-            items,
-            elevated,
-        });
+    for plugin in menu_plugins(&ts) {
+        match run_menu_of(&app, &cur, &ts, |r, files| r.menu(&plugin, files)) {
+            Ok(items) if items.is_empty() => {}
+            Ok(items) => out.push(MenuGroup {
+                plugin,
+                items: entries_of(items),
+            }),
+            Err(e) => log::warn!("右クリックメニューの項目を作れない（{plugin}）: {e}"),
+        }
     }
     Ok(out)
 }
@@ -419,51 +401,11 @@ pub(crate) async fn run_item_menu(
     ids: Vec<String>,
     plugin: String,
     entry: String,
-) -> Result<RunMenuOut, String> {
-    let ts = targets(&cur, &ids)?;
-    let side = menu_sides(&ts)
-        .into_iter()
-        .find(|s| s.plugin == plugin)
-        .ok_or("メニューに対応するプラグインがありません")?;
-    match side.ui {
-        Some(ui) => Ok(RunMenuOut {
-            done: MenuDone::default(),
-            elevated: Some(elevated_of(ui, &ts)),
-        }),
-        None => {
-            let run = run_menu_of(&app, &cur, &ts, |r, files| {
-                r.run_menu(&plugin, files, &entry)
-            })?;
-            Ok(RunMenuOut {
-                done: finish_menu(&app, &cur, &ts, run)?,
-                elevated: None,
-            })
-        }
-    }
-}
-
-#[tauri::command]
-pub(crate) async fn sandbox_menu(
-    app: tauri::AppHandle,
-    cur: State<'_, Current>,
-    ids: Vec<String>,
-    plugin: String,
-) -> Result<Vec<MenuEntry>, String> {
-    let ts = targets(&cur, &ids)?;
-    Ok(entries_of(run_menu_of(&app, &cur, &ts, |r, files| {
-        r.menu(&plugin, files)
-    })?))
-}
-
-#[tauri::command]
-pub(crate) async fn sandbox_run_menu(
-    app: tauri::AppHandle,
-    cur: State<'_, Current>,
-    ids: Vec<String>,
-    plugin: String,
-    entry: String,
 ) -> Result<MenuDone, String> {
     let ts = targets(&cur, &ids)?;
+    if !menu_plugins(&ts).contains(&plugin) {
+        return Err("メニューに対応するプラグインがありません".into());
+    }
     let run = run_menu_of(&app, &cur, &ts, |r, files| {
         r.run_menu(&plugin, files, &entry)
     })?;

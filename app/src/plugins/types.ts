@@ -1,6 +1,7 @@
 /* プラグインの形。plugin.json と、Rust 側（src-tauri/src/plugin/）から届くもの。Rust 側と合わせる。 */
 
-import type { Deps, Fit, Media, Part, Permission, SettingValue } from '../../plugins/sdk'
+import type { Deps, Detail, Fit, Media, Part, Permission, SettingValue } from '../../plugins/sdk'
+import type { ToastLevel } from '../components/overlay/Toast/Toast'
 
 export type {
   CommandDep,
@@ -11,7 +12,6 @@ export type {
   Manifest,
   Media,
   MenuDecl,
-  MenuOutput,
   Part,
   Permission,
   PluginDep,
@@ -20,7 +20,16 @@ export type {
   SettingValue,
 } from '../../plugins/sdk'
 
-export type By = 'sandbox' | 'elevated'
+export type By = 'wasm' | 'script'
+
+/**
+ * 右クリックメニューの項目を実行したあとの出し方。WIT の menu-output を画面に合わせたもの。
+ * toast は短い知らせ、overlay は行の並び、screen は plugin.json の screens の画面をタブで開く。
+ */
+export type MenuOutput =
+  | { toast: string; level?: ToastLevel }
+  | { overlay: { title?: string; rows: Detail[] } }
+  | { screen: { id: string } }
 
 /** 受け持つもの。formats の Part に、plugin.json の menu の右クリックメニューを足したもの。 */
 export type CapPart = Part | 'menu'

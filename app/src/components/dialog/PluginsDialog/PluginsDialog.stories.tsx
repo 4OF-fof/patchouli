@@ -31,8 +31,8 @@ const text: PluginStatus = {
   optional: { commands: { pandoc: {} }, plugins: {} },
   via: [],
   caps: [
-    { part: 'thumbnail', by: 'elevated' },
-    { part: 'view', by: 'elevated' },
+    { part: 'thumbnail', by: 'script' },
+    { part: 'view', by: 'script' },
   ],
   formats: ['log', 'txt'],
   settings: [
@@ -155,7 +155,7 @@ const troubled: PluginReport = {
       },
       optional: none,
       via: [{ name: 'ffmpeg', plugin: '画像', required: true }],
-      caps: [{ part: 'thumbnail', by: 'sandbox' }],
+      caps: [{ part: 'thumbnail', by: 'wasm' }],
       formats: [],
       settings: [],
       problems: [
@@ -230,8 +230,8 @@ const developing: PluginReport = {
       optional: none,
       via: [],
       caps: [
-        { part: 'thumbnail', by: 'elevated' },
-        { part: 'view', by: 'elevated' },
+        { part: 'thumbnail', by: 'script' },
+        { part: 'view', by: 'script' },
       ],
       formats: ['csv'],
       settings: [],

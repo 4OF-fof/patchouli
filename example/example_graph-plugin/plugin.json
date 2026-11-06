@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "description": "右クリックメニューから画面を開く例。選んだノートを真ん中に置き、リンクでつながるページを図にする",
   "script": "ui.js",
-  "menu": { "formats": ["md"], "by": "elevated" },
+  "menu": { "formats": ["md"] },
   "screens": {
     "graph": {
       "label": "ページの関係図",

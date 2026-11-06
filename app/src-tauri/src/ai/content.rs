@@ -1,6 +1,6 @@
 //! 自動分類で読む区間を、プラグインに作らせてベクトルにする。
-//! sandbox が受け持つ形式は裏で WASM を呼び、elevated が受け持つ形式は画面に頼む（content-wanted）。
-//! elevated が api.sandbox() で呼んだ WASM の区間は、画面に渡さずにここで持ち、画面が返した区間と合わせる。
+//! WASM が受け持つ形式は裏で呼び、スクリプトが受け持つ形式は画面に頼む（content-wanted）。
+//! スクリプトが api.sandbox() で呼んだ WASM の区間は、画面に渡さずにここで持ち、画面が返した区間と合わせる。
 //! ベクトルにするのは 1 つのスレッドで、区間を作る側はそこへ 1 件ずつ渡す。
 
 use serde::{Deserialize, Serialize};
@@ -170,7 +170,7 @@ pub fn collect(
         })
         .collect();
     let (tx, rx) = sync_channel::<Work>(1);
-    let mut sandbox = Vec::new();
+    let mut wasm = Vec::new();
     let mut wanted = Vec::new();
     let mut by_thumb = Vec::new();
     let key = budget_key();
@@ -186,7 +186,7 @@ pub fn collect(
                     .map(|(ui, owner)| (url, ui, owner))
             });
         let (by, owner) = match &link {
-            Some((_, _, owner)) => (Some(By::Elevated), Some(owner.clone())),
+            Some((_, _, owner)) => (Some(By::Script), Some(owner.clone())),
             None => (
                 plugins.handles(&ext, Part::Excerpt),
                 plugins.excerpt_owner(&ext),
@@ -212,8 +212,8 @@ pub fn collect(
             thumb,
         };
         match by {
-            Some(By::Sandbox) => sandbox.push((ext, it.file.clone(), work)),
-            Some(By::Elevated) => {
+            Some(By::Wasm) => wasm.push((ext, it.file.clone(), work)),
+            Some(By::Script) => {
                 let (url, ui) = match link {
                     Some((url, ui, _)) => (Some(url), ui),
                     None => match plugins.ui_of(&ext, Part::Excerpt) {
@@ -245,13 +245,13 @@ pub fn collect(
                     );
                 }
             }
-            Some(By::Unknown) | None => by_thumb.push(work),
+            None => by_thumb.push(work),
         }
     }
     log::info!(
-        "ベクトルを作る: 文章 {} 件・sandbox {} 件・elevated {} 件・サムネイル {} 件",
+        "ベクトルを作る: 文章 {} 件・WASM {} 件・スクリプト {} 件・サムネイル {} 件",
         texts.len(),
-        sandbox.len(),
+        wasm.len(),
         wanted.len(),
         by_thumb.len()
     );
@@ -285,7 +285,7 @@ pub fn collect(
     crate::background::spawn(move || {
         let mut runner = Runner::new(plugins);
         runner.set_stop(Arc::clone(&stop));
-        for (ext, file, mut work) in sandbox {
+        for (ext, file, mut work) in wasm {
             if stop.load(Ordering::Relaxed) {
                 return;
             }
@@ -364,7 +364,7 @@ fn embed_all(
     !stop.load(Ordering::Relaxed)
 }
 
-/// 画面が区間を返さないまま、これだけ何も届かなければ、残りの頼みを取り下げる。sandbox の 1 件にかかる上限より長くする。
+/// 画面が区間を返さないまま、これだけ何も届かなければ、残りの頼みを取り下げる。WASM の 1 件にかかる上限より長くする。
 const STALL: Duration = Duration::from_secs(180);
 
 /// 届いたものを順に渡す。止めたら終える。
