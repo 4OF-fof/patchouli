@@ -12,6 +12,8 @@ use tauri::{
     WebviewWindowBuilder, Wry,
 };
 
+use crate::shell::toast;
+
 /// 本体の画面の WebView。ほかの WebView（外のページ）からは、本体の関数とプラグインのファイルを使わせない。
 pub const MAIN: &str = "main";
 /// 本体の画面が window.open で開く、タブを出す別のウィンドウの label の頭。中身は本体の画面の JS が描く。
@@ -29,20 +31,25 @@ pub fn popout(app: &AppHandle, url: Url, features: NewWindowFeatures) -> NewWind
     if url.as_str() != "about:blank" {
         return NewWindowResponse::Deny;
     }
-    let label = format!("{POPOUT}{}", POPOUTS.fetch_add(1, Ordering::Relaxed));
-    // 枠は本体の画面が描くので、OS の枠は外す
-    let built = WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))
-        .window_features(features)
-        .title("Patchouli")
-        .decorations(false)
-        .on_document_title_changed(|w, title| {
-            if let Err(e) = w.set_title(&title) {
-                log::warn!("別のウィンドウの名前を変えられない: {e}");
-            }
-        })
-        .build();
+    let built = if toast::take_expected() {
+        toast::build(app, url, features)
+    } else {
+        let label = format!("{POPOUT}{}", POPOUTS.fetch_add(1, Ordering::Relaxed));
+        // 枠は本体の画面が描くので、OS の枠は外す
+        WebviewWindowBuilder::new(app, &label, WebviewUrl::External(url))
+            .window_features(features)
+            .title("Patchouli")
+            .decorations(false)
+            .on_document_title_changed(|w, title| {
+                if let Err(e) = w.set_title(&title) {
+                    log::warn!("別のウィンドウの名前を変えられない: {e}");
+                }
+            })
+            .build()
+    };
     match built {
         Ok(window) => {
+            let label = window.label().to_owned();
             // 開いた順に label を知らせる。本体の画面は、これで窓のボタンとドラッグをその窓に向ける
             if let Err(e) = app.emit_to(MAIN, "popout", &label) {
                 log::warn!("別のウィンドウの名前を知らせられない: {e}");

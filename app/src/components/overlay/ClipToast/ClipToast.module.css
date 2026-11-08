@@ -1,0 +1,143 @@
+.root {
+  position: relative;
+  width: 380px;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  box-shadow: var(--shadow-float);
+  color: var(--ink);
+  font-size: var(--fs-list);
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-10) var(--space-6) var(--space-10) var(--space-10);
+}
+.visual {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--side);
+  color: var(--muted);
+}
+.visual img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.5;
+}
+.name,
+.sub {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.name {
+  font-weight: 600;
+}
+.sub {
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.sub[data-danger] {
+  color: var(--danger);
+}
+.spin {
+  flex: none;
+  margin: 0 var(--space-8);
+  color: var(--accent);
+}
+.act {
+  height: 26px;
+  padding: 0 var(--space-6);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.act[data-danger] {
+  color: var(--danger);
+}
+.act[aria-pressed='true'] {
+  background: var(--accent-soft);
+}
+.x {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.act:hover,
+.x:hover {
+  background: var(--overlay-hover);
+}
+.bar {
+  height: 2px;
+  overflow: hidden;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  background: var(--line-2);
+}
+.fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+.fill[data-unknown] {
+  width: 30%;
+  animation: slide 1.2s ease-in-out infinite;
+}
+.count {
+  height: 100%;
+  background: var(--muted);
+  animation: count linear forwards;
+}
+.root:hover .count,
+.root:focus-within .count,
+.root[data-paused] .count {
+  animation-play-state: paused;
+}
+@keyframes slide {
+  from {
+    translate: -100%;
+  }
+  to {
+    translate: 340%;
+  }
+}
+@keyframes count {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fill[data-unknown] {
+    animation: none;
+  }
+}

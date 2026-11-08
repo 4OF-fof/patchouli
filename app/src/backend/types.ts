@@ -254,6 +254,31 @@ export interface RemoteActions {
   onAskClosed(cb: (id: number) => void): () => void
   /** 外から素材かノートを開くよう頼まれたとき。 */
   onOpen(cb: (id: string) => void): () => void
+  /** 外から保存の進み具合と結果を知らされたとき。 */
+  onToast(cb: (t: RemoteToast) => void): () => void
+  /** トーストを出させた接続に、再試行のボタンが押されたことを知らせる。 */
+  retryToast(peer: number, key: string): Promise<void>
+}
+
+export type RemoteToastKind = 'image' | 'audio' | 'video' | 'file' | 'url' | 'note'
+
+/** 外から頼まれたトースト。同じ接続（peer）の同じ key のものは置き換える。 */
+export interface RemoteToast {
+  peer: number
+  key: string
+  state: 'saving' | 'saved' | 'failed'
+  kind?: RemoteToastKind
+  /** 保存中と失敗のときに出す名前 */
+  name?: string
+  /** 保存した素材かノート */
+  id?: string
+  /** 一緒に保存した素材。保存先を変えると、一緒に移動する */
+  attached?: string[]
+  /** 取り込み終えたファイルの件数と、取り込む件数 */
+  done?: number
+  total?: number
+  error?: string
+  retry?: boolean
 }
 
 export interface AppSettingsActions {

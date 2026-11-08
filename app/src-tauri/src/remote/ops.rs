@@ -23,13 +23,15 @@ const OPEN_WAIT: Duration = Duration::from_secs(60);
 const DOWNLOAD_LIMIT: u64 = 2 << 30;
 const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(600);
 
-pub fn call(app: &AppHandle, method: &str, p: &Value) -> Result<Value, String> {
+/// peer は頼んできた口。トーストの再試行を、その口に知らせる。
+pub fn call(app: &AppHandle, peer: u64, method: &str, p: &Value) -> Result<Value, String> {
     match method {
         "app.show" => return show(app, p),
         "app.quit" => {
             tray::quit(app);
             return Ok(Value::Null);
         }
+        "toast.show" => return toast(app, peer, p),
         _ => {}
     }
     wait_open(app)?;
@@ -153,6 +155,21 @@ fn show(app: &AppHandle, p: &Value) -> Result<Value, String> {
         app.emit_to(web::MAIN, "remote-open", &id)
             .map_err(|e| e.to_string())?;
     }
+    Ok(Value::Null)
+}
+
+fn toast(app: &AppHandle, peer: u64, p: &Value) -> Result<Value, String> {
+    text(p, "key")?;
+    let state = text(p, "state")?;
+    if !["saving", "saved", "failed"].contains(&state.as_str()) {
+        return Err("state には saving・saved・failed のいずれかを指定してください".into());
+    }
+    let Value::Object(mut v) = p.clone() else {
+        return Err("params を指定してください".into());
+    };
+    v.insert("peer".into(), json!(peer));
+    app.emit_to(web::MAIN, "remote-toast", &v)
+        .map_err(|e| e.to_string())?;
     Ok(Value::Null)
 }
 

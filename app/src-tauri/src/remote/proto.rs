@@ -47,7 +47,7 @@ pub fn permission_label(p: &str) -> &str {
         "notes" => "ノートを作成・編集",
         "edit" => "名前・タグ・プロジェクトを変更",
         "delete" => "ごみ箱に移動",
-        "window" => "ウィンドウを表示・アプリを終了",
+        "window" => "ウィンドウとトーストを表示・アプリを終了",
         _ => p,
     }
 }
@@ -426,6 +426,44 @@ pub const OPS: &[Op] = &[
         permission: "window",
         summary: "ウィンドウを表示。ID を指定すると、その素材かノートを開きます",
         params: &[opt_arg("id", Kind::Str, "素材かノートの ID")],
+    },
+    Op {
+        method: "toast.show",
+        cli: &[],
+        permission: "window",
+        summary: "保存の進み具合と結果を、画面の右下のトーストに表示。同じ key で呼ぶと表示を置き換えます。再試行のボタンを押すと、toast.retry（params は key）を知らせます",
+        params: &[
+            need("key", "key", Kind::Str, "トーストを見分ける文字列"),
+            need(
+                "state",
+                "state",
+                Kind::Str,
+                "saving（保存中）・saved（保存済み）・failed（失敗）",
+            ),
+            opt(
+                "kind",
+                "kind",
+                Kind::Str,
+                "保存するもの。image・audio・video・file・url・note",
+            ),
+            opt(
+                "name",
+                "name",
+                Kind::Str,
+                "保存中と失敗のときに表示する名前",
+            ),
+            opt("id", "id", Kind::Str, "保存した素材かノートの ID"),
+            opt(
+                "attached",
+                "attached",
+                Kind::List,
+                "一緒に保存した素材の ID。保存先を変えると、一緒に移動します",
+            ),
+            opt("done", "done", Kind::Int, "取り込み終えたファイルの件数"),
+            opt("total", "total", Kind::Int, "取り込むファイルの件数"),
+            opt("error", "error", Kind::Str, "失敗の理由"),
+            opt("retry", "retry", Kind::Bool, "再試行のボタンを表示"),
+        ],
     },
     Op {
         method: "app.quit",

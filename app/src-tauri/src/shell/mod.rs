@@ -3,5 +3,6 @@ pub(crate) mod ipc;
 pub(crate) mod os;
 pub(crate) mod settings;
 pub(crate) mod tidy;
+pub(crate) mod toast;
 pub(crate) mod tray;
 pub(crate) mod web;

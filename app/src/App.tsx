@@ -14,6 +14,7 @@ import {
 import { type Backend, type Orphan, sampleBackend } from './backend'
 import type { RemoteAsk, RemotePermission } from './backend/types'
 import { RemoteAskDialog } from './components/dialog/RemoteAskDialog/RemoteAskDialog'
+import { RemoteToasts } from './app/RemoteToasts'
 import { DropZone } from './components/overlay/DropZone/DropZone'
 import { ReloadOverlay } from './components/overlay/ReloadOverlay/ReloadOverlay'
 import { DeleteDialog } from './components/dialog/DeleteDialog/DeleteDialog'
@@ -886,6 +887,19 @@ export function App(props: AppProps) {
                   </Show>
                   <Show when={asks()[0]} keyed>
                     {(a) => <RemoteAskDialog ask={a} onAnswer={(p) => answerAsk(a, p)} />}
+                  </Show>
+                  <Show when={backend.remote}>
+                    {(r) => (
+                      <RemoteToasts
+                        lib={lib()}
+                        remote={r()}
+                        recentTags={recentTags()}
+                        onMove={moveItem}
+                        onTag={tagItem}
+                        onOpen={(id) => asNewTab(() => openItem(id))}
+                        fail={fail}
+                      />
+                    )}
                   </Show>
                   <Show when={deleting()} keyed>
                     {(ids) => {

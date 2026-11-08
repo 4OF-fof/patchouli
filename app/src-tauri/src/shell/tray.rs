@@ -6,8 +6,8 @@ use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::shell::settings;
 use crate::shell::web::{MAIN, POPOUT};
+use crate::shell::{settings, toast};
 
 /// 画面が書きかけのものを保存し終えるのを待つ長さ。過ぎたら、待たずに終える。
 const QUIT_WAIT: Duration = Duration::from_secs(5);
@@ -52,7 +52,7 @@ pub fn init(app: &AppHandle) -> tauri::Result<()> {
 fn windows(app: &AppHandle) -> impl Iterator<Item = tauri::WebviewWindow> {
     app.webview_windows()
         .into_iter()
-        .filter(|(label, _)| label == MAIN || label.starts_with(POPOUT))
+        .filter(|(label, _)| label == MAIN || label.starts_with(POPOUT) && !toast::is_toast(label))
         .map(|(_, w)| w)
 }
 
@@ -102,4 +102,10 @@ pub(crate) async fn close_to_tray(app: AppHandle) -> bool {
 #[tauri::command]
 pub(crate) async fn quit_app(app: AppHandle) {
     app.exit(0);
+}
+
+/// トレイに隠した本体のウィンドウを出す。トーストから項目を開くときに使う。
+#[tauri::command]
+pub(crate) async fn show_app(app: AppHandle) {
+    show_main(&app);
 }

@@ -1,0 +1,46 @@
+.edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  padding: var(--space-12) var(--space-14) var(--space-14);
+  border-top: 1px solid var(--line-2);
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+}
+.k {
+  width: 56px;
+  flex: none;
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.top {
+  align-self: flex-start;
+  line-height: 28px;
+}
+.place {
+  flex: 1;
+  min-width: 0;
+}
+.tags {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+/* トーストは画面の下に付くので、一覧は上に開く */
+.picker {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 7;
+}
+.done {
+  display: flex;
+  justify-content: flex-end;
+}

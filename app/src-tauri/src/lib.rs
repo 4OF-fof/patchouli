@@ -123,6 +123,7 @@ pub fn run() {
             shell::ipc::ghost_hide,
             tray::close_to_tray,
             tray::quit_app,
+            tray::show_app,
             remote::ipc::remote_status,
             remote::ipc::set_remote_path,
             remote::ipc::install_skill,
@@ -133,7 +134,10 @@ pub fn run() {
             remote::ipc::set_remote_client,
             remote::ipc::forget_remote_client,
             remote::ipc::remote_asks,
-            remote::ipc::answer_remote
+            remote::ipc::answer_remote,
+            remote::ipc::retry_toast,
+            shell::toast::expect_toast,
+            shell::toast::place_toast
         ]);
     // 二重に起動したときは、動いているほうのウィンドウを出して終える
     if remote::server::running(!tray::background()) {

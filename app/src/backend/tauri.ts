@@ -60,6 +60,7 @@ import type {
   MenuResult,
   PageAt,
   RemoteAsk,
+  RemoteToast,
   RemoteStatus,
   SavedTabs,
   Suggestions,
@@ -611,6 +612,11 @@ export function tauriBackend(): Backend {
         const off = listen<string>('remote-open', (e) => cb(e.payload))
         return () => void off.then((f) => f())
       },
+      onToast(cb) {
+        const off = listen<RemoteToast>('remote-toast', (e) => cb(e.payload))
+        return () => void off.then((f) => f())
+      },
+      retryToast: (peer, key) => invoke('retry_toast', { peer, key }),
     },
     contentSearch: {
       prepare: () => invoke('prepare_content_search'),

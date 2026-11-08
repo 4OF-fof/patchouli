@@ -12,7 +12,7 @@ import styles from './Popout.module.css'
 const POLL = 250
 
 /** 本体の窓の見た目（style と link、html の属性）を、別のウィンドウに写し続ける。 */
-function mirror(doc: Document) {
+export function mirror(doc: Document) {
   const copy = () => {
     for (const el of doc.head.querySelectorAll('[data-mirror]')) el.remove()
     for (const el of document.head.querySelectorAll('style, link[rel="stylesheet"]')) {
@@ -61,7 +61,7 @@ const pointer = (e: PointerEvent) => send(e, new PointerEvent(e.type, e))
 const noMenu = (e: MouseEvent) => e.preventDefault()
 
 /** 窓全体で受ける操作は、部品が本体の window に付けているので、別のウィンドウで起きたものを写して本体の window に送る。 */
-function forward(win: Window) {
+export function forward(win: Window) {
   win.addEventListener('keydown', key)
   win.addEventListener('keyup', key)
   win.addEventListener('pointermove', pointer)

@@ -1,6 +1,9 @@
 //! CLI・拡張機能・ほかのアプリからの要求を受けるパイプ。
 
+use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, LazyLock, Mutex};
 
 use interprocess::local_socket::{ListenerOptions, Stream, prelude::*};
 use serde_json::{Value, json};
@@ -56,23 +59,60 @@ pub fn start(app: &AppHandle) {
     });
 }
 
+/// つないでいる口。応答のほかに、アプリから知らせ（id のない JSON-RPC の要求）を送る。
+struct Peer {
+    conn: Stream,
+    /// 応答と知らせの行が混ざらないように、1 行ずつ書く
+    writing: Mutex<()>,
+}
+
+impl Peer {
+    fn send(&self, v: &Value) -> std::io::Result<()> {
+        let _held = self.writing.lock().unwrap_or_else(|e| e.into_inner());
+        (&self.conn).write_all(format!("{v}\n").as_bytes())
+    }
+}
+
+static PEERS: LazyLock<Mutex<HashMap<u64, Arc<Peer>>>> = LazyLock::new(Mutex::default);
+static NEXT_PEER: AtomicU64 = AtomicU64::new(1);
+
+/// peer の口に知らせを送る。
+pub fn notify(peer: u64, method: &str, params: Value) -> Result<(), String> {
+    let found = PEERS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&peer)
+        .cloned();
+    let p = found.ok_or("接続が切れています")?;
+    p.send(&json!({ "jsonrpc": "2.0", "method": method, "params": params }))
+        .map_err(|e| format!("接続が切れています：{e}"))
+}
+
 fn serve(app: &AppHandle, conn: Stream) {
+    let peer = Arc::new(Peer {
+        conn,
+        writing: Mutex::new(()),
+    });
+    let id = NEXT_PEER.fetch_add(1, Ordering::Relaxed);
+    let peers = || PEERS.lock().unwrap_or_else(|e| e.into_inner());
+    peers().insert(id, Arc::clone(&peer));
     let mut client: Option<String> = None;
-    for line in BufReader::new(&conn).lines() {
+    for line in BufReader::new(&peer.conn).lines() {
         let Ok(line) = line else { break };
         if line.trim().is_empty() {
             continue;
         }
-        let Some(reply) = respond(app, &mut client, &line) else {
+        let Some(reply) = respond(app, id, &mut client, &line) else {
             continue;
         };
-        if (&conn).write_all(format!("{reply}\n").as_bytes()).is_err() {
+        if peer.send(&reply).is_err() {
             break;
         }
     }
+    peers().remove(&id);
 }
 
-fn respond(app: &AppHandle, client: &mut Option<String>, line: &str) -> Option<Value> {
+fn respond(app: &AppHandle, peer: u64, client: &mut Option<String>, line: &str) -> Option<Value> {
     let req: Value = match serde_json::from_str(line) {
         Ok(v) => v,
         Err(e) => {
@@ -85,7 +125,7 @@ fn respond(app: &AppHandle, client: &mut Option<String>, line: &str) -> Option<V
     };
     let method = req.get("method").and_then(Value::as_str).unwrap_or("");
     let params = req.get("params").cloned().unwrap_or_else(|| json!({}));
-    let result = dispatch(app, client, method, &params);
+    let result = dispatch(app, peer, client, method, &params);
     let id = req.get("id")?.clone();
     Some(match result {
         Ok(v) => json!({ "jsonrpc": "2.0", "id": id, "result": v }),
@@ -127,6 +167,7 @@ fn identify(app: &AppHandle, p: &Value) -> Result<(String, String), String> {
 
 fn dispatch(
     app: &AppHandle,
+    peer: u64,
     client: &mut Option<String>,
     method: &str,
     p: &Value,
@@ -167,5 +208,5 @@ fn dispatch(
             ),
         ));
     }
-    ops::call(app, method, p).map_err(|e| (FAILED, e))
+    ops::call(app, peer, method, p).map_err(|e| (FAILED, e))
 }

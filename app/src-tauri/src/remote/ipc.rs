@@ -6,7 +6,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::remote::clients::{self, Ask};
 use crate::remote::proto::HOST;
-use crate::remote::setup;
+use crate::remote::{server, setup};
 use crate::shell::settings::{self, RemoteClient};
 
 #[derive(Serialize)]
@@ -153,4 +153,11 @@ pub(crate) fn remote_asks() -> Vec<Ask> {
 #[tauri::command]
 pub(crate) fn answer_remote(id: u64, permissions: Option<Vec<String>>) {
     clients::answer(id, permissions);
+}
+
+/// トーストを出させた口に、再試行のボタンが押されたことを知らせる。
+#[tauri::command]
+pub(crate) fn retry_toast(peer: u64, key: String) -> Result<(), String> {
+    server::notify(peer, "toast.retry", serde_json::json!({ "key": key }))
+        .map_err(|e| format!("再試行に失敗しました：{e}"))
 }

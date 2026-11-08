@@ -8,6 +8,7 @@ mod proto;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use interprocess::local_socket::{Stream, prelude::*};
@@ -80,12 +81,18 @@ impl Conn {
         let io = |e: io::Error| CallError::Io(format!("Patchouli との接続が切れました：{e}"));
         let mut w = self.stream.get_ref();
         w.write_all(format!("{req}\n").as_bytes()).map_err(io)?;
-        let mut line = String::new();
-        if self.stream.read_line(&mut line).map_err(io)? == 0 {
-            return Err(CallError::Io("Patchouli との接続が切れました".into()));
+        // アプリからの知らせ（id のないもの）は読み飛ばす
+        loop {
+            let mut line = String::new();
+            if self.stream.read_line(&mut line).map_err(io)? == 0 {
+                return Err(CallError::Io("Patchouli との接続が切れました".into()));
+            }
+            let v: Value = serde_json::from_str(&line)
+                .map_err(|e| CallError::Rpc(format!("応答の読み込みに失敗しました：{e}")))?;
+            if v.get("id").is_some() {
+                return Ok(v);
+            }
         }
-        serde_json::from_str(&line)
-            .map_err(|e| CallError::Rpc(format!("応答の読み込みに失敗しました：{e}")))
     }
 
     fn call(&mut self, method: &str, params: Value) -> Result<Value, CallError> {
@@ -605,66 +612,140 @@ fn rpc_error(id: Value, message: String) -> Value {
     json!({ "jsonrpc": "2.0", "id": id, "error": { "code": proto::FAILED, "message": message } })
 }
 
+/// ブラウザへ 1 件送る。応答と知らせを別のスレッドから送るので、1 件ずつまとめて書く。
+fn to_browser(v: &Value) -> io::Result<()> {
+    write_frame(&mut io::stdout().lock(), v)
+}
+
+/// 名乗り終えたパイプ。届いた応答と知らせは、裏のスレッドが届いた順にブラウザへ渡す。
+struct Bridge {
+    stream: Arc<Stream>,
+    /// 応答を待っている要求の id。切れたら None にして、待っていたものにエラーを返す
+    pending: Arc<Mutex<Option<Vec<Value>>>>,
+}
+
+impl Bridge {
+    fn open(hello: Value) -> Result<(Bridge, Value), String> {
+        let (c, r) = Conn::open(hello)?;
+        let left = c.stream.buffer().to_vec();
+        let stream = Arc::new(c.stream.into_inner());
+        let pending = Arc::new(Mutex::new(Some(Vec::new())));
+        let (s, p) = (Arc::clone(&stream), Arc::clone(&pending));
+        std::thread::spawn(move || relay(&s, left, &p));
+        Ok((Bridge { stream, pending }, r))
+    }
+
+    fn pending(&self) -> MutexGuard<'_, Option<Vec<Value>>> {
+        self.pending.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn alive(&self) -> bool {
+        self.pending().is_some()
+    }
+
+    /// 送れなかったら、エラーとして返す応答。
+    fn send(&self, req: &Value) -> Option<Value> {
+        let id = req.get("id").cloned().unwrap_or(Value::Null);
+        match self.pending().as_mut() {
+            Some(list) => list.push(id.clone()),
+            None => return Some(rpc_error(id, "Patchouli との接続が切れました".into())),
+        }
+        let e = (&*self.stream)
+            .write_all(format!("{req}\n").as_bytes())
+            .err()?;
+        // 裏のスレッドが先にエラーを返していなければ、ここで返す
+        let mut held = self.pending();
+        let list = held.as_mut()?;
+        let at = list.iter().position(|x| *x == id)?;
+        list.remove(at);
+        Some(rpc_error(
+            id,
+            format!("Patchouli との接続が切れました：{e}"),
+        ))
+    }
+}
+
+fn relay(stream: &Stream, left: Vec<u8>, pending: &Mutex<Option<Vec<Value>>>) {
+    let lines = BufReader::new(io::Cursor::new(left).chain(stream)).lines();
+    for line in lines {
+        let Ok(line) = line else { break };
+        let Ok(v) = serde_json::from_str::<Value>(&line) else {
+            continue;
+        };
+        if let Some(id) = v.get("id")
+            && let Some(list) = pending.lock().unwrap_or_else(|e| e.into_inner()).as_mut()
+        {
+            list.retain(|x| x != id);
+        }
+        if to_browser(&v).is_err() {
+            break;
+        }
+    }
+    let waiting = pending
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .take()
+        .unwrap_or_default();
+    for id in waiting {
+        let _ = to_browser(&rpc_error(id, "Patchouli との接続が切れました".into()));
+    }
+}
+
 /// ブラウザの拡張機能と、パイプのあいだを取り持つ。拡張機能は最初に hello で名前と権限を名乗れる。
+/// アプリからの知らせ（トーストの再試行など）も、そのままブラウザへ渡す。
 fn native(extension: &str) -> ExitCode {
     let mut input = io::stdin().lock();
-    let mut out = io::stdout().lock();
-    let mut conn: Option<Conn> = None;
-    let base = json!({ "client": "extension", "extension": extension, "permissions": PERMISSIONS });
+    let mut bridge: Option<Bridge> = None;
+    let mut hello =
+        json!({ "client": "extension", "extension": extension, "permissions": PERMISSIONS });
     while let Ok(Some(msg)) = read_frame(&mut input) {
         let mut req: Value = match serde_json::from_slice(&msg) {
             Ok(v) => v,
             Err(e) => {
-                let _ = write_frame(&mut out, &rpc_error(Value::Null, e.to_string()));
+                let _ = to_browser(&rpc_error(Value::Null, e.to_string()));
                 continue;
             }
         };
         let Some(id) = req.get("id").cloned() else {
             continue;
         };
-        let method = req
-            .get("method")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .to_owned();
-        let reply = if method == HELLO {
-            let mut h = base.clone();
+        if req.get("method").and_then(Value::as_str) == Some(HELLO) {
             if let Some(p) = req.get("params") {
                 for k in ["name", "permissions"] {
                     if let Some(v) = p.get(k) {
-                        h[k] = v.clone();
+                        hello[k] = v.clone();
                     }
                 }
             }
-            match Conn::open(h) {
-                Ok((c, r)) => {
-                    conn = Some(c);
+            let reply = match Bridge::open(hello.clone()) {
+                Ok((b, r)) => {
+                    bridge = Some(b);
                     json!({ "jsonrpc": "2.0", "id": id, "result": r })
                 }
                 Err(e) => rpc_error(id, e),
+            };
+            if to_browser(&reply).is_err() {
+                break;
             }
-        } else {
-            if conn.is_none() {
-                match Conn::open(base.clone()) {
-                    Ok((c, _)) => conn = Some(c),
-                    Err(e) => {
-                        let _ = write_frame(&mut out, &rpc_error(id, e));
-                        continue;
+            continue;
+        }
+        if !bridge.as_ref().is_some_and(Bridge::alive) {
+            match Bridge::open(hello.clone()) {
+                Ok((b, _)) => bridge = Some(b),
+                Err(e) => {
+                    if to_browser(&rpc_error(id, e)).is_err() {
+                        break;
                     }
+                    continue;
                 }
             }
-            req["jsonrpc"] = json!("2.0");
-            match conn.as_mut().map(|c| c.exchange(&req)) {
-                Some(Ok(r)) => r,
-                Some(Err(e)) => {
-                    conn = None;
-                    rpc_error(id, e.message())
-                }
-                None => rpc_error(id, "Patchouli に接続できませんでした".into()),
+        }
+        req["jsonrpc"] = json!("2.0");
+        if let Some(err) = bridge.as_ref().and_then(|b| b.send(&req)) {
+            bridge = None;
+            if to_browser(&err).is_err() {
+                break;
             }
-        };
-        if write_frame(&mut out, &reply).is_err() {
-            break;
         }
     }
     ExitCode::SUCCESS
