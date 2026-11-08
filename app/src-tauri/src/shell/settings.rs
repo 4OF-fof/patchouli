@@ -31,6 +31,11 @@ pub enum TagSuggest {
 }
 
 fn path(app: &AppHandle) -> Result<PathBuf, String> {
+    if cfg!(debug_assertions) {
+        return Ok(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../example/dev-settings.json")
+        );
+    }
     Ok(app
         .path()
         .app_config_dir()

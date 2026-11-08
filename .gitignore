@@ -4,6 +4,8 @@
 /example/dev-library/
 /example/dev-plugins/
 /example/dev-zips/
+# 開発中のアプリの設定
+/example/dev-settings.json
 # 負荷を調べるための大きなライブラリ（scripts/dev-library.ts --stress で作る）
 /example/stress-library/
 # 自動分類の llama.cpp とモデル

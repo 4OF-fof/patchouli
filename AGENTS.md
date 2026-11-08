@@ -12,7 +12,7 @@
 - 内容は `app/src/samples/spec.ts` の 1 か所で定義する。画面のサンプル（`library.ts`）と `example/dev-library/` はどちらもここから生成するため、内容を変えるときは `spec.ts` を編集する。
 - `example/dev-library/` は `node scripts/dev-library.ts` で生成する（`ffmpeg`、Cargo の `wasm32-wasip2` ターゲット、`app` の `pnpm install` が必要）。再生成するたびに上書きされるため、直接編集しない。
 - 負荷検証時は `node scripts/dev-library.ts --stress` で `example/stress-library/` に大規模ライブラリを生成し、`PATCHOULI_LIBRARY` で開く。内容は `spec.ts` の `stressSpec` で定義する。
-- サンプルプラグインは `example/<名前>-plugin/` に配置し、使用するものを `spec.ts` の `EXAMPLE_PLUGINS` に記載する。スクリプトが SDK の CLI でビルドして `example/dev-plugins/` に出力し、ライブラリに記録する。開発中のアプリは既定でこのライブラリとプラグイン保存先を使用する。
+- サンプルプラグインは `example/<名前>-plugin/` に配置し、使用するものを `spec.ts` の `EXAMPLE_PLUGINS` に記載する。スクリプトが SDK の CLI でビルドして `example/dev-plugins/` に出力し、ライブラリに記録する。開発中のアプリは既定でこのライブラリとプラグイン保存先を使用する。設定は `example/dev-settings.json` に保存する。
 - 開発時のみ有効な環境変数：`PATCHOULI_LIBRARY`（開くライブラリ）、`PATCHOULI_PLUGIN_DIR`（プラグインの保存先）、`PATCHOULI_NO_COMMANDS`（`ffmpeg,magick` のように指定したコマンドを未検出扱いにする）、`PATCHOULI_EMBED_DIR`（AI 機能の `llama.cpp` とモデルの保存先。既定は `example/dev-embed/`）。リリースビルドには含めない。
 - `spec.ts` は Node が直接実行するため、型以外の import は行わない。
 - ライブラリの仕様が決まったり変更されたりしたら、`spec.ts` と生成スクリプトにも反映する。
