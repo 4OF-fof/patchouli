@@ -11,7 +11,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::ai::{embed, search};
 use crate::background;
-use crate::library::ipc::{import_paths, recheck};
+use crate::library::ipc::{import_paths, recheck, relinked};
 use crate::library::{Changes, ItemPatch, ListDiff, Place, StoredItem, shortcut};
 use crate::plugin::{HookEvent, hooks};
 use crate::session::{Current, with, with_session};
@@ -59,7 +59,7 @@ pub fn call(app: &AppHandle, method: &str, p: &Value) -> Result<Value, String> {
             let data = base64::engine::general_purpose::STANDARD
                 .decode(text(p, "data")?.trim())
                 .map_err(|e| format!("data を Base64 として読み込めませんでした：{e}"))?;
-            import_bytes(app, &cur, p, &text(p, "name")?, &data)
+            import_bytes(app, &cur, p, &text(p, "name")?, &data, opt_text(p, "url"))
         }
         "notes.create" => create_note(app, &cur, p),
         "notes.write" => write_note(app, &cur, &text(p, "id")?, text(p, "body")?),
@@ -212,17 +212,13 @@ fn out(it: &StoredItem, groups: &HashMap<String, String>) -> Value {
         "tags": it.tags,
         "aliases": it.aliases.clone().unwrap_or_default(),
         "memo": it.memo,
+        "url": it.url,
         "file": it.file,
         "mtime": it.mtime,
     });
     if let (Some(w), Some(h)) = (it.width, it.height) {
         v["width"] = json!(w);
         v["height"] = json!(h);
-    }
-    if it.ext == shortcut::EXT
-        && let Some(url) = shortcut::url_of(&it.file)
-    {
-        v["url"] = json!(url);
     }
     v
 }
@@ -419,21 +415,24 @@ fn search_content(app: &AppHandle, cur: &State<Current>, p: &Value) -> Result<Va
     Ok(json!(found))
 }
 
-/// 取り込んだものにタグを付け、サムネイルとフックを用意して画面に知らせる。
+/// 取り込んだものにタグと URL を付け、サムネイルとフックを用意して画面に知らせる。
 fn added(
     app: &AppHandle,
     cur: &State<Current>,
     items: Vec<StoredItem>,
     tags: &[String],
+    url: Option<String>,
 ) -> Result<Vec<StoredItem>, String> {
-    let mut items = if tags.is_empty() {
+    let url = url.filter(|u| !u.trim().is_empty());
+    let mut items = if tags.is_empty() && url.is_none() {
         items
     } else {
         let patch = ItemPatch {
-            tags: Some(ListDiff {
+            tags: (!tags.is_empty()).then(|| ListDiff {
                 add: tags.to_vec(),
                 remove: vec![],
             }),
+            url,
             ..ItemPatch::default()
         };
         with(cur, |l| {
@@ -486,7 +485,7 @@ fn import(app: &AppHandle, cur: &State<Current>, p: &Value) -> Result<Value, Str
             },
         );
     }
-    let items = added(app, cur, r.items, &texts(p, "tags"))?;
+    let items = added(app, cur, r.items, &texts(p, "tags"), opt_text(p, "url"))?;
     Ok(json!({
         "items": outs(cur, &items)?,
         "groups": r.groups.iter().map(|g| json!({ "id": g.id, "name": g.name })).collect::<Vec<_>>(),
@@ -501,9 +500,10 @@ fn import_bytes(
     p: &Value,
     name: &str,
     bytes: &[u8],
+    url: Option<String>,
 ) -> Result<Value, String> {
     let it = with(cur, |l| l.import_data(name, bytes, &place(p)))?;
-    let items = added(app, cur, vec![it], &texts(p, "tags"))?;
+    let items = added(app, cur, vec![it], &texts(p, "tags"), url)?;
     let groups = group_names(cur)?;
     items
         .first()
@@ -600,7 +600,7 @@ fn import_url(app: &AppHandle, cur: &State<Current>, p: &Value) -> Result<Value,
         Some(ext) if !has_ext => format!("{base}.{ext}"),
         _ => base,
     };
-    import_bytes(app, cur, p, &name, &body)
+    import_bytes(app, cur, p, &name, &body, Some(url.to_string()))
 }
 
 fn decode_entities(s: &str) -> String {
@@ -634,13 +634,14 @@ fn add_link(app: &AppHandle, cur: &State<Current>, p: &Value) -> Result<Value, S
         .or_else(|| page_title(&url))
         .unwrap_or_else(|| url.host_str().unwrap_or("link").to_owned());
     let name = file_safe(&name);
-    let body = format!("[InternetShortcut]\r\nURL={url}\r\n");
+    let body = shortcut::content(url.as_str());
     import_bytes(
         app,
         cur,
         p,
         &format!("{name}.{}", shortcut::EXT),
         body.as_bytes(),
+        None,
     )
 }
 
@@ -659,7 +660,7 @@ fn create_note(app: &AppHandle, cur: &State<Current>, p: &Value) -> Result<Value
         })?,
         None => it,
     };
-    let items = added(app, cur, vec![it], &texts(p, "tags"))?;
+    let items = added(app, cur, vec![it], &texts(p, "tags"), opt_text(p, "url"))?;
     let groups = group_names(cur)?;
     items
         .first()
@@ -708,6 +709,7 @@ fn update(app: &AppHandle, cur: &State<Current>, p: &Value) -> Result<Value, Str
         tags: diff(p, "addTags", "removeTags"),
         aliases: diff(p, "addAliases", "removeAliases"),
         memo: opt_text(p, "memo"),
+        url: opt_text(p, "url"),
         body: None,
     };
     let retag = patch.tags.is_some();
@@ -720,9 +722,12 @@ fn update(app: &AppHandle, cur: &State<Current>, p: &Value) -> Result<Value, Str
     if retag {
         hooks::queue(app, HookEvent::Edited, std::slice::from_ref(&id));
     }
-    if conflict.is_some() && patch.memo.is_some() {
+    if patch.url.is_some() {
+        relinked(app, cur, &id)?;
+    }
+    if conflict.is_some() && (patch.memo.is_some() || patch.url.is_some()) {
         return Err(format!(
-            "「{}」がアプリの外で変更されていたため、メモを書き換えずに読み込み直しました",
+            "「{}」がアプリの外で変更されていたため、書き換えずに読み込み直しました",
             it.name
         ));
     }

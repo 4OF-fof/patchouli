@@ -27,7 +27,8 @@ import { PluginView } from '../../components/media/PluginView/PluginView'
 import { Thumb, menuBelow, useItemMenu } from '../../components/media/Thumb/Thumb'
 import { type Blocker, Unsupported } from '../../components/media/Unsupported/Unsupported'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
-import { type Item, type Library, type Place, jacketOf, relDay, thumbOf } from '../../model/library'
+import { type Item, type Library, type Place, SHORTCUT_EXT, jacketOf, relDay, thumbOf } from '../../model/library'
+import { UrlField } from '../../components/controls/UrlField/UrlField'
 import { onFlush } from '../../model/persist'
 import { WebPage } from '../../components/media/WebPage/WebPage'
 import type { BrowserActions, LinkShown } from '../../backend/types'
@@ -67,6 +68,7 @@ export interface AssetScreenProps {
   onRename?: (id: string, name: string) => void
   onTag?: (id: string, tag: string, on: boolean) => void
   onMemo?: (id: string, memo: string) => void
+  onUrl?: (id: string, url: string) => void
   recentTags?: string[]
   /** タグを選び始めるたびに呼ぶ。付いていないタグも、まだないタグも返してよい */
   suggestTags?: (id: string) => Promise<string[]>
@@ -572,6 +574,15 @@ export function AssetScreen(props: AssetScreenProps) {
                       {(id) => <MemoField value={a().memo} onChange={(memo) => props.onMemo?.(id, memo)} />}
                     </Show>
                   </label>
+                  <div class={styles.fl}>
+                    <span class={styles.k}>URL</span>
+                    <UrlField
+                      value={a().url}
+                      required={a().ext === SHORTCUT_EXT}
+                      onChange={(url) => props.onUrl?.(a().id, url)}
+                      onOpen={props.host?.openLink}
+                    />
+                  </div>
                   <div class={styles.fl}>
                     <span class={styles.k}>この素材へのリンク {lib().backOf(a()).length}</span>
                     <Show when={lib().backOf(a()).length} fallback={<LinkNone>リンクはまだありません</LinkNone>}>

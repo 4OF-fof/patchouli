@@ -67,6 +67,8 @@ pub struct StoredItem {
     pub group: Option<String>,
     pub tags: Vec<String>,
     pub memo: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub aliases: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -214,12 +216,14 @@ pub struct ItemPatch {
     pub tags: Option<ListDiff>,
     pub aliases: Option<ListDiff>,
     pub memo: Option<String>,
+    /// 空にすると URL を消す。.url のショートカットは中身のリンク先を書き換える
+    pub url: Option<String>,
     pub body: Option<String>,
 }
 
 impl ItemPatch {
     fn has_text(&self) -> bool {
-        self.memo.is_some() || self.body.is_some()
+        self.memo.is_some() || self.url.is_some() || self.body.is_some()
     }
 }
 
@@ -266,7 +270,7 @@ pub(crate) fn read_json(path: &Path) -> Result<Option<Map<String, Value>>, Strin
 }
 
 /// 同じフォルダに一時ファイルを書いてから置き換える。同期ソフトに書きかけを拾わせない。
-pub(crate) fn write_file(path: &Path, text: &str) -> Result<(), String> {
+pub(crate) fn write_file(path: &Path, text: impl AsRef<[u8]>) -> Result<(), String> {
     let name = path
         .file_name()
         .and_then(|n| n.to_str())
@@ -899,6 +903,7 @@ impl Library {
                 group: group.map(str::to_owned),
                 tags: r.tags,
                 memo: r.memo,
+                url: r.url,
                 aliases: r.aliases,
                 body: r.body,
                 mtime: mtime_of(path),
@@ -931,7 +936,8 @@ impl Library {
         };
         let r = read.ok()?;
         let it = &mut row.item;
-        (it.tags, it.memo, it.aliases, it.body) = (r.tags, r.memo, r.aliases, r.body);
+        (it.tags, it.memo, it.url, it.aliases, it.body) =
+            (r.tags, r.memo, r.url, r.aliases, r.body);
         it.mtime = mtime_of(&path);
         row.saved = true;
         row.sig = Sig::of(&path, note);
@@ -996,6 +1002,7 @@ impl Library {
                 tags: patch.tags.clone(),
                 aliases: patch.aliases.clone(),
                 memo: None,
+                url: None,
                 body: None,
             };
             &stripped
@@ -1346,7 +1353,7 @@ impl Library {
         ] {
             front = note::set_key(&front, k, &v);
         }
-        write_file(&path, &note::join(&front, "\n"))?;
+        write_file(&path, note::join(&front, "\n"))?;
         self.entries.insert(
             id.clone(),
             Entry {
@@ -1364,6 +1371,7 @@ impl Library {
             group,
             tags: vec![],
             memo: String::new(),
+            url: None,
             aliases: Some(vec![]),
             body: Some(String::new()),
             mtime: mtime_of(&path),
@@ -1958,9 +1966,12 @@ struct Read {
     id: Option<String>,
     tags: Vec<String>,
     memo: String,
+    url: Option<String>,
     aliases: Option<Vec<String>>,
     body: Option<String>,
 }
+
+const URL_KEY: &str = "url";
 
 fn read_note(path: &Path) -> Result<Read, String> {
     let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
@@ -1970,21 +1981,35 @@ fn read_note(path: &Path) -> Result<Read, String> {
         id: note::str_of(&v, ID_KEY),
         tags: note::list_of(&v, "tags"),
         memo: String::new(),
+        url: note::str_of(&v, URL_KEY).filter(|s| !s.is_empty()),
         aliases: Some(note::list_of(&v, "aliases")),
         body: Some(parts.body.trim_start_matches(['\r', '\n']).to_owned()),
     })
 }
 
+fn is_shortcut(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|x| x.eq_ignore_ascii_case(shortcut::EXT))
+}
+
 fn read_asset(path: &Path) -> Result<Read, String> {
     let m = read_json(&meta_path(path))?.unwrap_or_default();
+    let text = |key| {
+        m.get(key)
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    let url = if is_shortcut(path) {
+        shortcut::url_of(path)
+    } else {
+        Some(text(URL_KEY)).filter(|s| !s.is_empty())
+    };
     Ok(Read {
         id: m.get(ID_KEY).and_then(Value::as_str).map(str::to_owned),
         tags: strings(m.get("tags")),
-        memo: m
-            .get("memo")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned(),
+        memo: text("memo"),
+        url,
         aliases: None,
         body: None,
     })
@@ -1994,6 +2019,11 @@ fn save_note(path: &Path, id: &str, patch: &ItemPatch) -> Result<(), String> {
     let text = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
     let parts = note::split(&text);
     let mut front = note::set_key(parts.front.unwrap_or_default(), ID_KEY, &json!(id));
+    match patch.url.as_deref().map(str::trim) {
+        Some("") => front = note::remove_key(&front, URL_KEY),
+        Some(url) => front = note::set_key(&front, URL_KEY, &json!(url)),
+        None => {}
+    }
     let lists = [("tags", &patch.tags), ("aliases", &patch.aliases)];
     if lists.iter().any(|(_, d)| d.is_some()) {
         let v = note::front_values(parts.front)?;
@@ -2008,10 +2038,17 @@ fn save_note(path: &Path, id: &str, patch: &ItemPatch) -> Result<(), String> {
         None if parts.front.is_none() => format!("\n{}", parts.body),
         None => parts.body.to_owned(),
     };
-    write_file(path, &note::join(&front, &body))
+    write_file(path, note::join(&front, &body))
 }
 
 fn save_asset(path: &Path, id: &str, patch: &ItemPatch) -> Result<(), String> {
+    let url = patch.url.as_deref().map(str::trim);
+    if let Some(url) = url
+        && is_shortcut(path)
+    {
+        let old = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        write_file(path, shortcut::with_url(&old, url)?)?;
+    }
     let meta = meta_path(path);
     let mut m = read_json(&meta)?.unwrap_or_default();
     m.insert(ID_KEY.into(), json!(id));
@@ -2021,6 +2058,16 @@ fn save_asset(path: &Path, id: &str, patch: &ItemPatch) -> Result<(), String> {
     }
     if let Some(s) = &patch.memo {
         m.insert("memo".into(), json!(s));
+    }
+    match url {
+        _ if is_shortcut(path) => {}
+        Some("") => {
+            m.remove(URL_KEY);
+        }
+        Some(url) => {
+            m.insert(URL_KEY.into(), json!(url));
+        }
+        None => {}
     }
     write_json(&meta, &m)
 }

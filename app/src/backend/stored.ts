@@ -23,6 +23,7 @@ export interface StoredItem {
   group: string | null
   tags: string[]
   memo: string
+  url?: string
   aliases?: string[]
   body?: string
   mtime: number
@@ -114,6 +115,7 @@ export function toItem(
     fit: formats.get(s.ext)?.fit,
     ext: s.ext,
     memo: s.memo,
+    ...(s.url && { url: s.url }),
     ...(s.body !== undefined && { body: s.body }),
     ...(s.aliases && { aliases: s.aliases }),
     ...(urls.src && { src: urls.src }),

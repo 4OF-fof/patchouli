@@ -224,6 +224,14 @@ export interface CodeModule<T extends PluginTypes = PluginTypes> {
   update?(el: HTMLElement, api: CodeApi<T>): void
 }
 
+/** 項目のメタデータ。 */
+export interface ItemMeta {
+  /** 素材のメモ。 */
+  memo: string
+  /** 取得元のページなどの URL。 */
+  url?: string
+}
+
 /** 画面 API に渡されるライブラリの項目情報。 */
 export interface LibraryItem {
   id: string
@@ -237,8 +245,8 @@ export interface LibraryItem {
   tags: string[]
   /** ノートの本文（Markdown）。他項目へのリンクは [名前](patchouli:<id>)、埋め込みは ![名前](patchouli:<id>)。 */
   body?: string
-  /** 素材のメモ。 */
-  memo: string
+  /** 項目のメタデータ。 */
+  meta: ItemMeta
   /** 更新日時（ミリ秒）。 */
   mtime?: number
   pinned: boolean

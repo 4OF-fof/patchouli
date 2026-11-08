@@ -136,6 +136,12 @@ const PROJECT: Param = opt(
 );
 const GROUP: Param = opt("group", "group", Kind::Str, "グループの ID");
 const TAGS: Param = opt("tags", "tag", Kind::List, "付けるタグ");
+const URL: Param = opt(
+    "url",
+    "url",
+    Kind::Str,
+    "項目に記録する URL（取得元のページなど）",
+);
 
 pub const OPS: &[Op] = &[
     Op {
@@ -233,6 +239,7 @@ pub const OPS: &[Op] = &[
             PROJECT,
             GROUP,
             TAGS,
+            URL,
             opt(
                 "move",
                 "move",
@@ -245,7 +252,7 @@ pub const OPS: &[Op] = &[
         method: "items.importUrl",
         cli: &["import-url"],
         permission: "assets",
-        summary: "URL のファイル（画像など）をダウンロードして取り込み",
+        summary: "URL のファイル（画像など）をダウンロードして取り込み。項目の URL には、ダウンロード元を記録します",
         params: &[
             arg("url", Kind::Str, "http か https の URL"),
             opt(
@@ -288,6 +295,7 @@ pub const OPS: &[Op] = &[
             PROJECT,
             GROUP,
             TAGS,
+            URL,
         ],
     },
     Op {
@@ -301,6 +309,7 @@ pub const OPS: &[Op] = &[
             PROJECT,
             GROUP,
             TAGS,
+            URL,
         ],
     },
     Op {
@@ -321,7 +330,7 @@ pub const OPS: &[Op] = &[
         method: "items.update",
         cli: &["update"],
         permission: "edit",
-        summary: "タグ・別名・メモを変更",
+        summary: "タグ・別名・メモ・URL を変更",
         params: &[
             ID,
             opt("addTags", "add-tag", Kind::List, "付けるタグ"),
@@ -329,6 +338,12 @@ pub const OPS: &[Op] = &[
             opt("addAliases", "add-alias", Kind::List, "追加する別名"),
             opt("removeAliases", "remove-alias", Kind::List, "削除する別名"),
             opt("memo", "memo", Kind::Text, "メモ。空にすると削除します"),
+            opt(
+                "url",
+                "url",
+                Kind::Str,
+                "URL。空にすると削除します。ショートカット（.url）は、リンク先を書き換えます",
+            ),
         ],
     },
     Op {

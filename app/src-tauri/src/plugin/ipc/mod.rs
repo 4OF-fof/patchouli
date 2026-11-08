@@ -172,6 +172,7 @@ pub(crate) fn info_of(it: StoredItem) -> ItemInfo {
         project: it.project,
         tags: it.tags,
         memo: it.memo,
+        url: it.url,
     }
 }
 

@@ -10,7 +10,7 @@ export const libraryItemOf = (it: Item, pins: ReadonlySet<string>): LibraryItem 
   project: it.project,
   tags: it.tags,
   ...(it.body !== undefined && { body: it.body }),
-  memo: it.memo,
+  meta: { memo: it.memo, ...(it.url && { url: it.url }) },
   ...(it.mtime !== undefined && { mtime: it.mtime }),
   pinned: pins.has(it.id),
   ratio: it.ratio,

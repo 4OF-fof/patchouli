@@ -260,6 +260,7 @@ function markdown(it: SpecItem) {
     `${ID_KEY}: ${JSON.stringify(it.id)}`,
     `tags: ${JSON.stringify(it.tags)}`,
     `aliases: ${JSON.stringify(it.aliases ?? [])}`,
+    ...(it.url ? [`url: ${JSON.stringify(it.url)}`] : []),
     '---',
   ]
   return `${front.join('\n')}\n\n${it.body ?? ''}`
@@ -331,7 +332,8 @@ for (const it of spec.items) {
   }
   const file = path.join(dir, `${it.name}.${it.ext}`)
   const meta = `${file}.meta`
-  fs.writeFileSync(meta, json({ [ID_KEY]: it.id, tags: it.tags, memo: it.memo }))
+  const url = it.media !== 'link' && it.url ? { url: it.url } : {}
+  fs.writeFileSync(meta, json({ [ID_KEY]: it.id, tags: it.tags, memo: it.memo, ...url }))
   touched.push({ file, moved: it.moved }, { file: meta, moved: it.moved })
   if (it.media === 'other') fs.writeFileSync(file, '')
   else if (it.media === 'archive') archives.push({ it, file })

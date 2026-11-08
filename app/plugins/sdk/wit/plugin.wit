@@ -85,6 +85,12 @@ interface types {
     rows: list<detail>,
   }
 
+  /// 項目のメタデータ。url は取得元のページなど。
+  record item-meta {
+    memo: string,
+    url: option<string>,
+  }
+
   /// ライブラリが持つ、素材やノートの情報。
   record item-info {
     id: string,
@@ -92,7 +98,7 @@ interface types {
     note: bool,
     project: option<string>,
     tags: list<string>,
-    memo: string,
+    meta: item-meta,
   }
 
   /// embed の similar で見つけたもの。score は内積で、大きいほど近い。

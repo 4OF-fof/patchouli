@@ -5,6 +5,7 @@ import { Chip } from '../../components/controls/Chip/Chip'
 import { PlaceSelect } from '../../components/controls/PlaceSelect/PlaceSelect'
 import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { TextList } from '../../components/controls/TextList/TextList'
+import { UrlField } from '../../components/controls/UrlField/UrlField'
 import { FloatingCard } from '../../components/overlay/FloatingCard/FloatingCard'
 import { FloatingPill } from '../../components/controls/FloatingPill/FloatingPill'
 import { PinToggle } from '../../components/controls/PinToggle/PinToggle'
@@ -45,6 +46,7 @@ export interface NoteScreenProps {
   onRename?: (id: string, name: string) => void
   onMove?: (id: string, place: Place) => void
   onAliases?: (id: string, aliases: string[]) => void
+  onUrl?: (id: string, url: string) => void
   onTag?: (id: string, tag: string, on: boolean) => void
   recentTags?: string[]
   suggestTags?: (id: string) => Promise<string[]>
@@ -244,6 +246,14 @@ export function NoteScreen(props: NoteScreenProps) {
                         onClose={closePicker}
                       />
                     </Show>
+                  </dd>
+                  <dt>URL</dt>
+                  <dd>
+                    <UrlField
+                      value={n().url}
+                      onChange={(url) => props.onUrl?.(n().id, url)}
+                      onOpen={props.onOpenPage}
+                    />
                   </dd>
                   <dt>更新日</dt>
                   <dd>{relDay(lib(), n().moved)}</dd>

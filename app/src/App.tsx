@@ -388,6 +388,7 @@ export function App(props: AppProps) {
       .catch((e: unknown) => notify(`接続の許可に失敗しました：${messageOf(e)}`, 'error'))
   }
 
+  const editUrl = (id: string, url: string) => editItem(id, { url: url || undefined }, { url })
   const noteScreen = (noteId: string, tab?: Tab) => (
     <NoteScreen
       lib={lib()}
@@ -401,6 +402,7 @@ export function App(props: AppProps) {
       onRename={renameItem}
       onMove={moveItem}
       onAliases={setAliases}
+      onUrl={editUrl}
       onTag={tagItem}
       recentTags={recentTags()}
       suggestTags={backend.tagDecisions?.suggestTags}
@@ -430,6 +432,7 @@ export function App(props: AppProps) {
       recentTags={recentTags()}
       suggestTags={backend.tagDecisions?.suggestTags}
       onMemo={(id, memo) => editItem(id, { memo }, { memo })}
+      onUrl={editUrl}
       host={viewHost}
       blocker={blockerOf}
       onEnablePlugin={enablePlugin}

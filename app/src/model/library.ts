@@ -28,6 +28,8 @@ export interface Item {
   ratio: number
   ext: string
   memo: string
+  /** 取得元のページなど。ショートカット（.url）はリンク先 */
+  url?: string
   body?: string
   aliases?: string[]
   suggestion?: Suggestion
@@ -175,6 +177,8 @@ export function headingsOf(body: string): Heading[] {
 export const NOTE_EXT = 'md'
 export const NOTE_LABEL = 'ノート'
 export const NOTE_RATIO = 0.8
+/** インターネットショートカット。src-tauri/src/library/shortcut.rs と合わせる。 */
+export const SHORTCUT_EXT = 'url'
 
 export const toggled = <T>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
 

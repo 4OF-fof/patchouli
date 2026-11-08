@@ -61,8 +61,7 @@ pub fn list_of(v: &Value, key: &str) -> Vec<String> {
 pub fn set_key(front: &str, key: &str, value: &serde_json::Value) -> String {
     let line = format!("{key}: {value}");
     let lines: Vec<&str> = front.lines().collect();
-    let head = format!("{key}:");
-    let Some(i) = lines.iter().position(|l| l.starts_with(&head)) else {
+    let Some((i, j)) = span(&lines, key) else {
         let mut out = front.to_owned();
         if !out.is_empty() && !out.ends_with('\n') {
             out.push('\n');
@@ -71,7 +70,29 @@ pub fn set_key(front: &str, key: &str, value: &serde_json::Value) -> String {
         out.push('\n');
         return out;
     };
-    // 値が次の行に続く（字下げした行や「- 」で始まる行）ときは、そこまでを 1 つの値とみる
+    let mut out: Vec<&str> = lines[..i].to_vec();
+    out.push(&line);
+    out.extend_from_slice(&lines[j..]);
+    out.join("\n") + "\n"
+}
+
+pub fn remove_key(front: &str, key: &str) -> String {
+    let lines: Vec<&str> = front.lines().collect();
+    let Some((i, j)) = span(&lines, key) else {
+        return front.to_owned();
+    };
+    let mut out: Vec<&str> = lines[..i].to_vec();
+    out.extend_from_slice(&lines[j..]);
+    if out.is_empty() {
+        return String::new();
+    }
+    out.join("\n") + "\n"
+}
+
+/// key の値を書いた行の範囲。値が次の行に続く（字下げした行や「- 」で始まる行）ときは、そこまでを 1 つの値とみる
+fn span(lines: &[&str], key: &str) -> Option<(usize, usize)> {
+    let head = format!("{key}:");
+    let i = lines.iter().position(|l| l.starts_with(&head))?;
     let mut j = i + 1;
     while j < lines.len() && (lines[j].starts_with([' ', '\t', '-']) || lines[j].is_empty()) {
         j += 1;
@@ -79,10 +100,7 @@ pub fn set_key(front: &str, key: &str, value: &serde_json::Value) -> String {
     while j > i + 1 && lines[j - 1].is_empty() {
         j -= 1;
     }
-    let mut out: Vec<&str> = lines[..i].to_vec();
-    out.push(&line);
-    out.extend_from_slice(&lines[j..]);
-    out.join("\n") + "\n"
+    Some((i, j))
 }
 
 pub fn join(front: &str, body: &str) -> String {

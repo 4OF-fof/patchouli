@@ -50,6 +50,8 @@ export interface ItemPatch {
   tags?: ListDiff
   aliases?: ListDiff
   memo?: string
+  /** 空にすると削除する。ショートカット（.url）は、リンク先を書き換える */
+  url?: string
   body?: string
 }
 

@@ -569,6 +569,13 @@ const LINKS: Record<string, string> = {
   'Big Buck Bunny': 'https://www.youtube.com/watch?v=aqz-KE-bpKQ',
 }
 
+/** 項目の URL（Web から保存したものの取得元）。ショートカットは、指す URL を使う。 */
+const URLS: Record<string, string> = {
+  texture_paper: 'https://example.com/textures/paper',
+  'palette-autumn': 'https://example.com/palettes/autumn',
+  リファレンス整理の手順: 'https://example.com/articles/reference',
+}
+
 /** zip の名前 → 中に入れるもの。 */
 const ARCHIVES: Record<string, Record<string, string | { item: string }>> = {
   入稿データ: {
@@ -647,6 +654,7 @@ export function sampleSpec(): Spec {
     const media = MEDIA_OF[it.ext] ?? 'note'
     const size = sizeOf(media, it.ext, it.name)
     const sec = secOf(media, it.name)
+    const url = media === 'link' ? LINKS[it.name] : URLS[it.name]
     const full: SpecItem = {
       ...it,
       id: `i${items.length + 1}`,
@@ -654,6 +662,7 @@ export function sampleSpec(): Spec {
       note: media === 'note',
       ratio: ratioOf(media, size),
       memo: '',
+      ...(url && { url }),
       ...(size && { size }),
       ...(sec && { sec }),
       ...(media === 'audio' && JACKETS.includes(it.name) && { jacket: true }),

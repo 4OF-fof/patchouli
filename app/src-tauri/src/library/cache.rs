@@ -11,7 +11,7 @@ use crate::library::{LibraryState, StoredGroup, StoredItem, StoredProject, meta_
 use crate::plugin::Reads;
 
 /// 中身の形を変えたら上げる。違う版の写しは捨てて作り直す。
-const VERSION: i32 = 6;
+const VERSION: i32 = 7;
 
 /// この版から、波形から描いたサムネイルをジャケットと別の場所に置く。
 const WAVE_THUMBS_APART: i32 = 5;

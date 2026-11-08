@@ -182,6 +182,7 @@ pub struct ItemInfo {
     pub project: Option<String>,
     pub tags: Vec<String>,
     pub memo: String,
+    pub url: Option<String>,
 }
 
 impl ItemInfo {
@@ -192,7 +193,10 @@ impl ItemInfo {
             note: self.note,
             project: self.project.clone(),
             tags: self.tags.clone(),
-            memo: self.memo.clone(),
+            meta: types::ItemMeta {
+                memo: self.memo.clone(),
+                url: self.url.clone(),
+            },
         }
     }
 }

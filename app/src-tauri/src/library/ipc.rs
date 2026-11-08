@@ -356,7 +356,41 @@ pub(crate) async fn save_item(
     {
         hooks::queue(&app, HookEvent::Edited, std::slice::from_ref(&id));
     }
+    if patch.url.is_some() {
+        relinked(&app, &cur, &id)?;
+    }
     Ok(read)
+}
+
+/// ショートカットのリンク先を変えたら、サムネイルを作り直して画面に知らせる。
+pub(crate) fn relinked(
+    app: &tauri::AppHandle,
+    cur: &State<Current>,
+    id: &str,
+) -> Result<(), String> {
+    let (item, thumbs, plugins, cache) = with_session(cur, |s| {
+        Ok((
+            s.lib.stored(id)?,
+            s.thumbs.clone(),
+            Arc::clone(&s.plugins),
+            s.lib.cache(),
+        ))
+    })?;
+    let Some(item) = item.filter(|it| it.ext == library::shortcut::EXT) else {
+        return Ok(());
+    };
+    let mut items = vec![item];
+    let (jobs, _, _) = plan_thumbs(&plugins, &thumbs, &cache, &mut items);
+    let changes = library::Changes {
+        items,
+        ..library::Changes::default()
+    };
+    let _ = app.emit("library-changed", &changes);
+    if !jobs.is_empty() {
+        let app = app.clone();
+        background::spawn(move || make_thumbs(&app, &plugins, &cache, jobs));
+    }
+    Ok(())
 }
 
 #[tauri::command]
