@@ -1,4 +1,4 @@
-import { Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
+import { type JSX, Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
 import type { BrowserActions } from '../../../backend/types'
 import { Icon } from '../../base/Icon/Icon'
 import { Button } from '../../controls/Button/Button'
@@ -13,6 +13,8 @@ export interface WebPageProps {
   /** ないときは iframe で出す（読み込みを断るサイトは出せない）。 */
   browser?: BrowserActions
   onOpenDefault?: (url: string) => void
+  /** アドレスバーの行の左端に置くもの。 */
+  lead?: JSX.Element
   class?: string
 }
 
@@ -111,6 +113,7 @@ function Page(props: WebPageProps) {
     <div class={`${styles.root} ${props.class ?? ''}`}>
       <div class={styles.bar}>
         <span class={styles.side}>
+          <span class={styles.lead}>{props.lead}</span>
           <IconButton label="戻る" disabled={!can().back} onClick={() => go('back')}>
             <Icon name="goBack" size={16} />
           </IconButton>

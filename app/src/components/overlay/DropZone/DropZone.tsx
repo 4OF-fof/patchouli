@@ -1,3 +1,4 @@
+import { coverPage } from '../../media/WebPage/layer'
 import styles from './DropZone.module.css'
 
 export interface DropZoneProps {
@@ -7,7 +8,7 @@ export interface DropZoneProps {
 
 export function DropZone(props: DropZoneProps) {
   return (
-    <div class={styles.root}>
+    <div ref={coverPage} class={styles.root}>
       <div class={styles.box} aria-live="polite">
         <b>{props.title}</b>
         {props.sub && <span>{props.sub}</span>}

@@ -13,8 +13,11 @@ let sent = ''
 let last: BrowserActions | undefined
 const moved = new Set<() => void>()
 
+// タブごと別のウィンドウに移った表示は、本体の画面の穴を塞がない
 const shown = (el: HTMLElement) =>
-  el.isConnected && el.checkVisibility({ visibilityProperty: true, opacityProperty: true })
+  el.isConnected &&
+  el.ownerDocument === document &&
+  el.checkVisibility({ visibilityProperty: true, opacityProperty: true })
 
 const depth = (el: HTMLElement) => {
   let n = 0

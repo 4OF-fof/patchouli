@@ -1,4 +1,5 @@
 import { type JSX, onCleanup, onMount } from 'solid-js'
+import { coverPage } from '../../media/WebPage/layer'
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -90,7 +91,10 @@ export function DialogFrame(props: DialogFrameProps) {
   })
   return (
     <div
-      ref={overlay}
+      ref={(e) => {
+        overlay = e
+        coverPage(e)
+      }}
       class={props.overlayClass}
       role="presentation"
       onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}

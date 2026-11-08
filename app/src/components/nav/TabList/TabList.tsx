@@ -1,5 +1,6 @@
 import { Index, Show, createSignal, onCleanup, onMount } from 'solid-js'
 import { Icon } from '../../base/Icon/Icon'
+import { coverPage } from '../../media/WebPage/layer'
 import { TabMenu } from '../TabMenu/TabMenu'
 import type { TabStripProps } from '../TabStrip/TabStrip'
 import { TabItem } from '../TabStrip/TabItem'
@@ -45,7 +46,10 @@ export function TabList(props: TabStripProps) {
   })
   return (
     <div
-      ref={root}
+      ref={(e) => {
+        root = e
+        coverPage(e)
+      }}
       class={styles.root}
       data-open={open() || !!row.menu() || row.dragging() !== undefined || row.receiving()}
       onPointerEnter={() => {

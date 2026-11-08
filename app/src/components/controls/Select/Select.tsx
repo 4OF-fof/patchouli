@@ -2,6 +2,7 @@ import { For, Show, createSignal, createUniqueId, onMount } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { Icon } from '../../base/Icon/Icon'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
+import { coverPage } from '../../media/WebPage/layer'
 import styles from './Select.module.css'
 import { usePopover } from '../../overlay/usePopover'
 
@@ -134,7 +135,10 @@ export function SelectList(props: SelectListProps) {
   return (
     <Portal>
       <div
-        ref={list}
+        ref={(e) => {
+          list = e
+          coverPage(e)
+        }}
         id={listId()}
         class={styles.list}
         role="listbox"

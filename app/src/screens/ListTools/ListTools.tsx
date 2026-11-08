@@ -4,6 +4,7 @@ import { Icon } from '../../components/base/Icon/Icon'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Button } from '../../components/controls/Button/Button'
 import { Chip } from '../../components/controls/Chip/Chip'
+import { coverPage } from '../../components/media/WebPage/layer'
 import { NavMenu } from '../../components/nav/NavMenu/NavMenu'
 import { useTabActive } from '../../components/nav/TabPane/TabPane'
 import { type ItemFilter, NO_FILTER, counted, filtering } from '../../model/filter'
@@ -143,7 +144,7 @@ export function ListTools(props: ListToolsProps) {
       </Show>
       <Show when={open() === 'filter'}>
         <div class={styles.drop}>
-          <div class={styles.panel} role="dialog" aria-label="絞り込み">
+          <div ref={coverPage} class={styles.panel} role="dialog" aria-label="絞り込み">
             <ScrollArea class={styles.scroll} viewClass={styles.body}>
               <input
                 ref={(el) => queueMicrotask(() => el.focus())}

@@ -1,6 +1,7 @@
 import { For, Show, createSignal } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { Icon } from '../../base/Icon/Icon'
+import { coverPage } from '../../media/WebPage/layer'
 import styles from './DateField.module.css'
 import { usePopover } from '../../overlay/usePopover'
 
@@ -117,7 +118,10 @@ export function DateField(props: DateFieldProps) {
           {/* 矢印キーと Esc は、月の切り替えボタンにいるときもカレンダー全体で受ける */}
           {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */}
           <div
-            ref={pop}
+            ref={(e) => {
+              pop = e
+              coverPage(e)
+            }}
             class={styles.pop}
             role="dialog"
             aria-label={props['aria-label'] ?? '日付を選択'}

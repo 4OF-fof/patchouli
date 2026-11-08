@@ -122,6 +122,13 @@
   font-size: var(--fs-meta);
   font-variant-numeric: tabular-nums;
 }
+.pageCount {
+  padding: 0 var(--space-4);
+  color: var(--ink-2);
+  font-family: var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 /* 情報のカードは「情報」のボタンの位置から開き、ピン留めをカードの左へ押し出す */
 .pin,
 .more,

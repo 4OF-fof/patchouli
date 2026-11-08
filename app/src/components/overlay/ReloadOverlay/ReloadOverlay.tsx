@@ -1,6 +1,7 @@
 import { Match, Switch } from 'solid-js'
 import { Spinner } from '../../base/Spinner/Spinner'
 import { Button } from '../../controls/Button/Button'
+import { coverPage } from '../../media/WebPage/layer'
 import styles from './ReloadOverlay.module.css'
 
 export interface ReloadOverlayProps {
@@ -13,7 +14,7 @@ export interface ReloadOverlayProps {
 export function ReloadOverlay(props: ReloadOverlayProps) {
   const left = () => (props.work ? `（残り ${props.work} 件）` : '')
   return (
-    <div class={styles.root} role="alertdialog" aria-modal="true" aria-label="プラグインの再読み込み">
+    <div ref={coverPage} class={styles.root} role="alertdialog" aria-modal="true" aria-label="プラグインの再読み込み">
       <div class={styles.box}>
         <Switch>
           <Match when={props.step === 'ask'}>

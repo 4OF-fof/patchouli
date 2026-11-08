@@ -3,6 +3,7 @@ import { Icon } from '../../base/Icon/Icon'
 import { Kbd } from '../../base/Kbd/Kbd'
 import { ScrollArea } from '../../base/ScrollArea/ScrollArea'
 import { Chip } from '../../controls/Chip/Chip'
+import { coverPage } from '../../media/WebPage/layer'
 import styles from './SearchPalette.module.css'
 
 export type SearchMode = 'search' | 'command' | 'prompt' | 'link' | 'embed'
@@ -82,6 +83,7 @@ export function SearchPalette(props: SearchPaletteProps) {
   })
   return (
     <div
+      ref={coverPage}
       class={styles.scrim}
       role="presentation"
       onMouseDown={(e) => e.target === e.currentTarget && props.onClose?.()}

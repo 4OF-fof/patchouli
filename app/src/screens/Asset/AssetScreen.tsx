@@ -15,6 +15,7 @@ import {
 import { Portal } from 'solid-js/web'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
+import { IconButton } from '../../components/controls/IconButton/IconButton'
 import { PlaceSelect } from '../../components/controls/PlaceSelect/PlaceSelect'
 import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
@@ -250,6 +251,11 @@ export function AssetScreen(props: AssetScreenProps) {
   const ready = (l: Look) => {
     if (looks()[1] === l) setLooks([l])
   }
+  /** 外のページを出している間は、ページ送りをアドレスバーの行に置く。 */
+  const overlaySteps = () => {
+    const l = looks()[0]
+    return props.list.length > 1 && !(l?.kind === 'link' && !l.shown?.ui)
+  }
   /** WebView のデコーダーで読めなかったものの src。 */
   const [broken, setBroken] = createSignal<string>()
   const undecoded = () => {
@@ -266,7 +272,25 @@ export function AssetScreen(props: AssetScreenProps) {
       if (ui) return <PluginView url={ui.url} api={ui.api} link class={styles.page} onReady={onReady} />
       queueMicrotask(onReady)
       return (
-        <WebPage url={l.src} browser={props.host?.browser} onOpenDefault={props.host?.openUrl} class={styles.page} />
+        <WebPage
+          url={l.src}
+          browser={props.host?.browser}
+          onOpenDefault={props.host?.openUrl}
+          class={styles.page}
+          lead={
+            <Show when={props.list.length > 1}>
+              <IconButton label="前の素材" data-tip="前の素材（←）" onClick={() => step(-1)}>
+                <Icon name="back" size={14} />
+              </IconButton>
+              <IconButton label="次の素材" data-tip="次の素材（→）" onClick={() => step(1)}>
+                <Icon name="chevron" size={14} />
+              </IconButton>
+              <span class={styles.pageCount}>
+                {i() + 1} / {props.list.length}
+              </span>
+            </Show>
+          }
+        />
       )
     }
     if (l.kind === 'image')
@@ -432,7 +456,7 @@ export function AssetScreen(props: AssetScreenProps) {
       data-idle={idle()}
       data-info={info()}
       data-bar={!!barTools() || undefined}
-      data-steps={props.list.length > 1 || undefined}
+      data-steps={overlaySteps() || undefined}
       aria-label="素材"
       onPointerMove={() => wake()}
       onPointerDown={() => wake()}
@@ -489,7 +513,7 @@ export function AssetScreen(props: AssetScreenProps) {
                 </Match>
               </Switch>
             </div>
-            <Show when={props.list.length > 1}>
+            <Show when={overlaySteps()}>
               <div class={`${styles.strip} ${styles.fade}`}>
                 <button
                   type="button"
@@ -648,6 +672,7 @@ export function AssetScreen(props: AssetScreenProps) {
               </aside>
               <Show when={picking()}>
                 <TagPicker
+                  ref={coverPage}
                   class={styles.picker}
                   style={at()}
                   tags={a().tags}

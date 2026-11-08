@@ -2,6 +2,7 @@ import { For, Show, createEffect, createSignal } from 'solid-js'
 import { Icon, type IconName } from '../../base/Icon/Icon'
 import { ProgressBar } from '../../base/ProgressBar/ProgressBar'
 import { Spinner } from '../../base/Spinner/Spinner'
+import { coverPage } from '../../media/WebPage/layer'
 import styles from './ActivityButton.module.css'
 import { usePopover } from '../../overlay/usePopover'
 
@@ -53,7 +54,7 @@ export function ActivityButton(props: ActivityButtonProps) {
         </button>
       </Show>
       <Show when={busy() && open()}>
-        <div class={styles.panel} role="dialog" aria-label="処理中">
+        <div ref={coverPage} class={styles.panel} role="dialog" aria-label="処理中">
           <div class={styles.head}>処理中</div>
           <For each={props.activities}>
             {(a) => (
