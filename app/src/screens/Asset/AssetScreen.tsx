@@ -256,7 +256,7 @@ export function AssetScreen(props: AssetScreenProps) {
     const l = looks()[0]
     return l?.kind === 'link' && !l.shown?.ui
   }
-  const overlaySteps = () => props.list.length > 1 && !webShown()
+  const overlaySteps = () => props.list.length > 1 && (!webShown() || !!barTools())
   /** WebView のデコーダーで読めなかったものの src。 */
   const [broken, setBroken] = createSignal<string>()
   const undecoded = () => {
@@ -281,7 +281,7 @@ export function AssetScreen(props: AssetScreenProps) {
           barAt={barTools()}
           trail={<Show when={active() || !barTools()}>{tools(a, true)}</Show>}
           lead={
-            <Show when={props.list.length > 1}>
+            <Show when={props.list.length > 1 && !barTools()}>
               <IconButton label="前の素材" data-tip="前の素材（←）" onClick={() => step(-1)}>
                 <Icon name="back" size={14} />
               </IconButton>
@@ -459,7 +459,7 @@ export function AssetScreen(props: AssetScreenProps) {
       data-idle={idle()}
       data-info={info()}
       data-bar={!!barTools() || undefined}
-      data-steps={overlaySteps() || undefined}
+      data-steps={(overlaySteps() && !webShown()) || undefined}
       data-web={webShown() || undefined}
       aria-label="素材"
       onPointerMove={() => wake()}
@@ -518,8 +518,10 @@ export function AssetScreen(props: AssetScreenProps) {
               </Switch>
             </div>
             <Show when={overlaySteps()}>
-              <div class={`${styles.strip} ${styles.fade}`}>
+              {/* カーソルが外のページの上にあると動きを受け取れないので、外のページでは隠さない */}
+              <div class={`${styles.strip} ${webShown() ? '' : styles.fade}`}>
                 <button
+                  ref={coverPage}
                   type="button"
                   class={styles.btn}
                   aria-label="前の素材"
@@ -529,6 +531,7 @@ export function AssetScreen(props: AssetScreenProps) {
                   <Icon name="back" size={14} />
                 </button>
                 <button
+                  ref={coverPage}
                   type="button"
                   class={styles.btn}
                   aria-label="次の素材"
@@ -537,7 +540,7 @@ export function AssetScreen(props: AssetScreenProps) {
                 >
                   <Icon name="chevron" size={14} />
                 </button>
-                <span class={styles.count}>
+                <span ref={coverPage} class={styles.count}>
                   {i() + 1} / {props.list.length}
                 </span>
               </div>

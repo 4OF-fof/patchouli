@@ -17,10 +17,12 @@
   color: var(--muted);
   font: var(--fs-meta) var(--f-sans);
 }
+/* 置いた先の行の格子に、戻るなどのボタン・URL の欄・右端の操作を直接並べる */
 .bar[data-inline] {
-  height: auto;
-  padding: 0;
-  border-bottom: 0;
+  display: contents;
+}
+.bar[data-inline] .lead {
+  display: none;
 }
 .trail {
   display: flex;
