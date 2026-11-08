@@ -84,3 +84,13 @@
   align-items: center;
   margin-left: auto;
 }
+/* 行の余りをすべて使う部品（アドレスバーなど）を置いたとき */
+.tools:has(> [data-fill]) {
+  flex: 1;
+  min-width: 0;
+  margin-left: var(--space-8);
+}
+.tools > [data-fill] {
+  flex: 1;
+  min-width: 0;
+}

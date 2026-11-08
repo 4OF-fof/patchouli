@@ -37,7 +37,7 @@
   flex: 1;
   align-self: stretch;
 }
-.root:not([data-bar]) .stage .page,
+.root:not([data-bar], [data-web]) .stage .page,
 .root[data-steps] .stage .page {
   margin-top: 56px;
 }
@@ -226,6 +226,11 @@
   font-size: var(--fs-list);
   transform-origin: top right;
   animation: open 0.18s ease;
+}
+/* アドレスバーの行が画面の中にあるときは、行のボタンを隠さないよう下に開く */
+.root[data-web]:not([data-bar]) .info {
+  top: 44px;
+  max-height: calc(100% - 52px);
 }
 @keyframes open {
   from {

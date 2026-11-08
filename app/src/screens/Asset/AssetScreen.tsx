@@ -251,11 +251,12 @@ export function AssetScreen(props: AssetScreenProps) {
   const ready = (l: Look) => {
     if (looks()[1] === l) setLooks([l])
   }
-  /** 外のページを出している間は、ページ送りをアドレスバーの行に置く。 */
-  const overlaySteps = () => {
+  /** 外のページを出している間は、ページ送りとボタンをアドレスバーの行に置く。 */
+  const webShown = () => {
     const l = looks()[0]
-    return props.list.length > 1 && !(l?.kind === 'link' && !l.shown?.ui)
+    return l?.kind === 'link' && !l.shown?.ui
   }
+  const overlaySteps = () => props.list.length > 1 && !webShown()
   /** WebView のデコーダーで読めなかったものの src。 */
   const [broken, setBroken] = createSignal<string>()
   const undecoded = () => {
@@ -277,6 +278,8 @@ export function AssetScreen(props: AssetScreenProps) {
           browser={props.host?.browser}
           onOpenDefault={props.host?.openUrl}
           class={styles.page}
+          barAt={barTools()}
+          trail={<Show when={active() || !barTools()}>{tools(a, true)}</Show>}
           lead={
             <Show when={props.list.length > 1}>
               <IconButton label="前の素材" data-tip="前の素材（←）" onClick={() => step(-1)}>
@@ -457,6 +460,7 @@ export function AssetScreen(props: AssetScreenProps) {
       data-info={info()}
       data-bar={!!barTools() || undefined}
       data-steps={overlaySteps() || undefined}
+      data-web={webShown() || undefined}
       aria-label="素材"
       onPointerMove={() => wake()}
       onPointerDown={() => wake()}
@@ -538,7 +542,7 @@ export function AssetScreen(props: AssetScreenProps) {
                 </span>
               </div>
             </Show>
-            <Show when={inBar()} keyed fallback={!barTools() && tools(a, false)}>
+            <Show when={!webShown() && inBar()} keyed fallback={!barTools() && !webShown() && tools(a, false)}>
               {(el) => (
                 <Portal mount={el}>
                   <span class={styles.barTools}>{tools(a, true)}</span>

@@ -1,9 +1,8 @@
-import { For, createSignal } from 'solid-js'
+import { For } from 'solid-js'
 import type { RemoteAsk, RemotePermission } from '../../../backend/types'
 import { REMOTE_PERMISSIONS } from '../../../model/remote'
 import { Kbd } from '../../base/Kbd/Kbd'
 import { Button } from '../../controls/Button/Button'
-import { Checkbox } from '../../controls/Checkbox/Checkbox'
 import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
 import styles from './RemoteAskDialog.module.css'
 
@@ -13,17 +12,10 @@ export interface RemoteAskDialogProps {
   onAnswer: (permissions: RemotePermission[] | undefined) => void
 }
 
-/** 初めてつないできた CLI・拡張機能・アプリに、渡す権限を選んで許可する。 */
+/** 初めてつないできた CLI・拡張機能・アプリに、求められた権限を示して許可するかを尋ねる。 */
 export function RemoteAskDialog(props: RemoteAskDialogProps) {
   const asked = () => REMOTE_PERMISSIONS.filter((p) => props.ask.permissions.includes(p.id))
-  const [on, setOn] = createSignal(new Set(props.ask.permissions))
-  const toggle = (id: RemotePermission, checked: boolean) => {
-    const next = new Set(on())
-    if (checked) next.add(id)
-    else next.delete(id)
-    setOn(next)
-  }
-  const allow = () => props.onAnswer(REMOTE_PERMISSIONS.filter((p) => on().has(p.id)).map((p) => p.id))
+  const allow = () => props.onAnswer(asked().map((p) => p.id))
   return (
     <ConfirmDialog
       label="接続の許可"
@@ -42,18 +34,9 @@ export function RemoteAskDialog(props: RemoteAskDialogProps) {
         </>
       }
     >
-      <p>ライブラリを操作するための接続を求めています。許可する権限を選択してください。</p>
+      <p>ライブラリを操作するための接続を求めています。許可すると次の権限を付与します。</p>
       <ul class={styles.list}>
-        <For each={asked()}>
-          {(p) => (
-            <li>
-              <label>
-                <Checkbox checked={on().has(p.id)} onChange={(e) => toggle(p.id, e.currentTarget.checked)} />
-                {p.label}
-              </label>
-            </li>
-          )}
-        </For>
+        <For each={asked()}>{(p) => <li>{p.label}</li>}</For>
       </ul>
       <p class={styles.note}>許可した内容は、設定の「コネクタ」で変更できます。</p>
     </ConfirmDialog>

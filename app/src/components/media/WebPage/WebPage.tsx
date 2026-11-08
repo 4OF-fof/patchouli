@@ -1,4 +1,5 @@
 import { type JSX, Show, createEffect, createSignal, onCleanup, onMount } from 'solid-js'
+import { Portal } from 'solid-js/web'
 import type { BrowserActions } from '../../../backend/types'
 import { Icon } from '../../base/Icon/Icon'
 import { Button } from '../../controls/Button/Button'
@@ -15,6 +16,10 @@ export interface WebPageProps {
   onOpenDefault?: (url: string) => void
   /** アドレスバーの行の左端に置くもの。 */
   lead?: JSX.Element
+  /** アドレスバーの行の右端に置くもの。 */
+  trail?: JSX.Element
+  /** あれば、アドレスバーの行をページの上に置かず、ここに出す。 */
+  barAt?: HTMLElement
   class?: string
 }
 
@@ -109,39 +114,49 @@ function Page(props: WebPageProps) {
       iframe.src = props.url
     }
   }
+  const bar = () => (
+    <div class={styles.bar} data-inline={!!props.barAt || undefined}>
+      <span class={styles.side}>
+        <span class={styles.lead}>{props.lead}</span>
+        <IconButton label="戻る" disabled={!can().back} onClick={() => go('back')}>
+          <Icon name="goBack" size={16} />
+        </IconButton>
+        <IconButton label="進む" disabled={!can().forward} onClick={() => go('forward')}>
+          <Icon name="goForward" size={16} />
+        </IconButton>
+        <IconButton label="再読み込み" onClick={() => go('reload')}>
+          <Icon name="reload" size={15} />
+        </IconButton>
+      </span>
+      <span class={styles.address}>
+        <IconButton label={copied() ? 'コピーしました' : 'URL をコピー'} onClick={copy}>
+          <Icon name={copied() ? 'check' : 'link'} size={14} />
+        </IconButton>
+        <span class={styles.url} title={at()}>
+          {parts().head}
+          <b>{parts().host}</b>
+          {parts().rest}
+        </span>
+        <Show when={props.onOpenDefault}>
+          {(open) => (
+            <IconButton label="既定のブラウザで開く" onClick={() => open()(at())}>
+              <Icon name="external" size={16} />
+            </IconButton>
+          )}
+        </Show>
+      </span>
+      <span class={styles.trail}>{props.trail}</span>
+    </div>
+  )
   return (
     <div class={`${styles.root} ${props.class ?? ''}`}>
-      <div class={styles.bar}>
-        <span class={styles.side}>
-          <span class={styles.lead}>{props.lead}</span>
-          <IconButton label="戻る" disabled={!can().back} onClick={() => go('back')}>
-            <Icon name="goBack" size={16} />
-          </IconButton>
-          <IconButton label="進む" disabled={!can().forward} onClick={() => go('forward')}>
-            <Icon name="goForward" size={16} />
-          </IconButton>
-          <IconButton label="再読み込み" onClick={() => go('reload')}>
-            <Icon name="reload" size={15} />
-          </IconButton>
-        </span>
-        <span class={styles.address}>
-          <IconButton label={copied() ? 'コピーしました' : 'URL をコピー'} onClick={copy}>
-            <Icon name={copied() ? 'check' : 'link'} size={14} />
-          </IconButton>
-          <span class={styles.url} title={at()}>
-            {parts().head}
-            <b>{parts().host}</b>
-            {parts().rest}
-          </span>
-          <Show when={props.onOpenDefault}>
-            {(open) => (
-              <IconButton label="既定のブラウザで開く" onClick={() => open()(at())}>
-                <Icon name="external" size={16} />
-              </IconButton>
-            )}
-          </Show>
-        </span>
-      </div>
+      <Show when={props.barAt} keyed fallback={bar()}>
+        {(el) => (
+          <Portal mount={el} ref={(d) => (d.dataset.fill = '')}>
+            {bar()}
+          </Portal>
+        )}
+      </Show>
       <Show
         when={props.browser}
         fallback={

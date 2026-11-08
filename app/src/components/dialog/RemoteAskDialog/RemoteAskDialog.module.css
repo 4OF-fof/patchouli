@@ -11,12 +11,6 @@
   border-top: 1px solid var(--line);
   font-size: var(--fs-body);
 }
-.list label {
-  display: flex;
-  align-items: center;
-  gap: var(--space-10);
-  cursor: pointer;
-}
 .note {
   margin-top: var(--space-12) !important;
   font-size: var(--fs-meta);
