@@ -264,6 +264,18 @@ pub const OPS: &[Op] = &[
             PROJECT,
             GROUP,
             TAGS,
+            opt(
+                "referer",
+                "referer",
+                Kind::Str,
+                "ダウンロードするときに送る Referer（取得元のページの URL）",
+            ),
+            opt(
+                "cookie",
+                "cookie",
+                Kind::Text,
+                "ダウンロードするときに送る Cookie。ダウンロード元と同じホストにだけ送ります",
+            ),
         ],
     },
     Op {

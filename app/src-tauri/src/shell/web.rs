@@ -91,12 +91,20 @@ pub fn get(
     url: &Url,
     allow: impl Fn(&Url) -> Result<(), String>,
 ) -> Result<(Head, Vec<u8>), String> {
-    get_within(url, allow, LIMIT, TIMEOUT)
+    get_within(url, allow, &Sent::default(), LIMIT, TIMEOUT)
+}
+
+/// 取得するときに付けるヘッダー。Cookie は最初の URL と同じホストにだけ送る。
+#[derive(Default)]
+pub struct Sent<'a> {
+    pub referer: Option<&'a str>,
+    pub cookie: Option<&'a str>,
 }
 
 pub fn get_within(
     url: &Url,
     allow: impl Fn(&Url) -> Result<(), String>,
+    sent: &Sent,
     limit: u64,
     timeout: Duration,
 ) -> Result<(Head, Vec<u8>), String> {
@@ -111,7 +119,16 @@ pub fn get_within(
     let mut at = url.clone();
     let mut hops = 0;
     let mut res = loop {
-        let res = agent.get(at.as_str()).call().map_err(err)?;
+        let mut req = agent.get(at.as_str());
+        if let Some(r) = sent.referer {
+            req = req.header("referer", r);
+        }
+        if let Some(c) = sent.cookie
+            && at.host_str() == url.host_str()
+        {
+            req = req.header("cookie", c);
+        }
+        let res = req.call().map_err(err)?;
         let location = res
             .status()
             .is_redirection()

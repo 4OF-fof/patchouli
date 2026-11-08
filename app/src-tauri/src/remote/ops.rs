@@ -575,7 +575,13 @@ fn percent_decode(s: &str) -> String {
 
 fn import_url(app: &AppHandle, cur: &State<Current>, p: &Value) -> Result<Value, String> {
     let url = web::parse(&text(p, "url")?)?;
-    let (head, body) = web::get_within(&url, |_| Ok(()), DOWNLOAD_LIMIT, DOWNLOAD_TIMEOUT)?;
+    let referer = opt_text(p, "referer").filter(|r| !r.is_empty());
+    let cookie = opt_text(p, "cookie").filter(|c| !c.is_empty());
+    let sent = web::Sent {
+        referer: referer.as_deref(),
+        cookie: cookie.as_deref(),
+    };
+    let (head, body) = web::get_within(&url, |_| Ok(()), &sent, DOWNLOAD_LIMIT, DOWNLOAD_TIMEOUT)?;
     if !(200..300).contains(&head.status) {
         return Err(format!("{url}: 取得に失敗しました（{}）", head.status));
     }
