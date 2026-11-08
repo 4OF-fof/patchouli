@@ -12,8 +12,8 @@ use tauri::AppHandle;
 use crate::remote::proto::{
     self, ACTIVATE, DENIED, FAILED, HELLO, INVALID, NOT_FOUND, PARSE_ERROR, PERMISSIONS,
 };
-use crate::remote::{clients, ops};
-use crate::shell::{settings, tray};
+use crate::remote::{clients, ops, setup};
+use crate::shell::tray;
 
 /// ほかに動いているアプリがあれば true。activate なら、そちらのウィンドウを出してもらう。
 pub fn running(activate: bool) -> bool {
@@ -149,7 +149,7 @@ fn identify(app: &AppHandle, p: &Value) -> Result<(String, String), String> {
                 .get("extension")
                 .and_then(Value::as_str)
                 .ok_or("拡張機能の ID が指定されていません")?;
-            if !settings::remote(app)?.extensions.iter().any(|x| x == id) {
+            if !setup::allowed_extensions(app)?.iter().any(|x| x == id) {
                 return Err(format!("拡張機能「{id}」は登録されていません"));
             }
             Ok((

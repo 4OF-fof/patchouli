@@ -25,6 +25,8 @@ const APP_PATH: &str = "app-path";
 const SKILL: &str = include_str!("SKILL.md");
 const SKILL_DIR: &str = "patchouli";
 const SKILL_FILE: &str = "SKILL.md";
+/// 登録しなくても接続できる拡張機能。Firefox 版クリッパーの ID。
+const BUILT_IN_EXTENSIONS: &[&str] = &["patchouli-clipper@4of.dev"];
 
 fn err(p: &Path) -> impl Fn(std::io::Error) -> String + '_ {
     move |e| format!("{}: {e}", p.display())
@@ -263,6 +265,20 @@ pub fn valid_extension(id: &str) -> bool {
                 .all(|c| c.is_ascii_alphanumeric() || "@.-_{}".contains(c)))
 }
 
+/// 接続を認める拡張機能。組み込みの ID と、設定で登録した ID。
+pub fn allowed_extensions(app: &AppHandle) -> Result<Vec<String>, String> {
+    let mut ids: Vec<String> = BUILT_IN_EXTENSIONS
+        .iter()
+        .map(|id| (*id).to_owned())
+        .collect();
+    for id in settings::remote(app)?.extensions {
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    Ok(ids)
+}
+
 #[derive(Clone, Copy)]
 enum Family {
     Chromium,
@@ -330,9 +346,9 @@ fn native_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .join("native-messaging"))
 }
 
-/// 登録した拡張機能に合わせて、ホストの記述を書き直す。拡張機能がなくなった系統は登録を解除する。
+/// 接続を認める拡張機能に合わせて、ホストの記述を書き直す。拡張機能がなくなった系統は登録を解除する。
 pub fn write_hosts(app: &AppHandle) -> Result<(), String> {
-    let ids = settings::remote(app)?.extensions;
+    let ids = allowed_extensions(app)?;
     let dir = native_dir(app)?;
     for family in [Family::Chromium, Family::Firefox] {
         let mine: Vec<&String> = ids
@@ -472,9 +488,7 @@ pub fn refresh(app: &AppHandle) {
     {
         log::warn!("PATH に置いた CLI を新しくできない: {e}");
     }
-    if !r.extensions.is_empty()
-        && let Err(e) = write_hosts(app)
-    {
+    if let Err(e) = write_hosts(app) {
         log::warn!("Native Messaging のホストを登録し直せない: {e}");
     }
     if let Err(e) = refresh_skills(app) {
