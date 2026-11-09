@@ -1,5 +1,6 @@
 import { createSignal } from 'solid-js'
-import { applyScheme, schemes } from './colorScheme'
+import { toHex } from './color'
+import { applyScheme, colorOf, schemes } from './colorScheme'
 
 export type TabsAt = 'top' | 'left'
 export type Sort = 'moved' | 'name' | 'kind'
@@ -111,6 +112,11 @@ const dark = () => typeof matchMedia === 'function' && matchMedia('(prefers-colo
 /** いま使っているテーマ。system なら OS に合わせる。 */
 export const themeOf = (p: Prefs): 'light' | 'dark' => (p.theme === 'system' ? (dark() ? 'dark' : 'light') : p.theme)
 
+const schemeOf = (p: Prefs) => schemes().find((s) => s.id === p.scheme)
+
+/** いまの本文の背景色。 */
+export const paperOf = (p: Prefs) => toHex(colorOf(schemeOf(p), themeOf(p), 'paper'))
+
 const SCALE = { S: 0.85, M: 1, L: 1.2 } as const
 /** カードの大きさの倍率。CSS の --card-scale と同じ値。 */
 export const cardScale = () => SCALE[prefs().cardSize]
@@ -121,11 +127,7 @@ export const applyPrefs = (p: Prefs, root = document.documentElement) => {
   const theme = themeOf(p)
   if (theme === 'light') root.dataset.theme = 'light'
   else delete root.dataset.theme
-  applyScheme(
-    schemes().find((s) => s.id === p.scheme),
-    theme,
-    root,
-  )
+  applyScheme(schemeOf(p), theme, root)
   root.style.setProperty('--card-scale', String(SCALE[p.cardSize]))
   root.style.setProperty('--note-scale', String(SCALE[p.noteFont]))
   root.style.setProperty('--note-width', `${NOTE_WIDTH[p.noteWidth]}px`)

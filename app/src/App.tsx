@@ -40,9 +40,9 @@ import { TabList } from './components/nav/TabList/TabList'
 import { TabStrip } from './components/nav/TabStrip/TabStrip'
 import { MAIN_HOST, HostProvider } from './window/host'
 import { Popout } from './window/Popout'
-import { watchPopouts } from './window/controls'
+import { rememberBackground, watchPopouts } from './window/controls'
 import { watchViewport } from './window/viewport'
-import { applyPrefs, prefs, screenStart } from './model/prefs'
+import { applyPrefs, paperOf, prefs, screenStart } from './model/prefs'
 import { flush as flushWrites } from './model/persist'
 import { SelectionProvider, createSelection } from './components/media/Selection/Selection'
 import { ItemMenuProvider, ThumbMakingProvider, ThumbSeenProvider } from './components/media/Thumb/Thumb'
@@ -91,7 +91,10 @@ const REVEAL_LABEL = /Mac/.test(navigator.userAgent)
     ? 'エクスプローラーで表示'
     : 'フォルダを開く'
 
-const showPrefs = () => applyPrefs(prefs())
+const showPrefs = () => {
+  applyPrefs(prefs())
+  rememberBackground(paperOf(prefs()))
+}
 
 export function App(props: AppProps) {
   const backend = props.backend ?? sampleBackend()

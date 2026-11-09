@@ -28,6 +28,14 @@ pub(crate) async fn set_developer(
     settings::set_developer(&app, &developer)
 }
 
+#[tauri::command]
+pub(crate) async fn set_window_background(
+    app: tauri::AppHandle,
+    color: String,
+) -> Result<(), String> {
+    settings::set_window_background(&app, &color)
+}
+
 pub(crate) fn apply_app_settings(s: &settings::AppSettings) {
     thumb::set_large(s.thumb_size == settings::ThumbSize::Large);
     plugin::commands::set_fixed(s.command_paths.clone());

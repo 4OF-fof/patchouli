@@ -1,8 +1,13 @@
-import { isTauri } from '@tauri-apps/api/core'
+import { invoke, isTauri } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { Window as TauriWindow } from '@tauri-apps/api/window'
 import { createSignal, onCleanup } from 'solid-js'
 import type { WindowControls } from '../components/nav/TitleBar/TitleBar'
+
+/** 次の起動でページが描かれるまでウィンドウに塗る色を覚えてもらう。 */
+export function rememberBackground(color: string) {
+  if (isTauri()) void invoke('set_window_background', { color })
+}
 
 /** window.open で開いた窓の label を待っているもの。デスクトップでは、開いた順に label が届く。 */
 const waiting: ((label: string) => void)[] = []

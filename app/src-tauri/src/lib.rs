@@ -56,6 +56,7 @@ pub fn run() {
             shell::ipc::set_developer,
             shell::ipc::app_settings,
             shell::ipc::set_app_settings,
+            shell::ipc::set_window_background,
             shell::ipc::pick_command,
             shell::ipc::pick_dev_path,
             plugin::ipc::manage::reload_plugins,
@@ -182,10 +183,13 @@ pub fn run() {
                 .ok_or("本体のウィンドウの設定がありません")?
                 .clone();
             let handle = app.handle().clone();
-            tauri::WebviewWindowBuilder::from_config(app.handle(), &conf)?
+            let mut window = tauri::WebviewWindowBuilder::from_config(app.handle(), &conf)?
                 .visible(!tray::background())
-                .on_new_window(move |url, features| web::popout(&handle, url, features))
-                .build()?;
+                .on_new_window(move |url, features| web::popout(&handle, url, features));
+            if let Some(color) = settings::window_background(app.handle()) {
+                window = window.background_color(color);
+            }
+            window.build()?;
             tray::init(app.handle())?;
             remote::server::start(app.handle());
             {

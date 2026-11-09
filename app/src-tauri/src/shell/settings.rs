@@ -5,6 +5,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
+use tauri::window::Color;
 use tauri::{AppHandle, Manager};
 
 use crate::library::{read_json, write_json};
@@ -19,6 +20,7 @@ const CONTENT_SEARCH: &str = "contentSearch";
 const DEVICE: &str = "device";
 const APP: &str = "app";
 const REMOTE: &str = "remote";
+const WINDOW_BACKGROUND: &str = "windowBackground";
 
 /// タグの候補の扱い。auto は選択済みの候補をそのまま付け、confirm は分類の確認に出す。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -349,4 +351,21 @@ pub fn app_settings(app: &AppHandle) -> Result<AppSettings, String> {
 
 pub fn set_app_settings(app: &AppHandle, s: &AppSettings) -> Result<(), String> {
     set(app, APP, s)
+}
+
+/// ページが描かれるまでウィンドウに塗る色。最後に使っていた背景色を覚えておく。
+pub fn window_background(app: &AppHandle) -> Option<Color> {
+    read(app)
+        .ok()?
+        .get(WINDOW_BACKGROUND)?
+        .as_str()?
+        .parse()
+        .ok()
+}
+
+pub fn set_window_background(app: &AppHandle, color: &str) -> Result<(), String> {
+    if read(app)?.get(WINDOW_BACKGROUND).and_then(Value::as_str) == Some(color) {
+        return Ok(());
+    }
+    set(app, WINDOW_BACKGROUND, color)
 }

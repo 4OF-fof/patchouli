@@ -27,6 +27,8 @@ function show(main: () => JSX.Element) {
 }
 
 function openMain() {
+  // CSS の既定はダークなので、最初の描画より前にテーマを当てる
+  applyPrefs(prefs())
   const backend = pickBackend()
   void backend.open().then(
     (o: Opened) => {
@@ -36,7 +38,6 @@ function openMain() {
     },
     // 開けていないライブラリに書き込もうとしないよう、アプリは出さない
     (e: unknown) => {
-      applyPrefs(prefs())
       show(() => (
         <LibraryErrorScreen
           reason={e instanceof Error ? e.message : String(e)}
