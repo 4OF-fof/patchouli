@@ -728,6 +728,7 @@ export function App(props: AppProps) {
                       tidy={backend.tidy}
                       developer={backend.developer}
                       appSettings={backend.appSettings}
+                      startup={backend.startup}
                       remote={backend.remote}
                       exportFile={backend.exportFile}
                       autoTag={backend.autoTag}

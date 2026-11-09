@@ -52,6 +52,9 @@ export interface SettingsDialogProps {
   onOpenLibraries?: () => void
   app?: AppSettings
   onAppChange?: (s: AppSettings) => Promise<void>
+  /** スタートアップで起動するか。自動起動を扱えない環境では undefined。 */
+  startup?: boolean
+  onStartupChange?: (on: boolean) => Promise<void>
   autoTag?: AutoTag
   autoTagProgress?: AutoTagProgress
   /** 有効にするときは、ダウンロードし終えるまで待つ。 */
@@ -207,6 +210,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
     return a && change ? run(label, () => change({ ...a, ...patch })) : undefined
   }
 
+  // 値が変わるたびに項目を作り直すと切り替えた直後にスイッチのフォーカスが外れる
+  const startupAvailable = createMemo(() => props.startup !== undefined)
+
   const remotePart = (actions: RemoteActions, Part: Component<RemoteSettingsProps>, first?: boolean) => () => (
     <Show when={props.remote} fallback={first && <p class={styles.loading}>読み込み中…</p>}>
       {(s) => (
@@ -297,6 +303,32 @@ export function SettingsDialog(props: SettingsDialogProps) {
                     </div>
                   )}
                 </Show>
+              ),
+            },
+          ]
+        : []),
+      ...(startupAvailable() && props.onStartupChange
+        ? [
+            {
+              page: 'general' as const,
+              words: 'スタートアップで起動 ログイン 自動起動 タスクトレイ 常駐',
+              body: () => (
+                <div class={styles.field}>
+                  <SettingField
+                    setting={{
+                      key: 'startup',
+                      label: 'スタートアップで起動',
+                      kind: 'toggle',
+                      default: false,
+                      value: props.startup ?? false,
+                      help: 'ログイン時に、ウィンドウを開かずにタスクトレイに常駐して起動します',
+                    }}
+                    disabled={busy() !== undefined}
+                    onChange={(v) =>
+                      run('スタートアップの設定を変更しています', () => props.onStartupChange!(v === true))
+                    }
+                  />
+                </div>
               ),
             },
           ]

@@ -613,6 +613,10 @@ export function tauriBackend(): Backend {
       set: (settings) => invoke('set_app_settings', { settings }),
       pickCommand: async (name) => (await invoke<string | null>('pick_command', { name })) ?? undefined,
     },
+    startup: {
+      get: async () => (await invoke<boolean | null>('startup_enabled')) ?? undefined,
+      set: (on) => invoke('set_startup', { on }),
+    },
     remote: {
       status: () => invoke<RemoteStatus>('remote_status'),
       setPath: (on) => invoke('set_remote_path', { on }),

@@ -33,6 +33,8 @@ const meta = {
     onCancelDownload: wait,
     onSuggestChange: wait,
     onSearchChange: wait,
+    startup: false,
+    onStartupChange: wait,
     onClear: wait,
     onRemoveUnused: wait,
     developer: { enabled: false, pluginDirs: [], repos: [] },
@@ -69,7 +71,7 @@ export const Loading: Story = {
 }
 export const VersionOnly: Story = {
   name: 'バージョンのみ',
-  args: { onClear: undefined, onRemoveUnused: undefined, onDeveloperChange: undefined },
+  args: { onClear: undefined, onRemoveUnused: undefined, onDeveloperChange: undefined, onStartupChange: undefined },
 }
 export const Failed: Story = {
   name: '削除に失敗',

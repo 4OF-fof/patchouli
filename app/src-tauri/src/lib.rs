@@ -128,6 +128,8 @@ pub fn run() {
             tray::close_to_tray,
             tray::quit_app,
             tray::show_app,
+            shell::startup::startup_enabled,
+            shell::startup::set_startup,
             remote::ipc::remote_status,
             remote::ipc::set_remote_path,
             remote::ipc::install_skill,

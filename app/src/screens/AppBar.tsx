@@ -22,6 +22,7 @@ import type {
   DeveloperActions,
   LibraryActions,
   RemoteActions,
+  StartupActions,
   TidyActions,
 } from '../backend/types'
 import { Icon, type IconName } from '../components/base/Icon/Icon'
@@ -112,6 +113,7 @@ export interface AppBarProps {
   /** あれば、メニューから新しいウィンドウを開ける。 */
   onNewWindow?: () => void
   appSettings?: AppSettingsActions
+  startup?: StartupActions
   remote?: RemoteActions
   /** ファイルに書き出し、書き出した場所を返す。選ぶのをやめたら undefined。 */
   exportFile?: (name: string, data: string) => Promise<string | undefined>
@@ -409,6 +411,10 @@ export function AppBar(props: AppBarProps) {
     () => ((state() === 'settings' || state() === 'plugins') && props.appSettings) || undefined,
     (a) => a.get(),
   )
+  const [startup, { refetch: reloadStartup }] = createResource(
+    () => (state() === 'settings' && props.startup) || undefined,
+    (s) => s.get(),
+  )
   const [autoTag, { refetch: reloadAutoTag }] = createResource(
     () => (state() === 'settings' && props.autoTag) || undefined,
     (a) => a.get(),
@@ -633,6 +639,14 @@ export function AppBar(props: AppBarProps) {
               await props.appSettings!.set(next)
               await reloadApp()
               if (before && before.thumbSize !== next.thumbSize) props.onReopen?.()
+            })
+          }
+          startup={startup.latest}
+          onStartupChange={
+            props.startup &&
+            (async (on) => {
+              await props.startup!.set(on)
+              await reloadStartup()
             })
           }
           loadNotices={async () => (await import('../notices/third-party.json')).default}

@@ -292,6 +292,13 @@ export interface AppSettingsActions {
   pickCommand(name: string): Promise<string | undefined>
 }
 
+/** ログイン時の自動起動。OS の登録を読み書きする。 */
+export interface StartupActions {
+  /** 自動起動を扱えない OS では undefined。 */
+  get(): Promise<boolean | undefined>
+  set(on: boolean): Promise<void>
+}
+
 /** タグの候補の扱い。auto は選択済みの候補をそのまま付け、confirm は分類の確認に出す。 */
 export type TagSuggest = 'auto' | 'confirm' | 'off'
 
@@ -407,6 +414,7 @@ export interface Backend {
   tidy?: TidyActions
   developer?: DeveloperActions
   appSettings?: AppSettingsActions
+  startup?: StartupActions
   remote?: RemoteActions
   autoTag?: AutoTagActions
   contentSearch?: ContentSearch
