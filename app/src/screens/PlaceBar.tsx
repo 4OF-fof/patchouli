@@ -12,6 +12,7 @@ export const placeEntries = (lib: Library, here: Place | undefined, screens: Scr
   { id: 'all', icon: 'grid', label: 'すべて', count: lib.items.length, current: here === 'all' },
   { id: 'projects', icon: 'project', label: 'プロジェクト', count: lib.projects.length, current: here === 'projects' },
   { id: 'tags', icon: 'hash', label: 'タグ', count: lib.tagGroups().size, current: here === 'tags' },
+  { id: 'tidy', icon: 'tag', label: '分類の確認', count: lib.pending().length, current: here === 'tidy' },
   ...(screens.length ? ['separator' as const] : []),
   ...screens.map((s) => ({ id: s.place, icon: s.icon, label: s.label, current: here === s.place })),
 ]

@@ -175,6 +175,7 @@ export function App(props: AppProps) {
     setPeekUrl,
     openRef,
     openPage,
+    openTidy,
     onGo,
     opened,
     forget,
@@ -362,7 +363,7 @@ export function App(props: AppProps) {
     const k = e.key.toLowerCase()
     if (k === 'u') {
       e.preventDefault()
-      go({ s: 'tidy' })
+      onGo('tidy')
     } else if (k === 'n' && !e.shiftKey && !e.altKey) {
       e.preventDefault()
       void createNote()
@@ -588,7 +589,7 @@ export function App(props: AppProps) {
             onOpenItem={(id) => openItem(id)}
             onOpenProject={(name) => go({ s: 'project', name })}
             onOpenTag={(tag) => go({ s: 'tag', tag })}
-            onTidy={(id) => go({ s: 'tidy', id })}
+            onTidy={openTidy}
           />
         </Match>
         <Match when={shown().s === 'all'}>

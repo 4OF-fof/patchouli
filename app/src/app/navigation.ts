@@ -33,7 +33,9 @@ export const placeOfView = (v: View): Place | undefined =>
         ? 'tags'
         : v.s === 'plist'
           ? 'projects'
-          : screenPlace(v)
+          : v.s === 'tidy'
+            ? 'tidy'
+            : screenPlace(v)
 
 /** 画面を開く・戻る・横から覗く（Peek）と、最近開いたもの。 */
 export function createNavigation(d: NavigationDeps) {
@@ -130,10 +132,15 @@ export function createNavigation(d: NavigationDeps) {
     setPeekUrl(undefined)
     selection.clear()
   })
+  const openTidy = (id?: string) => {
+    if (inNewTab()) openTab([{ s: 'tidy', id }])
+    // 開き直すと承認の履歴が消えて戻れなくなる
+    else if (view().s !== 'tidy') setStack([{ s: 'tidy', id }])
+  }
   const onGo = (to: Place) => {
     const screen = screens().find((s) => screenStart(s.plugin, s.id) === to)
     if (screen) setStack([{ s: 'screen', plugin: screen.plugin, id: screen.id }])
-    else if (to === 'tidy') go({ s: 'tidy' })
+    else if (to === 'tidy') openTidy()
     else setStack([{ s: to === 'all' ? 'all' : to === 'tags' ? 'tlist' : to === 'projects' ? 'plist' : 'edition' }])
   }
 
@@ -191,7 +198,7 @@ export function createNavigation(d: NavigationDeps) {
       .map((s) => ({ place: screenStart(s.plugin, s.id), label: s.label, icon: screenIcon(s) }))
 
   const goPlace = (id: string) => {
-    if (id === 'home' || id === 'all' || id === 'tags' || id === 'projects') onGo(id)
+    if (id === 'home' || id === 'all' || id === 'tags' || id === 'projects' || id === 'tidy') onGo(id)
     const s = screenPlaces().find((x) => x.place === id)
     if (s) onGo(s.place)
   }
@@ -208,6 +215,7 @@ export function createNavigation(d: NavigationDeps) {
     setPeekUrl,
     openRef,
     openPage,
+    openTidy,
     onGo,
     opened,
     forget,
