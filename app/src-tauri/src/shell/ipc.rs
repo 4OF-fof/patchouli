@@ -138,7 +138,13 @@ pub(crate) async fn reveal_item(cur: State<'_, Current>, id: String) -> Result<(
 
 #[tauri::command]
 pub(crate) async fn open_item_default(cur: State<'_, Current>, id: String) -> Result<(), String> {
-    let path = with(&cur, |l| Ok(l.path(&id)?.to_owned()))?;
+    let path = with(&cur, |l| {
+        let (path, ext, _) = l.file(&id)?;
+        if l.is_extracted(&id) && crate::archive::is_executable(&ext) {
+            return Err("アーカイブ内の実行形式のファイルは開けません".into());
+        }
+        Ok(path.to_owned())
+    })?;
     os::open(&path)
 }
 

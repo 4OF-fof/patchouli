@@ -68,6 +68,78 @@ export const Encrypted: Story = {
     }),
 }
 
+export const ThumbFailed: Story = {
+  name: 'サムネイルの生成に失敗',
+  render: () =>
+    archive({
+      path: '入稿データ/画像',
+      actions: {
+        ...sample(),
+        thumbs: async (_id, paths, onThumb) => paths.forEach((path) => onThumb({ path, failed: true })),
+      },
+    }),
+}
+export const ThumbMaking: Story = {
+  name: 'サムネイルの生成中',
+  render: () => archive({ path: '入稿データ/画像', actions: { ...sample(), thumbs: () => new Promise(() => {}) } }),
+}
+
+const entryOf = (path: string, size: number) => {
+  const lib = sampleLibrary()
+  const { files } = archiveTree(
+    idOf(lib),
+    [{ path, size, encrypted: false, executable: path.endsWith('.exe') }],
+    lib.formats,
+  )
+  return { lib, items: [...files.values()] }
+}
+export const NoteEntry: Story = {
+  name: 'アーカイブ内のノート',
+  render: () => {
+    const { lib, items } = entryOf('入稿データ/入稿メモ.md', 2_048)
+    return (
+      <ScreenFrame>
+        <EntryScreen lib={lib} items={items} index={0} host={{ view: async () => null }} actions={sample()} />
+      </ScreenFrame>
+    )
+  },
+}
+export const Executable: Story = {
+  name: '実行形式のファイル',
+  render: () => {
+    const { lib, items } = entryOf('入稿データ/setup.exe', 2_048_000)
+    return (
+      <ScreenFrame>
+        <EntryScreen
+          lib={lib}
+          items={items}
+          index={0}
+          host={{ view: async () => null }}
+          actions={sample()}
+          onOpenDefault={async () => {}}
+        />
+      </ScreenFrame>
+    )
+  },
+}
+export const Extracting: Story = {
+  name: 'ファイルの取り出し中',
+  render: () => {
+    const { lib, items } = entryOf('入稿データ/画像/IMG_2041.jpg', 3_145_728)
+    return (
+      <ScreenFrame>
+        <EntryScreen
+          lib={lib}
+          items={items}
+          index={0}
+          host={{ view: async () => ({ kind: 'image' }) }}
+          actions={{ ...sample(), extract: () => new Promise(() => {}) }}
+        />
+      </ScreenFrame>
+    )
+  },
+}
+
 export const Entry: Story = {
   name: '内容のファイルの情報',
   render: () => {

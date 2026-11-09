@@ -583,6 +583,8 @@ const ARCHIVES: Record<string, Record<string, string | { item: string }>> = {
   入稿データ: {
     '入稿データ/はじめに読む.txt':
       '秋の企画のポスター一式です。\n画像は「画像」、配色の見本は「配色」に入れています。\n',
+    '入稿データ/入稿メモ.md':
+      '# 入稿メモ\n\n- 印刷は 10 月 20 日まで\n- 用紙はマットコート 135kg\n\n## 確認すること\n\n色校正を **担当者** に送ります。\n',
     '入稿データ/画像/moodboard-01.jpg': { item: 'moodboard-01' },
     '入稿データ/画像/IMG_2041.jpg': { item: 'IMG_2041' },
     '入稿データ/画像/IMG_2042.jpg': { item: 'IMG_2042' },

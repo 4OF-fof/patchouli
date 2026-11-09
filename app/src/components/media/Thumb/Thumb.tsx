@@ -77,6 +77,8 @@ export interface ThumbProps {
   /** 対応するプラグインがなければ、未対応の印を出す */
   ext?: string
   failed?: boolean
+  /** 形式によらず出す印 */
+  mark?: 'lock' | 'note'
   title?: string
   excerpt?: string
   height?: number
@@ -99,6 +101,7 @@ export function Thumb(props: ThumbProps) {
   const formats = useFormats()
   const mark = () => {
     if (props.src || props.note) return undefined
+    if (props.mark) return props.mark
     if (props.ext !== undefined && !formats().has(props.ext)) return 'unknownFile'
     return props.failed ? 'imageOff' : undefined
   }

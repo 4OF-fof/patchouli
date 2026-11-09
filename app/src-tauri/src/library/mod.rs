@@ -990,6 +990,14 @@ impl Library {
         self.extracted.insert(id, path);
     }
 
+    pub fn forget_extracted(&mut self, id: &str) {
+        self.extracted.remove(id);
+    }
+
+    pub fn is_extracted(&self, id: &str) -> bool {
+        self.extracted.contains_key(id)
+    }
+
     pub fn asset(&self, id: &str) -> Result<(&Path, String), String> {
         let (path, ext, note) = self.file(id)?;
         if note {

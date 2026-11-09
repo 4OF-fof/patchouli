@@ -372,14 +372,20 @@ export interface ArchiveEntry {
   path: string
   size: number
   encrypted: boolean
+  /** OS がそのまま実行する形式 */
+  executable?: boolean
 }
 
-export interface ArchiveThumb {
-  path: string
-  url: string
-  width: number
-  height: number
-}
+export type ArchiveThumb =
+  | {
+      path: string
+      url: string
+      width: number
+      height: number
+      /** 波形から描いたもの */
+      wave?: boolean
+    }
+  | { path: string; failed: true }
 
 /** アーカイブの中のファイル。signal を中止すると、動いている処理も中止する。 */
 export interface ArchiveActions {
@@ -388,6 +394,9 @@ export interface ArchiveActions {
   extract(id: string, path: string, signal: AbortSignal): Promise<{ id: string; url: string }>
   /** 生成できたものから onThumb に渡す。 */
   thumbs(id: string, paths: string[], onThumb: (t: ArchiveThumb) => void, signal: AbortSignal): Promise<void>
+  waveform(id: string, path: string): Promise<Uint8Array | null>
+  /** 取り出し済みのファイルを文字列として読む。 */
+  text(id: string, path: string): Promise<string>
 }
 
 export interface Backend {

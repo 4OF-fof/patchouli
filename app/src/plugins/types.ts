@@ -253,6 +253,8 @@ export type ItemView =
   | { kind: 'ui'; plugin: string; url: string }
   /** ファイルが指す URL。ui があれば links のプラグインが描き、なければページをそのまま出す。 */
   | { kind: 'link'; url: string; ui?: { plugin: string; url: string } }
+  /** アーカイブの中のノート。読み取り専用で表示する。 */
+  | { kind: 'note'; text: string }
 
 export interface PluginActions {
   /** ZIP ファイルを選ぶ。選ばなかったときは undefined。 */

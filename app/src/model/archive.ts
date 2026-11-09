@@ -1,6 +1,6 @@
 import type { ArchiveEntry, ArchiveThumb } from '../backend/types'
 import type { FormatInfo } from '../plugins/types'
-import type { Group, Item } from './library'
+import { type Group, type Item, NOTE_EXT } from './library'
 
 /** アーカイブの中のファイル。ライブラリの項目ではないので、編集はできない。 */
 export interface EntryItem extends Item {
@@ -8,7 +8,15 @@ export interface EntryItem extends Item {
   path: string
   size: number
   encrypted: boolean
+  executable: boolean
 }
+
+export const isEntry = (it: Item): it is EntryItem => 'archive' in it
+
+/** 読み取り専用のノートとして表示するサイズの上限。 */
+const NOTE_MAX = 8 << 20
+
+export const isNoteEntry = (it: Item) => isEntry(it) && it.ext === NOTE_EXT && it.size <= NOTE_MAX
 
 export interface ArchiveFolder extends Group {
   files: EntryItem[]
@@ -54,6 +62,8 @@ const entryItem = (archive: string, e: ArchiveEntry, formats: ReadonlyMap<string
     path: e.path,
     size: e.size,
     encrypted: e.encrypted,
+    executable: !!e.executable,
+    thumbMark: e.encrypted ? 'lock' : ext === NOTE_EXT ? 'note' : undefined,
   }
 }
 
@@ -114,8 +124,15 @@ export function archiveTree(
 
 export const filesUnder = (f: ArchiveFolder): EntryItem[] => [...f.files, ...f.folders.flatMap(filesUnder)]
 
-export const withThumb = (it: EntryItem, t: ArchiveThumb): EntryItem => ({
-  ...it,
-  thumb: t.url,
-  ratio: t.width && t.height ? t.width / t.height : it.ratio,
-})
+export const sameThumb = (it: EntryItem, t: ArchiveThumb) => ('failed' in t ? !!it.thumbFailed : it.thumb === t.url)
+
+export const withThumb = (it: EntryItem, t: ArchiveThumb): EntryItem =>
+  'failed' in t
+    ? { ...it, thumbFailed: true }
+    : {
+        ...it,
+        thumb: t.url,
+        thumbFailed: false,
+        waveThumb: t.wave,
+        ratio: t.width && t.height ? t.width / t.height : it.ratio,
+      }

@@ -117,6 +117,7 @@ export interface NoteEditorProps {
   onImport?: (files: File[]) => Promise<Item[]>
   /** なければ、コア機能の書き方だけを使う。 */
   syntax?: NoteSyntax
+  readOnly?: boolean
   ref?: (api: NoteEditorApi) => void
   class?: string
 }
@@ -408,6 +409,7 @@ export function NoteEditor(props: NoteEditorProps) {
       state: EditorState.create({
         doc: props.value,
         extensions: [
+          ...(props.readOnly ? [EditorState.readOnly.of(true), EditorView.editable.of(false)] : []),
           history(),
           language.of(markdownOf(math)),
           codeHighlight(styles),

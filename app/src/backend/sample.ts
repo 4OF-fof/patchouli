@@ -39,6 +39,11 @@ export function sampleBackend(): Backend {
           if (it?.thumb) onThumb({ path, url: it.thumb, width: Math.round(it.ratio * 1000), height: 1000 })
         }
       },
+      waveform: async () => null,
+      text: async (id, path) => {
+        const f = filesIn(id)[path]
+        return typeof f === 'string' ? f : ''
+      },
     },
     async open() {
       return { lib, pinnedProjects: PINNED_PROJECTS, pinnedTags: PINNED_TAGS, screens: SAMPLE_SCREENS, problems: [] }

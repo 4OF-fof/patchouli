@@ -24,6 +24,81 @@ const MARGIN: u64 = 1 << 30;
 /// 名前が長すぎると、置き場のパスが OS の上限を超える。
 const NAME_MAX: usize = 100;
 
+/// OS がそのまま実行するファイルの拡張子。アーカイブの中のものは既定のアプリで開かせない。
+const EXECUTABLE: &[&str] = &[
+    "app",
+    "appimage",
+    "appinstaller",
+    "application",
+    "appx",
+    "appxbundle",
+    "bash",
+    "bat",
+    "cmd",
+    "com",
+    "command",
+    "cpl",
+    "csh",
+    "deb",
+    "desktop",
+    "dll",
+    "dmg",
+    "exe",
+    "fish",
+    "gadget",
+    "hta",
+    "inf",
+    "ins",
+    "jar",
+    "js",
+    "jse",
+    "ksh",
+    "lnk",
+    "msc",
+    "msh",
+    "msi",
+    "msix",
+    "msixbundle",
+    "msp",
+    "mst",
+    "pif",
+    "pkg",
+    "pl",
+    "ps1",
+    "ps1xml",
+    "ps2",
+    "ps2xml",
+    "psc1",
+    "psc2",
+    "psm1",
+    "py",
+    "pyw",
+    "rb",
+    "reg",
+    "rpm",
+    "run",
+    "scf",
+    "scr",
+    "sct",
+    "settingcontent-ms",
+    "sh",
+    "shb",
+    "shs",
+    "vb",
+    "vbe",
+    "vbs",
+    "workflow",
+    "ws",
+    "wsc",
+    "wsf",
+    "wsh",
+    "zsh",
+];
+
+pub(crate) fn is_executable(ext: &str) -> bool {
+    EXECUTABLE.contains(&ext)
+}
+
 pub(crate) fn dir_for(cache: &Path, root: &Path) -> PathBuf {
     cache
         .join("archives")
@@ -132,6 +207,39 @@ fn trim(base: &Path, keep: &Path) {
             Ok(()) => total -= size,
             Err(e) => log::warn!("取り出したファイルを消せない: {}: {e}", dir.display()),
         }
+    }
+}
+
+/// 1 つのファイルのサムネイルと波形の置き場所。
+#[derive(Clone)]
+pub(crate) struct ThumbFiles {
+    /// プラグインが作ったもの。音声ならジャケット
+    pub(crate) png: PathBuf,
+    /// プラグインが作らないと答えた印
+    pub(crate) none: PathBuf,
+    pub(crate) wave: PathBuf,
+    /// 波形から描いたもの
+    pub(crate) drawn: PathBuf,
+}
+
+pub(crate) struct Shown {
+    pub(crate) file: PathBuf,
+    pub(crate) size: (u32, u32),
+    pub(crate) wave: bool,
+}
+
+impl ThumbFiles {
+    pub(crate) fn shown(&self) -> Option<Shown> {
+        [(&self.png, false), (&self.drawn, true)]
+            .into_iter()
+            .find_map(|(file, wave)| {
+                let s = imagesize::size(file).ok()?;
+                Some(Shown {
+                    file: file.clone(),
+                    size: (s.width as u32, s.height as u32),
+                    wave,
+                })
+            })
     }
 }
 
@@ -286,21 +394,34 @@ impl Place {
         Ok(out)
     }
 
-    pub(crate) fn thumb_paths(&self, e: &Entry, edge: u32) -> (PathBuf, PathBuf) {
-        let at = self
-            .dir
+    pub(crate) fn wave_path(&self, path: &str) -> PathBuf {
+        self.dir
             .join(THUMBS)
-            .join(format!("{}-{edge}", hex(&[e.path.as_bytes()])));
-        (at.with_extension("png"), at.with_extension("none"))
+            .join(format!("{}.wave", hex(&[path.as_bytes()])))
     }
 
-    /// サムネイルのために取り出す作業用のファイルを、空で用意する。
+    /// owner はサムネイルを作るプラグインの ID とバージョン。更新されたら作り直す。
+    pub(crate) fn thumb_files(&self, e: &Entry, edge: u32, owner: &str) -> ThumbFiles {
+        let dir = self.dir.join(THUMBS);
+        let made = format!("{}-{edge}", hex(&[e.path.as_bytes(), owner.as_bytes()]));
+        ThumbFiles {
+            png: dir.join(format!("{made}.png")),
+            none: dir.join(format!("{made}.none")),
+            wave: self.wave_path(&e.path),
+            drawn: dir.join(format!("{}-{edge}.wave.png", hex(&[e.path.as_bytes()]))),
+        }
+    }
+
+    /// サムネイルのために取り出す作業用のファイルを、空で用意する。held は同時に置いておくファイルの数。
     pub(crate) fn thumb_outputs(
         &self,
         entries: &[&Entry],
+        held: usize,
         job: u32,
     ) -> Result<Vec<ArchiveOut>, String> {
-        self.check_room(entries.iter().map(|e| e.size).sum())?;
+        let mut sizes: Vec<u64> = entries.iter().map(|e| e.size).collect();
+        sizes.sort_unstable_by(|a, b| b.cmp(a));
+        self.check_room(sizes.iter().take(held).sum())?;
         let work = self.work_dir(job);
         fs::create_dir_all(&work).map_err(io_error(&work))?;
         entries

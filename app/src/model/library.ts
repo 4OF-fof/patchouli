@@ -43,6 +43,8 @@ export interface Item {
   jacketSrc?: string
   /** サムネイルを作れなかった */
   thumbFailed?: boolean
+  /** サムネイルの代わりに出す印 */
+  thumbMark?: 'lock' | 'note'
   fit?: Fit
 }
 
@@ -633,7 +635,8 @@ export const jacketOf = (it: Item) => (it.customThumb ? it.jacketSrc : it.waveTh
 export type CardSize = 'L' | 'M' | 'S' | 'X'
 
 export function thumbOf(it: Item, size: CardSize = 'M') {
-  if (!it.note) return { src: it.thumb, id: it.id, fit: it.fit, ext: it.ext, failed: it.thumbFailed }
+  if (!it.note)
+    return { src: it.thumb, id: it.id, fit: it.fit, ext: it.ext, failed: it.thumbFailed, mark: it.thumbMark }
   if (size === 'X') return { note: true, id: it.id, excerpt: it.name }
   const ex = plainText(it.body ?? '')
   const lim = size === 'L' ? 140 : size === 'S' ? 0 : 46

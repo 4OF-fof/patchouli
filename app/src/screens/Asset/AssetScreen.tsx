@@ -28,7 +28,18 @@ import { PluginView } from '../../components/media/PluginView/PluginView'
 import { Thumb, menuBelow, useItemMenu } from '../../components/media/Thumb/Thumb'
 import { type Blocker, Unsupported } from '../../components/media/Unsupported/Unsupported'
 import { VideoPlayer } from '../../components/media/VideoPlayer/VideoPlayer'
-import { type Item, type Library, type Place, SHORTCUT_EXT, jacketOf, relDay, thumbOf } from '../../model/library'
+import { NoteEditor } from '../../components/editor/NoteEditor/NoteEditor'
+import { isEntry, isNoteEntry } from '../../model/archive'
+import {
+  type Item,
+  type Library,
+  type Place,
+  SHORTCUT_EXT,
+  jacketOf,
+  placeOf,
+  relDay,
+  thumbOf,
+} from '../../model/library'
 import { UrlField } from '../../components/controls/UrlField/UrlField'
 import { onFlush } from '../../model/persist'
 import { WebPage } from '../../components/media/WebPage/WebPage'
@@ -160,6 +171,7 @@ type Look =
   | { id: string; kind: 'image' | 'video' | 'audio'; src: string }
   | { id: string; kind: 'ui'; src: string; item: UiItem; api: () => UiApi }
   | { id: string; kind: 'link'; src: string; shown?: LinkShown }
+  | { id: string; kind: 'note'; src: string; text: string }
 
 const sameLook = (x: Look | undefined, y: Look | undefined) =>
   x === y ||
@@ -194,11 +206,15 @@ export function AssetScreen(props: AssetScreenProps) {
     return props.entries ? props.entries(id) : lib().byId.get(id)
   }
   const editable = () => !props.entries
+  const openDefault = (a: Item) => {
+    const open = props.onOpenDefault
+    return open && !(isEntry(a) && a.executable) ? () => open(a.id) : undefined
+  }
   const step = (d: number) => setI((i() + d + props.list.length) % props.list.length)
   createEffect(() => props.onIndex?.(i()))
   const unsupported = () => {
     const a = it()
-    return !!a && !a.note && !lib().formats.has(a.ext)
+    return !!a && !a.note && !lib().formats.has(a.ext) && !isNoteEntry(a)
   }
   const [blocker] = createResource(
     () => (unsupported() && props.blocker ? it()?.ext : undefined),
@@ -243,6 +259,7 @@ export function AssetScreen(props: AssetScreenProps) {
         return make && { id: a.id, kind: 'ui', src: v.url, item, api: () => make(item, 'view', v.plugin) }
       }
       if (v.kind === 'link') return { id: a.id, kind: 'link', src: v.url, shown: props.host?.linkOf?.(v.url, 'view') }
+      if (v.kind === 'note') return { id: a.id, kind: 'note', src: a.src ?? '', text: v.text }
       const src = (v.kind === 'image' && v.url) || a.src
       return src ? { id: a.id, kind: v.kind, src } : undefined
     },
@@ -275,6 +292,16 @@ export function AssetScreen(props: AssetScreenProps) {
     const onReady = () => ready(l)
     const onUnsupported = () => setBroken(l.src)
     if (l.kind === 'ui') return <PluginView url={l.src} api={l.api()} class={styles.page} onReady={onReady} />
+    if (l.kind === 'note') {
+      queueMicrotask(onReady)
+      return (
+        <ScrollArea class={styles.note}>
+          <article class={styles.noteDoc}>
+            <NoteEditor lib={lib()} noteId={a().id} place={placeOf(a())} value={l.text} readOnly />
+          </article>
+        </ScrollArea>
+      )
+    }
     if (l.kind === 'link') {
       const ui = l.shown?.ui
       if (ui) return <PluginView url={ui.url} api={ui.api} link class={styles.page} onReady={onReady} />
@@ -469,7 +496,14 @@ export function AssetScreen(props: AssetScreenProps) {
             <div class={styles.stage}>
               <Switch
                 fallback={
-                  <Show when={settled()}>
+                  <Show
+                    when={settled()}
+                    fallback={
+                      <Show when={props.entries}>
+                        <Spinner size={28} class={styles.extracting} />
+                      </Show>
+                    }
+                  >
                     <Thumb {...thumbOf(a(), 'L')} class={styles.box} menu={editable()} />
                     <Show when={props.onOpenArchive && lib().formats.get(a().ext)?.archive}>
                       <Button class={styles.openArchive} onClick={() => props.onOpenArchive?.(a().id)}>
@@ -489,7 +523,7 @@ export function AssetScreen(props: AssetScreenProps) {
                       onEnable={props.onEnablePlugin}
                       onOpenPlugins={props.onOpenPlugins}
                       onReveal={props.onReveal && (() => props.onReveal!(a().id))}
-                      onOpenDefault={props.onOpenDefault && (() => props.onOpenDefault!(a().id))}
+                      onOpenDefault={openDefault(a())}
                     />
                   </Show>
                 </Match>
@@ -500,7 +534,7 @@ export function AssetScreen(props: AssetScreenProps) {
                     label={lib().formatLabel(a())}
                     decoder
                     onReveal={props.onReveal && (() => props.onReveal!(a().id))}
-                    onOpenDefault={props.onOpenDefault && (() => props.onOpenDefault!(a().id))}
+                    onOpenDefault={openDefault(a())}
                   />
                 </Match>
                 <Match when={looks().length}>

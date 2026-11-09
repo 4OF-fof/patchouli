@@ -47,6 +47,25 @@
   aspect-ratio: 4 / 3;
   border-radius: var(--radius-sm);
 }
+.stage .note {
+  flex: 1;
+  align-self: stretch;
+  min-height: 0;
+}
+.noteDoc {
+  max-width: var(--note-width, 880px);
+  margin: 0 auto;
+  padding: 96px var(--space-40) 140px;
+}
+/* すぐ取り出せるファイルでは出さない */
+.extracting {
+  animation: extracting 0s 300ms backwards;
+}
+@keyframes extracting {
+  from {
+    visibility: hidden;
+  }
+}
 .stage .openArchive {
   position: absolute;
   bottom: 24px;

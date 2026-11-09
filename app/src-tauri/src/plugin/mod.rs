@@ -1625,6 +1625,11 @@ impl Registry {
         Some(&self.plugins[self.thumb_plugin(ext)?].manifest.id)
     }
 
+    pub fn thumb_version(&self, ext: &str) -> Option<String> {
+        let m = &self.plugins[self.thumb_plugin(ext)?].manifest;
+        Some(format!("{}@{}", m.id, m.version))
+    }
+
     pub fn thumb_setting(&self, ext: &str, key: &str) -> Value {
         self.thumb_plugin(ext)
             .and_then(|i| self.setting(i, key))

@@ -31,7 +31,7 @@ import type {
   UiRef,
 } from '../plugins/types'
 import type { Caller, ExcerptBudget, ExcerptPart, Fetched, LinkApi, OwnApi } from '../../plugins/sdk'
-import { handlerOf, iconThumbnail, imageThumbnail, pageOf, pageRows } from '../plugins/links'
+import { type Fetch, handlerOf, iconThumbnail, imageThumbnail, pageOf, pageRows } from '../plugins/links'
 import {
   EDGE,
   ThumbnailTimeout,
@@ -125,6 +125,9 @@ interface ScriptCall extends UiRef {
 }
 
 const uiItemOf = (it: ScriptItem): UiItem => ({ id: it.id, name: it.name, ext: it.ext, url: convertFileSrc(it.file) })
+
+/** アーカイブを表示しただけで、中の .url が指す先へ通信しないよう、サイトのアイコンは読まない。 */
+const noFetch: Fetch = () => Promise.reject(new Error('通信しません'))
 
 const at = (p: { x: number; y: number }) => ({ x: p.x / devicePixelRatio, y: p.y / devicePixelRatio })
 
@@ -519,12 +522,64 @@ export function tauriBackend(): Backend {
   let archiveJob = 0
   const archiveThumbs = new Map<number, (t: ArchiveThumb) => void>()
   let listeningArchive: Promise<unknown> | undefined
+  interface ArchiveSource extends ScriptItem {
+    job: number
+    wave: boolean
+    script: boolean
+  }
+  const archiveWave = async (s: ArchiveSource) => {
+    const { waveLimit } = await invoke<AppSettings>('app_settings')
+    const read = async (offset: number, length: number) =>
+      new Uint8Array(await invoke<ArrayBuffer>('plugin_read', { id: s.id, offset, length }))
+    const wave = await waveform(s.ext, read, waveLimit * 1000)
+    await invoke('archive_put_wave', wave, { headers: { job: `${s.job}` } })
+  }
+  const archiveThumb = async (s: ArchiveSource) => {
+    const f = formats.get(s.ext)
+    const ui = f?.uiThumbnail
+    const view = f?.link ? await invoke<TauriView | null>('item_view', { id: s.id }) : null
+    const t = ui
+      ? await uiThumbnail(pluginUrl(ui.plugin, ui.module), {
+          ...uiApi(uiItemOf(s), 'thumbnail', ui.plugin),
+          wasm: () => wasmThumbnail(s.id),
+        })
+      : view?.kind === 'link'
+        ? await iconThumbnail({ url: view.url }, noFetch, EDGE)
+        : null
+    if (!t) return false
+    const headers: Record<string, string> = { job: `${s.job}` }
+    if (t.width && t.height) Object.assign(headers, { width: `${t.width}`, height: `${t.height}` })
+    const png = t.png instanceof Uint8Array ? t.png : new Uint8Array(await new Response(t.png).arrayBuffer())
+    await invoke('archive_put_thumb', png, { headers })
+    return true
+  }
+  const makeArchiveSource = async (s: ArchiveSource) => {
+    let none = false
+    try {
+      if (s.wave) await archiveWave(s)
+    } catch (e) {
+      console.warn(`波形を作れない: ${s.name}.${s.ext}`, e)
+    }
+    try {
+      if (s.script) none = !(await archiveThumb(s))
+    } catch (e) {
+      console.warn(`サムネイルを作れない: ${s.name}.${s.ext}`, e)
+    }
+    await invoke('archive_source_done', { job: s.job, none })
+  }
   const listenArchive = () =>
-    (listeningArchive ??= listen<{ job: number; path: string; file: string; width: number; height: number }>(
-      'archive-thumbnail',
-      ({ payload: p }) =>
-        archiveThumbs.get(p.job)?.({ path: p.path, url: convertFileSrc(p.file), width: p.width, height: p.height }),
-    ))
+    (listeningArchive ??= Promise.all([
+      listen<{ job: number; path: string; file: string | null; width: number; height: number; wave: boolean }>(
+        'archive-thumbnail',
+        ({ payload: p }) =>
+          archiveThumbs.get(p.job)?.(
+            p.file
+              ? { path: p.path, url: convertFileSrc(p.file), width: p.width, height: p.height, wave: p.wave }
+              : { path: p.path, failed: true },
+          ),
+      ),
+      listen<ArchiveSource>('archive-source', ({ payload }) => void makeArchiveSource(payload)),
+    ]))
   const archiveWork = async <T>(signal: AbortSignal, run: (job: number) => Promise<T>) => {
     signal.throwIfAborted()
     const job = ++archiveJob
@@ -553,6 +608,11 @@ export function tauriBackend(): Backend {
           archiveThumbs.delete(job)
         }
       }),
+    waveform: async (id, path) => {
+      const wave = new Uint8Array(await invoke<ArrayBuffer>('archive_waveform', { id, path }))
+      return wave.length ? wave : null
+    },
+    text: (id, path) => invoke<string>('archive_text', { id, path }),
   }
   const frontBusy = () => !!(making || waving)
   const frontIdle = async () => {

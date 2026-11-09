@@ -2,8 +2,17 @@ import { Show, createEffect, createMemo, createResource, createSignal, onCleanup
 import { messageOf } from '../../app/notice'
 import { Spinner } from '../../components/base/Spinner/Spinner'
 import { Button } from '../../components/controls/Button/Button'
+import { ThumbMakingProvider } from '../../components/media/Thumb/Thumb'
 import type { ArchiveActions, ArchiveThumb } from '../../backend/types'
-import { type ArchiveFolder, type EntryItem, archiveTree, entryId, filesUnder, withThumb } from '../../model/archive'
+import {
+  type ArchiveFolder,
+  type EntryItem,
+  archiveTree,
+  entryId,
+  filesUnder,
+  sameThumb,
+  withThumb,
+} from '../../model/archive'
 import { type Group, type Library, thumbOf } from '../../model/library'
 import { bytes } from '../Asset/AssetScreen'
 import { DetailScreen } from '../Detail/DetailScreen'
@@ -37,6 +46,8 @@ export function ArchiveScreen(props: ArchiveScreenProps) {
 
   // サムネイルが届いた項目だけを作り直し、ほかのカードは描き直さない
   const thumbed = new Map<string, EntryItem>()
+  /** サムネイルの結果（生成できなかったことも含む）が届いた項目 */
+  const answered = new Set<string>()
   const [version, setVersion] = createSignal(0)
   const latest = (it: EntryItem) => thumbed.get(it.id) ?? it
   const waiting: ArchiveThumb[] = []
@@ -46,7 +57,8 @@ export function ArchiveScreen(props: ArchiveScreenProps) {
     for (const t of waiting.splice(0)) {
       const id = entryId(props.id, t.path)
       const it = thumbed.get(id) ?? tree()?.files.get(id)
-      if (it && it.thumb !== t.url) thumbed.set(id, withThumb(it, t))
+      if (it && !sameThumb(it, t)) thumbed.set(id, withThumb(it, t))
+      answered.add(id)
     }
     setVersion((v) => v + 1)
   }
@@ -56,25 +68,45 @@ export function ArchiveScreen(props: ArchiveScreenProps) {
     timer ||= window.setTimeout(flush, 100)
   }
 
+  // 表紙は目次だけで決まるので、サムネイルが届くたびに全ファイルをたどらない
+  const faces = new WeakMap<ArchiveFolder, EntryItem[]>()
   const facesOf = (f: ArchiveFolder) => {
+    const known = faces.get(f)
+    if (known) return known
     const all = filesUnder(f)
     const thumbs = all.filter((it) => formats().get(it.ext)?.thumbnail)
-    return (thumbs.length ? thumbs : all).slice(0, FACES)
+    const picked = (thumbs.length ? thumbs : all).slice(0, FACES)
+    faces.set(f, picked)
+    return picked
   }
   const wanted = createMemo(() => {
     const d = here()
     if (!d) return []
     return flat() ? filesUnder(d) : [...d.files, ...d.folders.flatMap(facesOf)]
   })
+  const [thumbing, setThumbing] = createSignal(false)
   createEffect(() => {
     const paths = wanted().map((it) => it.path)
     if (!paths.length || !props.actions) return
     const stop = new AbortController()
     onCleanup(() => stop.abort())
-    props.actions.thumbs(props.id, paths, onThumb, stop.signal).catch((e: unknown) => {
-      if (!stop.signal.aborted) console.warn(`サムネイルを生成できない: ${props.name}`, e)
-    })
+    setThumbing(true)
+    props.actions
+      .thumbs(props.id, paths, onThumb, stop.signal)
+      .catch((e: unknown) => {
+        if (!stop.signal.aborted) console.warn(`サムネイルを生成できない: ${props.name}`, e)
+      })
+      .finally(() => {
+        if (!stop.signal.aborted) setThumbing(false)
+      })
   })
+  const making = (id: string) => {
+    version()
+    if (!thumbing() || answered.has(id)) return false
+    const it = tree()?.files.get(id)
+    const f = it && !it.encrypted ? formats().get(it.ext) : undefined
+    return !!f && (f.thumbnail || !!f.link || f.media === 'audio')
+  }
 
   const items = createMemo(() => {
     version()
@@ -134,26 +166,28 @@ export function ArchiveScreen(props: ArchiveScreenProps) {
     return d ? `${d.count} 件 | ${bytes(d.size)}` : ''
   }
   return (
-    <DetailScreen
-      label="アーカイブ"
-      title={<h1>{title()}</h1>}
-      meta={meta()}
-      actions={
-        <Show when={props.onInfo}>
-          <Button size="sm" variant="ghost" onClick={() => props.onInfo?.()}>
-            情報
-          </Button>
-        </Show>
-      }
-      items={items()}
-      groups={folders()}
-      groupInfo={groupInfo}
-      plain
-      flat={flat()}
-      onFlat={here()?.folders.length ? setFlat : undefined}
-      onOpenGroup={props.onOpenFolder}
-      onOpenItem={open}
-      empty={empty()}
-    />
+    <ThumbMakingProvider value={making}>
+      <DetailScreen
+        label="アーカイブ"
+        title={<h1>{title()}</h1>}
+        meta={meta()}
+        actions={
+          <Show when={props.onInfo}>
+            <Button size="sm" variant="ghost" onClick={() => props.onInfo?.()}>
+              情報
+            </Button>
+          </Show>
+        }
+        items={items()}
+        groups={folders()}
+        groupInfo={groupInfo}
+        plain
+        flat={flat()}
+        onFlat={here()?.folders.length ? setFlat : undefined}
+        onOpenGroup={props.onOpenFolder}
+        onOpenItem={open}
+        empty={empty()}
+      />
+    </ThumbMakingProvider>
   )
 }

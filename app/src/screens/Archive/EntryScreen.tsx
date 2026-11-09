@@ -1,7 +1,8 @@
 import { createMemo, onCleanup } from 'solid-js'
 import { messageOf } from '../../app/notice'
 import type { ArchiveActions } from '../../backend/types'
-import type { EntryItem } from '../../model/archive'
+import { type EntryItem, isNoteEntry } from '../../model/archive'
+import type { ItemView } from '../../plugins/types'
 import { AssetScreen, type AssetScreenProps, type AssetViewHost } from '../Asset/AssetScreen'
 
 export interface EntryScreenProps extends Pick<
@@ -23,7 +24,7 @@ export function EntryScreen(props: EntryScreenProps) {
 
   const extract = (id: string): Promise<void> => {
     const it = byId().get(id)
-    if (!it || it.src || !props.actions) return Promise.resolve()
+    if (!it || !props.actions) return Promise.resolve()
     if (running?.id === id) return running.done
     // 送っている途中のファイルは、取り出しを待たずに次へ移る
     running?.stop.abort()
@@ -49,7 +50,17 @@ export function EntryScreen(props: EntryScreenProps) {
     }
   const host = createMemo((): AssetViewHost | undefined => {
     const h = props.host
-    return h && { ...h, view: after(h.view), details: h.details && after(h.details), waveform: undefined }
+    if (!h) return undefined
+    const view = async (id: string): Promise<ItemView | null> => {
+      const it = byId().get(id)
+      if (!it || !isNoteEntry(it) || !props.actions) return h.view(id)
+      return { kind: 'note', text: await props.actions.text(it.archive, it.path) }
+    }
+    const waveform = async (id: string) => {
+      const it = byId().get(id)
+      return (it && props.actions?.waveform(it.archive, it.path)) ?? null
+    }
+    return { ...h, view: after(view), details: h.details && after(h.details), waveform }
   })
   return (
     <AssetScreen
