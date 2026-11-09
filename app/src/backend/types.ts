@@ -368,6 +368,28 @@ export interface PluginWork {
   hooks: string[]
 }
 
+export interface ArchiveEntry {
+  path: string
+  size: number
+  encrypted: boolean
+}
+
+export interface ArchiveThumb {
+  path: string
+  url: string
+  width: number
+  height: number
+}
+
+/** アーカイブの中のファイル。signal を中止すると、動いている処理も中止する。 */
+export interface ArchiveActions {
+  entries(id: string, signal: AbortSignal): Promise<ArchiveEntry[]>
+  /** path を取り出す。返す id で、ライブラリの素材と同じように読み込める。 */
+  extract(id: string, path: string, signal: AbortSignal): Promise<{ id: string; url: string }>
+  /** 生成できたものから onThumb に渡す。 */
+  thumbs(id: string, paths: string[], onThumb: (t: ArchiveThumb) => void, signal: AbortSignal): Promise<void>
+}
+
 export interface Backend {
   open(): Promise<Opened>
   saveItem(id: string, patch: ItemPatch): Promise<Item | undefined>
@@ -467,6 +489,7 @@ export interface Backend {
   openUrl?: (url: string) => Promise<void>
   /** タブの中に出す外のページ。ないときは iframe で出す。 */
   browser?: BrowserActions
+  archive?: ArchiveActions
 }
 
 /** URL の表示。ui があれば links のプラグインが描き、なければ本体が page（OGP）から作る。 */

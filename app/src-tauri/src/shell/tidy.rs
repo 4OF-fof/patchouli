@@ -58,7 +58,8 @@ fn library_files(cache: &Path, root: &Path) -> Vec<PathBuf> {
 pub fn usage(cache: &Path, root: &Path) -> Usage {
     Usage {
         library: library_files(cache, root).iter().map(|p| size_of(p)).sum(),
-        thumbs: size_of(&crate::thumb::dir_for(cache, root)),
+        thumbs: size_of(&crate::thumb::dir_for(cache, root))
+            + size_of(&crate::archive::dir_for(cache, root)),
     }
 }
 
@@ -78,6 +79,7 @@ fn remove(p: &Path) -> Result<(), String> {
 pub fn clear(cache: &Path, root: &Path, kind: Kind) -> Result<(), String> {
     if matches!(kind, Kind::Thumbs | Kind::All) {
         remove(&crate::thumb::dir_for(cache, root))?;
+        remove(&crate::archive::dir_for(cache, root))?;
     }
     if matches!(kind, Kind::Library | Kind::All) {
         for p in library_files(cache, root) {

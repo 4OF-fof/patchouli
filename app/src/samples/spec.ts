@@ -17,7 +17,6 @@ export const EXAMPLE_PLUGINS: string[] = [
   'example_collect-plugin',
   'example_graph-plugin',
   'example_autolink-plugin',
-  'example_zip-plugin',
   'example_psd-plugin',
   'example_chart-plugin',
   'example_cover-plugin',

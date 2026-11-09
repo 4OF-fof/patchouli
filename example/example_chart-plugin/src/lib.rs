@@ -6,7 +6,7 @@ wit_bindgen::generate!({
         package local:chart;
 
         world chart {
-            include patchouli:plugin/code-role@0.13.0;
+            include patchouli:plugin/code-role@0.13.1;
         }
     ",
     path: "../../app/plugins/sdk/wit",

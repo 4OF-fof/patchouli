@@ -5,7 +5,7 @@ wit_bindgen::generate!({
         package local:graph;
 
         world graph {
-            include patchouli:plugin/menu-role@0.13.0;
+            include patchouli:plugin/menu-role@0.13.1;
         }
     ",
     path: "../../app/plugins/sdk/wit",

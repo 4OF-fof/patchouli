@@ -145,6 +145,17 @@ pub fn sweep(cache: &Path, root: &Path) {
             log::warn!("使わなくなったサムネイルを消せない: {}: {e}", dir.display());
         }
     }
+    for (key, dir) in others(&cache.join("archives")) {
+        let opened = library.join(format!("{key}.sqlite"));
+        if old(if opened.exists() { &opened } else { &dir })
+            && let Err(e) = std::fs::remove_dir_all(&dir)
+        {
+            log::warn!(
+                "使わなくなったアーカイブの置き場を消せない: {}: {e}",
+                dir.display()
+            );
+        }
+    }
     for (key, file) in others(&library) {
         if (old(&library.join(format!("{key}.sqlite"))) || old(&file))
             && let Err(e) = std::fs::remove_file(&file)

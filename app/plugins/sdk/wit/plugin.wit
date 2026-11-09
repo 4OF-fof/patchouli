@@ -1,6 +1,6 @@
 /// 版は semver で上げる。足すだけの変更はパッチ版、壊す変更は 0.x のマイナー版を上げる。
 /// アプリは、同じマイナー版で、アプリの版以下のものを読む。版を上げたら src-tauri/src/plugin/runtime.rs の WIT_VERSION も合わせる。
-package patchouli:plugin@0.13.0;
+package patchouli:plugin@0.13.1;
 
 interface types {
   /// アプリが渡すファイル。中身はホストの関数を通して読む。
@@ -107,6 +107,24 @@ interface types {
     score: f32,
   }
 
+  /// アーカイブの中のファイル 1 つ。
+  record archive-entry {
+    /// アーカイブの中の場所。区切りは /。.gz のように中身が 1 つだけの圧縮ファイルは空にする。
+    path: string,
+    /// 取り出したときの大きさ（バイト）。
+    size: u64,
+    /// 取り出すのにパスワードが要るか。
+    encrypted: bool,
+  }
+
+  /// extract で取り出すファイル 1 つ。
+  record archive-output {
+    /// entries で返した path。
+    path: string,
+    /// 書き出す先。host の write で書く。
+    file: file,
+  }
+
   /// 右クリックメニューに足す項目。
   record menu-item {
     /// 選ばれたときに run-menu に渡す。
@@ -194,6 +212,9 @@ interface host {
 
   /// 中身を offset から最大 len バイト読む。
   read: func(f: file, offset: u64, len: u32) -> result<list<u8>, string>;
+
+  /// archive の extract で受け取った file の終わりに足す。entries で返した size を超えては書けない。
+  write: func(f: file, data: list<u8>) -> result<_, string>;
 
   /// 画像の見た目の大きさ。写真の向き（EXIF）を反映する。
   image-size: func(f: file) -> option<dimensions>;
@@ -368,6 +389,17 @@ interface excerpt {
   excerpt: func(format: string, f: file, budget: excerpt-budget) -> result<list<excerpt-part>, string>;
 }
 
+/// アーカイブの中身。plugin.json の parts に archive を書くと、アプリがフォルダのように開く。
+interface archive {
+  use types.{file, archive-entry, archive-output};
+
+  /// 中のファイルの一覧。フォルダは path からアプリが作る。
+  entries: func(format: string, f: file) -> result<list<archive-entry>, string>;
+
+  /// outputs のファイルを取り出す。順番はプラグインが決め、1 つ書ききってから次のファイルに移る。
+  extract: func(format: string, f: file, outputs: list<archive-output>) -> result<_, string>;
+}
+
 /// 右クリックメニュー。plugin.json の menu を書いたときに使う。
 interface menu {
   use types.{target, menu-item, menu-output, read, run};
@@ -457,6 +489,11 @@ world excerpt-role {
   export excerpt;
 }
 
+world archive-role {
+  include imports;
+  export archive;
+}
+
 world menu-role {
   include imports;
   export menu;
@@ -488,6 +525,7 @@ world full {
   include view-role;
   include details-role;
   include excerpt-role;
+  include archive-role;
   include menu-role;
   include hook-role;
   include code-role;

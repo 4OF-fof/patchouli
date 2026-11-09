@@ -20,7 +20,7 @@ pub fn set_large(large: bool) {
     EDGE.store(if large { 1024 } else { 512 }, Ordering::Relaxed);
 }
 
-fn edge() -> u32 {
+pub(crate) fn edge() -> u32 {
     EDGE.load(Ordering::Relaxed)
 }
 

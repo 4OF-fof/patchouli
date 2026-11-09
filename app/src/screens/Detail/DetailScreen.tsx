@@ -4,6 +4,7 @@ import { useHoverPreview } from '../../components/media/HoverPreview/HoverPrevie
 import { Button } from '../../components/controls/Button/Button'
 import { GROUP_RATIO, GroupCard } from '../../components/media/GroupCard/GroupCard'
 import { ItemCard } from '../../components/media/ItemCard/ItemCard'
+import type { ThumbProps } from '../../components/media/Thumb/Thumb'
 import { JustifiedList } from '../../components/media/JustifiedRow/JustifiedList'
 import { JustifiedRow } from '../../components/media/JustifiedRow/JustifiedRow'
 import { SelectArea, useSelection } from '../../components/media/Selection/Selection'
@@ -32,6 +33,10 @@ export interface DetailScreenProps {
   onFlat?: (on: boolean) => void
   onOpenGroup?: (id: string) => void
   empty?: JSX.Element
+  /** ライブラリの項目ではないものを並べる。ピン留めや選択はできない */
+  plain?: boolean
+  /** 渡すと、グループの件数と重ねるサムネイルを lib の代わりにここから引く */
+  groupInfo?: (g: Group) => { count: number; faces: ThumbProps[] }
   pins?: string[]
   /** ピン留めを拾う範囲。省くと items から拾う */
   pinFrom?: Item[]
@@ -71,11 +76,12 @@ export function DetailScreen(props: DetailScreenProps) {
   const card = (it: Item, size: CardSize, list: () => Item[], clock: boolean) => (
     <ItemCard
       {...thumbOf(it, size)}
+      id={props.plain ? undefined : it.id}
       name={it.name}
       ratio={it.ratio}
       pinned={pins().includes(it.id)}
-      onPin={() => togglePin(it.id)}
-      preview={preview(it, { clock })}
+      onPin={props.plain ? undefined : () => togglePin(it.id)}
+      preview={props.plain ? undefined : preview(it, { clock })}
       onClick={() =>
         props.onOpenItem?.(
           it.id,
@@ -89,8 +95,8 @@ export function DetailScreen(props: DetailScreenProps) {
   const groupCard = (g: Group) => (
     <GroupCard
       name={g.name}
-      count={props.lib?.inGroup(g.id).length ?? 0}
-      faces={props.lib ? facesOf(props.lib, g.id).map((it) => thumbOf(it, 'S')) : []}
+      count={props.groupInfo?.(g).count ?? props.lib?.inGroup(g.id).length ?? 0}
+      faces={props.groupInfo?.(g).faces ?? (props.lib ? facesOf(props.lib, g.id).map((it) => thumbOf(it, 'S')) : [])}
       onClick={() => props.onOpenGroup?.(g.id)}
     />
   )

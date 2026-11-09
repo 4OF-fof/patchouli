@@ -2,6 +2,7 @@
  * コア機能の plugin.json と、そこから決めた形式。デスクトップでは Rust 側が同じ決まりで決めて渡すので、
  * ここで決めたものは見本と Storybook で使う。
  */
+import archive from '../../plugins/archive/plugin.json'
 import audio from '../../plugins/audio/plugin.json'
 import image from '../../plugins/image/plugin.json'
 import math from '../../plugins/math/plugin.json'
@@ -38,7 +39,7 @@ export interface RawManifest extends Omit<Manifest, 'formats' | 'links'> {
   formats?: RawFormat[]
 }
 
-const PARTS: readonly Part[] = ['thumbnail', 'view', 'details', 'excerpt', 'hover', 'embed']
+const PARTS: readonly Part[] = ['thumbnail', 'view', 'details', 'excerpt', 'hover', 'embed', 'archive']
 const FITS: readonly Fit[] = ['center', 'top', 'contain']
 const MEDIA: readonly Media[] = ['image', 'video', 'audio']
 
@@ -57,7 +58,7 @@ export const readManifest = (raw: RawManifest): Manifest => ({
   })),
 })
 
-export const BUILTIN_MANIFESTS = [image, video, audio, youtube, mermaid, math].map(readManifest)
+export const BUILTIN_MANIFESTS = [image, video, audio, archive, youtube, mermaid, math].map(readManifest)
 
 const DEFAULT_RATIO = 1.6
 
@@ -152,6 +153,7 @@ export function resolveFormats(
       ...(d.media && { media: d.media }),
       ...(uiHover && { uiHover }),
       ...(uiEmbed && { uiEmbed }),
+      ...(parts.includes('archive') && { archive: true }),
     })
   }
   return { formats, problems, conflicts }

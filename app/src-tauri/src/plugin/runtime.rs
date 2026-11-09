@@ -3,6 +3,7 @@ use std::fs::{self, File as FsFile};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -32,7 +33,7 @@ use patchouli::plugin::types::{self, File, MenuOutput, Read as ReadProof, Run as
 pub use patchouli::plugin::types::{ExcerptBudget, ExcerptMedia, ExcerptPart};
 
 /// plugin.wit の package の版と合わせる。
-const WIT_VERSION: (u64, u64, u64) = (0, 13, 0);
+const WIT_VERSION: (u64, u64, u64) = (0, 13, 1);
 
 pub const READ_MAX: u32 = 16 << 20;
 
@@ -79,6 +80,10 @@ const HOOK_LIMIT: Budget = Budget {
 const RENDER_LIMIT: Budget = Budget {
     time: Duration::from_secs(10),
     memory: 1 << 30,
+};
+const ARCHIVE_LIMIT: Budget = Budget {
+    time: Duration::from_secs(600),
+    memory: 2 << 30,
 };
 
 /// 1 つの Store に入れてよいインスタンス・テーブル・メモリの数。Store にはプラグインをいくつも入れる。
@@ -304,6 +309,10 @@ pub struct HostState {
     limits: StoreLimits,
     outside: Duration,
     stop: Option<Arc<AtomicBool>>,
+    /// extract で渡した出力先の handle と、まだ書ける大きさ。
+    outputs: HashMap<u32, u64>,
+    /// 書ききった出力先の番号を知らせる先。
+    finished: Option<SyncSender<usize>>,
 }
 
 impl HostState {
@@ -331,6 +340,8 @@ impl HostState {
             limits: limits(SETTINGS_LIMIT.memory),
             outside: Duration::ZERO,
             stop: None,
+            outputs: HashMap::new(),
+            finished: None,
         }
     }
 
@@ -528,6 +539,28 @@ impl patchouli::plugin::commands::Host for HostState {
 impl patchouli::plugin::host::Host for HostState {
     fn read(&mut self, f: File, offset: u64, len: u32) -> Result<Vec<u8>, String> {
         read(self.path(&f)?, offset, len)
+    }
+
+    fn write(&mut self, f: File, data: Vec<u8>) -> Result<(), String> {
+        let left = *self
+            .outputs
+            .get(&f.handle)
+            .ok_or("extract で受け取ったファイルではありません")?;
+        let rest = left
+            .checked_sub(data.len() as u64)
+            .ok_or("entries で返したサイズを超えて書き込もうとしました")?;
+        self.outputs.insert(f.handle, rest);
+        append(self.path(&f)?, &data)?;
+        if rest == 0
+            && !data.is_empty()
+            && let Some(finished) = &self.finished
+        {
+            // 受け手が追いつくまで待つ。待っている時間は制限時間に数えない
+            let begun = Instant::now();
+            let _ = finished.send(f.handle as usize - 1);
+            self.outside += begun.elapsed();
+        }
+        Ok(())
     }
 
     fn image_size(&mut self, f: File) -> Option<types::Dimensions> {
@@ -851,10 +884,11 @@ pub enum Role {
     Settings,
     Call,
     Code,
+    Archive,
 }
 
 /// 役割ごとに export する interface と、その中の関数。
-const ROLES: [(Role, &str, &[&str]); 9] = [
+const ROLES: [(Role, &str, &[&str]); 10] = [
     (Role::Thumbnail, "thumbnail", &["thumbnail"]),
     (Role::View, "view", &["decode"]),
     (Role::Details, "details", &["details"]),
@@ -864,6 +898,7 @@ const ROLES: [(Role, &str, &[&str]); 9] = [
     (Role::Settings, "settings", &["settings"]),
     (Role::Call, "call", &["call"]),
     (Role::Code, "code", &["render"]),
+    (Role::Archive, "archive", &["entries", "extract"]),
 ];
 
 /// 関数の名前ごとの、export の場所。
@@ -1190,6 +1225,31 @@ impl Plugin {
             .call(&mut *s, (fmt, f, method, args))?;
         Ok(r.and_then(|x| within(x.len()).map(|()| x)))
     }
+
+    fn call_entries(
+        &self,
+        s: &mut Store<HostState>,
+        fmt: &str,
+        f: &File,
+    ) -> wasmtime::Result<Result<Vec<types::ArchiveEntry>, String>> {
+        let (r,): (Result<Vec<types::ArchiveEntry>, String>,) = self
+            .func::<(&str, &File), _>(s, "entries")?
+            .call(&mut *s, (fmt, f))?;
+        Ok(r.and_then(|l| within(l.iter().map(|e| e.path.len()).sum()).map(|()| l)))
+    }
+
+    fn call_extract(
+        &self,
+        s: &mut Store<HostState>,
+        fmt: &str,
+        f: &File,
+        outputs: &[types::ArchiveOutput],
+    ) -> wasmtime::Result<Result<(), String>> {
+        let (r,) = self
+            .func::<(&str, &File, &[types::ArchiveOutput]), _>(s, "extract")?
+            .call(&mut *s, (fmt, f, outputs))?;
+        Ok(r)
+    }
 }
 
 fn within(len: usize) -> Result<(), String> {
@@ -1212,6 +1272,13 @@ fn excerpt_size(p: &ExcerptPart) -> usize {
 }
 
 pub type Made = (Vec<u8>, Option<(u32, u32)>, Reads);
+
+/// アーカイブから取り出すファイル 1 つ。file は空のファイルを用意して渡す。
+pub struct ArchiveOut {
+    pub path: String,
+    pub file: PathBuf,
+    pub size: u64,
+}
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -1389,6 +1456,67 @@ impl Runner {
         );
         let ds = r.unwrap_or(Ok(Ok(Vec::new())))??;
         Ok(ds.into_iter().map(|d| (d.label, d.value)).collect())
+    }
+
+    /// アーカイブの中のファイルの一覧。受け持つものがいなければ None。
+    pub fn archive_entries(
+        &mut self,
+        ext: &str,
+        path: &Path,
+    ) -> Option<Result<Vec<types::ArchiveEntry>, String>> {
+        let r = self.call(
+            ext,
+            Part::Archive,
+            By::Wasm,
+            path,
+            ARCHIVE_LIMIT,
+            |p, s, fmt, file| p.call_entries(s, fmt, &file),
+        )?;
+        Some(r.and_then(|x| x))
+    }
+
+    /// outputs を空のファイルへ取り出す。書ききったものから順に finished へ outputs の番号を送る。
+    pub fn archive_extract(
+        &mut self,
+        ext: &str,
+        path: &Path,
+        outputs: &[ArchiveOut],
+        finished: Option<SyncSender<usize>>,
+    ) -> Result<(), String> {
+        let (i, format) = self
+            .reg
+            .slot(ext, Part::Archive, By::Wasm)
+            .ok_or_else(|| format!("「.{ext}」の内容を読み取れるプラグインがありません"))?;
+        let format = format.to_owned();
+        let mut files: Vec<(&str, &Path)> = vec![(ext, path)];
+        files.extend(outputs.iter().map(|o| ("", o.file.as_path())));
+        let r = self.run_files(i, &files, ARCHIVE_LIMIT, |p, s, files| {
+            let st = s.data_mut();
+            st.outputs = (1u32..).zip(outputs).map(|(h, o)| (h, o.size)).collect();
+            st.finished = finished;
+            let mut files = files.into_iter();
+            let archive = files.next().expect("アーカイブ自身は必ず渡している");
+            let targets: Vec<types::ArchiveOutput> = outputs
+                .iter()
+                .zip(files)
+                .map(|(o, file)| types::ArchiveOutput {
+                    path: o.path.clone(),
+                    file,
+                })
+                .collect();
+            p.call_extract(s, &format, &archive, &targets)
+        });
+        let st = self.store.data_mut();
+        st.finished = None;
+        let left = std::mem::take(&mut st.outputs);
+        r??;
+        if left.values().any(|&n| n != 0) {
+            return Err(format!(
+                "プラグイン「{}」によるファイルの取り出しが途中で終了しました",
+                self.reg.plugins[i].manifest.id
+            ));
+        }
+        Ok(())
     }
 
     /// WASM の excerpt。受け持たなければ None。

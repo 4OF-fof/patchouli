@@ -3,9 +3,9 @@ wit_bindgen::generate!({
         package local:image;
 
         world image {
-            include patchouli:plugin/thumbnail-role@0.13.0;
-            include patchouli:plugin/details-role@0.13.0;
-            include patchouli:plugin/excerpt-role@0.13.0;
+            include patchouli:plugin/thumbnail-role@0.13.1;
+            include patchouli:plugin/details-role@0.13.1;
+            include patchouli:plugin/excerpt-role@0.13.1;
         }
     ",
     path: "../sdk/wit",

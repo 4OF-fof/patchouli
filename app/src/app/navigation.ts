@@ -3,6 +3,7 @@ import type { Backend } from '../backend'
 import type { Selection } from '../components/media/Selection/Selection'
 import type { NavMenuItem } from '../components/nav/NavMenu/NavMenu'
 import { asNewTab, inNewTab } from '../components/nav/TabPane/newTab'
+import { isInside } from '../model/archive'
 import { type Item, type Library, samePlace } from '../model/library'
 import { prefs, screenStart } from '../model/prefs'
 import type { ScreenInfo } from '../plugins/types'
@@ -18,7 +19,7 @@ export interface NavigationDeps {
   setStack: (s: View[]) => void
   eachStack: (f: (s: View[]) => View[]) => void
   openTab: (views: View[]) => void
-  assetIndex: (v: View & { s: 'asset' }) => number
+  assetIndex: (v: View & { s: 'asset' | 'entry' }) => number
   persist: (job: () => Promise<void>) => void
   failLoad: (e: unknown) => void
 }
@@ -47,6 +48,7 @@ export function createNavigation(d: NavigationDeps) {
     const it = lib().byId.get(id)
     if (!it) return undefined
     if (it.note) return { s: 'note', id }
+    if (lib().formats.get(it.ext)?.archive) return { s: 'archive', id, name: it.name, path: '' }
     const l = (list ?? [id]).filter((x) => lib().byId.get(x)?.note === false)
     return { s: 'asset', list: l, index: Math.max(0, l.indexOf(id)), at }
   }
@@ -61,13 +63,21 @@ export function createNavigation(d: NavigationDeps) {
       const list = v.list.flatMap((id) => lib().byId.get(id) ?? [])
       return list.length > 1 ? list : undefined
     }
+    if (v.s === 'entry') return v.items.length > 1 ? v.items : undefined
     const n = v.s === 'note' ? lib().byId.get(v.id) : undefined
     return n && lib().items.filter((it) => samePlace(it, n))
   }
   const siblingsOf = (t: Tab, i: number): NavMenuItem[] | undefined => {
     const v = t.stack()[i]
     if (!v) return undefined
-    const here = v.s === 'note' ? v.id : v.s === 'asset' ? v.list[assetIndex(v)] : undefined
+    const here =
+      v.s === 'note'
+        ? v.id
+        : v.s === 'asset'
+          ? v.list[assetIndex(v)]
+          : v.s === 'entry'
+            ? v.items[assetIndex(v)]?.id
+            : undefined
     const group = v.s === 'group' ? lib().groupBy.get(v.id) : undefined
     const list: NavMenuItem[] | undefined =
       v.s === 'project'
@@ -98,10 +108,12 @@ export function createNavigation(d: NavigationDeps) {
           ? { s: 'tag', tag: id }
           : v.s === 'group'
             ? { s: 'group', id }
-            : itemView(
-                id,
-                siblingItems(v)?.map((it) => it.id),
-              )
+            : v.s === 'entry'
+              ? { ...v, index: v.items.findIndex((it) => it.id === id) }
+              : itemView(
+                  id,
+                  siblingItems(v)?.map((it) => it.id),
+                )
     if (to) t.setStack([...t.stack().slice(0, i), to])
   }
   const [peek, setPeek] = createSignal<string>()
@@ -157,7 +169,14 @@ export function createNavigation(d: NavigationDeps) {
   // 素材を送って見るたびに書かないよう、少し待ってから残す
   createEffect(() => {
     const v = stack().at(-1)
-    const id = v?.s === 'note' ? v.id : v?.s === 'asset' ? v.list[assetIndex(v)] : undefined
+    const id =
+      v?.s === 'note'
+        ? v.id
+        : v?.s === 'asset'
+          ? v.list[assetIndex(v)]
+          : v?.s === 'archive' && lib().byId.has(v.id)
+            ? v.id
+            : undefined
     const list = untrack(opened)
     if (!id || list[0] === id) return
     const next = [id, ...list.filter((x) => x !== id)].slice(0, OPENED)
@@ -170,6 +189,8 @@ export function createNavigation(d: NavigationDeps) {
   const withoutItem = (vs: View[], id: string) =>
     vs.flatMap((v): View[] => {
       if (v.s === 'note') return v.id === id ? [] : [v]
+      if (v.s === 'archive') return isInside(v.id, id) ? [] : [v]
+      if (v.s === 'entry') return v.items.some((it) => isInside(it.archive, id)) ? [] : [v]
       if (v.s !== 'asset' || !v.list.includes(id)) return [v]
       const at = assetIndex(v)
       const list = v.list.filter((x) => x !== id)

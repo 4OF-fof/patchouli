@@ -9,10 +9,11 @@ import rules from './rules.json' with { type: 'json' }
  * - excerpt: AI 検索・自動分類のために抽出する区間データ
  * - hover: サムネイルにカーソルを合わせたときのホバー表示
  * - embed: ノートに埋め込んだときの表示
+ * - archive: アーカイブの内容の一覧と取り出し
  *
- * hover・embed はスクリプトのみ対応可能。
+ * hover・embed はスクリプトのみ、archive は WASM のみ対応可能。
  */
-export type Part = 'thumbnail' | 'view' | 'details' | 'excerpt' | 'hover' | 'embed'
+export type Part = 'thumbnail' | 'view' | 'details' | 'excerpt' | 'hover' | 'embed' | 'archive'
 
 /**
  * アプリ本体が標準プレーヤーで表示するメディア種別。詳細表示とノートへの埋め込みを標準コンポーネントで表示し、
@@ -230,6 +231,8 @@ export function checkManifest(m: Manifest): { errors: string[]; warnings: string
       if (ext !== ext.toLowerCase()) warnings.push(`formats の「${ext}」は小文字として扱われます`)
     for (const p of d.script ?? [])
       if (!d.parts?.includes(p)) errors.push(`「.${d.ext.join('・.')}」の script の ${p} は parts にも指定してください`)
+    if (d.script?.includes('archive'))
+      errors.push(`「.${d.ext.join('・.')}」の archive は WASM のみ対応しているため、script からは外してください`)
   }
   const code = m.notes?.code ?? []
   for (const lang of code) {

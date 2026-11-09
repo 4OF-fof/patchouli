@@ -24,6 +24,8 @@ pub(crate) struct Session {
     pub(crate) id: u64,
     pub(crate) lib: Library,
     pub(crate) thumbs: PathBuf,
+    /// アーカイブの目次と、取り出したファイルの置き場。
+    pub(crate) archives: PathBuf,
     pub(crate) plugins: Arc<Registry>,
     /// 詳細の表示に使う。プラグインが長く動いてもほかの操作を止めないよう、Session のロックを放してから使う。
     pub(crate) runner: Arc<Mutex<Runner>>,

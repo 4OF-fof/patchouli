@@ -20,8 +20,9 @@ use serde_json::Value;
 use crate::library::shortcut;
 use record::{Record, Source, Stored};
 pub use runtime::{
-    Action, CodeOut, Env, ExcerptBudget, ExcerptMedia, ExcerptPart, HookEvent, ItemInfo, MenuRun,
-    MenuShown, Ran, Runner, TargetFile, UiOwner, ViewOut, read, set_compiled_dir,
+    Action, ArchiveOut, CodeOut, Env, ExcerptBudget, ExcerptMedia, ExcerptPart, HookEvent,
+    ItemInfo, MenuRun, MenuShown, Ran, Runner, TargetFile, UiOwner, ViewOut, read,
+    set_compiled_dir,
 };
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -50,6 +51,7 @@ pub enum Part {
     Embed,
     Menu,
     Excerpt,
+    Archive,
     #[serde(other)]
     Unknown,
 }
@@ -62,6 +64,7 @@ impl Part {
             Part::View => Some(runtime::Role::View),
             Part::Details => Some(runtime::Role::Details),
             Part::Excerpt => Some(runtime::Role::Excerpt),
+            Part::Archive => Some(runtime::Role::Archive),
             _ => None,
         }
     }
@@ -700,6 +703,9 @@ pub struct FormatInfo {
     /// 本体が読むショートカット。URL ごとに受け持つものが描く。
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub link: bool,
+    /// 中のファイルの一覧と取り出しを受け持つものがいる。
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub archive: bool,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -1303,7 +1309,7 @@ impl Registry {
                     .parts
                     .iter()
                     .copied()
-                    .filter(|&x| x != Part::Unknown && x != Part::Menu)
+                    .filter(|&x| !matches!(x, Part::Unknown | Part::Menu | Part::Archive))
                     .collect();
                 if p.script.is_some() {
                     links.insert(
@@ -1768,6 +1774,7 @@ impl Registry {
                 ui_hover: self.ui_of(ext, Part::Hover),
                 ui_embed: self.ui_of(ext, Part::Embed),
                 link: false,
+                archive: self.handles(ext, Part::Archive).is_some(),
             })
             .collect();
         out.push(FormatInfo {
@@ -1782,6 +1789,7 @@ impl Registry {
             ui_hover: None,
             ui_embed: None,
             link: true,
+            archive: false,
         });
         out.sort_by(|a, b| a.ext.cmp(&b.ext));
         out
@@ -2193,6 +2201,11 @@ fn misspelled(m: &Manifest) -> Vec<Problem> {
                 "「{host}」の links の parts に menu は指定できません（右クリックメニューは plugin.json の menu に指定してください）"
             )));
         }
+        if d.parts.contains(&Part::Archive) {
+            out.push(error(format!(
+                "「{host}」の links の parts に archive は指定できません"
+            )));
+        }
     }
     for (id, d) in &m.covers {
         if d.on.contains(&CoverOn::Unknown) {
@@ -2276,6 +2289,12 @@ fn format_parts(p: &Loaded, d: &FormatDecl, problems: &mut Vec<Problem>) -> Hash
             continue;
         }
         let by = d.by(part);
+        if part == Part::Archive && by == By::Script {
+            problems.push(error(format!(
+                "「.{ext}」の archive は WASM のみ対応しているため、script からは外してください"
+            )));
+            continue;
+        }
         let ok = match by {
             By::Script => p.script.is_some(),
             By::Wasm => match (part.wasm_role(), &p.wasm) {

@@ -12,8 +12,8 @@ wit_bindgen::generate!({
         package local:zip;
 
         world zip {
-            include patchouli:plugin/thumbnail-role@0.13.0;
-            include patchouli:plugin/call-role@0.13.0;
+            include patchouli:plugin/thumbnail-role@0.13.1;
+            include patchouli:plugin/call-role@0.13.1;
         }
     ",
     path: "patchouli/wit",
@@ -31,12 +31,12 @@ impl role::call::Guest for Zip { /* ... */ }
 export!(Zip);
 ```
 
-- `@0.13.0` は `wit/plugin.wit` のバージョンと合わせる。アプリは同じマイナーバージョン（`1.0` 以降は同じメジャーバージョン）で、アプリのバージョン以下のプラグインを読み込む
+- `@0.13.1` は `wit/plugin.wit` のバージョンと合わせる。アプリは同じマイナーバージョン（`1.0` 以降は同じメジャーバージョン）で、アプリのバージョン以下のプラグインを読み込む
 - `Cargo.toml` の `crate-type` には `cdylib` を指定する。必須の依存クレートは `wit-bindgen` のみ
 
 ## ロール一覧
 
-`thumbnail`・`view`・`details`・`excerpt` は `formats` の `parts` に指定され、`script` に含まれないものを処理する。`render` は `notes` の `code` に指定され、`script` に含まれないものを処理する。`plugin.json` で指定されているにもかかわらず WASM が対応関数を export していない場合は、プラグイン一覧にエラーとして表示される。
+`thumbnail`・`view`・`details`・`excerpt`・`archive` は `formats` の `parts` に指定され、`script` に含まれないものを処理する。`render` は `notes` の `code` に指定され、`script` に含まれないものを処理する。`plugin.json` で指定されているにもかかわらず WASM が対応関数を export していない場合は、プラグイン一覧にエラーとして表示される。
 
 | world            | 実装する関数                                              | 呼び出しタイミング                                          | タイムアウト |
 | ---------------- | --------------------------------------------------------- | ----------------------------------------------------------- | ------------ |
@@ -44,6 +44,7 @@ export!(Zip);
 | `view-role`      | `decode(format, f)`                                       | 詳細表示を開いたとき                                        | 30 秒        |
 | `details-role`   | `details(format, f)`                                      | ファイルの詳細欄を開いたとき                                | 30 秒        |
 | `excerpt-role`   | `excerpt(format, f, budget)`                              | AI 機能でファイル内容を解析するとき                         | 120 秒       |
+| `archive-role`   | `entries(format, f)`・`extract(format, f, outputs)`       | アーカイブを開いたとき・内容のファイルを表示するとき        | 600 秒       |
 | `menu-role`      | `menu(read, targets)`・`run-menu(read, run, targets, id)` | `menu` の対象形式の右クリックメニューを開いたとき・選択時   | 30 秒        |
 | `hook-role`      | `hook(read, run, event, target)`                          | `hooks` に指定したイベントが発生したとき                    | 60 秒        |
 | `code-role`      | `render(lang, source)`                                    | ノートのコードブロック描画時・スクリプトの `api.wasm()`     | 10 秒        |
@@ -75,6 +76,16 @@ export!(Zip);
 | `text`          | テキスト                                                   |
 
 `start` と `end` は区間の開始・終了秒数であり、ファイル全体を表す場合は `none` とする。
+
+### entries と extract
+
+`entries` は `archive-entry { path, size, encrypted }` の配列を返す。`path` は `/` 区切りの相対パスで、`.gz` のように内容に名前がない形式では空文字列にする。`size` は展開後のバイト数、`encrypted` はパスワード付きのファイルで `true` にする。結果はアプリ側でキャッシュされる。
+
+`extract` には取り出すファイルの `archive-output { path, file }` の配列が渡される。`path` が一致するファイルの内容を先頭から順に `host::write(file, data)` で書き込む。複数のファイルが渡された場合は順序を問わない。`size` が 0 のファイルは渡されない。
+
+- `entries` で返した `size` を超える書き込みはエラーになる
+- `size` まで書き込まずに終了した場合もエラーになる
+- メモリの上限は 2 GiB
 
 ### menu と run-menu
 
@@ -129,6 +140,7 @@ export!(Zip);
 | ----------- | ------------------------------------------------------------------------------------ | ------------------------------------ | -------- |
 | `host`      | `read(f, offset, len)`：ファイル内容の読み取り                                       |                                      |          |
 | `host`      | `image-size(f)`・`image-thumbnail(f, edge)`：アプリ標準対応画像のサイズ取得と縮小 PNG 生成 |                                      |          |
+| `host`      | `write(f, data)`：`extract` の `outputs` への書き込み                                |                                      |          |
 | `host`      | `setting(key)`：プラグイン設定値の取得                                               |                                      |          |
 | `host`      | `get-data(key)`・`set-data(key, value)`：ライブラリごとに保存するデータの取得・更新  |                                      |          |
 | `host`      | `fetch(url)`：HTTP GET リクエスト                                                    | `plugin.json` の `fetch`             |          |

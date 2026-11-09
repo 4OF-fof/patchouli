@@ -14,6 +14,7 @@ import {
 } from 'solid-js'
 import { Portal } from 'solid-js/web'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
+import { Button } from '../../components/controls/Button/Button'
 import { Chip } from '../../components/controls/Chip/Chip'
 import { PlaceSelect } from '../../components/controls/PlaceSelect/PlaceSelect'
 import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
@@ -74,6 +75,10 @@ export interface AssetScreenProps {
   suggestTags?: (id: string) => Promise<string[]>
   host?: AssetViewHost
   onIndex?: (i: number) => void
+  /** 渡すと list の項目をここから引き、編集できない項目として表示する */
+  entries?: (id: string) => Item | undefined
+  /** アーカイブの素材に、内容を表示するボタンを出す */
+  onOpenArchive?: (id: string) => void
   blocker?: (ext: string) => Promise<Blocker | undefined>
   onEnablePlugin?: (p: Blocker) => Promise<void>
   onOpenPlugins?: (p?: Blocker) => void
@@ -167,7 +172,7 @@ const sameLook = (x: Look | undefined, y: Look | undefined) =>
 
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 
-function bytes(n: number) {
+export function bytes(n: number) {
   let i = 0
   while (n >= 1024 && i < UNITS.length - 1) {
     n /= 1024
@@ -184,7 +189,11 @@ export function AssetScreen(props: AssetScreenProps) {
   const lib = () => props.lib
   const [i, setI] = createSignal(props.index ?? 0)
   const [info, setInfo] = createSignal(!!props.infoOpen)
-  const it = () => lib().byId.get(props.list[i()] ?? '')
+  const it = () => {
+    const id = props.list[i()] ?? ''
+    return props.entries ? props.entries(id) : lib().byId.get(id)
+  }
+  const editable = () => !props.entries
   const step = (d: number) => setI((i() + d + props.list.length) % props.list.length)
   createEffect(() => props.onIndex?.(i()))
   const unsupported = () => {
@@ -320,7 +329,9 @@ export function AssetScreen(props: AssetScreenProps) {
       >
         <div class={styles.title}>
           <b>{a().name}</b>
-          <span>{lib().placeName(a()) ?? '所属なし'}</span>
+          <Show when={editable()}>
+            <span>{lib().placeName(a()) ?? '所属なし'}</span>
+          </Show>
         </div>
       </AudioPlayer>
     )
@@ -400,30 +411,32 @@ export function AssetScreen(props: AssetScreenProps) {
     let more!: HTMLButtonElement
     return (
       <>
-        <button
-          type="button"
-          class={bar ? styles.barBtn : `${styles.btn} ${styles.pin} ${styles.fade}`}
-          aria-pressed={lib().pins.includes(a().id)}
-          aria-label={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留め'}
-          data-tip={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留め'}
-          onClick={() => props.onTogglePin?.(a().id)}
-        >
-          <Icon name="pin" size={15} class={styles.pinGlyph} />
-        </button>
-        <button
-          type="button"
-          class={bar ? styles.barBtn : `${styles.btn} ${styles.more} ${styles.fade}`}
-          ref={more}
-          aria-expanded={itemMenu?.anchor() === more}
-          aria-label="その他"
-          data-tip="その他"
-          onClick={(e) => {
-            setInfo(false)
-            itemMenu?.open(a().id, menuBelow(e))
-          }}
-        >
-          <Icon name="more" size={15} />
-        </button>
+        <Show when={editable()}>
+          <button
+            type="button"
+            class={bar ? styles.barBtn : `${styles.btn} ${styles.pin} ${styles.fade}`}
+            aria-pressed={lib().pins.includes(a().id)}
+            aria-label={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留め'}
+            data-tip={lib().pins.includes(a().id) ? 'ピン留めを解除' : 'ピン留め'}
+            onClick={() => props.onTogglePin?.(a().id)}
+          >
+            <Icon name="pin" size={15} class={styles.pinGlyph} />
+          </button>
+          <button
+            type="button"
+            class={bar ? styles.barBtn : `${styles.btn} ${styles.more} ${styles.fade}`}
+            ref={more}
+            aria-expanded={itemMenu?.anchor() === more}
+            aria-label="その他"
+            data-tip="その他"
+            onClick={(e) => {
+              setInfo(false)
+              itemMenu?.open(a().id, menuBelow(e))
+            }}
+          >
+            <Icon name="more" size={15} />
+          </button>
+        </Show>
         <button
           type="button"
           class={bar ? styles.barBtn : `${styles.btn} ${styles.infoBtn} ${styles.fade}`}
@@ -457,7 +470,12 @@ export function AssetScreen(props: AssetScreenProps) {
               <Switch
                 fallback={
                   <Show when={settled()}>
-                    <Thumb {...thumbOf(a(), 'L')} class={styles.box} />
+                    <Thumb {...thumbOf(a(), 'L')} class={styles.box} menu={editable()} />
+                    <Show when={props.onOpenArchive && lib().formats.get(a().ext)?.archive}>
+                      <Button class={styles.openArchive} onClick={() => props.onOpenArchive?.(a().id)}>
+                        内容を表示
+                      </Button>
+                    </Show>
                   </Show>
                 }
               >
@@ -512,72 +530,81 @@ export function AssetScreen(props: AssetScreenProps) {
               <aside ref={coverPage} class={styles.info} aria-label="情報">
                 <div class={styles.infoHead}>情報</div>
                 <ScrollArea class={styles.infoScroll} viewClass={styles.infoView}>
-                  <div class={styles.fl}>
-                    <NameField
-                      class={styles.name}
-                      value={a().name}
-                      onChange={(name) => props.onRename?.(a().id, name)}
-                    />
-                  </div>
-                  <div class={styles.fl}>
-                    <span class={styles.k}>所属</span>
-                    <PlaceSelect
-                      lib={lib()}
-                      aria-label="所属"
-                      value={a()}
-                      onChange={(to) => props.onMove?.(a().id, to)}
-                    />
-                  </div>
-                  <div class={styles.fl}>
-                    <span class={styles.k}>タグ</span>
-                    <div class={styles.tags}>
-                      <For each={a().tags}>
-                        {(t) => (
-                          <Chip
-                            removeLabel={`# ${t} を削除`}
-                            onClick={() => props.onOpenTag?.(t)}
-                            {...middleClick(() => props.onOpenTag?.(t))}
-                            onRemove={() => props.onTag?.(a().id, t, false)}
-                          >
-                            # {t}
-                          </Chip>
-                        )}
-                      </For>
-                      <Chip
-                        ref={setButton}
-                        dashed
-                        aria-expanded={picking()}
-                        aria-haspopup="dialog"
-                        onClick={togglePicker}
-                      >
-                        <Icon name="plus" size={12} withText />
-                        追加
-                      </Chip>
+                  <Show
+                    when={editable()}
+                    fallback={
+                      <div class={styles.fl}>
+                        <span class={styles.name}>{a().name}</span>
+                      </div>
+                    }
+                  >
+                    <div class={styles.fl}>
+                      <NameField
+                        class={styles.name}
+                        value={a().name}
+                        onChange={(name) => props.onRename?.(a().id, name)}
+                      />
                     </div>
-                  </div>
-                  <label class={styles.fl}>
-                    <span class={styles.k}>メモ</span>
-                    <Show when={a().id} keyed>
-                      {(id) => <MemoField value={a().memo} onChange={(memo) => props.onMemo?.(id, memo)} />}
-                    </Show>
-                  </label>
-                  <div class={styles.fl}>
-                    <span class={styles.k}>URL</span>
-                    <UrlField
-                      value={a().url}
-                      required={a().ext === SHORTCUT_EXT}
-                      onChange={(url) => props.onUrl?.(a().id, url)}
-                      onOpen={props.host?.openLink}
-                    />
-                  </div>
-                  <div class={styles.fl}>
-                    <span class={styles.k}>この素材へのリンク {lib().backOf(a()).length}</span>
-                    <Show when={lib().backOf(a()).length} fallback={<LinkNone>リンクはまだありません</LinkNone>}>
-                      <For each={lib().backOf(a())}>
-                        {(n) => <LinkRow mark="←" label={n.name} onClick={() => props.onOpenNote?.(n.id)} />}
-                      </For>
-                    </Show>
-                  </div>
+                    <div class={styles.fl}>
+                      <span class={styles.k}>所属</span>
+                      <PlaceSelect
+                        lib={lib()}
+                        aria-label="所属"
+                        value={a()}
+                        onChange={(to) => props.onMove?.(a().id, to)}
+                      />
+                    </div>
+                    <div class={styles.fl}>
+                      <span class={styles.k}>タグ</span>
+                      <div class={styles.tags}>
+                        <For each={a().tags}>
+                          {(t) => (
+                            <Chip
+                              removeLabel={`# ${t} を削除`}
+                              onClick={() => props.onOpenTag?.(t)}
+                              {...middleClick(() => props.onOpenTag?.(t))}
+                              onRemove={() => props.onTag?.(a().id, t, false)}
+                            >
+                              # {t}
+                            </Chip>
+                          )}
+                        </For>
+                        <Chip
+                          ref={setButton}
+                          dashed
+                          aria-expanded={picking()}
+                          aria-haspopup="dialog"
+                          onClick={togglePicker}
+                        >
+                          <Icon name="plus" size={12} withText />
+                          追加
+                        </Chip>
+                      </div>
+                    </div>
+                    <label class={styles.fl}>
+                      <span class={styles.k}>メモ</span>
+                      <Show when={a().id} keyed>
+                        {(id) => <MemoField value={a().memo} onChange={(memo) => props.onMemo?.(id, memo)} />}
+                      </Show>
+                    </label>
+                    <div class={styles.fl}>
+                      <span class={styles.k}>URL</span>
+                      <UrlField
+                        value={a().url}
+                        required={a().ext === SHORTCUT_EXT}
+                        onChange={(url) => props.onUrl?.(a().id, url)}
+                        onOpen={props.host?.openLink}
+                      />
+                    </div>
+                    <div class={styles.fl}>
+                      <span class={styles.k}>この素材へのリンク {lib().backOf(a()).length}</span>
+                      <Show when={lib().backOf(a()).length} fallback={<LinkNone>リンクはまだありません</LinkNone>}>
+                        <For each={lib().backOf(a())}>
+                          {(n) => <LinkRow mark="←" label={n.name} onClick={() => props.onOpenNote?.(n.id)} />}
+                        </For>
+                      </Show>
+                    </div>
+                  </Show>
                   <details open={fileOpen()} onToggle={(e) => setFileOpen(e.currentTarget.open)}>
                     <summary class={styles.sum}>
                       <Icon name="chevron" size={12} class={styles.sumIcon} withText />
@@ -627,8 +654,10 @@ export function AssetScreen(props: AssetScreenProps) {
                           </Show>
                         )}
                       </Show>
-                      <span>更新日</span>
-                      <span>{relDay(lib(), a().moved)}</span>
+                      <Show when={editable()}>
+                        <span>更新日</span>
+                        <span>{relDay(lib(), a().moved)}</span>
+                      </Show>
                     </div>
                   </details>
                 </ScrollArea>

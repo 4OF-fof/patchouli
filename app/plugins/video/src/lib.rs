@@ -3,10 +3,10 @@ wit_bindgen::generate!({
         package local:video;
 
         world video {
-            include patchouli:plugin/thumbnail-role@0.13.0;
-            include patchouli:plugin/details-role@0.13.0;
-            include patchouli:plugin/excerpt-role@0.13.0;
-            include patchouli:plugin/call-role@0.13.0;
+            include patchouli:plugin/thumbnail-role@0.13.1;
+            include patchouli:plugin/details-role@0.13.1;
+            include patchouli:plugin/excerpt-role@0.13.1;
+            include patchouli:plugin/call-role@0.13.1;
         }
     ",
     path: "../sdk/wit",

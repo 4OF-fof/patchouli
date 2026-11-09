@@ -1,5 +1,6 @@
 import { type Accessor, type Signal, createSignal } from 'solid-js'
 import { ICON_NAMES, type IconName } from '../components/base/Icon/Icon'
+import type { EntryItem } from '../model/archive'
 import { sorter } from '../model/filter'
 import { type Item, type Library, samePlace } from '../model/library'
 import { prefs } from '../model/prefs'
@@ -16,6 +17,8 @@ export type View =
   | { s: 'tag'; tag: string }
   | { s: 'note'; id: string }
   | { s: 'asset'; list: string[]; index: number; at?: number }
+  | { s: 'archive'; id: string; name: string; path: string }
+  | { s: 'entry'; items: EntryItem[]; index: number }
   | { s: 'tidy'; id?: string }
   | { s: 'web'; url: string }
   | { s: 'screen'; plugin: string; id: string; targets?: string[] }
@@ -30,6 +33,8 @@ export const LABEL: Record<View['s'], string> = {
   tag: 'タグ',
   note: 'ノート',
   asset: '素材',
+  archive: 'アーカイブ',
+  entry: '素材',
   tidy: '分類の確認',
   web: 'ウェブページ',
   screen: '画面',
@@ -45,6 +50,8 @@ const TAB_ICON: Record<View['s'], IconName> = {
   tag: 'hash',
   note: 'note',
   asset: 'file',
+  archive: 'box',
+  entry: 'file',
   tidy: 'tag',
   web: 'link',
   screen: 'plugin',
@@ -123,6 +130,10 @@ export function viewOf(lib: Library, screens: ScreenInfo[], v: unknown, from?: V
       const index = typeof x.index === 'number' ? x.index : 0
       return list.length ? { s: 'asset', list, index: Math.min(Math.max(0, index), list.length - 1) } : undefined
     }
+    case 'archive': {
+      const it = lib.byId.get(str(x.id) ?? '')
+      return it ? { s: 'archive', id: it.id, name: it.name, path: str(x.path) ?? '' } : undefined
+    }
     case 'web': {
       const url = str(x.url)
       return url && /^https?:\/\//i.test(url) ? { s: 'web', url } : undefined
@@ -144,12 +155,12 @@ export function createViews(d: { lib: Accessor<Library>; screens: Accessor<Scree
   const screenOfView = (v: View & { s: 'screen' }) => screens().find((s) => s.plugin === v.plugin && s.id === v.id)
   // 素材の画面で動いた位置。並びの View に書くと画面が作り直されるので、別に持つ
   const assetIndexes = new WeakMap<View, Signal<number>>()
-  const assetIndexOf = (v: View & { s: 'asset' }) => {
+  const assetIndexOf = (v: View & { s: 'asset' | 'entry' }) => {
     const s = assetIndexes.get(v) ?? createSignal(v.index)
     assetIndexes.set(v, s)
     return s
   }
-  const assetIndex = (v: View & { s: 'asset' }) => assetIndexOf(v)[0]()
+  const assetIndex = (v: View & { s: 'asset' | 'entry' }) => assetIndexOf(v)[0]()
   const labelOf = (v: View) =>
     v.s === 'project'
       ? v.name
@@ -161,11 +172,15 @@ export function createViews(d: { lib: Accessor<Library>; screens: Accessor<Scree
             ? (lib().byId.get(v.id)?.name ?? LABEL.note)
             : v.s === 'asset'
               ? (lib().byId.get(v.list[assetIndex(v)] ?? '')?.name ?? LABEL.asset)
-              : v.s === 'web'
-                ? (hostOf(v.url) ?? LABEL.web)
-                : v.s === 'screen'
-                  ? (screenOfView(v)?.label ?? LABEL.screen)
-                  : LABEL[v.s]
+              : v.s === 'archive'
+                ? v.path.slice(v.path.lastIndexOf('/') + 1) || v.name
+                : v.s === 'entry'
+                  ? (v.items[assetIndex(v)]?.name ?? LABEL.entry)
+                  : v.s === 'web'
+                    ? (hostOf(v.url) ?? LABEL.web)
+                    : v.s === 'screen'
+                      ? (screenOfView(v)?.label ?? LABEL.screen)
+                      : LABEL[v.s]
   const iconOf = (v: View): IconName => {
     const s = v.s === 'screen' && screenOfView(v)
     return s ? screenIcon(s) : TAB_ICON[v.s]
@@ -178,6 +193,8 @@ export function createViews(d: { lib: Accessor<Library>; screens: Accessor<Scree
         ? { s: 'project', name: v.name }
         : v.s === 'tidy'
           ? { s: 'tidy' }
-          : v
+          : v.s === 'entry'
+            ? { s: 'entry' }
+            : v
   return { screenOfView, assetIndexOf, assetIndex, labelOf, iconOf, savedView }
 }

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::{env, fs};
 
-const WASM_PLUGINS: [&str; 3] = ["image", "video", "audio"];
+const WASM_PLUGINS: [&str; 4] = ["image", "video", "audio", "archive"];
 
 const UI_PLUGINS: [&str; 3] = ["video", "youtube", "mermaid"];
 

@@ -6,8 +6,8 @@ wit_bindgen::generate!({
         package local:zip;
 
         world zip {
-            include patchouli:plugin/thumbnail-role@0.13.0;
-            include patchouli:plugin/call-role@0.13.0;
+            include patchouli:plugin/thumbnail-role@0.13.1;
+            include patchouli:plugin/call-role@0.13.1;
         }
     ",
     path: "../../app/plugins/sdk/wit",

@@ -6,7 +6,7 @@ wit_bindgen::generate!({
         package local:collect;
 
         world collect {
-            include patchouli:plugin/menu-role@0.13.0;
+            include patchouli:plugin/menu-role@0.13.1;
         }
     ",
     path: "../../app/plugins/sdk/wit",

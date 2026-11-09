@@ -47,6 +47,7 @@ const PART: Record<CapPart, string> = {
   embed: '埋め込み表示',
   menu: '右クリックメニュー',
   excerpt: '内容の読み取り',
+  archive: 'アーカイブの内容表示',
 }
 
 const added = (p: PluginStatus) => !p.dev && !p.builtin

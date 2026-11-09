@@ -267,6 +267,8 @@ pub struct Library {
     /// 写しで、その ID をファイルに書いてあったもの。コピーで ID が重なったとき、元のほうに ID を残すのに使う。
     owners: HashMap<String, PathBuf>,
     orphans: Vec<Orphan>,
+    /// アーカイブから取り出したファイル。中のファイルの ID で読むだけで、書き換えの対象にはしない。
+    extracted: HashMap<String, PathBuf>,
 }
 
 fn new_id() -> String {
@@ -396,6 +398,7 @@ impl Library {
             touched: None,
             owners: HashMap::new(),
             orphans: Vec::new(),
+            extracted: HashMap::new(),
         }
     }
 
@@ -977,7 +980,14 @@ impl Library {
     }
 
     pub fn path(&self, id: &str) -> Result<&Path, String> {
+        if let Some(p) = self.extracted.get(id) {
+            return Ok(p);
+        }
         Ok(&self.entry(id)?.path)
+    }
+
+    pub fn set_extracted(&mut self, id: String, path: PathBuf) {
+        self.extracted.insert(id, path);
     }
 
     pub fn asset(&self, id: &str) -> Result<(&Path, String), String> {
@@ -998,14 +1008,17 @@ impl Library {
 
     /// 素材とノートのパス・拡張子（小文字）・ノートか。
     pub fn file(&self, id: &str) -> Result<(&Path, String, bool), String> {
+        let ext_of = |p: &Path| {
+            p.extension()
+                .and_then(|x| x.to_str())
+                .unwrap_or_default()
+                .to_lowercase()
+        };
+        if let Some(p) = self.extracted.get(id) {
+            return Ok((p, ext_of(p), false));
+        }
         let e = self.entry(id)?;
-        let ext = e
-            .path
-            .extension()
-            .and_then(|x| x.to_str())
-            .unwrap_or_default()
-            .to_lowercase();
-        Ok((&e.path, ext, e.note))
+        Ok((&e.path, ext_of(&e.path), e.note))
     }
 
     pub fn save_item(&mut self, id: &str, patch: &ItemPatch) -> Result<Option<StoredItem>, String> {

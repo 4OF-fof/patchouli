@@ -46,6 +46,9 @@ import {
 } from '../plugins/ui'
 import { waveform } from '../media/waveform'
 import type {
+  ArchiveActions,
+  ArchiveEntry,
+  ArchiveThumb,
   AutoTag,
   AutoTagProgress,
   Backend,
@@ -513,12 +516,51 @@ export function tauriBackend(): Backend {
     uiQueue.length = 0
     for (const it of waveQueue.splice(0)) waveIds.delete(it.id)
   }
+  let archiveJob = 0
+  const archiveThumbs = new Map<number, (t: ArchiveThumb) => void>()
+  let listeningArchive: Promise<unknown> | undefined
+  const listenArchive = () =>
+    (listeningArchive ??= listen<{ job: number; path: string; file: string; width: number; height: number }>(
+      'archive-thumbnail',
+      ({ payload: p }) =>
+        archiveThumbs.get(p.job)?.({ path: p.path, url: convertFileSrc(p.file), width: p.width, height: p.height }),
+    ))
+  const archiveWork = async <T>(signal: AbortSignal, run: (job: number) => Promise<T>) => {
+    signal.throwIfAborted()
+    const job = ++archiveJob
+    const stop = () => void invoke('archive_stop', { job })
+    signal.addEventListener('abort', stop, { once: true })
+    try {
+      return await run(job)
+    } finally {
+      signal.removeEventListener('abort', stop)
+    }
+  }
+  const archive: ArchiveActions = {
+    entries: (id, signal) => archiveWork(signal, (job) => invoke<ArchiveEntry[]>('archive_entries', { id, job })),
+    extract: (id, path, signal) =>
+      archiveWork(signal, async (job) => {
+        const r = await invoke<{ id: string; file: string }>('archive_extract', { id, path, job })
+        return { id: r.id, url: convertFileSrc(r.file) }
+      }),
+    thumbs: (id, paths, onThumb, signal) =>
+      archiveWork(signal, async (job) => {
+        await listenArchive()
+        archiveThumbs.set(job, onThumb)
+        try {
+          await invoke('archive_thumbs', { id, paths, job })
+        } finally {
+          archiveThumbs.delete(job)
+        }
+      }),
+  }
   const frontBusy = () => !!(making || waving)
   const frontIdle = async () => {
     while (frontBusy()) await new Promise((r) => setTimeout(r, 50))
   }
 
   return {
+    archive,
     async open() {
       suggestions = undefined
       await Promise.all([listenThumbs(), listenChanges(), listenContent(), listenSuggestions()])

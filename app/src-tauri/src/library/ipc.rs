@@ -9,6 +9,7 @@ use tauri::{Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::ai::content;
+use crate::archive;
 use crate::background;
 use crate::library::cache::{self, Cache};
 use crate::library::{
@@ -76,8 +77,10 @@ pub(crate) async fn open_library(
     }
     let thumbs = thumb::dir_for(&cache_dir, &root);
     std::fs::create_dir_all(&thumbs).map_err(|e| format!("{}: {e}", thumbs.display()))?;
+    let archives = archive::dir_for(&cache_dir, &root);
+    std::fs::create_dir_all(&archives).map_err(|e| format!("{}: {e}", archives.display()))?;
     let scope = app.asset_protocol_scope();
-    for dir in [&root, &thumbs] {
+    for dir in [&root, &thumbs, &archives] {
         scope
             .allow_directory(dir, true)
             .map_err(|e| e.to_string())?;
@@ -110,6 +113,7 @@ pub(crate) async fn open_library(
         id,
         lib,
         thumbs: thumbs.clone(),
+        archives,
         plugins: Arc::clone(&plugins),
         runner,
         ui_reads: HashMap::new(),

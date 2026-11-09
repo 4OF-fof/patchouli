@@ -1,4 +1,5 @@
 mod ai;
+mod archive;
 mod background;
 mod framed;
 pub mod library;
@@ -73,6 +74,10 @@ pub fn run() {
             library::ipc::rename_item,
             library::ipc::note_left,
             plugin::ipc::call::item_decoded,
+            archive::ipc::archive_entries,
+            archive::ipc::archive_extract,
+            archive::ipc::archive_thumbs,
+            archive::ipc::archive_stop,
             shell::ipc::reveal_item,
             shell::ipc::open_item_default,
             shell::ipc::item_path,

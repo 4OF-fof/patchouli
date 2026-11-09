@@ -1,0 +1,15 @@
+{
+  "id": "patchouli.archive",
+  "name": "アーカイブ",
+  "version": "0.1.0",
+  "description": "ZIP・7z・RAR・tar などのアーカイブの内容表示",
+  "formats": [
+    {
+      "ext": ["zip", "7z", "rar", "tar", "tgz", "gz", "tbz", "tbz2", "bz2", "txz", "xz", "tzst", "zst"],
+      "label": "アーカイブ",
+      "ratio": 1,
+      "fit": "contain",
+      "parts": ["thumbnail", "archive"]
+    }
+  ]
+}

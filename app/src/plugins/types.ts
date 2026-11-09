@@ -60,6 +60,8 @@ export interface FormatInfo {
   media?: Media
   uiHover?: UiRef
   uiEmbed?: UiRef
+  /** アーカイブとして中のファイルを一覧できる。 */
+  archive?: boolean
   /** 本体が読むショートカット。URL ごとに受け持つものが描く。 */
   link?: boolean
 }

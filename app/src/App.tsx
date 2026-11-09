@@ -49,6 +49,8 @@ import { ItemMenuProvider, ThumbMakingProvider, ThumbSeenProvider } from './comp
 import { AllScreen } from './screens/All/AllScreen'
 import { AppBar, type BarRequest, BarToolsProvider } from './screens/AppBar'
 import { PlaceBar, placeEntries } from './screens/PlaceBar'
+import { ArchiveScreen } from './screens/Archive/ArchiveScreen'
+import { EntryScreen } from './screens/Archive/EntryScreen'
 import { AssetScreen } from './screens/Asset/AssetScreen'
 import { EditionScreen } from './screens/Edition/EditionScreen'
 import { GroupScreen } from './screens/Group/GroupScreen'
@@ -450,6 +452,36 @@ export function App(props: AppProps) {
       onOpenPlugins={(p) => setBarRequest({ state: 'plugins', plugin: p && { id: p.id, dev: p.dev } })}
       onReveal={backend.revealItem}
       onOpenDefault={backend.openItemDefault}
+      onOpenArchive={(id) => openItem(id)}
+    />
+  )
+  const archiveScreen = (v: View & { s: 'archive' }) => (
+    <ArchiveScreen
+      lib={lib()}
+      id={v.id}
+      name={v.name}
+      path={v.path}
+      actions={backend.archive}
+      onOpenFolder={(path) => go({ ...v, path })}
+      onOpenEntries={(items, index) => go({ s: 'entry', items, index })}
+      onOpenArchive={(id, name) => go({ s: 'archive', id, name, path: '' })}
+      onInfo={lib().byId.has(v.id) ? () => go({ s: 'asset', list: [v.id], index: 0 }) : undefined}
+      onError={(m) => notify(m, 'error')}
+    />
+  )
+  const entryScreen = (v: View & { s: 'entry' }) => (
+    <EntryScreen
+      lib={lib()}
+      items={v.items}
+      index={untrack(() => assetIndex(v))}
+      onIndex={(i) => assetIndexOf(v)[1](i)}
+      host={viewHost}
+      actions={backend.archive}
+      blocker={blockerOf}
+      onEnablePlugin={enablePlugin}
+      onOpenPlugins={(p) => setBarRequest({ state: 'plugins', plugin: p && { id: p.id, dev: p.dev } })}
+      onOpenDefault={backend.openItemDefault}
+      onError={(m) => notify(m, 'error')}
     />
   )
 
@@ -679,6 +711,12 @@ export function App(props: AppProps) {
               v.at,
             )
           }
+        </Match>
+        <Match when={shown().s === 'archive' && shown()} keyed>
+          {(v) => v.s === 'archive' && archiveScreen(v)}
+        </Match>
+        <Match when={shown().s === 'entry' && shown()} keyed>
+          {(v) => v.s === 'entry' && entryScreen(v)}
         </Match>
         <Match when={shown().s === 'web' && shown()} keyed>
           {(v) => v.s === 'web' && webScreen(v.url)}

@@ -1,0 +1,32 @@
+[package]
+name = "patchouli-plugin-archive"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+[dependencies]
+bzip2 = "0.6.1"
+encoding_rs = "0.8.44"
+flate2 = { version = "1.1.11", default-features = false, features = ["zlib-rs"] }
+lzma-rust2 = { version = "0.25.0", default-features = false, features = ["std", "xz", "optimization"] }
+rars = { version = "0.12.4", default-features = false }
+ruzstd = "0.9.1"
+sevenz-rust2 = { version = "0.25.0", default-features = false, features = ["bzip2", "ppmd", "deflate"] }
+tar = { version = "0.4.46", default-features = false }
+tiny-skia = { version = "0.12.0", default-features = false, features = ["std", "png-format"] }
+wit-bindgen = "0.63"
+zip = { version = "9.5.0", default-features = false, features = [
+  "deflate-flate2-zlib-rs",
+  "deflate64",
+  "bzip2",
+  "lzma",
+  "xz",
+  "ppmd",
+] }
+
+[lib]
+crate-type = ["cdylib"]
+
+[lints]
+workspace = true
