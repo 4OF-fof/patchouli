@@ -45,6 +45,14 @@ export const Done: Story = {
     )
   },
 }
+export const Empty: Story = {
+  name: '確認待ちなし',
+  render: () => (
+    <ScreenFrame>
+      <TidyScreen lib={withSuggestions(sampleLibrary(), {})} />
+    </ScreenFrame>
+  ),
+}
 export const Filed: Story = {
   name: 'プロジェクトの項目と候補なし',
   render: () => {

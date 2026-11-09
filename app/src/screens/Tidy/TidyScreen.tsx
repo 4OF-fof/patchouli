@@ -196,22 +196,31 @@ export function TidyScreen(props: TidyScreenProps) {
           when={current()}
           fallback={
             <div class={styles.view}>
-              <div class={styles.head}>{back()}</div>
-              <div class={styles.done}>
-                <Show
-                  when={later().length}
-                  fallback={
-                    <>
-                      <b>すべての確認が完了しました</b>
-                      <span>{decided().length} 件を承認しました。</span>
-                    </>
-                  }
-                >
-                  <b>ひと通り確認しました</b>
-                  <span>保留にした {later().length} 件は、次回先頭に表示されます。</span>
-                </Show>
-              </div>
-              {strip()}
+              <Show
+                when={steps().length}
+                fallback={
+                  <div class={styles.done}>
+                    <b>確認待ちの項目はありません</b>
+                  </div>
+                }
+              >
+                <div class={styles.head}>{back()}</div>
+                <div class={styles.done}>
+                  <Show
+                    when={later().length}
+                    fallback={
+                      <>
+                        <b>すべての確認が完了しました</b>
+                        <span>{decided().length} 件を承認しました。</span>
+                      </>
+                    }
+                  >
+                    <b>ひと通り確認しました</b>
+                    <span>保留にした {later().length} 件は、次回先頭に表示されます。</span>
+                  </Show>
+                </div>
+                {strip()}
+              </Show>
             </div>
           }
         >
