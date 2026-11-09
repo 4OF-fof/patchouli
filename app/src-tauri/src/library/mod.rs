@@ -130,9 +130,6 @@ pub struct StoredGroup {
     pub name: String,
     pub project: Option<String>,
     pub parent: Option<String>,
-    /// プラグインが足す特殊なグループの種類。ただのグループは持たない
-    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub kind: Option<String>,
     pub dir: PathBuf,
     pub mtime: f64,
 }
@@ -811,18 +808,12 @@ impl Library {
                 m.remove(PRINT_KEY);
                 id
             });
-        let kind = m
-            .get(TYPE_KEY)
-            .and_then(Value::as_str)
-            .filter(|t| *t != PROJECT_TYPE)
-            .map(str::to_owned);
         let at = f.groups.len();
         f.groups.push(StoredGroup {
             id: id.clone(),
             name: name_of(dir),
             project: project.map(str::to_owned),
             parent: parent.map(str::to_owned),
-            kind,
             dir: dir.to_owned(),
             mtime: 0.0,
         });
@@ -1498,7 +1489,6 @@ impl Library {
             name,
             project,
             parent: group,
-            kind: None,
             dir: dir.clone(),
             mtime: mtime_of(&meta),
         };

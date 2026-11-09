@@ -392,7 +392,6 @@ fn projects(cur: &State<Current>) -> Result<Value, String> {
                 "name": g.name,
                 "project": g.project,
                 "parent": g.parent,
-                "type": g.kind,
             })
         })
         .collect();

@@ -91,8 +91,6 @@ export interface Group {
   name: string
   project: string | null
   parent: string | null
-  /** プラグインが足す特殊なグループの種類。ただのグループは持たない */
-  type?: string
   touched: string
   mtime: number
 }

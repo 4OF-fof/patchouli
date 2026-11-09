@@ -51,7 +51,6 @@ export interface StoredGroup {
   name: string
   project: string | null
   parent: string | null
-  type?: string
   mtime: number
 }
 
@@ -152,7 +151,6 @@ export const toGroup = (s: StoredGroup, today: Date): Group => ({
   name: s.name,
   project: s.project,
   parent: s.parent,
-  ...(s.type && { type: s.type }),
   touched: touchedLabel(today, new Date(s.mtime)),
   mtime: s.mtime,
 })
