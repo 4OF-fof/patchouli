@@ -1,6 +1,6 @@
 /*
  * プラグイン作成用の型定義とヘルパー。plugin.json の型とスクリプトに渡される API を定義する。
- * 元ファイルは app/plugins/sdk/ にあり、plugin-template/patchouli/ は scripts/plugin-template.ts でコピーされる。
+ * 元ファイルは app/plugins/sdk/ にあり、テンプレートの patchouli/ は scripts/plugin-template.ts でコピーされる。
  * スクリプトからは `@patchouli/plugin` として import する（ビルド時は cli.ts、型チェック時は tsconfig の paths で解決される）。
  *
  * スクリプトはアプリ本体と同じドキュメント上で描画されるため、本体の CSS 変数（--ink・--card・--accent・--space-* など）を使用できる。

@@ -19,8 +19,8 @@
 
 ## プラグインの SDK とテンプレート
 
-- SDK（型定義・`definePlugin`・build / zip の CLI・WIT）の元ファイルは `app/plugins/sdk/` にある。編集したら `node scripts/plugin-template.ts` で `plugin-template/patchouli/` にコピーする。コピー先は直接編集しない。
-- npm には公開しない。外部のプラグイン作成者は SDK を同梱した `plugin-template/` をコピーして使用する。
+- SDK（型定義・`definePlugin`・build / zip の CLI・WIT）の元ファイルは `app/plugins/sdk/` にある。編集したら `node scripts/plugin-template.ts` で別リポジトリのテンプレート（`../patchouli-plugin/patchouli-plugin-template/patchouli/`）にコピーする。コピー先は直接編集しない。
+- npm には公開しない。外部のプラグイン作成者は SDK を同梱した [patchouli-plugin-template](https://github.com/4OF-fof/patchouli-plugin-template) をコピーして使用する。
 - `plugin.json` の形式ごとの `parts` のうち、`script` に指定したものはアプリと同じ WebView で動作する TypeScript（スクリプト）、それ以外は権限を制限した WASM が処理する。スクリプト内から `api.wasm()` で WASM の同名機能を呼び出せる。`links`・`screens`・`covers` はスクリプト、`menu`・`hooks` は WASM が処理する。
 - スクリプトはコア機能も外部プラグインも TypeScript で実装し、`@patchouli/plugin` から import する。`plugin.json` のトップレベルの `script` にはビルド後の `.js` のパスを指定する（ソースファイルは拡張子を `.ts` にしたもの）。
 - コア機能のスクリプトは `build.rs` が CLI でビルドしてバイナリに埋め込む。スクリプトを持つコア機能は `build.rs` の `UI_PLUGINS` に記載する。

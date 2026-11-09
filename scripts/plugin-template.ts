@@ -3,7 +3,7 @@ import path from 'node:path'
 
 const root = path.resolve(import.meta.dirname, '..')
 const sdk = path.join(root, 'app', 'plugins', 'sdk')
-const dest = path.join(root, 'plugin-template', 'patchouli')
+const dest = path.join(root, '..', 'patchouli-plugin', 'patchouli-plugin-template', 'patchouli')
 
 fs.rmSync(dest, { recursive: true, force: true })
 fs.cpSync(sdk, dest, { recursive: true })

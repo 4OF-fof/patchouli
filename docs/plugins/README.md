@@ -30,12 +30,12 @@
 
 ## 作成手順
 
-1. `plugin-template/` をコピーする。テンプレート内の `patchouli/` は SDK（型定義・CLI・WIT）のため編集しない。
+1. [patchouli-plugin-template](https://github.com/4OF-fof/patchouli-plugin-template) をコピーする。テンプレート内の `patchouli/` は SDK（型定義・CLI・WIT）のため編集しない。
 2. 必要なツールをインストールする。
    - Node 22.18 以上（TypeScript 製の CLI を直接実行するために使用）
    - Rust と `rustup target add wasm32-wasip2`（WASM をビルドする場合）
 3. `plugin.json` に ID・名前・バージョンと対象機能を設定する（[manifest.md](manifest.md)）。
-4. WASM は `src/lib.rs`（[wasm.md](wasm.md)）、スクリプトは `ui.ts`（[script.md](script.md)）に実装する。不要な側は削除し、スクリプトを使用しない場合は `plugin.json` の `script` も削除する。
+4. スクリプトは `ui.ts`（[script.md](script.md)）に実装し、使用しない場合は `ui.ts` と `plugin.json` の `script` を削除する。WASM を使用する場合は `Cargo.toml` と `src/lib.rs`（[wasm.md](wasm.md)）を追加する。
 5. ビルドする。
 
    ```bash
