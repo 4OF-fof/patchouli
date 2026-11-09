@@ -5,6 +5,7 @@ import {
   type ItemUrls,
   type StoredChanged,
   type StoredGroup,
+  type CustomThumb,
   type StoredItem,
   type StoredLibrary,
   type StoredProject,
@@ -58,6 +59,7 @@ import type {
   HookFailed,
   KnownLibrary,
   MenuResult,
+  ThumbApplied,
   PageAt,
   RemoteAsk,
   RemoteToast,
@@ -67,12 +69,18 @@ import type {
   UnusedPlugin,
 } from './types'
 
-type TauriItem = StoredItem & { file: string; thumb?: string }
+type TauriItem = StoredItem & { file: string; thumb?: string; standardThumb?: string }
 
-const urlsOf = (it: TauriItem): ItemUrls => ({
-  src: it.note ? undefined : convertFileSrc(it.file),
-  thumb: it.thumb && convertFileSrc(it.thumb),
-})
+const customUrl = (file: string, c: CustomThumb) => `${convertFileSrc(file)}?v=${c.stamp}`
+
+const urlsOf = (it: TauriItem): ItemUrls => {
+  const thumb = it.thumb && (it.customThumb ? customUrl(it.thumb, it.customThumb) : convertFileSrc(it.thumb))
+  return {
+    src: it.note ? undefined : convertFileSrc(it.file),
+    thumb,
+    jacket: it.customThumb?.jacket ? thumb : it.standardThumb && convertFileSrc(it.standardThumb),
+  }
+}
 
 type TauriView =
   | { kind: 'image' | 'video' | 'audio' | 'decoded' }
@@ -202,13 +210,27 @@ export function tauriBackend(): Backend {
   }
   let listening: Promise<unknown> | undefined
   const listenThumbs = () =>
-    (listening ??= listen<{ id: string; file: string; width: number; height: number; wave: boolean }>(
-      'thumbnail',
-      (e) => {
-        const p = e.payload
-        sendThumb(p.id, { url: convertFileSrc(p.file), ratio: p.width / p.height, wave: p.wave })
-      },
-    ))
+    (listening ??= listen<{
+      id: string
+      file: string
+      width: number
+      height: number
+      wave: boolean
+      custom?: CustomThumb
+      standard?: string
+    }>('thumbnail', (e) => {
+      const p = e.payload
+      const url = p.custom ? customUrl(p.file, p.custom) : convertFileSrc(p.file)
+      sendThumb(p.id, {
+        url,
+        ratio: p.width / p.height,
+        wave: p.wave,
+        ...(p.custom && {
+          custom: true,
+          jacket: p.custom.jacket ? url : p.standard && convertFileSrc(p.standard),
+        }),
+      })
+    }))
   // 写しから開いたあとの突き合わせの結果も、画面が受け取れるようになるまで溜めておく
   const changes: Changed[] = []
   const changeSubs = new Set<(c: Changed) => void>()
@@ -544,6 +566,9 @@ export function tauriBackend(): Backend {
     },
     noteLeft: (id) => invoke('note_left', { id }),
     deleteItem: (id) => invoke('delete_item', { id }),
+    pickThumb: (id) => invoke<ThumbApplied | null>('pick_custom_thumb', { id }),
+    pasteThumb: (id) => invoke<ThumbApplied>('paste_custom_thumb', { id }),
+    clearThumb: (id) => invoke('clear_custom_thumb', { id }),
     saveState: (state) => invoke('save_state', { state }),
     tagHistory: () => invoke<string[]>('tag_history'),
     saveTagHistory: (tags) => invoke('save_tag_history', { tags }),

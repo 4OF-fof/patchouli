@@ -69,7 +69,7 @@ pub(crate) async fn open_library(
     let cache_dir = cache_dir(&app)?;
     let cache_path = cache::path_for(&cache_dir, &root);
     cache::touch(&cache_path);
-    let cache = Arc::new(Cache::open(&cache_path));
+    let cache = Arc::new(Cache::open(&cache_path, &root));
     {
         let (dir, root) = (cache_dir.clone(), root.clone());
         background::spawn(move || cache::sweep(&dir, &root));

@@ -16,6 +16,7 @@ export type {
   Orphan,
   PluginWork,
   SavedTabs,
+  ThumbApplied,
 } from './types'
 export { sampleBackend } from './sample'
 

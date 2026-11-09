@@ -37,6 +37,10 @@ export interface Item {
   thumb?: string
   /** thumb を波形から描いたもの */
   waveThumb?: boolean
+  /** thumb が利用者の設定した画像 */
+  customThumb?: boolean
+  /** customThumb のときに再生画面で使うジャケット */
+  jacketSrc?: string
   /** サムネイルを作れなかった */
   thumbFailed?: boolean
   fit?: Fit
@@ -378,7 +382,9 @@ export function withEmptyProject(lib: Library, now = new Date()): { lib: Library
 export const withToggledPin = (lib: Library, id: string) =>
   buildLibrary(lib.items, lib.projects, lib.today, lib.tagCovers, toggled(lib.pins, id), lib.formats, lib.groups)
 
-export type Thumbnail = { url: string; ratio: number; wave?: boolean } | { failed: true }
+export type Thumbnail =
+  | { url: string; ratio: number; wave?: boolean; custom?: boolean; jacket?: string | undefined }
+  | { failed: true }
 
 export const withThumbs = (lib: Library, thumbs: Map<string, Thumbnail>) =>
   buildLibrary(
@@ -386,7 +392,15 @@ export const withThumbs = (lib: Library, thumbs: Map<string, Thumbnail>) =>
       const t = thumbs.get(i.id)
       if (!t) return i
       if ('failed' in t) return { ...i, thumbFailed: true }
-      return { ...i, thumb: t.url, ratio: t.ratio, waveThumb: t.wave === true, thumbFailed: false }
+      return {
+        ...i,
+        thumb: t.url,
+        ratio: t.ratio,
+        waveThumb: t.wave === true,
+        thumbFailed: false,
+        customThumb: t.custom === true,
+        jacketSrc: t.jacket,
+      }
     }),
     lib.projects,
     lib.today,
@@ -616,7 +630,7 @@ export function dueLabel(lib: Library, date: string) {
 }
 
 /** 音声のジャケット。音声のサムネイルは、波形から描いたものでなければジャケット */
-export const jacketOf = (it: Item) => (it.waveThumb ? undefined : it.thumb)
+export const jacketOf = (it: Item) => (it.customThumb ? it.jacketSrc : it.waveThumb ? undefined : it.thumb)
 
 export type CardSize = 'L' | 'M' | 'S' | 'X'
 

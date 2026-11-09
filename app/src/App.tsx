@@ -11,7 +11,7 @@ import {
   onMount,
   untrack,
 } from 'solid-js'
-import { type Backend, type Orphan, sampleBackend } from './backend'
+import { type Backend, type Orphan, type ThumbApplied, sampleBackend } from './backend'
 import type { RemoteAsk, RemotePermission } from './backend/types'
 import { RemoteAskDialog } from './components/dialog/RemoteAskDialog/RemoteAskDialog'
 import { RemoteToasts } from './app/RemoteToasts'
@@ -96,6 +96,12 @@ const showPrefs = () => applyPrefs(prefs())
 export function App(props: AppProps) {
   const backend = props.backend ?? sampleBackend()
   const { notice, setNotice, notify, fail, failLoad, failOpen, persist } = createNotice()
+  const changeThumb = (done: Promise<ThumbApplied | null>) =>
+    void done.then(
+      (applied) =>
+        applied && notify(applied === 'jacket' ? 'ジャケットを変更しました' : 'サムネイルを変更しました', 'success'),
+      (e: unknown) => notify(`サムネイルの変更に失敗しました：${messageOf(e)}`, 'error'),
+    )
   const { lib, setLib, screens, setScreens, pinnedProjects, setPinnedProjects, pinnedTags, setPinnedTags, saveState } =
     createLibraryState({
       lib: props.lib,
@@ -982,6 +988,20 @@ export function App(props: AppProps) {
                                     ? `${its().length} 件の名前をコピーしました`
                                     : '名前をコピーしました',
                                 )
+                              }
+                              onThumbPick={
+                                backend.pickThumb && (() => one() && changeThumb(backend.pickThumb!(one()!)))
+                              }
+                              onThumbPaste={
+                                backend.pasteThumb && (() => one() && changeThumb(backend.pasteThumb!(one()!)))
+                              }
+                              onThumbClear={
+                                backend.clearThumb &&
+                                (() =>
+                                  one() &&
+                                  void backend.clearThumb!(one()!).catch((e: unknown) =>
+                                    notify(`サムネイルの変更に失敗しました：${messageOf(e)}`, 'error'),
+                                  ))
                               }
                               onPlugin={(plugin, entry) => void runPlugin(ids(), plugin, entry)}
                               onDelete={backend.deleteItem && (() => setDeleting(ids()))}

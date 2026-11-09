@@ -30,6 +30,14 @@ export interface StoredItem {
   width?: number
   height?: number
   waveThumb?: boolean
+  customThumb?: CustomThumb
+}
+
+export interface CustomThumb {
+  width: number
+  height: number
+  jacket: boolean
+  stamp: number
 }
 
 export interface StoredProject {
@@ -84,6 +92,7 @@ const hueOfName = (name: string) => hash(name) % 360
 
 function ratioOf(s: StoredItem, formats: ReadonlyMap<string, FormatInfo>) {
   if (s.note) return NOTE_RATIO
+  if (s.customThumb) return s.customThumb.width / s.customThumb.height
   if (s.width && s.height) return s.width / s.height
   return formats.get(s.ext)?.ratio ?? 1.6
 }
@@ -91,6 +100,7 @@ function ratioOf(s: StoredItem, formats: ReadonlyMap<string, FormatInfo>) {
 export interface ItemUrls {
   src?: string
   thumb?: string
+  jacket?: string
 }
 
 export function toItem(
@@ -121,6 +131,8 @@ export function toItem(
     ...(urls.src && { src: urls.src }),
     ...(urls.thumb && { thumb: urls.thumb }),
     ...(urls.thumb && s.waveThumb && { waveThumb: true }),
+    ...(s.customThumb && { customThumb: true }),
+    ...(urls.jacket && { jacketSrc: urls.jacket }),
   }
 }
 

@@ -176,7 +176,7 @@ pub fn collect(
     let key = budget_key();
     for it in items.iter().filter(|it| !it.note) {
         let ext = it.ext.to_lowercase();
-        let thumb = it.thumb.clone().filter(|t| t.is_file());
+        let thumb = it.source_thumb().filter(|t| t.is_file()).cloned();
         let link = (ext == shortcut::EXT)
             .then(|| shortcut::url_of(&it.file))
             .flatten()

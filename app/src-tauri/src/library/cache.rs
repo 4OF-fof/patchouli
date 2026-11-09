@@ -64,7 +64,7 @@ pub struct Snapshot {
     pub tag_covers: Map<String, Value>,
 }
 
-pub struct Cache(Mutex<Connection>, AtomicBool, Mutex<Changed>);
+pub struct Cache(Mutex<Connection>, AtomicBool, Mutex<Changed>, PathBuf);
 
 /// 項目を書き換えるたびに上げる番号。開き直した写しどうしでも重ならないよう、全体で 1 つ。
 static GENERATION: AtomicU64 = AtomicU64::new(0);
@@ -251,7 +251,7 @@ fn put_tag_covers(c: &Connection, covers: &Map<String, Value>) -> Result<(), Str
 
 impl Cache {
     /// 開けなければ作り直し、それでも開けなければメモリの中に置く（次に開くときは残らない）。
-    pub fn open(path: &Path) -> Cache {
+    pub fn open(path: &Path, root: &Path) -> Cache {
         if let Some(dir) = path.parent()
             && let Err(e) = std::fs::create_dir_all(dir)
         {
@@ -272,7 +272,12 @@ impl Cache {
             Mutex::new(c.0),
             AtomicBool::new(c.1),
             Mutex::new(Changed::fresh()),
+            root.to_owned(),
         )
+    }
+
+    pub fn library_root(&self) -> &Path {
+        &self.3
     }
 
     /// 波形のサムネイルをジャケットと同じ場所に置いていた版から作り直したか。最初に聞かれたときだけ true を返す。
@@ -557,16 +562,21 @@ impl Cache {
         thumb: &Path,
         (width, height): (u32, u32),
         reads: &Reads,
-    ) -> Result<(), String> {
+    ) -> Result<Option<StoredItem>, String> {
         let Some(mut row) = self.row(src)? else {
-            return Ok(());
+            return Ok(None);
         };
-        row.item.thumb = Some(thumb.to_owned());
-        row.item.wave_thumb = crate::thumb::is_wave_thumb(thumb);
+        let wave = crate::thumb::is_wave_thumb(thumb);
+        if row.item.custom_thumb.is_none() {
+            row.item.thumb = Some(thumb.to_owned());
+            row.item.wave_thumb = wave;
+        } else if !wave && row.item.thumb.as_deref() != Some(thumb) {
+            row.item.standard_thumb = Some(thumb.to_owned());
+        }
         if row.item.width.is_none() {
             (row.item.width, row.item.height) = (Some(width), Some(height));
         }
-        self.update(&[row], &[])?;
+        self.update(std::slice::from_ref(&row), &[])?;
         self.with("書けない", |c| {
             let path = src.to_string_lossy();
             if reads.is_empty() {
@@ -580,7 +590,19 @@ impl Cache {
             }
             .map(drop)
             .map_err(|e| e.to_string())
-        })
+        })?;
+        Ok(Some(row.item))
+    }
+
+    pub fn set_shown_thumb(&self, it: &StoredItem) -> Result<(), String> {
+        let Some(mut row) = self.row(&it.file)? else {
+            return Ok(());
+        };
+        row.item.thumb.clone_from(&it.thumb);
+        row.item.standard_thumb.clone_from(&it.standard_thumb);
+        row.item.wave_thumb = it.wave_thumb;
+        row.item.custom_thumb = it.custom_thumb;
+        self.update(&[row], &[])
     }
 
     pub fn thumb_read(&self, path: &Path) -> Result<Option<Reads>, String> {

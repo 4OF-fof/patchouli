@@ -190,7 +190,11 @@ export interface AppSettings {
   waveLimit: number
   /** ウィンドウを閉じたとき、終了せずにタスクトレイに残る */
   closeToTray: boolean
+  /** 音声に設定したサムネイルの画像をジャケットにも適用する */
+  thumbAsJacket: boolean
 }
+
+export type ThumbApplied = 'thumbnail' | 'jacket'
 
 /** 外から操作してくる口に渡す権限。src-tauri/src/remote/proto.rs の PERMISSIONS と合わせる。 */
 export type RemotePermission = 'library' | 'assets' | 'notes' | 'edit' | 'delete' | 'window'
@@ -366,6 +370,10 @@ export interface Backend {
   noteLeft?: (id: string) => Promise<void>
   /** ファイルとメタ情報をごみ箱に移動する。 */
   deleteItem?: (id: string) => Promise<void>
+  /** キャンセルしたときは null を返す。 */
+  pickThumb?: (id: string) => Promise<ThumbApplied | null>
+  pasteThumb?: (id: string) => Promise<ThumbApplied>
+  clearThumb?: (id: string) => Promise<void>
   saveState(state: LibraryState): Promise<void>
   /** 最近付けたタグ。新しい順。 */
   tagHistory?: () => Promise<string[]>

@@ -84,8 +84,35 @@ pub struct StoredItem {
     /// thumb を波形から描いたもの。音声のサムネイルは、これでなければジャケット
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub wave_thumb: bool,
+    /// thumb が利用者の設定した画像のとき
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_thumb: Option<CustomThumb>,
+    /// custom_thumb があるときの、素材から作ったサムネイル
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub standard_thumb: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub print: Option<String>,
+}
+
+impl StoredItem {
+    /// AI の解析には素材の内容が要るので、利用者の設定した画像は使わない
+    pub fn source_thumb(&self) -> Option<&PathBuf> {
+        if self.custom_thumb.is_some() {
+            self.standard_thumb.as_ref()
+        } else {
+            self.thumb.as_ref()
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomThumb {
+    pub width: u32,
+    pub height: u32,
+    pub jacket: bool,
+    /// 同じ場所に置き直したときに古い画像が表示されないよう、URL に付ける更新日時
+    pub stamp: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -912,6 +939,8 @@ impl Library {
                 file: path.to_owned(),
                 thumb: None,
                 wave_thumb: false,
+                custom_thumb: None,
+                standard_thumb: None,
                 print: if note { None } else { orphan::print(path) },
             },
             saved,
@@ -1143,6 +1172,34 @@ impl Library {
             .ok_or_else(|| format!("{} の再読み込みに失敗しました", to.display()))
     }
 
+    /// 途中で失敗しても元のファイルが残るよう、コピーを書き換えてから入れ替える。
+    pub fn rewrite_asset(
+        &mut self,
+        id: &str,
+        write: impl FnOnce(&Path) -> Result<(), String>,
+    ) -> Result<StoredItem, String> {
+        self.ensure_saved(id)?;
+        let path = self.entry(id)?.path.clone();
+        let mut row = self.row_of(&path)?;
+        let name = path.file_name().ok_or("ファイル名がありません")?;
+        // 「.」で始まるファイルは、ライブラリの項目として読み込まれない
+        let tmp = path.with_file_name(format!(".{}.tmp", name.to_string_lossy()));
+        let err = |e: std::io::Error| format!("{}: {e}", path.display());
+        self.mark(&tmp);
+        let done = fs::copy(&path, &tmp)
+            .map_err(err)
+            .and_then(|_| write(&tmp))
+            .and_then(|()| fs::rename(&tmp, &path).map_err(err));
+        if let Err(e) = done {
+            let _ = fs::remove_file(&tmp);
+            return Err(e);
+        }
+        (row.item.thumb, row.item.width, row.item.height) = (None, None, None);
+        logged(self.cache.update(std::slice::from_ref(&row), &[]));
+        self.refresh(id)
+            .ok_or_else(|| format!("{} の再読み込みに失敗しました", path.display()))
+    }
+
     /// ファイルとメタ情報をごみ箱に入れ、ライブラリから外す。
     pub fn delete_item(&mut self, id: &str) -> Result<(), String> {
         let e = self.entry(id)?;
@@ -1152,6 +1209,7 @@ impl Library {
         if !note && meta.exists() {
             files.push(meta);
         }
+        files.extend(crate::thumb::custom::files_of(&self.root, id));
         trash::delete_all(&files).map_err(|e| format!("{}: {e}", path.display()))?;
         for f in &files {
             self.mark(f);
@@ -1205,7 +1263,7 @@ impl Library {
         logged(self.cache.update(std::slice::from_ref(&row), &[from]));
         if let Some(t) = &row.item.thumb {
             let size = row.item.width.zip(row.item.height).unwrap_or_default();
-            logged(self.cache.set_thumb(to, t, size, &reads));
+            logged(self.cache.set_thumb(to, t, size, &reads).map(drop));
         }
         Ok(row.item)
     }
@@ -1265,7 +1323,7 @@ impl Library {
             .collect()
     }
 
-    fn ensure_saved(&mut self, id: &str) -> Result<(), String> {
+    pub(crate) fn ensure_saved(&mut self, id: &str) -> Result<(), String> {
         match self.entries.get(id) {
             Some(e) if !e.saved => self.save_item(id, &ItemPatch::default()).map(drop),
             _ => Ok(()),
@@ -1380,6 +1438,8 @@ impl Library {
             file: path.clone(),
             thumb: None,
             wave_thumb: false,
+            custom_thumb: None,
+            standard_thumb: None,
             print: None,
         };
         self.remember(&Row {

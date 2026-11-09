@@ -128,6 +128,12 @@ function ffmpegArgs(it: SpecItem, out: string): string[] {
   ]
 }
 
+function customThumbArgs(it: SpecItem, out: string) {
+  const c0 = hex(it.hue + 180, 70, 58)
+  const c1 = hex(it.hue + 220, 70, 24)
+  return ['-v', 'error', '-y', '-f', 'lavfi', '-i', `gradients=s=800x800:c0=${c0}:c1=${c1}:n=2:seed=${it.hue}`, '-frames:v', '1', out]
+}
+
 /** PackBits で 1 行を縮める。 */
 function packBits(row: Uint8Array) {
   const out: number[] = []
@@ -335,6 +341,11 @@ for (const it of spec.items) {
   const url = it.media !== 'link' && it.url ? { url: it.url } : {}
   fs.writeFileSync(meta, json({ [ID_KEY]: it.id, tags: it.tags, memo: it.memo, ...url }))
   touched.push({ file, moved: it.moved }, { file: meta, moved: it.moved })
+  if (it.customThumb) {
+    const out = path.join(state, 'thumbnails', `${it.id}.png`)
+    fs.mkdirSync(path.dirname(out), { recursive: true })
+    jobs.push(() => run(customThumbArgs(it, out)))
+  }
   if (it.media === 'other') fs.writeFileSync(file, '')
   else if (it.media === 'archive') archives.push({ it, file })
   else if (it.media === 'link') fs.writeFileSync(file, `[InternetShortcut]\r\nURL=${it.link ?? ''}\r\n`)

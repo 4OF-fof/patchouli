@@ -2,7 +2,7 @@ import { Match, Switch, onMount } from 'solid-js'
 import { type Item, type Library, type Place, placeOf, samePlace } from '../../../model/library'
 import { TagPicker } from '../../controls/TagPicker/TagPicker'
 import { CascadeMenu } from '../../nav/CascadeMenu/CascadeMenu'
-import type { NavMenuEntry } from '../../nav/NavMenu/NavMenu'
+import { NavMenu, type NavMenuEntry } from '../../nav/NavMenu/NavMenu'
 import { PlaceMenu } from '../../nav/PlaceMenu/PlaceMenu'
 import { ContextMenu } from '../ContextMenu/ContextMenu'
 
@@ -36,6 +36,9 @@ export interface ItemMenuProps {
   onPin: (on: boolean) => void
   onCopyPath?: () => void
   onCopyName: () => void
+  onThumbPick?: () => void
+  onThumbPaste?: () => void
+  onThumbClear?: () => void
   onPlugin?: (plugin: string, entry: string) => void
   onDelete?: () => void
   onClose: () => void
@@ -62,15 +65,14 @@ export function ItemMenu(props: ItemMenuProps) {
           props.onReveal && { id: 'reveal', icon: 'folder', label: props.revealLabel ?? 'フォルダを開く' },
         ])
       : []
+    const edits = group([
+      !props.onScreen && { id: 'move', icon: 'move', label: '移動', sub: true },
+      !props.onScreen && { id: 'tag', icon: 'tag', label: 'タグを追加', sub: true },
+      it && !it.note && props.onThumbPick && { id: 'thumb', icon: 'image', label: 'サムネイルを変更', sub: true },
+    ])
     return [
       ...(opens.length ? [...opens, 'separator' as const] : []),
-      ...(props.onScreen
-        ? []
-        : [
-            { id: 'move', icon: 'move', label: '移動', sub: true } as const,
-            { id: 'tag', icon: 'tag', label: 'タグを追加', sub: true } as const,
-            'separator' as const,
-          ]),
+      ...(edits.length ? [...edits, 'separator' as const] : []),
       ...group([
         !props.onScreen && { id: 'pin', icon: 'pin', label: allPinned() ? 'ピン留めを解除' : 'ピン留め' },
         props.onCopyPath && { id: 'path', icon: 'copy', label: 'パスをコピー' },
@@ -122,9 +124,23 @@ export function ItemMenu(props: ItemMenuProps) {
     path: props.onCopyPath,
     name: props.onCopyName,
     delete: props.onDelete,
+    thumbPick: props.onThumbPick,
+    thumbPaste: props.onThumbPaste,
+    thumbClear: props.onThumbClear,
   })
   const submenu = (id: string) => (
     <Switch>
+      <Match when={id === 'thumb'}>
+        <NavMenu
+          items={group([
+            { id: 'thumbPick', icon: 'file', label: 'ファイルから選択' },
+            { id: 'thumbPaste', icon: 'copy', label: 'クリップボードから貼り付け' },
+            one()?.customThumb && { id: 'thumbClear', icon: 'undo', label: '標準に戻す' },
+          ])}
+          onSelect={onMain}
+          onClose={props.onClose}
+        />
+      </Match>
       <Match when={id === 'move'}>
         <PlaceMenu
           lib={props.lib}

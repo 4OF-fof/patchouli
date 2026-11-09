@@ -256,6 +256,8 @@ pub struct AppSettings {
     /// ウィンドウを閉じたとき、終了せずにタスクトレイに残る
     #[serde(default = "yes")]
     pub close_to_tray: bool,
+    #[serde(default = "yes")]
+    pub thumb_as_jacket: bool,
 }
 
 fn wave_limit() -> u32 {
@@ -275,6 +277,7 @@ impl Default for AppSettings {
             link_open: LinkOpen::default(),
             wave_limit: wave_limit(),
             close_to_tray: yes(),
+            thumb_as_jacket: yes(),
         }
     }
 }

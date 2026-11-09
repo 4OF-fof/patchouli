@@ -473,6 +473,29 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 </Show>
               ),
             },
+            {
+              page: 'general' as const,
+              words: '音声 サムネイル ジャケットとして適用 タグ 埋め込み',
+              body: () => (
+                <Show when={props.app}>
+                  {(a) => (
+                    <div class={styles.field}>
+                      <SettingField
+                        setting={{
+                          key: 'thumbAsJacket',
+                          label: 'ジャケットとして適用',
+                          kind: 'toggle',
+                          default: true,
+                          value: a().thumbAsJacket,
+                          help: '音声のサムネイルを変更すると、ジャケットにも適用します。MP3・FLAC はファイルのタグに画像を書き込みます',
+                        }}
+                        onChange={(v) => setApp({ thumbAsJacket: v === true }, 'ジャケットの適用設定を変更しています')}
+                      />
+                    </div>
+                  )}
+                </Show>
+              ),
+            },
           ]
         : []),
     ]),

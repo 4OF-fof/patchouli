@@ -562,6 +562,9 @@ const TAG_POOL: Record<string, string[]> = {
 
 const JACKETS = ['theme-demo']
 
+/** カスタムサムネイルを設定した素材の名前。画像は正方形にする */
+const CUSTOM_THUMBS = ['clip-0412']
+
 /** ショートカット（.url）の名前 → 指す URL。YouTube のものはコア機能の YouTube が受け持つ */
 const LINKS: Record<string, string> = {
   印刷所の入稿ルール: 'https://example.com/',
@@ -666,6 +669,7 @@ export function sampleSpec(): Spec {
       ...(size && { size }),
       ...(sec && { sec }),
       ...(media === 'audio' && JACKETS.includes(it.name) && { jacket: true }),
+      ...(CUSTOM_THUMBS.includes(it.name) && { customThumb: true, ratio: 1 }),
       ...(media === 'link' && { link: LINKS[it.name] }),
       ...(media === 'archive' && { archive: ARCHIVES[it.name] }),
     }

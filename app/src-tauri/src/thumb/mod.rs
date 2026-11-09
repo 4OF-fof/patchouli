@@ -1,3 +1,4 @@
+pub(crate) mod custom;
 pub(crate) mod ipc;
 
 use std::collections::{HashSet, VecDeque};
@@ -221,20 +222,25 @@ fn prune_gone(dir: &Path, places: &HashSet<&str>, since: SystemTime) {
 }
 
 pub fn shrink(src: &Path, edge: u32) -> Result<Vec<u8>, String> {
-    let err = |e: &dyn std::fmt::Display| format!("{}: {e}", src.display());
-    let bytes = fs::read(src).map_err(|e| err(&e))?;
-    let reader = ImageReader::new(Cursor::new(&bytes))
+    let err = |e: String| format!("{}: {e}", src.display());
+    let bytes = fs::read(src).map_err(|e| err(e.to_string()))?;
+    shrink_bytes(&bytes, edge).map_err(err)
+}
+
+pub fn shrink_bytes(bytes: &[u8], edge: u32) -> Result<Vec<u8>, String> {
+    let err = |e: image::ImageError| e.to_string();
+    let reader = ImageReader::new(Cursor::new(bytes))
         .with_guessed_format()
-        .map_err(|e| err(&e))?;
+        .map_err(|e| e.to_string())?;
     let jpeg = reader.format() == Some(ImageFormat::Jpeg);
-    let mut dec = reader.into_decoder().map_err(|e| err(&e))?;
-    let orientation = dec.orientation().map_err(|e| err(&e))?;
-    let mut img = match jpeg.then(|| scaled_jpeg(&bytes, edge)).flatten() {
+    let mut dec = reader.into_decoder().map_err(err)?;
+    let orientation = dec.orientation().map_err(err)?;
+    let mut img = match jpeg.then(|| scaled_jpeg(bytes, edge)).flatten() {
         Some(img) => img,
-        None => DynamicImage::from_decoder(dec).map_err(|e| err(&e))?,
+        None => DynamicImage::from_decoder(dec).map_err(err)?,
     };
     img.apply_orientation(orientation);
-    encode(img, edge).map_err(|e| err(&e))
+    encode(img, edge)
 }
 
 /// JPEG を 1/2・1/4・1/8 に縮めながらデコードする。長いほうの辺は edge 以上に残る。
