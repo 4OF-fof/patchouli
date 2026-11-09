@@ -37,8 +37,7 @@
   flex: 1;
   align-self: stretch;
 }
-.root:not([data-bar], [data-web]) .stage .page,
-.root[data-steps] .stage .page {
+.root:not([data-bar], [data-web]) .stage .page {
   margin-top: 56px;
 }
 .stage .box {
@@ -84,17 +83,6 @@
   opacity: 0;
   pointer-events: none;
 }
-.strip {
-  position: absolute;
-  left: 0;
-  top: 0;
-  z-index: 4;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  gap: var(--space-8);
-  padding: 0 var(--space-16);
-}
 .btn {
   width: 30px;
   height: 30px;
@@ -111,23 +99,6 @@
 }
 .btn:hover {
   background: linear-gradient(var(--overlay-hover), var(--overlay-hover)), var(--overlay);
-}
-.count {
-  padding: var(--space-4) var(--space-8);
-  border-radius: var(--radius-md);
-  background: var(--overlay);
-  color: var(--overlay-ink);
-  backdrop-filter: blur(var(--blur));
-  font-family: var(--f-mono);
-  font-size: var(--fs-meta);
-  font-variant-numeric: tabular-nums;
-}
-.pageCount {
-  padding: 0 var(--space-4);
-  color: var(--ink-2);
-  font-family: var(--f-mono);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 /* 情報のカードは「情報」のボタンの位置から開き、ピン留めをカードの左へ押し出す */
 .pin,

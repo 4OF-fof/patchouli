@@ -15,7 +15,6 @@ import {
 import { Portal } from 'solid-js/web'
 import { ScrollArea } from '../../components/base/ScrollArea/ScrollArea'
 import { Chip } from '../../components/controls/Chip/Chip'
-import { IconButton } from '../../components/controls/IconButton/IconButton'
 import { PlaceSelect } from '../../components/controls/PlaceSelect/PlaceSelect'
 import { TagPicker } from '../../components/controls/TagPicker/TagPicker'
 import { LinkNone, LinkRow } from '../../components/nav/LinkRow/LinkRow'
@@ -251,12 +250,11 @@ export function AssetScreen(props: AssetScreenProps) {
   const ready = (l: Look) => {
     if (looks()[1] === l) setLooks([l])
   }
-  /** 外のページを出している間は、ページ送りとボタンをアドレスバーの行に置く。 */
+  /** 外のページを出している間はボタンをアドレスバーの行に置く。 */
   const webShown = () => {
     const l = looks()[0]
     return l?.kind === 'link' && !l.shown?.ui
   }
-  const overlaySteps = () => props.list.length > 1 && (!webShown() || !!barTools())
   /** WebView のデコーダーで読めなかったものの src。 */
   const [broken, setBroken] = createSignal<string>()
   const undecoded = () => {
@@ -280,19 +278,6 @@ export function AssetScreen(props: AssetScreenProps) {
           class={styles.page}
           barAt={barTools()}
           trail={<Show when={active() || !barTools()}>{tools(a, true)}</Show>}
-          lead={
-            <Show when={props.list.length > 1 && !barTools()}>
-              <IconButton label="前の素材" data-tip="前の素材（←）" onClick={() => step(-1)}>
-                <Icon name="back" size={14} />
-              </IconButton>
-              <IconButton label="次の素材" data-tip="次の素材（→）" onClick={() => step(1)}>
-                <Icon name="chevron" size={14} />
-              </IconButton>
-              <span class={styles.pageCount}>
-                {i() + 1} / {props.list.length}
-              </span>
-            </Show>
-          }
         />
       )
     }
@@ -459,7 +444,6 @@ export function AssetScreen(props: AssetScreenProps) {
       data-idle={idle()}
       data-info={info()}
       data-bar={!!barTools() || undefined}
-      data-steps={(overlaySteps() && !webShown()) || undefined}
       data-web={webShown() || undefined}
       aria-label="素材"
       onPointerMove={() => wake()}
@@ -517,34 +501,6 @@ export function AssetScreen(props: AssetScreenProps) {
                 </Match>
               </Switch>
             </div>
-            <Show when={overlaySteps()}>
-              {/* カーソルが外のページの上にあると動きを受け取れないので、外のページでは隠さない */}
-              <div class={`${styles.strip} ${webShown() ? '' : styles.fade}`}>
-                <button
-                  ref={coverPage}
-                  type="button"
-                  class={styles.btn}
-                  aria-label="前の素材"
-                  data-tip="前の素材（←）"
-                  onClick={() => step(-1)}
-                >
-                  <Icon name="back" size={14} />
-                </button>
-                <button
-                  ref={coverPage}
-                  type="button"
-                  class={styles.btn}
-                  aria-label="次の素材"
-                  data-tip="次の素材（→）"
-                  onClick={() => step(1)}
-                >
-                  <Icon name="chevron" size={14} />
-                </button>
-                <span ref={coverPage} class={styles.count}>
-                  {i() + 1} / {props.list.length}
-                </span>
-              </div>
-            </Show>
             <Show when={!webShown() && inBar()} keyed fallback={!barTools() && !webShown() && tools(a, false)}>
               {(el) => (
                 <Portal mount={el}>

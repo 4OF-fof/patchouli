@@ -14,8 +14,6 @@ export interface WebPageProps {
   /** ないときは iframe で出す（読み込みを断るサイトは出せない）。 */
   browser?: BrowserActions
   onOpenDefault?: (url: string) => void
-  /** アドレスバーの行の左端に置くもの。 */
-  lead?: JSX.Element
   /** アドレスバーの行の右端に置くもの。 */
   trail?: JSX.Element
   /** あれば、アドレスバーの行をページの上に置かず、ここに出す。 */
@@ -117,7 +115,6 @@ function Page(props: WebPageProps) {
   const bar = () => (
     <div class={styles.bar} data-inline={!!props.barAt || undefined}>
       <span class={styles.side}>
-        <span class={styles.lead}>{props.lead}</span>
         <IconButton label="戻る" disabled={!can().back} onClick={() => go('back')}>
           <Icon name="goBack" size={16} />
         </IconButton>
