@@ -1,24 +1,19 @@
-//! サムネイルのアイコン。角を折った紙にファスナーと形式の字を描く。座標は辺の長さを 1 とした割合で書く。
+//! サムネイルのアイコン。URL のサムネイルと同じ配置で、透かした地に灰色の線で描き、下に形式の名前を添える。
 
-use tiny_skia::{
-    Color, FillRule, LineCap, LineJoin, Paint, Path, PathBuilder, Pixmap, Rect, Stroke, Transform,
-};
+use tiny_skia::{Color, LineCap, LineJoin, Paint, Path, PathBuilder, Pixmap, Stroke, Transform};
 
-const PAPER: (u8, u8, u8) = (0xe6, 0xdc, 0xcb);
-const FOLD: (u8, u8, u8) = (0xc8, 0xb8, 0x9f);
-const INK: (u8, u8, u8) = (0x6b, 0x5c, 0x4a);
+/// plugin.json の ratio と同じ値。
+const RATIO: f32 = 1.91;
+const ICON: f32 = 0.3;
+const FONT: f32 = 0.075;
+const GAP: f32 = 0.06;
 
-const LEFT: f32 = 0.2;
-const RIGHT: f32 = 0.8;
-const TOP: f32 = 0.08;
-const BOTTOM: f32 = 0.92;
-const ROUND: f32 = 0.05;
-const CORNER: f32 = 0.16;
-
-const LETTER_TOP: f32 = 0.64;
-const LETTER_HEIGHT: f32 = 0.16;
-const LETTER_WIDTH: f32 = 0.1;
-const LETTER_GAP: f32 = 0.05;
+/// 字の寸法。フォントサイズを 1 とした割合で書く。
+const LETTER_TOP: f32 = 0.135;
+const LETTER_HEIGHT: f32 = 0.73;
+const LETTER_WIDTH: f32 = 0.55;
+const LETTER_GAP: f32 = 0.22;
+const LETTER_LINE: f32 = 0.09;
 
 type Line = &'static [(f32, f32)];
 
@@ -102,72 +97,62 @@ fn glyph(c: char) -> &'static [Line] {
     }
 }
 
-fn paint((r, g, b): (u8, u8, u8)) -> Paint<'static> {
+fn gray() -> Paint<'static> {
     let mut p = Paint::default();
-    p.set_color(Color::from_rgba8(r, g, b, 0xff));
+    // tokens.css の --muted
+    p.set_color(Color::from_rgba8(0x8e, 0x92, 0x9a, 0xff));
     p.anti_alias = true;
     p
 }
 
-fn rect(pb: &mut PathBuilder, x: f32, y: f32, w: f32, h: f32) {
-    if let Some(r) = Rect::from_xywh(x, y, w, h) {
-        pb.push_rect(r);
+fn line(width: f32) -> Stroke {
+    Stroke {
+        width,
+        line_cap: LineCap::Round,
+        line_join: LineJoin::Round,
+        ..Stroke::default()
     }
 }
 
-fn paper() -> Option<Path> {
+/// lucide の file-archive。24 × 24 の枠に描く。
+fn file() -> Option<Path> {
     let mut pb = PathBuilder::new();
-    pb.move_to(LEFT + ROUND, TOP);
-    pb.line_to(RIGHT - CORNER, TOP);
-    pb.line_to(RIGHT, TOP + CORNER);
-    pb.line_to(RIGHT, BOTTOM - ROUND);
-    pb.quad_to(RIGHT, BOTTOM, RIGHT - ROUND, BOTTOM);
-    pb.line_to(LEFT + ROUND, BOTTOM);
-    pb.quad_to(LEFT, BOTTOM, LEFT, BOTTOM - ROUND);
-    pb.line_to(LEFT, TOP + ROUND);
-    pb.quad_to(LEFT, TOP, LEFT + ROUND, TOP);
-    pb.close();
-    pb.finish()
-}
+    pb.move_to(13.659, 22.);
+    pb.line_to(18., 22.);
+    pb.cubic_to(19.105, 22., 20., 21.105, 20., 20.);
+    pb.line_to(20., 8.);
+    pb.cubic_to(20., 7.364, 19.744, 6.744, 19.294, 6.294);
+    pb.line_to(15.706, 2.706);
+    pb.cubic_to(15.256, 2.256, 14.636, 2., 14., 2.);
+    pb.line_to(6., 2.);
+    pb.cubic_to(4.895, 2., 4., 2.895, 4., 4.);
+    pb.line_to(4., 15.5);
 
-fn fold() -> Option<Path> {
-    let mut pb = PathBuilder::new();
-    pb.move_to(RIGHT - CORNER, TOP);
-    pb.line_to(RIGHT - CORNER, TOP + CORNER - ROUND);
-    pb.quad_to(
-        RIGHT - CORNER,
-        TOP + CORNER,
-        RIGHT - CORNER + ROUND,
-        TOP + CORNER,
-    );
-    pb.line_to(RIGHT, TOP + CORNER);
-    pb.close();
-    pb.finish()
-}
+    pb.move_to(14., 2.);
+    pb.line_to(14., 7.);
+    pb.cubic_to(14., 7.552, 14.448, 8., 15., 8.);
+    pb.line_to(20., 8.);
 
-/// 左右に互い違いに並ぶ歯と、引き手。
-fn zipper() -> Option<Path> {
-    let mut pb = PathBuilder::new();
-    for i in 0..6 {
-        let x = if i % 2 == 0 { 0.44 } else { 0.5 };
-        rect(&mut pb, x, TOP + i as f32 * 0.05, 0.06, 0.035);
+    for (from, to) in [(12., 11.), (18., 16.), (7., 6.)] {
+        pb.move_to(8., from);
+        pb.line_to(8., to);
     }
-    rect(&mut pb, 0.44, 0.38, 0.12, 0.15);
+    pb.push_circle(8., 20., 2.);
     pb.finish()
 }
 
+/// フォントサイズを 1 とした枠で、x = 0 を中央にそろえた文字列。
 fn letters(label: &str) -> Option<Path> {
     let count = label.chars().count() as f32;
-    let width = count * LETTER_WIDTH + (count - 1.) * LETTER_GAP;
-    let mut x = 0.5 - width / 2.;
+    let mut x = -(count * LETTER_WIDTH + (count - 1.) * LETTER_GAP) / 2.;
     let mut pb = PathBuilder::new();
     for c in label.chars() {
-        for line in glyph(c) {
+        for strokes in glyph(c) {
             let at =
                 |(px, py): (f32, f32)| (x + px * LETTER_WIDTH, LETTER_TOP + py * LETTER_HEIGHT);
-            let (mx, my) = at(line[0]);
+            let (mx, my) = at(strokes[0]);
             pb.move_to(mx, my);
-            for &p in &line[1..] {
+            for &p in &strokes[1..] {
                 let (lx, ly) = at(p);
                 pb.line_to(lx, ly);
             }
@@ -177,30 +162,25 @@ fn letters(label: &str) -> Option<Path> {
     pb.finish()
 }
 
-/// edge × edge の PNG。label には glyph にある字だけを使う。
+/// 幅 edge の PNG。label には glyph にある字のみを使う。
 pub fn draw(label: &str, edge: u32) -> Result<Vec<u8>, String> {
     let edge = edge.max(16);
-    let mut pm = Pixmap::new(edge, edge).ok_or("サムネイルの大きさが不正です")?;
-    let to = Transform::from_scale(edge as f32, edge as f32);
-    let fill = |pm: &mut Pixmap, path: Option<Path>, color| {
-        if let Some(p) = path {
-            pm.fill_path(&p, &paint(color), FillRule::Winding, to, None);
-        }
-    };
-    fill(&mut pm, paper(), PAPER);
-    fill(&mut pm, fold(), FOLD);
-    fill(&mut pm, zipper(), INK);
-    let mut hole = PathBuilder::new();
-    rect(&mut hole, 0.475, 0.45, 0.05, 0.05);
-    fill(&mut pm, hole.finish(), PAPER);
+    let height = (edge as f32 / RATIO).round() as u32;
+    let mut pm = Pixmap::new(edge, height).ok_or("サムネイルの大きさが不正です")?;
+    let (w, h) = (edge as f32, height as f32);
+    let size = (h * ICON).round();
+    let font = (h * FONT).round();
+    let gap = (h * GAP).round();
+    let top = ((h - size - gap - font) / 2.).round();
+    let paint = gray();
+    if let Some(p) = file() {
+        let scale = size / 24.;
+        let to = Transform::from_scale(scale, scale).post_translate((w - size) / 2., top);
+        pm.stroke_path(&p, &paint, &line(1.5), to, None);
+    }
     if let Some(p) = letters(label) {
-        let stroke = Stroke {
-            width: 0.04,
-            line_cap: LineCap::Round,
-            line_join: LineJoin::Round,
-            ..Stroke::default()
-        };
-        pm.stroke_path(&p, &paint(INK), &stroke, to, None);
+        let to = Transform::from_scale(font, font).post_translate(w / 2., top + size + gap);
+        pm.stroke_path(&p, &paint, &line(LETTER_LINE), to, None);
     }
     pm.encode_png().map_err(|e| e.to_string())
 }

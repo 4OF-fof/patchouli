@@ -7,7 +7,7 @@
     {
       "ext": ["zip", "7z", "rar", "tar", "tgz", "gz", "tbz", "tbz2", "bz2", "txz", "xz", "tzst", "zst"],
       "label": "アーカイブ",
-      "ratio": 1,
+      "ratio": 1.91,
       "fit": "contain",
       "parts": ["thumbnail", "archive"]
     }
