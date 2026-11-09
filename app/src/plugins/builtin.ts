@@ -66,7 +66,7 @@ const DEFAULT_RATIO = 1.6
 const SHORTCUT: FormatInfo = {
   ext: 'url',
   label: 'ショートカット',
-  ratio: 1.91,
+  ratio: 1,
   fit: 'center',
   thumbnail: true,
   link: true,

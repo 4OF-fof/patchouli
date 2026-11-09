@@ -8,7 +8,7 @@ use tauri_plugin_dialog::DialogExt;
 
 use crate::background;
 use crate::library::cache::Cache;
-use crate::library::{Changes, CustomThumb, StoredItem};
+use crate::library::{Changes, CustomThumb, StoredItem, shortcut};
 use crate::plugin::ipc::Target;
 use crate::plugin::{By, Part, Reads, Registry};
 use crate::session::{Current, with_session};
@@ -129,6 +129,11 @@ pub(crate) fn plan_thumbs<'a>(
         if mixed && waves {
             let _ = std::fs::remove_file(&out);
             made.forget(&out);
+        }
+        if it.ext == shortcut::EXT && it.width.zip(it.height) == Some(shortcut::DRAWN_ICON) {
+            let _ = std::fs::remove_file(&out);
+            made.forget(&out);
+            (it.width, it.height) = (None, None);
         }
         let drawn = waves
             .then(|| thumb::wave_thumb_path_of(thumbs, &it.id, &src))

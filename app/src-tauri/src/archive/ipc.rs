@@ -10,6 +10,7 @@ use serde::Serialize;
 use tauri::{Emitter, Manager, State};
 
 use super::{Entry, Place, Shown, ThumbFiles, is_executable};
+use crate::library::shortcut;
 use crate::plugin::{By, Part, Registry, Runner};
 use crate::session::{Current, with, with_session};
 use crate::thumb;
@@ -330,7 +331,10 @@ pub(crate) async fn archive_thumbs(
                 continue;
             };
             let ext = e.ext();
-            let by = o.plugins.handles(&ext, Part::Thumbnail);
+            let by = o
+                .plugins
+                .handles(&ext, Part::Thumbnail)
+                .filter(|_| ext != shortcut::EXT);
             let waves = o.plugins.waves(&ext);
             if e.encrypted || (by.is_none() && !waves) {
                 continue;

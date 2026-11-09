@@ -31,7 +31,7 @@ import type {
   UiRef,
 } from '../plugins/types'
 import type { Caller, ExcerptBudget, ExcerptPart, Fetched, LinkApi, OwnApi } from '../../plugins/sdk'
-import { type Fetch, handlerOf, iconThumbnail, imageThumbnail, pageOf, pageRows } from '../plugins/links'
+import { handlerOf, iconThumbnail, imageThumbnail, isSiteIcon, pageOf, pageRows } from '../plugins/links'
 import {
   EDGE,
   ThumbnailTimeout,
@@ -125,9 +125,6 @@ interface ScriptCall extends UiRef {
 }
 
 const uiItemOf = (it: ScriptItem): UiItem => ({ id: it.id, name: it.name, ext: it.ext, url: convertFileSrc(it.file) })
-
-/** アーカイブを表示しただけで、中の .url が指す先へ通信しないよう、サイトのアイコンは読まない。 */
-const noFetch: Fetch = () => Promise.reject(new Error('通信しません'))
 
 const at = (p: { x: number; y: number }) => ({ x: p.x / devicePixelRatio, y: p.y / devicePixelRatio })
 
@@ -231,6 +228,7 @@ export function tauriBackend(): Backend {
         url,
         ratio: p.width / p.height,
         wave: p.wave,
+        icon: !p.custom && isSiteIcon(p.width, p.height),
         ...(p.custom && {
           custom: true,
           jacket: p.custom.jacket ? url : p.standard && convertFileSrc(p.standard),
@@ -292,7 +290,7 @@ export function tauriBackend(): Backend {
     if (h?.parts.includes('thumbnail')) return uiLinkThumbnail(pluginUrl(h.plugin, h.module), linkApi(url, h.plugin))
     const p = await pageOf(url, hostFetch)
     const image = p.image && (await imageThumbnail(p.image, hostFetch, EDGE).catch(() => null))
-    return image || iconThumbnail(p, hostFetch, EDGE)
+    return image || iconThumbnail(p, hostFetch)
   }
 
   const linkDetails = async (d: ItemDetails, url: string): Promise<ItemDetails> => {
@@ -535,22 +533,17 @@ export function tauriBackend(): Backend {
     await invoke('archive_put_wave', wave, { headers: { job: `${s.job}` } })
   }
   const archiveThumb = async (s: ArchiveSource) => {
-    const f = formats.get(s.ext)
-    const ui = f?.uiThumbnail
-    const view = f?.link ? await invoke<TauriView | null>('item_view', { id: s.id }) : null
-    const t = ui
-      ? await uiThumbnail(pluginUrl(ui.plugin, ui.module), {
-          ...uiApi(uiItemOf(s), 'thumbnail', ui.plugin),
-          wasm: () => wasmThumbnail(s.id),
-        })
-      : view?.kind === 'link'
-        ? await iconThumbnail({ url: view.url }, noFetch, EDGE)
-        : null
+    const ui = formats.get(s.ext)?.uiThumbnail
+    const t =
+      ui &&
+      (await uiThumbnail(pluginUrl(ui.plugin, ui.module), {
+        ...uiApi(uiItemOf(s), 'thumbnail', ui.plugin),
+        wasm: () => wasmThumbnail(s.id),
+      }))
     if (!t) return false
     const headers: Record<string, string> = { job: `${s.job}` }
     if (t.width && t.height) Object.assign(headers, { width: `${t.width}`, height: `${t.height}` })
-    const png = t.png instanceof Uint8Array ? t.png : new Uint8Array(await new Response(t.png).arrayBuffer())
-    await invoke('archive_put_thumb', png, { headers })
+    await invoke('archive_put_thumb', t.png, { headers })
     return true
   }
   const makeArchiveSource = async (s: ArchiveSource) => {
@@ -898,7 +891,11 @@ export function tauriBackend(): Backend {
       let t = linkThumbs.get(url)
       if (!t) {
         t = linkThumbnail(url).then((x) =>
-          x ? (x.png instanceof Blob ? x.png : new Blob([new Uint8Array(x.png)])) : undefined,
+          x && !isSiteIcon(x.width, x.height)
+            ? x.png instanceof Blob
+              ? x.png
+              : new Blob([new Uint8Array(x.png)])
+            : undefined,
         )
         linkThumbs.set(url, t)
         t.catch(() => linkThumbs.delete(url))

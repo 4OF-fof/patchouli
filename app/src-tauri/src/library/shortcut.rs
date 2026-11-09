@@ -9,7 +9,9 @@ use encoding_rs::{Encoding, SHIFT_JIS, UTF_8, UTF_16BE, UTF_16LE};
 
 pub const EXT: &str = "url";
 pub const LABEL: &str = "ショートカット";
-pub const RATIO: f64 = 1.91;
+pub const RATIO: f64 = 1.0;
+/// 以前のバージョンがサイトアイコンとホスト名を描き込んだ PNG の大きさ。
+pub const DRAWN_ICON: (u32, u32) = (512, 268);
 
 /// URL を書く行は頭のほうにあるので、それより後ろは読まない。
 const HEAD: u64 = 64 << 10;

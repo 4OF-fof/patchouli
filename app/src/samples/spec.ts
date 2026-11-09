@@ -627,8 +627,8 @@ const ratioOf = (media: Media, size?: [number, number]) =>
       ? 0.8
       : media === 'video'
         ? 16 / 9
-        : media === 'link' || media === 'archive'
-          ? 1.91
+        : media === 'link' || media === 'archive' || media === 'other'
+          ? 1
           : 1.6
 
 function markdown(raw: RawBlock[]) {

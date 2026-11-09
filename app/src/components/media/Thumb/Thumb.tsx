@@ -1,7 +1,7 @@
-import { type Accessor, createContext, createEffect, createSignal, onCleanup, useContext } from 'solid-js'
+import { type Accessor, Show, createContext, createEffect, createSignal, onCleanup, useContext } from 'solid-js'
 import { useFormats } from '../../../plugins/formats'
 import type { Fit } from '../../../plugins/types'
-import { Icon } from '../../base/Icon/Icon'
+import { Icon, type IconName } from '../../base/Icon/Icon'
 import { Spinner } from '../../base/Spinner/Spinner'
 import styles from './Thumb.module.css'
 
@@ -79,6 +79,10 @@ export interface ThumbProps {
   failed?: boolean
   /** 形式によらず出す印 */
   mark?: 'lock' | 'note'
+  /** src はサイトアイコン。カードいっぱいに広げない */
+  icon?: boolean
+  /** ショートカットのアイコンの下に出す種類名。なければ拡張子 */
+  label?: string
   title?: string
   excerpt?: string
   height?: number
@@ -87,6 +91,12 @@ export interface ThumbProps {
   /** false なら、右クリックしてもメニューを出さない。 */
   menu?: boolean
   class?: string
+}
+
+interface Face {
+  icon?: IconName
+  image?: string
+  label?: string | undefined
 }
 
 export function Thumb(props: ThumbProps) {
@@ -99,13 +109,20 @@ export function Thumb(props: ThumbProps) {
     menu.open(props.id, { x: e.clientX, y: e.clientY })
   }
   const formats = useFormats()
-  const mark = () => {
-    if (props.src || props.note) return undefined
-    if (props.mark) return props.mark
-    if (props.ext !== undefined && !formats().has(props.ext)) return 'unknownFile'
-    return props.failed ? 'imageOff' : undefined
+  const isMaking = () => !!props.id && making(props.id)
+  const face = (): Face | undefined => {
+    if (props.note) return undefined
+    if (props.src) return props.icon ? { image: props.src, label: props.label } : undefined
+    if (props.mark) return { icon: props.mark }
+    const ext = props.ext
+    const label = ext?.toUpperCase() || undefined
+    const f = ext === undefined ? undefined : formats().get(ext)
+    if (ext !== undefined && !f) return { icon: 'unknownFile', label }
+    if (f?.archive && !f.thumbnail) return { icon: 'fileArchive', label }
+    if (f?.link && !isMaking()) return { icon: 'globe', label: props.label ?? label }
+    return props.failed ? { icon: 'imageOff' } : undefined
   }
-  const waiting = () => !props.src && !props.note && !mark() && !!props.id && making(props.id)
+  const waiting = () => !props.src && !props.note && !face() && isMaking()
   const watch = useContext(Seen)
   const [el, setEl] = createSignal<HTMLElement>()
   createEffect(() => {
@@ -120,13 +137,12 @@ export function Thumb(props: ThumbProps) {
       data-note={!!props.note}
       data-fit={props.src ? (props.fit ?? 'center') : undefined}
       data-selected={props.selected}
-      data-mark={mark()}
       onContextMenu={onContextMenu}
       style={{
         height: props.height ? `${props.height}px` : undefined,
       }}
     >
-      {props.src && !props.note && (
+      {props.src && !props.note && !props.icon && (
         <img class={styles.img} src={props.src} alt="" loading="lazy" decoding="async" draggable={false} />
       )}
       {props.note && (
@@ -135,7 +151,18 @@ export function Thumb(props: ThumbProps) {
           {props.excerpt}
         </>
       )}
-      {mark() && <Icon name={mark()!} size={32} class={styles.mark} />}
+      <Show when={face()}>
+        {(f) => (
+          <span class={styles.face}>
+            {f().image ? (
+              <img class={styles.mark} src={f().image} alt="" loading="lazy" decoding="async" draggable={false} />
+            ) : (
+              <Icon name={f().icon!} size={32} class={styles.mark} />
+            )}
+            {f().label && <span class={styles.label}>{f().label}</span>}
+          </span>
+        )}
+      </Show>
       {waiting() && <Spinner class={styles.making} />}
       {props.dirty && <span class={styles.dirty} role="img" aria-label="未保存" data-tip="未保存" />}
     </span>

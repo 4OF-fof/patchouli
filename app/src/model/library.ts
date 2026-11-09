@@ -1,5 +1,6 @@
 import type { Json } from '../../plugins/sdk'
 import { BUILTIN_FORMATS } from '../plugins/builtin'
+import { hostOf } from '../plugins/links'
 import type { Fit, FormatInfo } from '../plugins/types'
 
 export interface TagCandidate {
@@ -45,6 +46,8 @@ export interface Item {
   thumbFailed?: boolean
   /** サムネイルの代わりに出す印 */
   thumbMark?: 'lock' | 'note'
+  /** thumb がサイトアイコン */
+  thumbIcon?: boolean
   fit?: Fit
 }
 
@@ -181,6 +184,8 @@ export function headingsOf(body: string): Heading[] {
 export const NOTE_EXT = 'md'
 export const NOTE_LABEL = 'ノート'
 export const NOTE_RATIO = 0.8
+/** サムネイルの代わりにアイコンを出すカードの縦横比。 */
+export const ICON_RATIO = 1
 /** インターネットショートカット。src-tauri/src/library/shortcut.rs と合わせる。 */
 export const SHORTCUT_EXT = 'url'
 
@@ -383,7 +388,7 @@ export const withToggledPin = (lib: Library, id: string) =>
   buildLibrary(lib.items, lib.projects, lib.today, lib.tagCovers, toggled(lib.pins, id), lib.formats, lib.groups)
 
 export type Thumbnail =
-  | { url: string; ratio: number; wave?: boolean; custom?: boolean; jacket?: string | undefined }
+  | { url: string; ratio: number; wave?: boolean; icon?: boolean; custom?: boolean; jacket?: string | undefined }
   | { failed: true }
 
 export const withThumbs = (lib: Library, thumbs: Map<string, Thumbnail>) =>
@@ -397,6 +402,7 @@ export const withThumbs = (lib: Library, thumbs: Map<string, Thumbnail>) =>
         thumb: t.url,
         ratio: t.ratio,
         waveThumb: t.wave === true,
+        thumbIcon: t.icon === true && !!lib.formats.get(i.ext)?.link,
         thumbFailed: false,
         customThumb: t.custom === true,
         jacketSrc: t.jacket,
@@ -599,7 +605,7 @@ export const newerFirst = (a: Item, b: Item) => a.moved - b.moved || (b.mtime ??
 
 /** 表紙に向く順。サムネイルのある素材、これから作れる素材、ノート、サムネイルを作れない素材 */
 const faceRank = (lib: Library, it: Item) =>
-  it.note ? 2 : it.thumb ? 0 : lib.formats.has(it.ext) && !it.thumbFailed ? 1 : 3
+  it.note ? 2 : it.thumb ? 0 : lib.formats.get(it.ext)?.thumbnail && !it.thumbFailed ? 1 : 3
 
 /** グループの束に重ねて見せる項目。表紙に向くものを先に、新しい順で 3 件まで */
 export const facesOf = (lib: Library, groupId: string) =>
@@ -636,7 +642,16 @@ export type CardSize = 'L' | 'M' | 'S' | 'X'
 
 export function thumbOf(it: Item, size: CardSize = 'M') {
   if (!it.note)
-    return { src: it.thumb, id: it.id, fit: it.fit, ext: it.ext, failed: it.thumbFailed, mark: it.thumbMark }
+    return {
+      src: it.thumb,
+      id: it.id,
+      fit: it.fit,
+      ext: it.ext,
+      failed: it.thumbFailed,
+      mark: it.thumbMark,
+      icon: it.thumbIcon,
+      label: it.url ? hostOf(it.url) : undefined,
+    }
   if (size === 'X') return { note: true, id: it.id, excerpt: it.name }
   const ex = plainText(it.body ?? '')
   const lim = size === 'L' ? 140 : size === 'S' ? 0 : 46

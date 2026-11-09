@@ -2,6 +2,7 @@ import {
   COVER_TYPES,
   type CoverPart,
   type Group,
+  ICON_RATIO,
   type Item,
   NOTE_RATIO,
   type Project,
@@ -11,6 +12,7 @@ import {
   daysBefore,
   touchedLabel,
 } from '../model/library'
+import { isSiteIcon } from '../plugins/links'
 import type { CoverInfo, FormatInfo, LinkInfo, NotesInfo, ScreenInfo } from '../plugins/types'
 import type { Changed, LibraryState, Opened, Orphan } from './types'
 
@@ -92,8 +94,10 @@ const hueOfName = (name: string) => hash(name) % 360
 function ratioOf(s: StoredItem, formats: ReadonlyMap<string, FormatInfo>) {
   if (s.note) return NOTE_RATIO
   if (s.customThumb) return s.customThumb.width / s.customThumb.height
-  if (s.width && s.height) return s.width / s.height
-  return formats.get(s.ext)?.ratio ?? 1.6
+  const f = formats.get(s.ext)
+  // サムネイルを作らない形式に残っている幅と高さは、以前のサムネイルのもの
+  if (f?.thumbnail && s.width && s.height) return s.width / s.height
+  return f?.ratio ?? ICON_RATIO
 }
 
 export interface ItemUrls {
@@ -130,6 +134,10 @@ export function toItem(
     ...(urls.src && { src: urls.src }),
     ...(urls.thumb && { thumb: urls.thumb }),
     ...(urls.thumb && s.waveThumb && { waveThumb: true }),
+    ...(urls.thumb &&
+      !s.customThumb &&
+      formats.get(s.ext)?.link &&
+      isSiteIcon(s.width, s.height) && { thumbIcon: true }),
     ...(s.customThumb && { customThumb: true }),
     ...(urls.jacket && { jacketSrc: urls.jacket }),
   }

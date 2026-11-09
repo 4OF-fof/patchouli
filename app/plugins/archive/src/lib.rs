@@ -5,7 +5,6 @@ wit_bindgen::generate!({
         package local:archive;
 
         world archive {
-            include patchouli:plugin/thumbnail-role@0.13.1;
             include patchouli:plugin/archive-role@0.13.1;
         }
     ",
@@ -14,7 +13,6 @@ wit_bindgen::generate!({
     generate_all,
 });
 
-mod icon;
 mod source;
 
 use std::collections::{HashMap, HashSet};
@@ -23,7 +21,7 @@ use std::io::{self, BufWriter, Cursor, Read};
 
 use exports::patchouli::plugin as role;
 use patchouli::plugin::host;
-use patchouli::plugin::types::{ArchiveEntry, ArchiveOutput, File, ThumbnailImage};
+use patchouli::plugin::types::{ArchiveEntry, ArchiveOutput, File};
 use rars::{ArchiveReadOptions, ExtractionDecision};
 use sevenz_rust2::{ArchiveReader, EntryDecision, Password};
 use source::{Output, Source, Zstd};
@@ -379,29 +377,7 @@ fn stream_extract(
     }
 }
 
-fn label_of(format: &str) -> &'static str {
-    match format {
-        "zip" => "ZIP",
-        "7z" => "7Z",
-        "rar" => "RAR",
-        "tar" => "TAR",
-        "tgz" | "gz" => "GZ",
-        "tbz" | "tbz2" | "bz2" => "BZ2",
-        "txz" | "xz" => "XZ",
-        _ => "ZST",
-    }
-}
-
 struct Plugin;
-
-impl role::thumbnail::Guest for Plugin {
-    fn thumbnail(format: String, _f: File, edge: u32) -> Result<Option<ThumbnailImage>, String> {
-        Ok(Some(ThumbnailImage {
-            png: icon::draw(label_of(&format), edge)?,
-            size: None,
-        }))
-    }
-}
 
 impl role::archive::Guest for Plugin {
     fn entries(format: String, f: File) -> Result<Vec<ArchiveEntry>, String> {

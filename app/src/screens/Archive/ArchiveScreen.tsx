@@ -105,7 +105,7 @@ export function ArchiveScreen(props: ArchiveScreenProps) {
     if (!thumbing() || answered.has(id)) return false
     const it = tree()?.files.get(id)
     const f = it && !it.encrypted ? formats().get(it.ext) : undefined
-    return !!f && (f.thumbnail || !!f.link || f.media === 'audio')
+    return !!f && ((f.thumbnail && !f.link) || f.media === 'audio')
   }
 
   const items = createMemo(() => {

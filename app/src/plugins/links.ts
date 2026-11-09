@@ -119,8 +119,11 @@ export async function imageThumbnail(src: string, fetch: Fetch, edge: number): P
   return { png: await canvas.convertToBlob({ type: 'image/png' }), width, height }
 }
 
-/** OGP の画像と同じ縦横比。 */
-const ICON_RATIO = 1.91
+/** サイトアイコンの PNG の一辺。 */
+const SITE_ICON = 128
+
+/** ショートカットのサムネイルがこの大きさなら、ページの画像でなくサイトアイコンとして表示する。 */
+export const isSiteIcon = (width?: number | null, height?: number | null) => width === SITE_ICON && height === SITE_ICON
 
 /** SVG と ICO も読めるよう、img で読む。 */
 async function loadImage(src: string) {
@@ -151,47 +154,19 @@ async function siteIcon(page: Page, fetch: Fetch) {
   return undefined
 }
 
-/** サイトのアイコンがないときに描く、地球の印（lucide の globe）。24 の枠で描く。 */
-const GLOBE = ['M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20', 'M2 12h20']
-
-/** OGP の画像がないページの、サイトのアイコンとホスト名を並べたサムネイル。アイコンが読めなければ地球の印を描く。 */
-export async function iconThumbnail(page: Page, fetch: Fetch, edge: number): Promise<Thumbnail | null> {
+/** OGP の画像がないページの、サイトアイコンの PNG。読めなければ null。 */
+export async function iconThumbnail(page: Page, fetch: Fetch): Promise<Thumbnail | null> {
   const img = await siteIcon(page, fetch)
-  const [w, h] = [edge, Math.round(edge / ICON_RATIO)]
-  const canvas = new OffscreenCanvas(w, h)
+  if (!img) return null
+  const canvas = new OffscreenCanvas(SITE_ICON, SITE_ICON)
   const g = canvas.getContext('2d')
   if (!g) return null
-  const natural = img ? Math.max(img.naturalWidth, img.naturalHeight) : 0
-  const full = Math.round(h * 0.3)
-  // 小さいアイコンは、引き伸ばしすぎてぼやけないようにする
-  const size = natural && natural < full / 2 ? natural * 2 : full
-  const font = Math.round(h * 0.075)
-  const gap = Math.round(h * 0.06)
-  const top = Math.round((h - size - gap - font) / 2)
-  const left = (w - size) / 2
-  // 背景は透かし、暗い地にも明るい地にも見える中間の灰色（tokens.css の --muted）で描く
-  const gray = '#8e929a'
-  if (img) g.drawImage(img, left, top, size, size)
-  else {
-    g.save()
-    g.translate(left, top)
-    g.scale(size / 24, size / 24)
-    g.strokeStyle = gray
-    g.lineWidth = 1.5
-    g.lineCap = 'round'
-    g.lineJoin = 'round'
-    g.beginPath()
-    g.arc(12, 12, 10, 0, Math.PI * 2)
-    g.stroke()
-    for (const d of GLOBE) g.stroke(new Path2D(d))
-    g.restore()
-  }
-  g.fillStyle = gray
-  g.font = `${font}px 'Noto Sans JP Variable', system-ui, sans-serif`
-  g.textAlign = 'center'
-  g.textBaseline = 'top'
-  g.fillText(hostOf(page.url) ?? page.url, w / 2, top + size + gap, w - font * 4)
-  return { png: await canvas.convertToBlob({ type: 'image/png' }), width: w, height: h }
+  const [w, h] = [img.naturalWidth || SITE_ICON, img.naturalHeight || SITE_ICON]
+  const s = SITE_ICON / Math.max(w, h)
+  // 小さいアイコンは、拡大でぼやけないよう補間しない
+  g.imageSmoothingEnabled = Math.max(w, h) >= SITE_ICON / 2
+  g.drawImage(img, (SITE_ICON - w * s) / 2, (SITE_ICON - h * s) / 2, w * s, h * s)
+  return { png: await canvas.convertToBlob({ type: 'image/png' }), width: SITE_ICON, height: SITE_ICON }
 }
 
 export const pageRows = (p: Page): Detail[] =>

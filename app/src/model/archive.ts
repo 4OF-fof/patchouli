@@ -1,6 +1,6 @@
 import type { ArchiveEntry, ArchiveThumb } from '../backend/types'
 import type { FormatInfo } from '../plugins/types'
-import { type Group, type Item, NOTE_EXT } from './library'
+import { type Group, ICON_RATIO, type Item, NOTE_EXT } from './library'
 
 /** アーカイブの中のファイル。ライブラリの項目ではないので、編集はできない。 */
 export interface EntryItem extends Item {
@@ -54,7 +54,7 @@ const entryItem = (archive: string, e: ArchiveEntry, formats: ReadonlyMap<string
     tags: [],
     moved: 0,
     hue: 40,
-    ratio: f?.ratio ?? 1.6,
+    ratio: e.encrypted ? ICON_RATIO : (f?.ratio ?? ICON_RATIO),
     ext,
     memo: '',
     fit: f?.fit,
