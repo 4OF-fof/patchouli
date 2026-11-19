@@ -1,4 +1,5 @@
 .claude/
+/todo.md
 
 # 動作確認用のライブラリと、例のプラグインを入れた置き場（scripts/dev-library.ts で作る）
 /example/dev-library/
