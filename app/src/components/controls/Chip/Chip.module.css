@@ -1,0 +1,69 @@
+.root {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-4);
+  height: 24px;
+  padding: 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+/* 和文は字面の中心がそろっていても下が重く見えるので、アイコンを少し下げる */
+.root > svg {
+  flex: none;
+  translate: 0 0.1em;
+}
+.split {
+  gap: 0;
+  padding: 0;
+}
+.main,
+.remove {
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.main {
+  gap: var(--space-4);
+  padding: 0 var(--space-2) 0 var(--space-8);
+  border-radius: var(--radius-full) 0 0 var(--radius-full);
+}
+.remove {
+  padding: 0 var(--space-6) 0 var(--space-2);
+  border-radius: 0 var(--radius-full) var(--radius-full) 0;
+}
+.remove > svg {
+  translate: 0 0.1em;
+}
+.root[data-size='lg'] {
+  height: 30px;
+  padding: 0 var(--space-12);
+  font-size: var(--fs-body);
+}
+.root[data-size='lg'].split {
+  padding: 0;
+}
+.root[data-size='lg'] .main {
+  padding: 0 var(--space-4) 0 var(--space-12);
+}
+.root[data-size='lg'] .remove {
+  padding: 0 var(--space-10) 0 var(--space-4);
+}
+.root[aria-pressed='false'] {
+  background: var(--side);
+  color: var(--ink-2);
+}
+.root[data-dashed='true'] {
+  background: transparent;
+  border: 1px dashed var(--accent);
+  color: var(--accent);
+}

@@ -1,0 +1,223 @@
+.ov {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-dialog);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--space-40) var(--space-48);
+  background: var(--scrim);
+}
+.root {
+  position: relative;
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  width: min(952px, 100%);
+  height: min(760px, 100%);
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
+}
+.root:focus {
+  outline: none;
+}
+.side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: var(--side);
+}
+.side h2 {
+  margin: 0;
+  padding: var(--space-24) var(--space-20) var(--space-12);
+  font-size: var(--fs-heading);
+  font-weight: 600;
+}
+.list {
+  flex: 1;
+  min-height: 0;
+}
+.listView {
+  padding: var(--space-4) var(--space-10) var(--space-12);
+}
+.item {
+  display: block;
+  width: 100%;
+  padding: var(--space-6) var(--space-10);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-2);
+  font-size: var(--fs-list);
+  text-align: left;
+  cursor: pointer;
+}
+.item:hover {
+  background: var(--side);
+}
+.item[aria-current='true'] {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.main {
+  min-height: 0;
+}
+.mainView {
+  padding: var(--space-28) var(--space-40) var(--space-40);
+}
+.page {
+  max-width: 640px;
+  --setting-label-size: var(--fs-body);
+  --setting-label-color: var(--ink);
+}
+.page + .page {
+  margin-top: var(--space-40);
+}
+.head {
+  margin: 0 var(--space-20) var(--space-12) 0;
+  font-size: var(--fs-heading);
+  font-weight: 600;
+}
+.group + .group {
+  margin-top: var(--space-28);
+}
+.label {
+  flex: 1;
+  min-width: 0;
+  margin: 0 0 var(--space-6);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--muted);
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  height: 32px;
+  margin: 0 var(--space-12) var(--space-8);
+  padding: 0 var(--space-12);
+  border: 1px solid transparent;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  color: var(--muted);
+  font-size: var(--fs-list);
+}
+.search:focus-within {
+  border-color: var(--accent);
+}
+.search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+.listView > .empty {
+  padding: var(--space-6) var(--space-10);
+}
+.what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.name {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--fs-body);
+}
+.what .name {
+  flex: none;
+}
+.status {
+  margin: 0 0 var(--space-16);
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-list);
+}
+.status[data-error='true'] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.field,
+.row {
+  min-height: 56px;
+  padding: var(--space-10) 0;
+  border-top: 1px solid var(--line);
+}
+.field {
+  display: grid;
+  align-items: center;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+}
+.sub {
+  padding-left: var(--space-24);
+}
+.value {
+  font: 400 var(--fs-meta) var(--f-mono);
+  color: var(--ink-2);
+}
+.loading,
+.empty {
+  margin: 0;
+  font-size: var(--fs-list);
+  color: var(--muted);
+}
+.places {
+  margin-top: var(--space-28);
+}
+.placesHead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  margin-bottom: var(--space-2);
+}
+.placesHead .label {
+  margin: 0;
+}
+.place {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+  min-height: 44px;
+  padding: var(--space-6) 0;
+  border-top: 1px solid var(--line);
+}
+.place .path {
+  flex: 1;
+  color: var(--ink-2);
+}
+.none {
+  margin: 0;
+  padding: var(--space-12) 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-list);
+  color: var(--muted);
+}
+.path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 var(--fs-meta) var(--f-mono);
+  color: var(--muted);
+}
+.x {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1;
+}

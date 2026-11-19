@@ -1,0 +1,89 @@
+.root {
+  width: 420px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  min-height: 0;
+}
+/* 重ねて出るスクロールバーが類似項目にかからないよう、右の余白に出す */
+.scroll {
+  flex: 1;
+  min-height: 0;
+  margin-right: -14px;
+}
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-20);
+  padding-right: 14px;
+}
+.nmh {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-4) var(--space-10);
+}
+.nmh b {
+  font-size: var(--fs-heading);
+  color: var(--ink);
+}
+.nmh small {
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.aside {
+  margin-left: auto;
+}
+.fl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.sub {
+  margin: 0 0 var(--space-4);
+  font-size: var(--fs-meta);
+  font-weight: 400;
+  color: var(--muted);
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+.picker {
+  position: fixed;
+  z-index: var(--z-menu);
+}
+.dec {
+  display: flex;
+  gap: var(--space-10);
+}
+.dec button {
+  flex: 1;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--card);
+  font-size: var(--fs-body);
+  cursor: pointer;
+}
+.dec button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.dec .ok2 {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+@media (max-width: 1100px) {
+  .root {
+    width: 300px;
+  }
+}

@@ -1,0 +1,8 @@
+.view {
+  flex: 1;
+}
+.none {
+  display: grid;
+  place-items: center;
+  flex: 1;
+}

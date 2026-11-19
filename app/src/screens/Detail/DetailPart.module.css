@@ -1,0 +1,84 @@
+.root {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: var(--space-10) var(--space-12);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  font-size: var(--fs-list);
+  line-height: 1.6;
+}
+.root[data-editing='true'] {
+  padding: var(--space-4) var(--space-10) var(--space-12);
+  border: 1px solid var(--line);
+  background: var(--side);
+}
+.root[data-editing='true']:hover {
+  border-color: var(--line-2);
+}
+.root[data-sorting='true']:not([data-dragging='true']) {
+  transition: translate 0.15s;
+}
+.root[data-dragging='true'] {
+  z-index: 1;
+  border-color: var(--accent);
+  background: var(--card);
+}
+.k {
+  font-size: var(--fs-tiny);
+  font-weight: 400;
+  color: var(--muted);
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 26px;
+  margin: 0 calc(-1 * var(--space-6));
+  cursor: grab;
+  user-select: none;
+}
+.root[data-dragging='true'] .head {
+  cursor: grabbing;
+}
+.head .k {
+  flex: 1;
+}
+.grip,
+.del {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--muted);
+}
+.grip {
+  cursor: inherit;
+}
+.del {
+  cursor: pointer;
+}
+.del:hover {
+  background: var(--warm);
+  color: var(--danger);
+}
+/* プラグインのカードの中では、プラグインの CSS で上書きできるよう :where で弱める */
+.root :where(textarea, input[type='text'], input[type='url']) {
+  width: 100%;
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--fs-list);
+}
+.root :where(textarea, input[type='text'], input[type='url']):focus-visible {
+  border-color: var(--accent);
+  outline: 0;
+}

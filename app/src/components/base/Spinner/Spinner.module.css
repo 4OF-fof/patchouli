@@ -1,0 +1,17 @@
+/* 円にして回すので、回しても輪郭が揺れない。合成の層に載せ、ほかの描画に引きずられないようにする */
+.root {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--spinner-size);
+  height: var(--spinner-size);
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  border-top-color: var(--accent);
+  will-change: transform;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

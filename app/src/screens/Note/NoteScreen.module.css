@@ -1,0 +1,197 @@
+.root {
+  container-type: inline-size;
+}
+.scroll {
+  flex: 1;
+  min-height: 0;
+}
+/* 左上の見出しのボタン（アイコンと余白の分）には、本文がかからないよう左を空けておく */
+.doc {
+  max-width: var(--note-width, 880px);
+  margin: 0 auto;
+  padding: 96px var(--space-40) 140px;
+  padding-left: max(var(--space-40), min(66px, 66px - (100cqw - var(--note-width, 880px)) / 2));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-14);
+}
+/* 見出しのカードを横に置くときは、画面の幅に合わせてカードを細くし、本文をカードの右へ寄せる */
+[data-heads='true'] .doc {
+  margin-left: max(calc(clamp(180px, 100cqw - 640px, 300px) + 24px), (100% - var(--note-width, 880px)) / 2);
+  margin-right: auto;
+}
+.name {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  outline: none;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-title);
+  font-weight: 700;
+  line-height: 1.25;
+}
+.props {
+  align-self: flex-start;
+  margin-top: calc(-1 * var(--space-6));
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+.panel {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: var(--space-6) var(--space-12);
+  margin: 0;
+  padding: var(--space-12) var(--space-14);
+  border-radius: var(--radius-md);
+  background: var(--side);
+  font-size: var(--fs-list);
+}
+.panel dt {
+  font-family: var(--f-mono);
+  align-self: center;
+  color: var(--muted);
+}
+/* 何行にもなる欄は、名前を 1 行目にそろえる */
+.panel dt.top {
+  align-self: start;
+  line-height: 28px;
+}
+.panel dd {
+  margin: 0;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+.tags {
+  position: relative;
+}
+.picker {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 7;
+}
+.barTools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+[aria-pressed='true'] > .pinGlyph {
+  fill: currentColor;
+}
+.bar {
+  --top-bar-z: 6;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
+}
+.pill {
+  position: absolute;
+  z-index: 5;
+  transition: opacity 0.18s ease;
+}
+[data-idle='true'] .bar,
+[data-idle='true'] .pill {
+  opacity: 0;
+  pointer-events: none;
+}
+[data-idle='true'] .bar {
+  transform: translateY(-8px);
+}
+[data-idle='true'] .pill:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.l {
+  left: 20px;
+  top: 66px;
+}
+/* ピン留めなどをパンくずの行に出したときは、上の帯の分を詰める */
+[data-bar] .doc {
+  padding-top: var(--space-32);
+}
+[data-bar] .l {
+  top: 20px;
+}
+[data-bar] .card {
+  max-height: calc(100% - 40px);
+}
+.r {
+  right: 20px;
+  bottom: 20px;
+}
+.card {
+  position: absolute;
+  z-index: 5;
+  width: min(300px, calc(50% - var(--note-width, 880px) / 2));
+  min-width: 220px;
+  max-height: calc(100% - 90px);
+  display: flex;
+  flex-direction: column;
+}
+/* スクロールしたカードの切り口が見えないよう、枠を下の端の外まで広げる */
+.cardView {
+  padding-bottom: var(--space-32);
+  margin-bottom: calc(-1 * var(--space-32));
+}
+.cardView > section {
+  width: 100%;
+}
+.headTitle {
+  flex: 1;
+  min-width: 0;
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-6));
+  padding: var(--space-4) var(--space-6);
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.headTitle:hover,
+.headTitle:focus-visible {
+  background: var(--card);
+}
+.card.l {
+  width: clamp(180px, 100cqw - 640px, 300px);
+  min-width: 0;
+}
+/* 横に置けないときは、本文の上に重ねる */
+.card.l[data-float] {
+  width: min(300px, 100cqw - 40px);
+  box-shadow: var(--shadow-float);
+  border-radius: var(--radius-lg);
+}
+@container (max-width: 860px) {
+  .card.r {
+    width: 260px;
+  }
+}
+@container (max-width: 640px) {
+  .doc {
+    padding-top: 64px;
+    padding-right: var(--space-16);
+    padding-bottom: 100px;
+  }
+  .card.r {
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+}

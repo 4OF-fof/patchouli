@@ -1,0 +1,496 @@
+pub(crate) mod custom;
+pub(crate) mod ipc;
+
+use std::collections::{HashSet, VecDeque};
+use std::fs;
+use std::io::Cursor;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use image::{DynamicImage, ImageDecoder, ImageFormat, ImageReader};
+
+use crate::plugin::{Reads, Registry, Runner};
+
+/// サムネイルの長いほうの辺。設定で変える。
+static EDGE: AtomicU32 = AtomicU32::new(512);
+
+pub fn set_large(large: bool) {
+    EDGE.store(if large { 1024 } else { 512 }, Ordering::Relaxed);
+}
+
+pub(crate) fn edge() -> u32 {
+    EDGE.load(Ordering::Relaxed)
+}
+
+pub struct Job {
+    pub id: String,
+    pub src: PathBuf,
+    pub ext: String,
+    pub dir: PathBuf,
+    pub mtime: f64,
+}
+
+/// 置き場所の名前に使う、版をまたいでも変わらないハッシュ（FNV-1a）。
+pub(crate) fn fnv(parts: &[&[u8]]) -> u64 {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for p in parts {
+        for b in *p {
+            h = (h ^ u64::from(*b)).wrapping_mul(0x100000001b3);
+        }
+    }
+    h
+}
+
+pub fn dir_for(cache: &Path, root: &Path) -> PathBuf {
+    cache.join("thumbs").join(format!(
+        "{:016x}",
+        fnv(&[root.as_os_str().as_encoded_bytes()])
+    ))
+}
+
+pub fn decoded_dir(thumbs: &Path, id: &str, format: &str) -> PathBuf {
+    thumbs.join(DECODED).join(format!(
+        "{:016x}",
+        fnv(&[id.as_bytes(), b"\0", format.as_bytes()])
+    ))
+}
+
+const DECODED: &str = "decoded";
+
+pub fn wave_path(thumbs: &Path, id: &str, src: &Path) -> Option<PathBuf> {
+    path_for(&thumbs.join(WAVES), id, src, &Reads::new()).map(|p| p.with_extension("wave"))
+}
+
+const WAVES: &str = "waves";
+
+/// 波形から描いたサムネイルの場所。プラグインが作るサムネイル（音声ならジャケット）と分けて置く。
+pub fn wave_thumb_path(thumbs: &Path, id: &str, src: &Path) -> Option<PathBuf> {
+    path_for(&thumbs.join(WAVE_THUMBS), id, src, &Reads::new())
+}
+
+pub fn wave_thumb_path_of(thumbs: &Path, id: &str, m: &fs::Metadata) -> Option<PathBuf> {
+    path_of(&thumbs.join(WAVE_THUMBS), id, m, &Reads::new())
+}
+
+pub fn is_wave_thumb(file: &Path) -> bool {
+    file.parent()
+        .and_then(Path::file_name)
+        .is_some_and(|n| n == WAVE_THUMBS)
+}
+
+const WAVE_THUMBS: &str = "wave-thumbs";
+
+pub fn keep(out: &Path, bytes: &[u8]) {
+    let (Some(dir), Some(name)) = (out.parent(), out.file_name().and_then(|n| n.to_str())) else {
+        return;
+    };
+    let tmp = out.with_extension("tmp");
+    let r = fs::create_dir_all(dir)
+        .and_then(|()| fs::write(&tmp, bytes))
+        .and_then(|()| fs::rename(&tmp, out));
+    if let Err(e) = r {
+        log::warn!("キャッシュに保存できない: {}: {e}", out.display());
+        let _ = fs::remove_file(&tmp);
+        return;
+    }
+    let place = place_of(name);
+    for e in fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+    {
+        let n = e.file_name();
+        if n.to_str()
+            .is_some_and(|n| n != name && place_of(n) == place)
+        {
+            let _ = fs::remove_file(e.path());
+        }
+    }
+}
+
+/// 置き場所の名前は項目の ID から決め、名前を変えたり移したりしても同じものを使う。中身の版は元の更新日時と大きさで決める。
+pub fn path_for(dir: &Path, id: &str, src: &Path, reads: &Reads) -> Option<PathBuf> {
+    path_of(dir, id, &fs::metadata(src).ok()?, reads)
+}
+
+/// path_for の、元のファイルの情報をもう持っているときのもの
+pub fn path_of(dir: &Path, id: &str, m: &fs::Metadata, reads: &Reads) -> Option<PathBuf> {
+    let t = m
+        .modified()
+        .ok()?
+        .duration_since(UNIX_EPOCH)
+        .ok()?
+        .as_nanos();
+    let place = fnv(&[id.as_bytes()]);
+    // 設定を読まないものは、前の版と同じ名前になる
+    let settings = if reads.is_empty() {
+        Vec::new()
+    } else {
+        serde_json::to_vec(reads).ok()?
+    };
+    // 大きさを変えたあと、前の大きさのものを作り済みとみなさないよう名前に入れる。標準の大きさは、入れる前の名前と同じにする
+    let size = match edge() {
+        512 => Vec::new(),
+        e => e.to_le_bytes().to_vec(),
+    };
+    let version = fnv(&[&t.to_le_bytes(), &m.len().to_le_bytes(), &settings, &size]);
+    Some(dir.join(format!("{place:016x}-{version:016x}.png")))
+}
+
+fn place_of(name: &str) -> Option<&str> {
+    let stem = name
+        .strip_suffix(".png")
+        .or_else(|| name.strip_suffix(".wave"))?;
+    let (place, version) = stem.split_once('-')?;
+    let hex = |s: &str| s.len() == 16 && s.bytes().all(|b| b.is_ascii_hexdigit());
+    (hex(place) && hex(version)).then_some(place)
+}
+
+/// 使われていないと確かに分かるサムネイルを消す。current はいまの画像すべてのサムネイルの場所。
+/// - 元が更新された画像の、前のサムネイル
+/// - いまの名前の形でないもの（前の版の形式）
+/// - all_found のとき（ライブラリを残らず読めたとき）は、ライブラリにもうない画像のもの
+///
+/// 書きかけ（.tmp）と、since より後に書いたもの（current を作るために読んでいるあいだに取り込んだものなど）には触らない。
+pub fn prune(dir: &Path, current: &[PathBuf], all_found: bool, since: SystemTime) {
+    let Ok(rd) = fs::read_dir(dir) else { return };
+    let names: HashSet<&str> = current
+        .iter()
+        .filter_map(|p| p.file_name()?.to_str())
+        .collect();
+    let places: HashSet<&str> = names.iter().filter_map(|n| place_of(n)).collect();
+    for e in rd.filter_map(Result::ok) {
+        let name = e.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if e.file_type().is_ok_and(|t| t.is_dir()) {
+            if name == DECODED && all_found {
+                prune_decoded(&e.path(), &places, since);
+            } else if (name == WAVES || name == WAVE_THUMBS) && all_found {
+                prune_gone(&e.path(), &places, since);
+            }
+            continue;
+        }
+        if names.contains(name) || name.ends_with(".tmp") || newer(&e, since) {
+            continue;
+        }
+        let stale = match place_of(name) {
+            Some(place) => places.contains(place) || all_found,
+            None => true,
+        };
+        if stale && let Err(err) = fs::remove_file(e.path()) {
+            log::warn!("古いサムネイルを消せない: {}: {err}", e.path().display());
+        }
+    }
+}
+
+fn newer(e: &fs::DirEntry, since: SystemTime) -> bool {
+    e.metadata()
+        .and_then(|m| m.modified())
+        .is_ok_and(|t| t >= since)
+}
+
+fn prune_decoded(dir: &Path, places: &HashSet<&str>, since: SystemTime) {
+    for d in fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+    {
+        prune_gone(&d.path(), places, since);
+    }
+}
+
+fn prune_gone(dir: &Path, places: &HashSet<&str>, since: SystemTime) {
+    for e in fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+    {
+        let name = e.file_name();
+        let Some(name) = name.to_str() else { continue };
+        if name.ends_with(".tmp")
+            || place_of(name).is_some_and(|p| places.contains(p))
+            || newer(&e, since)
+        {
+            continue;
+        }
+        if let Err(err) = fs::remove_file(e.path()) {
+            log::warn!("古いキャッシュを消せない: {}: {err}", e.path().display());
+        }
+    }
+}
+
+pub fn shrink(src: &Path, edge: u32) -> Result<Vec<u8>, String> {
+    let err = |e: String| format!("{}: {e}", src.display());
+    let bytes = fs::read(src).map_err(|e| err(e.to_string()))?;
+    shrink_bytes(&bytes, edge).map_err(err)
+}
+
+pub fn shrink_bytes(bytes: &[u8], edge: u32) -> Result<Vec<u8>, String> {
+    let err = |e: image::ImageError| e.to_string();
+    let reader = ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()
+        .map_err(|e| e.to_string())?;
+    let jpeg = reader.format() == Some(ImageFormat::Jpeg);
+    let mut dec = reader.into_decoder().map_err(err)?;
+    let orientation = dec.orientation().map_err(err)?;
+    let mut img = match jpeg.then(|| scaled_jpeg(bytes, edge)).flatten() {
+        Some(img) => img,
+        None => DynamicImage::from_decoder(dec).map_err(err)?,
+    };
+    img.apply_orientation(orientation);
+    encode(img, edge)
+}
+
+/// JPEG を 1/2・1/4・1/8 に縮めながらデコードする。長いほうの辺は edge 以上に残る。
+/// 対応しない色の形式（CMYK など）や読めないものは none にして、image でデコードし直す。
+fn scaled_jpeg(bytes: &[u8], edge: u32) -> Option<DynamicImage> {
+    let mut d = jpeg_decoder::Decoder::new(bytes);
+    let e = u16::try_from(edge).ok()?;
+    let (w, h) = d.scale(e, e).ok()?;
+    let px = d.decode().ok()?;
+    let (w, h) = (u32::from(w), u32::from(h));
+    match d.info()?.pixel_format {
+        jpeg_decoder::PixelFormat::RGB24 => {
+            image::RgbImage::from_raw(w, h, px).map(DynamicImage::ImageRgb8)
+        }
+        jpeg_decoder::PixelFormat::L8 => {
+            image::GrayImage::from_raw(w, h, px).map(DynamicImage::ImageLuma8)
+        }
+        _ => None,
+    }
+}
+
+pub fn encode(mut img: DynamicImage, edge: u32) -> Result<Vec<u8>, String> {
+    if img.width() > edge || img.height() > edge {
+        img = img.thumbnail(edge, edge);
+    }
+    let mut png = Vec::new();
+    img.write_to(&mut Cursor::new(&mut png), ImageFormat::Png)
+        .map_err(|e| e.to_string())?;
+    Ok(png)
+}
+
+/// サムネイルの波形の棒の数。「今週」の大きさで、詳細と同じ幅 5px・間 2px ほどになる。
+const WAVE_BARS: usize = 27;
+
+/// 棒の幅と、棒と次の棒の間の比。src/components/media/AudioPlayer の詳細の表示と合わせる。
+const WAVE_BAR: f32 = 5.0;
+const WAVE_GAP: f32 = 2.0;
+
+pub fn draw_wave(wave: &[u8], ratio: f64) -> Result<Vec<u8>, String> {
+    if wave.is_empty() {
+        return Err("波形のデータが空です".into());
+    }
+    let ratio = ratio.clamp(0.25, 4.0);
+    let (w, h) = if ratio >= 1.0 {
+        (edge(), (f64::from(edge()) / ratio).round() as u32)
+    } else {
+        ((f64::from(edge()) * ratio).round() as u32, edge())
+    };
+    // 背景は透かし、暗い地にも明るい地にも見える中間の灰色（tokens.css の --muted）で描く
+    let [r, g, b] = [0x8e, 0x92, 0x9a];
+    let mut img = image::RgbaImage::new(w, h);
+    let bars = bar_levels(wave, WAVE_BARS);
+    let pitch = w as f32 / WAVE_BARS as f32;
+    let bw = pitch * WAVE_BAR / (WAVE_BAR + WAVE_GAP);
+    let rad = bw / 2.0;
+    let mid = h as f32 / 2.0;
+    // 角を滑らかにするため、1 px を 4×4 に分けて覆う割合を数える
+    const SUB: u32 = 4;
+    for (k, &level) in bars.iter().enumerate() {
+        let len = (level * h as f32).max(bw);
+        let (left, top) = (k as f32 * pitch + (pitch - bw) / 2.0, mid - len / 2.0);
+        let (right, bottom) = (left + bw, top + len);
+        let inside = |x: f32, y: f32| {
+            if x < left || x > right || y < top || y > bottom {
+                return false;
+            }
+            let cy = y.clamp(top + rad, (bottom - rad).max(top + rad));
+            let (dx, dy) = (x - (left + rad), y - cy);
+            dx * dx + dy * dy <= rad * rad
+        };
+        for y in top.floor().max(0.0) as u32..(bottom.ceil() as u32).min(h) {
+            for x in left.floor().max(0.0) as u32..(right.ceil() as u32).min(w) {
+                let hits = (0..SUB * SUB)
+                    .filter(|i| {
+                        let sx = x as f32 + ((i % SUB) as f32 + 0.5) / SUB as f32;
+                        let sy = y as f32 + ((i / SUB) as f32 + 0.5) / SUB as f32;
+                        inside(sx, sy)
+                    })
+                    .count();
+                if hits > 0 {
+                    let a = (hits * 255 / (SUB * SUB) as usize) as u8;
+                    img.put_pixel(x, y, image::Rgba([r, g, b, a]));
+                }
+            }
+        }
+    }
+    encode(DynamicImage::ImageRgba8(img), edge())
+}
+
+fn bar_levels(wave: &[u8], n: usize) -> Vec<f32> {
+    let len = wave.len();
+    let bars: Vec<f32> = (0..n)
+        .map(|k| {
+            let from = (k * len / n).min(len - 1);
+            let to = ((k + 1) * len / n).clamp(from + 1, len);
+            let sq: f32 = wave[from..to].iter().map(|&v| f32::from(v).powi(2)).sum();
+            (sq / (to - from) as f32).sqrt()
+        })
+        .collect();
+    let top = bars.iter().fold(0.0f32, |m, &v| m.max(v));
+    bars.iter()
+        .map(|&v| if top > 0.0 { v / top } else { 0.0 })
+        .collect()
+}
+
+pub struct Placed {
+    pub out: PathBuf,
+    pub size: (u32, u32),
+    pub reads: Reads,
+}
+
+fn make(runner: &mut Runner, job: &Job) -> Result<Option<Placed>, String> {
+    let err = |e: &dyn std::fmt::Display| format!("{}: {e}", job.src.display());
+    let Some((png, original, reads)) = runner.thumbnail(&job.ext, &job.src, edge())? else {
+        return Ok(None);
+    };
+    let out = path_for(&job.dir, &job.id, &job.src, &reads)
+        .ok_or_else(|| err(&"読み込みに失敗しました"))?;
+    let size = place(&png, original, &out).map_err(|e| err(&e))?;
+    Ok(Some(Placed { out, size, reads }))
+}
+
+pub fn place(png: &[u8], original: Option<(u32, u32)>, out: &Path) -> Result<(u32, u32), String> {
+    let size = imagesize::blob_size(png).map_err(|e| e.to_string())?;
+    let (w, h) = (size.width as u32, size.height as u32);
+    if imagesize::image_type(png).ok() != Some(imagesize::ImageType::Png)
+        || w > edge() * 2
+        || h > edge() * 2
+    {
+        return Err("プラグインが返したサムネイルが PNG ではないか、サイズが大きすぎます".into());
+    }
+    if let Some(dir) = out.parent() {
+        fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    let tmp = out.with_extension("tmp");
+    fs::write(&tmp, png).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, out).map_err(|e| e.to_string())?;
+    Ok(original.filter(|(w, h)| *w > 0 && *h > 0).unwrap_or((w, h)))
+}
+
+/// プラグインにサムネイルを作らせている元の場所。作り終わるまでは、波形をサムネイルにしない（ジャケットを先にする）。
+fn making() -> &'static Mutex<HashSet<PathBuf>> {
+    static M: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
+    M.get_or_init(Default::default)
+}
+
+pub fn start_making(src: &Path) {
+    if let Ok(mut m) = making().lock() {
+        m.insert(src.to_owned());
+    }
+}
+
+pub fn end_making(src: &Path) {
+    if let Ok(mut m) = making().lock() {
+        m.remove(src);
+    }
+}
+
+pub fn is_making(src: &Path) -> bool {
+    making().lock().is_ok_and(|m| m.contains(src))
+}
+
+fn pending_ids() -> &'static Mutex<HashSet<String>> {
+    static P: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    P.get_or_init(Default::default)
+}
+
+pub fn pending() -> usize {
+    pending_ids().lock().map_or(0, |p| p.len())
+}
+
+pub fn pending_items() -> Vec<String> {
+    pending_ids()
+        .lock()
+        .map(|p| p.iter().cloned().collect())
+        .unwrap_or_default()
+}
+
+/// stop を呼んだ回数。make_all は始めたときと違っていたら打ち切る。
+static STOPS: AtomicUsize = AtomicUsize::new(0);
+
+pub fn stop() {
+    STOPS.fetch_add(1, Ordering::Relaxed);
+}
+
+fn set_pending<'a>(ids: impl IntoIterator<Item = &'a String>, on: bool) {
+    if let Ok(mut p) = pending_ids().lock() {
+        for id in ids {
+            if on {
+                p.insert(id.clone());
+            } else {
+                p.remove(id);
+            }
+        }
+    }
+}
+
+/// 画面に見えている項目の ID。make_all は、これを先に作る。
+fn seen() -> &'static Mutex<HashSet<String>> {
+    static S: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    S.get_or_init(Default::default)
+}
+
+pub fn set_seen(ids: Vec<String>) {
+    if let Ok(mut s) = seen().lock() {
+        *s = ids.into_iter().collect();
+    }
+}
+
+fn next_job(jobs: &Mutex<VecDeque<Job>>) -> Option<Job> {
+    let mut q = jobs.lock().ok()?;
+    let at = seen()
+        .lock()
+        .ok()
+        .and_then(|s| q.iter().position(|j| s.contains(&j.id)))
+        .unwrap_or(0);
+    q.remove(at)
+}
+
+pub fn make_all(
+    reg: &Arc<Registry>,
+    mut jobs: Vec<Job>,
+    done: impl Fn(&Job, Option<Placed>) + Sync,
+) {
+    jobs.sort_by(|a, b| b.mtime.total_cmp(&a.mtime));
+    set_pending(jobs.iter().map(|j| &j.id), true);
+    let stops = STOPS.load(Ordering::Relaxed);
+    let jobs = Mutex::new(VecDeque::from(jobs));
+    let width = std::thread::available_parallelism().map_or(2, |n| (n.get() / 2).max(1));
+    std::thread::scope(|s| {
+        for _ in 0..width {
+            s.spawn(|| {
+                let mut runner = Runner::new(Arc::clone(reg));
+                while !reg.stopped()
+                    && STOPS.load(Ordering::Relaxed) == stops
+                    && let Some(job) = next_job(&jobs)
+                {
+                    let placed = make(&mut runner, &job).unwrap_or_else(|e| {
+                        log::warn!("サムネイルを作れない: {e}");
+                        None
+                    });
+                    done(&job, placed);
+                    set_pending([&job.id], false);
+                }
+            });
+        }
+    });
+    let undone = jobs.into_inner().unwrap_or_default();
+    for j in &undone {
+        end_making(&j.src);
+    }
+    set_pending(undone.iter().map(|j| &j.id), false);
+}

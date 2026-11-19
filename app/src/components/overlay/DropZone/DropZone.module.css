@@ -1,0 +1,24 @@
+.root {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  padding: var(--space-10);
+  background: linear-gradient(var(--accent-soft), var(--accent-soft)), var(--paper);
+}
+.box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+  padding: var(--space-16);
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-md);
+  color: var(--accent);
+  text-align: center;
+}
+.box b {
+  font-size: var(--fs-heading);
+}

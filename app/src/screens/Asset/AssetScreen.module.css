@@ -1,0 +1,369 @@
+.root {
+  background: var(--stage);
+  color: var(--overlay-ink);
+}
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.look {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.look[data-next] {
+  visibility: hidden;
+}
+.veil {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--scrim);
+}
+/* 画像・動画・音声は舞台いっぱいに描き、上の帯や操作はその上に重ねる */
+.stage .player {
+  flex: 1;
+  align-self: stretch;
+}
+.stage .page {
+  flex: 1;
+  align-self: stretch;
+}
+.root:not([data-bar], [data-web]) .stage .page {
+  margin-top: 56px;
+}
+.stage .box {
+  width: auto;
+  height: min(88%, 66vw);
+  max-width: 96%;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-sm);
+}
+.stage .note {
+  flex: 1;
+  align-self: stretch;
+  min-height: 0;
+}
+.noteDoc {
+  max-width: var(--note-width, 880px);
+  margin: 0 auto;
+  padding: 96px var(--space-40) 140px;
+}
+/* すぐ取り出せるファイルでは出さない */
+.extracting {
+  animation: extracting 0s 300ms backwards;
+}
+@keyframes extracting {
+  from {
+    visibility: hidden;
+  }
+}
+.stage .openArchive {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  translate: -50% 0;
+}
+.audio {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 70px var(--space-48) 0;
+}
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  color: var(--jacket-ink, inherit);
+}
+.title b {
+  font-size: var(--fs-title);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.title span {
+  font-size: var(--fs-list);
+  color: var(--jacket-muted, var(--muted));
+}
+
+.fade {
+  transition: opacity 0.2s ease;
+}
+.root[data-idle='true'] {
+  --player-controls: 0;
+  --player-events: none;
+}
+.root[data-idle='true'] .fade {
+  opacity: 0;
+  pointer-events: none;
+}
+.btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--overlay);
+  color: var(--overlay-ink);
+  backdrop-filter: blur(var(--blur));
+  cursor: pointer;
+}
+.btn:hover {
+  background: linear-gradient(var(--overlay-hover), var(--overlay-hover)), var(--overlay);
+}
+/* 情報のカードは「情報」のボタンの位置から開き、ピン留めをカードの左へ押し出す */
+.pin,
+.more,
+.infoBtn {
+  position: absolute;
+  top: 13px;
+  z-index: 7;
+}
+.infoBtn {
+  right: 16px;
+}
+.more {
+  right: 54px;
+}
+.pin {
+  right: 92px;
+}
+.pin,
+.more {
+  transition:
+    right 0.26s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.2s ease;
+}
+.pin[aria-pressed='true'],
+.barBtn[aria-pressed='true'] {
+  color: var(--accent);
+}
+.pin[aria-pressed='true'] > .pinGlyph,
+.barBtn[aria-pressed='true'] > .pinGlyph {
+  fill: currentColor;
+}
+.barTools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.barBtn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.barBtn:hover {
+  background: var(--card);
+}
+.barBtn:not([aria-pressed='true']):hover {
+  color: var(--ink);
+}
+.barBtn[aria-expanded='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.root[data-info='true'] .more {
+  right: min(340px, 100% - 84px);
+}
+.root[data-info='true'] .pin {
+  right: min(378px, 100% - 46px);
+}
+.root[data-info='true'] .infoBtn,
+.more[aria-expanded='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  backdrop-filter: none;
+}
+.more[aria-expanded='true'] {
+  opacity: 1;
+  pointer-events: auto;
+}
+.root[data-info='true'] .pin,
+.root[data-info='true'] .more,
+.root[data-info='true'] .infoBtn {
+  opacity: 1;
+  pointer-events: auto;
+}
+.info {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: 6;
+  width: min(320px, 100% - 24px);
+  max-height: calc(100% - 16px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--float);
+  color: var(--ink);
+  font-size: var(--fs-list);
+  transform-origin: top right;
+  animation: open 0.18s ease;
+}
+/* アドレスバーの行が画面の中にあるときは、行のボタンを隠さないよう下に開く */
+.root[data-web]:not([data-bar]) .info {
+  top: 44px;
+  max-height: calc(100% - 52px);
+}
+@keyframes open {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+.infoHead {
+  flex: none;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  padding: 0 56px 0 var(--space-16);
+  font-weight: 600;
+}
+.infoScroll {
+  flex: 1 1 auto;
+}
+.infoView {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+  padding: var(--space-4) var(--space-16) var(--space-16);
+}
+.fl {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.k {
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.fl input,
+.fl textarea {
+  width: 100%;
+  padding: var(--space-4) var(--space-8);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  font-size: var(--fs-list);
+}
+.fl input:focus-visible,
+.fl textarea:focus-visible {
+  border-color: var(--accent);
+  outline: 0;
+}
+.fl .name {
+  padding: var(--space-2) var(--space-6);
+  margin: 0 calc(-1 * var(--space-6));
+  width: calc(100% + 12px);
+  border-color: transparent;
+  background: none;
+  font-size: var(--fs-large);
+  font-weight: 600;
+}
+.fl .name:hover {
+  border-color: var(--line-2);
+}
+.sum {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  font-size: var(--fs-meta);
+  color: var(--accent);
+  cursor: pointer;
+}
+.sum::-webkit-details-marker {
+  display: none;
+}
+.sumIcon {
+  transition: rotate 0.15s;
+}
+details[open] > .sum > .sumIcon {
+  rotate: 90deg;
+}
+.fi {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 3px var(--space-8);
+  margin-top: var(--space-8);
+  align-items: center;
+  font-size: var(--fs-meta);
+}
+.fi > :nth-child(odd) {
+  color: var(--muted);
+}
+.line {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.url {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.url:hover {
+  text-decoration: underline;
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-6);
+}
+.picker {
+  position: absolute;
+  top: var(--picker-top);
+  right: var(--picker-right);
+  z-index: 6;
+  max-height: var(--picker-max);
+}
+/* 狭いときはカードを帯の下に出し、ピン留めは押し出さない */
+@media (max-width: 640px) {
+  .info,
+  .root .picker {
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+  .info {
+    top: 52px;
+    max-height: calc(100% - 60px);
+  }
+  .root[data-info='true'] .more {
+    right: 54px;
+  }
+  .root[data-info='true'] .pin {
+    right: 92px;
+  }
+}

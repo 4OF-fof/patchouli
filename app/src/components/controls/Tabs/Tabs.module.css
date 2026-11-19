@@ -1,0 +1,24 @@
+.root {
+  display: inline-flex;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--side);
+}
+.root button {
+  height: 28px;
+  padding: 0 var(--space-10);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.root button[aria-selected='true'] {
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--shadow-pill);
+}

@@ -1,0 +1,55 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-20) var(--space-16);
+}
+.grid[data-pinned] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-20);
+}
+.card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.card:focus-visible {
+  border-radius: var(--radius-sm);
+  outline-offset: 3px;
+}
+.nm {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-large);
+  font-weight: 600;
+}
+.ds {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.pm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.pm b {
+  color: var(--accent);
+}
+.r {
+  margin-left: auto;
+}
+.bar {
+  flex: 1;
+}

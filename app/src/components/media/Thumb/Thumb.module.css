@@ -1,0 +1,98 @@
+.root {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  /* 並べる側（JustifiedRow など）が --thumb-h で高さを、高さを auto にしたときは --thumb-ar で縦横比を決める */
+  height: var(--thumb-h, 104px);
+  aspect-ratio: var(--thumb-ar, auto);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+}
+/* 画像のない仮のサムネイルと透けるサムネイル（音声の波形など）が、置いた場所に溶けないよう枠で囲む。透けない画像は枠を覆う */
+.root:not([data-note='true']) {
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  pointer-events: none;
+}
+.root[data-fit='top'] .img {
+  object-position: top;
+}
+.root[data-fit='contain'] .img {
+  object-fit: contain;
+}
+/* 置き場所の側で、--note-pad・--note-font・--note-ink で余白と文字を変えられる */
+.root[data-note='true'] {
+  background: var(--card);
+  border: 1px solid var(--line-2);
+  padding: var(--note-pad, var(--space-10) var(--space-12));
+  font-size: var(--note-font, var(--fs-meta));
+  line-height: 1.65;
+  color: var(--note-ink, var(--muted));
+}
+/* 名前は切らずに折り返す。日本語は文節で、行の長さはそろえて切り、切れ目のない長い語だけはどこででも切る */
+.root[data-note='true'] b {
+  display: block;
+  text-wrap: balance;
+  word-break: auto-phrase;
+  overflow-wrap: anywhere;
+  margin-bottom: var(--space-2);
+  color: var(--ink);
+  font-size: var(--fs-list);
+  font-weight: 600;
+}
+.face {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6);
+}
+.mark {
+  width: clamp(20px, 28cqmin, 44px);
+  height: clamp(20px, 28cqmin, 44px);
+  object-fit: contain;
+  color: var(--muted);
+}
+.label {
+  max-width: calc(100% - var(--space-16));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-tiny);
+  line-height: 1.3;
+  color: var(--muted);
+}
+@container (height < 72px) {
+  .label {
+    display: none;
+  }
+}
+.root[data-selected='true'] {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+.dirty {
+  position: absolute;
+  right: 7px;
+  top: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--warm-ink);
+}
+.making {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}

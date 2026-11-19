@@ -1,0 +1,10 @@
+{
+  "id": "example_page",
+  "name": "example_page",
+  "version": "0.1.0",
+  "description": "すべてのノートをカード形式で一覧表示する画面を追加",
+  "script": "ui.js",
+  "screens": {
+    "cards": { "label": "ノートのカード", "icon": "note" }
+  }
+}

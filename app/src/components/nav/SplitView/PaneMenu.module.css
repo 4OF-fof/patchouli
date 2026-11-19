@@ -1,0 +1,8 @@
+.hint {
+  position: absolute;
+  z-index: 4;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  background: var(--accent-soft);
+  pointer-events: none;
+}

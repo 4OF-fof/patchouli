@@ -1,0 +1,15 @@
+{
+  "id": "example_graph",
+  "name": "example_graph",
+  "version": "0.1.0",
+  "description": "選択したノートを中心に、リンクでつながるノートの関係図を表示",
+  "script": "ui.js",
+  "menu": { "formats": ["md"] },
+  "screens": {
+    "graph": {
+      "label": "ページの関係図",
+      "icon": "diagram",
+      "place": false
+    }
+  }
+}

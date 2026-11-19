@@ -1,0 +1,57 @@
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--title-bar);
+  flex: none;
+  padding-left: var(--space-4);
+  border-bottom: 1px solid var(--line);
+  background: var(--side);
+  color: var(--ink-2);
+  font-size: var(--fs-list);
+  user-select: none;
+}
+.start {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+/* タブが並んでも、窓をつかんで動かせる所を残す */
+.drag {
+  flex: 1;
+  min-width: var(--space-40);
+  align-self: stretch;
+}
+.buttons {
+  display: flex;
+  align-self: stretch;
+}
+.buttons button {
+  width: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: default;
+}
+.buttons button:hover {
+  background: var(--card);
+}
+.buttons button:focus-visible {
+  outline-offset: -2px;
+}
+.buttons svg {
+  width: 10px;
+  height: 10px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1;
+}
+.buttons .close:hover {
+  background: var(--danger);
+  color: var(--glyph);
+}

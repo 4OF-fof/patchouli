@@ -1,0 +1,34 @@
+.title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+}
+.title input {
+  width: 440px;
+  max-width: 100%;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+}
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.row {
+  display: grid;
+  grid-template-columns: 4em minmax(0, 1fr) 2.5em;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-2) 0;
+}
+.ext {
+  font: var(--fs-meta) var(--f-mono);
+}
+.n {
+  font: var(--fs-meta) var(--f-mono);
+  color: var(--muted);
+  text-align: right;
+}

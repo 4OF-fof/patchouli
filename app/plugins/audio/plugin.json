@@ -1,0 +1,23 @@
+{
+  "id": "patchouli.audio",
+  "name": "音声",
+  "version": "0.6.0",
+  "description": "音声のジャケットと波形、再生、長さと BPM",
+  "optional": {
+    "commands": {
+      "ffmpeg": {
+        "version": { "args": ["-version"], "pattern": "ffmpeg version n?([0-9][^ ]*)" },
+        "description": "標準で非対応のコーデックの MP3・WAV・FLAC を AI 機能で解析"
+      }
+    }
+  },
+  "formats": [
+    {
+      "ext": ["mp3", "wav", "flac"],
+      "label": "音声",
+      "ratio": 1.6,
+      "media": "audio",
+      "parts": ["thumbnail", "details", "excerpt"]
+    }
+  ]
+}

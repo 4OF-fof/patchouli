@@ -1,0 +1,77 @@
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.root:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
+}
+.thumb {
+  display: block;
+  position: relative;
+}
+.nm {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* JustifiedRow の中では --card-why: none で隠れる */
+.why {
+  display: var(--card-why, block);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--accent);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* ピンを重ねるときの枠。JustifiedRow の中では --ar の幅を取る */
+.wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.wrap:hover {
+  --pin-show: 1;
+}
+.pin {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+}
+/* 選べる範囲（SelectArea）の中では、--select-mark と --select-hover で出すかが決まる */
+.mark {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1.5px solid var(--overlay-ink);
+  border-radius: var(--radius-sm);
+  background: var(--overlay);
+  color: transparent;
+  visibility: var(--select-mark, hidden);
+  cursor: pointer;
+}
+.wrap:hover .mark {
+  visibility: var(--select-hover, var(--select-mark, hidden));
+}
+.mark[aria-checked='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}

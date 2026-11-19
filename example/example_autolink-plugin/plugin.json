@@ -1,0 +1,8 @@
+{
+  "id": "example_autolink",
+  "name": "example_autolink",
+  "version": "0.1.0",
+  "description": "ノートの取り込み時と編集後に、本文内のノート名から内容の近いノートへ自動でリンクを付与",
+  "hooks": { "added": { "formats": ["md"] }, "changed": { "formats": ["md"] } },
+  "permissions": ["library", "notes", "embed"]
+}

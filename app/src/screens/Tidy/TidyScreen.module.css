@@ -1,0 +1,96 @@
+.head {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  z-index: 3;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  white-space: nowrap;
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: var(--space-28);
+  padding: var(--space-16) var(--space-28);
+}
+
+.view {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-14);
+}
+.big {
+  --thumb-h: 100%;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.big > * {
+  border-radius: var(--radius-sm);
+}
+/* 重ねて出るスクロールバーがサムネイルにかからないよう、下の余白に出す */
+.stripBox {
+  flex: none;
+  margin-bottom: -10px;
+}
+.strip {
+  --thumb-h: 52px;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-4) 14px;
+}
+.q {
+  position: relative;
+  flex: none;
+  width: calc(52px * var(--ar));
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  cursor: pointer;
+}
+.q[aria-current='true'] > :first-child {
+  box-shadow:
+    0 0 0 2px var(--paper),
+    0 0 0 4px var(--accent);
+}
+.q[data-later='true'] {
+  opacity: 0.45;
+}
+.ok {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  background: var(--ok);
+  color: var(--on-accent);
+  font-size: var(--fs-tiny);
+  font-style: normal;
+}
+.done {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-10);
+  padding: var(--space-20);
+  color: var(--muted);
+  text-align: center;
+}
+.done b {
+  font-size: var(--fs-heading);
+  color: var(--ink);
+}

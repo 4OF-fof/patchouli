@@ -1,0 +1,49 @@
+import type { Meta, StoryObj } from 'storybook-solidjs-vite'
+import { Unsupported } from './Unsupported'
+
+const done = async () => {}
+
+const meta = {
+  title: '部品/media/Unsupported',
+  component: Unsupported,
+  args: {
+    name: 'ロゴ原図',
+    ext: 'ai',
+    label: 'AI',
+    onOpenPlugins: () => {},
+    onReveal: done,
+    onOpenDefault: done,
+    onEnable: done,
+  },
+  decorators: [
+    (Story) => (
+      <div style={{ background: 'var(--stage)', padding: '40px 20px' }}>
+        <Story />
+      </div>
+    ),
+  ],
+} satisfies Meta<typeof Unsupported>
+export default meta
+type Story = StoryObj<typeof meta>
+
+export const Unknown: Story = { name: '対応するプラグインなし' }
+export const Disabled: Story = {
+  name: 'プラグインが無効',
+  args: { blocker: { id: 'example_ai', name: 'example_ai', dev: false, state: 'disabled' } },
+}
+export const Blocked: Story = {
+  name: 'プラグインを使用できない',
+  args: { blocker: { id: 'example_ai', name: 'example_ai', dev: false, state: 'blocked' } },
+}
+export const Decoder: Story = {
+  name: 'デコーダーが対応していない',
+  args: { name: '撮影素材', ext: 'mov', label: '動画', decoder: true },
+}
+export const Failed: Story = {
+  name: '開くのに失敗',
+  args: {
+    onOpenDefault: async () => {
+      throw new Error('D:素材秋の企画ロゴ原図.ai が見つかりません')
+    },
+  },
+}

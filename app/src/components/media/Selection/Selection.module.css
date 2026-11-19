@@ -1,0 +1,21 @@
+/* 中のカードは、--select-mark ですべての、--select-hover でホバーしているものの選ぶ印を出すかを決める */
+.root {
+  --select-mark: hidden;
+}
+.root[data-mod] {
+  --select-hover: visible;
+}
+.root[data-any] {
+  --select-mark: visible;
+}
+.root[data-dragging] {
+  user-select: none;
+}
+.rect {
+  position: fixed;
+  z-index: 5;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  pointer-events: none;
+}

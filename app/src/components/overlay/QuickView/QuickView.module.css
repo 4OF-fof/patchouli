@@ -1,0 +1,62 @@
+.root {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  width: 320px;
+  padding: var(--space-10);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--float);
+  box-shadow: var(--shadow-float);
+  font-size: var(--fs-list);
+  color: var(--ink);
+}
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  min-width: 0;
+}
+.name {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.kind {
+  flex: none;
+  color: var(--muted);
+  font-size: var(--fs-meta);
+}
+.text {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+}
+/* 縦に長すぎるものだけ切り詰め、上下や左右に余白の帯を出さない */
+.image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 360px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+.missing {
+  color: var(--danger);
+}
+.id {
+  font-family: var(--f-mono);
+  font-size: var(--fs-meta);
+}
+.hint {
+  align-self: flex-end;
+  color: var(--muted);
+  font-size: var(--fs-meta);
+}

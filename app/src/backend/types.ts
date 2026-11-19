@@ -1,0 +1,543 @@
+import type {
+  CoverPart,
+  Group,
+  Item,
+  Library,
+  Place,
+  Project,
+  Suggestion,
+  TagCoverPart,
+  Thumbnail,
+} from '../model/library'
+import type {
+  ItemDetails,
+  ItemView,
+  MenuGroup,
+  MenuOutput,
+  CapPart,
+  CoverInfo,
+  NotesInfo,
+  Part,
+  PluginActions,
+  PluginReport,
+  ScreenInfo,
+  UiRef,
+} from '../plugins/types'
+import type { CodeImage, Fetched, LinkApi, OwnApi } from '../../plugins/sdk'
+import type { Page } from '../plugins/links'
+import type { UiApi, UiItem } from '../plugins/ui'
+
+export interface LibraryState {
+  pins: string[]
+  pinnedProjects: string[]
+  pinnedTags: string[]
+}
+
+/** タブごとの、いまの場所までの画面の並び。中身はファイルから読むので、確かめてから使う。 */
+export interface SavedTabs {
+  tabs: unknown[][]
+  current: number
+  /** ワークスペース。tree の葉は panes の index、ペインのタブは tabs の index。 */
+  spaces?: unknown[]
+}
+
+export interface ListDiff {
+  add?: string[]
+  remove?: string[]
+}
+
+export interface ItemPatch {
+  tags?: ListDiff
+  aliases?: ListDiff
+  memo?: string
+  /** 空にすると削除する。ショートカット（.url）は、リンク先を書き換える */
+  url?: string
+  body?: string
+}
+
+/** 本体が見つからない .meta。 */
+export interface Orphan {
+  meta: string
+  name: string
+  /** ある場所。ライブラリからのフォルダの並びを / でつないだもの */
+  place: string | null
+  kind: 'asset' | 'project' | 'group'
+  /** つなぎ直せる先の名前。素材なら同じフォルダのタグもメモもない素材、グループなら種類のないグループ */
+  candidates: string[]
+}
+
+export interface Opened {
+  lib: Library
+  location?: string
+  pinnedProjects: string[]
+  pinnedTags: string[]
+  orphans?: Orphan[]
+  /** プラグインが足す画面。 */
+  screens?: ScreenInfo[]
+  problems: string[]
+}
+
+export interface Changed {
+  items: Item[]
+  removed: string[]
+  projects?: Project[]
+  groups?: Group[]
+  state?: Partial<LibraryState>
+  tagCovers?: Map<string, TagCoverPart[]>
+  orphans?: Orphan[]
+  problems: string[]
+}
+
+export interface Dropped {
+  files: number
+  folders: {
+    key: number
+    name: string
+    files: number
+    subfolders: number
+  }[]
+  loose: number
+}
+
+export type FileDrag =
+  | { type: 'enter'; dropped: Dropped }
+  | { type: 'over'; x: number; y: number }
+  | { type: 'drop'; x: number; y: number; dropped: Dropped }
+  | { type: 'leave' }
+
+export interface Imported {
+  items: Item[]
+  groups: Group[]
+  skipped: number
+  failed: string[]
+}
+
+/** 右クリックメニューの項目を実行したあと。copy は写すもの、items はプラグインが作ったノートと登録した素材。 */
+export interface MenuResult {
+  output?: MenuOutput
+  copy?: string
+  items: Item[]
+  /** 書き出した先。 */
+  saved?: string
+  failed: string[]
+}
+
+/** フックが失敗したこと。 */
+export interface HookFailed {
+  plugin: string
+  item: string
+  message: string
+}
+
+export interface KnownLibrary {
+  path: string
+  name: string
+  opened: number
+  exists: boolean
+  current: boolean
+}
+
+export interface LibraryActions {
+  list(): Promise<KnownLibrary[]>
+  switch(path: string): Promise<void>
+  forget(path: string): Promise<void>
+}
+
+export type CacheKind = 'library' | 'thumbs' | 'all'
+
+export interface CacheUsage {
+  library: number
+  thumbs: number
+}
+
+export interface UnusedPlugin {
+  id: string
+  name: string
+  version?: string
+  bytes: number
+}
+
+export interface TidyActions {
+  usage(): Promise<CacheUsage>
+  clear(kind: CacheKind): Promise<void>
+  unusedPlugins(): Promise<UnusedPlugin[]>
+  removeUnusedPlugins(): Promise<void>
+}
+
+export interface Developer {
+  enabled: boolean
+  pluginDirs: string[]
+  repos: string[]
+}
+
+export interface DeveloperActions {
+  get(): Promise<Developer>
+  set(d: Developer): Promise<void>
+  pick(kind: 'dir' | 'repo'): Promise<string | undefined>
+}
+
+/** 本体の設定。 */
+export interface AppSettings {
+  /** ライブラリの外から落としたファイルを、コピーするか移動するか */
+  importMode: 'copy' | 'move'
+  /** サムネイルの長いほうの辺。standard は 512px、large は 1024px */
+  thumbSize: 'standard' | 'large'
+  /** 外部ツールの名前 → 指定した場所。書いていないものは PATH から探す */
+  commandPaths: Record<string, string>
+  /** ノートのリンクの URL を、内蔵ブラウザ（タブ）で開くか、既定のアプリで開くか */
+  linkOpen: 'builtin' | 'default'
+  /** 波形を作る時間の上限（秒）。0 は上限なし */
+  waveLimit: number
+  /** ウィンドウを閉じたとき、終了せずにタスクトレイに残る */
+  closeToTray: boolean
+  /** 音声に設定したサムネイルの画像をジャケットにも適用する */
+  thumbAsJacket: boolean
+}
+
+export type ThumbApplied = 'thumbnail' | 'jacket'
+
+/** 外から操作してくる口に渡す権限。src-tauri/src/remote/proto.rs の PERMISSIONS と合わせる。 */
+export type RemotePermission = 'library' | 'assets' | 'notes' | 'edit' | 'delete' | 'window'
+
+/** 外から操作してくる口。key は cli・extension:{ID}・app:{名前}。 */
+export interface RemoteClient {
+  key: string
+  name: string
+  allowed: boolean
+  permissions: RemotePermission[]
+  /** 最後につないできた時刻（ミリ秒） */
+  last: number
+}
+
+/** 初めてつないできた口が、許可を待っているもの。 */
+export interface RemoteAsk {
+  id: number
+  key: string
+  name: string
+  permissions: RemotePermission[]
+}
+
+export interface SkillPlace {
+  dir: string
+  installed: boolean
+  /** 候補として出す場所か。ほかは選択したフォルダ */
+  suggested: boolean
+}
+
+export interface RemoteStatus {
+  /** アプリと一緒に入れた CLI。見つからなければ undefined */
+  cli?: string
+  /** PATH に置くコマンド */
+  command: string
+  /** CLI を PATH に登録したか */
+  path: boolean
+  /** Native Messaging のホストの名前 */
+  host: string
+  skills: SkillPlace[]
+  /** Native Messaging でつないでよい拡張機能の ID */
+  extensions: string[]
+  clients: RemoteClient[]
+}
+
+export interface RemoteActions {
+  status(): Promise<RemoteStatus>
+  setPath(on: boolean): Promise<void>
+  installSkill(dir: string): Promise<void>
+  removeSkill(dir: string): Promise<void>
+  pickSkillDir(): Promise<string | undefined>
+  addExtension(id: string): Promise<void>
+  removeExtension(id: string): Promise<void>
+  setClient(key: string, allowed: boolean, permissions: RemotePermission[]): Promise<void>
+  forgetClient(key: string): Promise<void>
+  /** 許可を待っているもの。 */
+  asks(): Promise<RemoteAsk[]>
+  /** permissions が undefined なら拒否する。 */
+  answer(id: number, permissions: RemotePermission[] | undefined): Promise<void>
+  onAsk(cb: (a: RemoteAsk) => void): () => void
+  /** 許可を待つのをやめたとき（答えたときと、時間切れのとき）。 */
+  onAskClosed(cb: (id: number) => void): () => void
+  /** 外から素材かノートを開くよう頼まれたとき。 */
+  onOpen(cb: (id: string) => void): () => void
+  /** 外から保存の進み具合と結果を知らされたとき。 */
+  onToast(cb: (t: RemoteToast) => void): () => void
+  /** トーストを出させた接続に、再試行のボタンが押されたことを知らせる。 */
+  retryToast(peer: number, key: string): Promise<void>
+}
+
+export type RemoteToastKind = 'image' | 'audio' | 'video' | 'file' | 'url' | 'note'
+
+/** 外から頼まれたトースト。同じ接続（peer）の同じ key のものは置き換える。 */
+export interface RemoteToast {
+  peer: number
+  key: string
+  state: 'saving' | 'saved' | 'failed'
+  kind?: RemoteToastKind
+  /** 保存中と失敗のときに出す名前 */
+  name?: string
+  /** 保存した素材かノート */
+  id?: string
+  /** 一緒に保存した素材。保存先を変えると、一緒に移動する */
+  attached?: string[]
+  /** 取り込み終えたファイルの件数と、取り込む件数 */
+  done?: number
+  total?: number
+  error?: string
+  retry?: boolean
+}
+
+export interface AppSettingsActions {
+  get(): Promise<AppSettings>
+  /** サムネイルの大きさを変えたときは、サムネイルのキャッシュを消す。 */
+  set(s: AppSettings): Promise<void>
+  pickCommand(name: string): Promise<string | undefined>
+}
+
+/** ログイン時の自動起動。OS の登録を読み書きする。 */
+export interface StartupActions {
+  /** 自動起動を扱えない OS では undefined。 */
+  get(): Promise<boolean | undefined>
+  set(on: boolean): Promise<void>
+}
+
+/** タグの候補の扱い。auto は選択済みの候補をそのまま付け、confirm は分類の確認に出す。 */
+export type TagSuggest = 'auto' | 'confirm' | 'off'
+
+export interface AutoTag {
+  enabled: boolean
+  installed: boolean
+  downloading: boolean
+  /** これからダウンロードする大きさ（バイト） */
+  need: number
+  /** llama-server が使える GPU。空なら CPU で動かす。インストールする前は undefined */
+  gpus?: string[]
+  suggest: TagSuggest
+  /** AI 検索を使うか */
+  search: boolean
+}
+
+export interface AutoTagProgress {
+  file: string
+  done: number
+  total: number
+}
+
+export interface AutoTagActions {
+  get(): Promise<AutoTag>
+  /** 有効にするときは、ダウンロードし終えるまで待つ。 */
+  set(on: boolean): Promise<void>
+  cancelDownload(): Promise<void>
+  setSuggest(mode: TagSuggest): Promise<void>
+  setSearch(on: boolean): Promise<void>
+  onProgress(cb: (p: AutoTagProgress) => void): () => void
+}
+
+export interface ContentHit {
+  id: string
+  score: number
+  /** 当たった区間の始まり（秒） */
+  at?: number
+}
+
+export interface ContentSearch {
+  /** llama-server が起動し終えるまで待つ。 */
+  prepare(): Promise<void>
+  search(query: string): Promise<ContentHit[]>
+}
+
+export interface Suggestions {
+  /** 選択済みの候補を、確認せずにそのまま付ける */
+  apply: boolean
+  items: Record<string, Suggestion>
+}
+
+export interface TagDecisions {
+  /** 分類の確認で承認した item の判断を残す。chosen は付けたタグ、rejected は外した候補。 */
+  record(item: string, chosen: string[], rejected: string[]): Promise<void>
+  /** item の判断を取り消す。 */
+  undo(item: string): Promise<void>
+  /** タグを付ける欄に出す候補。 */
+  suggestTags: (id: string) => Promise<string[]>
+  /** タグのない項目の候補を作り直すたびに呼ぶ。 */
+  onSuggestions(cb: (s: Suggestions) => void): () => void
+}
+
+export interface PluginWork {
+  thumbnails: string[]
+  waveforms: string[]
+  /** フックを待っているもの。 */
+  hooks: string[]
+}
+
+export interface ArchiveEntry {
+  path: string
+  size: number
+  encrypted: boolean
+  /** OS がそのまま実行する形式 */
+  executable?: boolean
+}
+
+export type ArchiveThumb =
+  | {
+      path: string
+      url: string
+      width: number
+      height: number
+      /** 波形から描いたもの */
+      wave?: boolean
+    }
+  | { path: string; failed: true }
+
+/** アーカイブの中のファイル。signal を中止すると、動いている処理も中止する。 */
+export interface ArchiveActions {
+  entries(id: string, signal: AbortSignal): Promise<ArchiveEntry[]>
+  /** path を取り出す。返す id で、ライブラリの素材と同じように読み込める。 */
+  extract(id: string, path: string, signal: AbortSignal): Promise<{ id: string; url: string }>
+  /** 生成できたものから onThumb に渡す。 */
+  thumbs(id: string, paths: string[], onThumb: (t: ArchiveThumb) => void, signal: AbortSignal): Promise<void>
+  waveform(id: string, path: string): Promise<Uint8Array | null>
+  /** 取り出し済みのファイルを文字列として読む。 */
+  text(id: string, path: string): Promise<string>
+}
+
+export interface Backend {
+  open(): Promise<Opened>
+  saveItem(id: string, patch: ItemPatch): Promise<Item | undefined>
+  moveItem(id: string, place: Place): Promise<Item | undefined>
+  renameItem(id: string, name: string): Promise<Item | undefined>
+  /** 本文を書き換えたノートから離れた。中身が変わったときのフックを呼ぶ。 */
+  noteLeft?: (id: string) => Promise<void>
+  /** ファイルとメタ情報をごみ箱に移動する。 */
+  deleteItem?: (id: string) => Promise<void>
+  /** キャンセルしたときは null を返す。 */
+  pickThumb?: (id: string) => Promise<ThumbApplied | null>
+  pasteThumb?: (id: string) => Promise<ThumbApplied>
+  clearThumb?: (id: string) => Promise<void>
+  saveState(state: LibraryState): Promise<void>
+  /** 最近付けたタグ。新しい順。 */
+  tagHistory?: () => Promise<string[]>
+  saveTagHistory?: (tags: string[]) => Promise<void>
+  /** 最近開いた項目の ID。新しい順。 */
+  openHistory?: () => Promise<string[]>
+  saveOpenHistory?: (ids: string[]) => Promise<void>
+  /** 前に開いていたタブ。 */
+  tabs?: () => Promise<SavedTabs | undefined>
+  saveTabs?: (tabs: SavedTabs) => Promise<void>
+  createNote(name: string, place: Place): Promise<Item>
+  createProject(name: string): Promise<Project>
+  saveProject(name: string, cover: CoverPart[]): Promise<void>
+  /** フォルダの名前を変える。中の項目は、あとで onChanged で届く。 */
+  renameProject?: (from: string, to: string) => Promise<void>
+  /** 中身をルートの直下に移し、フォルダと概要をごみ箱に移す。中の項目は、あとで onChanged で届く。 */
+  deleteProject?: (name: string) => Promise<void>
+  saveTagCover(tag: string, cover: TagCoverPart[]): Promise<void>
+  /**
+   * 下の階層のタグも合わせて付け替える。素材に付いたタグは saveItem で直す。
+   * 変えた先がすでにあれば、keepFrom のときは元の概要を、そうでなければ変えた先の概要を残す。
+   */
+  renameTag(from: string, to: string, keepFrom: boolean): Promise<void>
+  /** タグの概要をごみ箱に移す。 */
+  deleteTagCover(tag: string): Promise<void>
+  relinkMeta?: (meta: string, to: string) => Promise<void>
+  /** .meta をごみ箱に移す。プロジェクトなら、概要のカードも合わせて移す。 */
+  discardMeta?: (meta: string) => Promise<void>
+  chooseLibrary?(): Promise<boolean>
+  libraries?: LibraryActions
+  tidy?: TidyActions
+  developer?: DeveloperActions
+  appSettings?: AppSettingsActions
+  startup?: StartupActions
+  remote?: RemoteActions
+  autoTag?: AutoTagActions
+  contentSearch?: ContentSearch
+  tagDecisions?: TagDecisions
+  onFileDrag?(cb: (e: FileDrag) => void): () => void
+  /** フォルダは、中のフォルダも含めてグループとして取り込む。 */
+  importDropped?(place: Place): Promise<Imported>
+  importData?: (file: File, place: Place) => Promise<Item>
+  onThumbnail(cb: (id: string, thumb: Thumbnail) => void): () => void
+  onChanged?(cb: (c: Changed) => void): () => void
+  plugins(): Promise<PluginReport>
+  pluginActions?: PluginActions
+  pluginWork?(): Promise<PluginWork>
+  stopPluginWork?(part?: 'thumbnail' | 'waveform' | 'hook'): Promise<void>
+  onHookFailed?(fn: (f: HookFailed) => void): () => void
+  /** 画面に見えている作成待ちの項目。サムネイルをこれから先に作る。 */
+  seenThumbs?(ids: string[]): void
+  checking?(): Promise<boolean>
+  reloadPlugins?(wait: boolean): Promise<Opened>
+  /** image の url が blob のときは、使い終わったら呼び出し元で revoke する。 */
+  itemView?: (id: string) => Promise<ItemView | null>
+  itemDetails?: (id: string) => Promise<ItemDetails>
+  revealItem?: (id: string) => Promise<void>
+  openItemDefault?: (id: string) => Promise<void>
+  /** 保存先を選んでもらってファイルに書き出し、書き出した場所を返す。選ぶのをやめたら undefined。 */
+  exportFile?: (name: string, data: string) => Promise<string | undefined>
+  itemPath?: (id: string) => Promise<string>
+  /** プラグインが右クリックメニューに足す項目。ids は選んでいるものすべて。項目のないプラグインは含めない。 */
+  itemMenu?: (ids: string[]) => Promise<MenuGroup[]>
+  /** プラグインの項目を選んだとき。 */
+  runItemMenu?: (ids: string[], plugin: string, entry: string) => Promise<MenuResult>
+  waveform?: (id: string) => Promise<Uint8Array | null>
+  uiApi?: (item: UiItem, part: CapPart, plugin: string) => UiApi
+  /** プラグインの、自分の設定と残した値の窓口。 */
+  ownApi?: (plugin: string) => OwnApi
+  /** ノートに足すもの（コードブロックを描くものと / の項目）。プラグインを読み直すと変わる。 */
+  notes?: () => NotesInfo
+  /** プラグインが概要に足すカード。プラグインを読み直すと変わる。 */
+  covers?: () => CoverInfo[]
+  /** plugin の WASM でコードブロックを描く。 */
+  renderCode?: (plugin: string, lang: string, source: string) => Promise<CodeImage>
+  /** plugin の fetch に書いたホストへ取りに行く。 */
+  pluginFetch?: (plugin: string, url: string) => Promise<Fetched>
+  uiUrl?: (ui: UiRef) => string
+  /** url の part を受け持つもの。 */
+  linkOf?: (url: string, part: Part) => LinkShown
+  /** URL の素材と同じ作り方のサムネイル（blob の URL）。作れなければ undefined。使い終わったら呼び出し元で revoke する。 */
+  linkThumb?: (url: string) => Promise<string | undefined>
+  /** URL を既定のアプリで開く。 */
+  openUrl?: (url: string) => Promise<void>
+  /** タブの中に出す外のページ。ないときは iframe で出す。 */
+  browser?: BrowserActions
+  archive?: ArchiveActions
+}
+
+/** URL の表示。ui があれば links のプラグインが描き、なければ本体が page（OGP）から作る。 */
+export interface LinkShown {
+  url: string
+  ui?: { url: string; api: LinkApi }
+  page: () => Promise<Page>
+}
+
+/** 外のページの位置と大きさ（CSS の px）。 */
+export interface Bounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
+export interface BrowserActions {
+  /** key の外のページを bounds に出す。url が前と違えば開き直す。 */
+  show(key: string, url: string, bounds: Bounds): Promise<void>
+  go(key: string, to: 'back' | 'forward' | 'reload'): Promise<void>
+  hide(key: string): Promise<void>
+  close(key: string): Promise<void>
+  /** 本体の画面のうち、外のページを見せる穴と、その上に重ねる表示を、描く順に伝える。 */
+  layer(layers: PageLayer[]): Promise<void>
+  /** 外のページの中で別のページを開いたら、その URL と戻れるか・進めるかを知らせる。戻り値で知らせをやめる。 */
+  onMoved(fn: (key: string, at: PageAt) => void): () => void
+  /** 外のページが新しいウィンドウで URL を開こうとしたら知らせる。ウィンドウは開かない。戻り値で知らせをやめる。 */
+  onPopup(fn: (key: string, url: string) => void): () => void
+}
+
+export interface PageLayer extends Bounds {
+  /** 外のページを見せる穴か、穴の上に重ねる表示か */
+  hole: boolean
+  radius: number
+}
+
+export interface PageAt {
+  url: string
+  back: boolean
+  forward: boolean
+}

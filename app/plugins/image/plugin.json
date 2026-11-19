@@ -1,0 +1,23 @@
+{
+  "id": "patchouli.image",
+  "name": "画像",
+  "version": "0.5.0",
+  "description": "写真やイラストのサムネイルと表示",
+  "optional": {
+    "commands": {
+      "ffmpeg": {
+        "version": { "args": ["-version"], "pattern": "ffmpeg version n?([0-9][^ ]*)" },
+        "description": "AVIF のサムネイル生成と AI 機能での解析"
+      }
+    }
+  },
+  "formats": [
+    {
+      "ext": ["jpg", "jpeg", "png", "webp", "gif", "avif", "bmp"],
+      "label": "画像",
+      "ratio": 1.6,
+      "media": "image",
+      "parts": ["thumbnail", "details", "excerpt"]
+    }
+  ]
+}

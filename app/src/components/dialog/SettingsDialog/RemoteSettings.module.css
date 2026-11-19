@@ -1,0 +1,95 @@
+.row,
+.block,
+.client,
+.place,
+.none {
+  border-top: 1px solid var(--line);
+}
+.row,
+.block {
+  padding: var(--space-10) 0;
+}
+.row,
+.blockHead,
+.clientHead,
+.place {
+  display: flex;
+  align-items: center;
+  gap: var(--space-16);
+}
+.row {
+  min-height: 56px;
+}
+.blockHead {
+  margin-bottom: var(--space-6);
+}
+.what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.name {
+  font-size: var(--fs-body);
+  color: var(--ink);
+}
+.help {
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.path {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 400 var(--fs-meta) var(--f-mono);
+  color: var(--muted);
+}
+.place {
+  min-height: 44px;
+  padding: var(--space-6) 0;
+}
+.place .path {
+  flex: 1;
+  color: var(--ink-2);
+}
+.list {
+  margin-top: var(--space-8);
+}
+.client {
+  padding: var(--space-10) 0;
+}
+.block > .what + .client,
+.block > .what + .none {
+  margin-top: var(--space-8);
+}
+.state {
+  font-size: var(--fs-meta);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.state[data-off='true'] {
+  color: var(--danger);
+}
+.perms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6) var(--space-16);
+  margin: var(--space-8) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-list);
+}
+.perms label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  cursor: pointer;
+}
+.none {
+  margin: 0;
+  padding: var(--space-12) 0;
+  font-size: var(--fs-list);
+  color: var(--muted);
+}

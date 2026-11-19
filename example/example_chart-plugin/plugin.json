@@ -1,0 +1,15 @@
+{
+  "id": "example_chart",
+  "name": "example_chart",
+  "version": "0.1.0",
+  "description": "ノートの bars コードブロックを棒グラフで表示し、tally コードブロックをカウンター表として表示",
+  "script": "ui.js",
+  "notes": {
+    "code": ["bars", "tally"],
+    "script": ["tally"],
+    "slash": [
+      { "label": "棒グラフ", "keys": "bars chart graph bou", "insert": "```bars\n$0\n```" },
+      { "label": "数える表", "icon": "plus", "keys": "tally count kazoeru", "insert": "```tally\n$0\n```" }
+    ]
+  }
+}

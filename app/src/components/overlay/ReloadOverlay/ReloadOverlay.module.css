@@ -1,0 +1,41 @@
+.root {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-reload);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--space-16);
+  background: var(--scrim);
+}
+.box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-10);
+  width: min(420px, 100%);
+  padding: var(--space-20) var(--space-20);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
+}
+.box b {
+  font-size: var(--fs-body);
+  font-weight: 600;
+}
+.box p {
+  margin: 0;
+  font-size: var(--fs-list);
+  color: var(--muted);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-8);
+  margin-top: var(--space-6);
+}
+.busy {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+}

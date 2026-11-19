@@ -1,0 +1,70 @@
+.root {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+  container-type: size;
+}
+.frame {
+  position: relative;
+  aspect-ratio: var(--ratio);
+  width: min(100cqw, 100cqh * var(--ratio));
+}
+/* 置き場所の側で、--player-screen-max で高さの上限を決められる */
+.root[data-flow='true'] {
+  display: block;
+  container-type: normal;
+}
+.root[data-flow='true'] .frame {
+  width: 100%;
+  max-height: var(--player-screen-max, none);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+.video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  cursor: pointer;
+}
+.bar {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  width: min(600px, 100% - 24px);
+  transform: translateX(-50%);
+}
+.root[data-flow='true'] .bar {
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  width: auto;
+  height: 36px;
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-md);
+  transform: none;
+}
+/* 再生中は、ポインタが離れたら操作を隠す */
+.root[data-playing]:not(:hover):not(:focus-within) .bar {
+  --player-controls: 0;
+  --player-events: none;
+}
+.root:fullscreen {
+  display: grid;
+  background: var(--stage);
+  container-type: size;
+}
+.root:fullscreen .frame {
+  width: min(100cqw, 100cqh * var(--ratio));
+  max-height: none;
+  border-radius: 0;
+}
+.root:fullscreen .bar {
+  left: 50%;
+  right: auto;
+  bottom: 16px;
+  width: min(600px, 100% - 24px);
+  height: 40px;
+  transform: translateX(-50%);
+}

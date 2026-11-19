@@ -1,0 +1,15 @@
+.script {
+  padding: var(--space-4) 0;
+}
+.wasm {
+  padding: var(--space-8) 0;
+  overflow-x: auto;
+  cursor: text;
+}
+.error {
+  margin: 0;
+  font-family: var(--f-mono);
+  font-size: var(--fs-meta);
+  white-space: pre-wrap;
+  color: var(--danger);
+}

@@ -1,0 +1,176 @@
+import { type JSX, Show, onCleanup, onMount } from 'solid-js'
+import { Icon } from '../../base/Icon/Icon'
+import { useTabActive } from '../../nav/TabPane/TabPane'
+import { clock } from './clock'
+import { useFullscreen } from './fullscreen'
+import { createMediaState } from './media'
+import styles from './PlayerBar.module.css'
+
+export interface PlayerBarProps {
+  /** 操る動画や音声。描いたあとに決まるので、関数で渡す。 */
+  media: () => HTMLMediaElement | undefined
+  fullscreen?: () => HTMLElement | undefined
+  /** あれば、キーはこの中にフォーカスがあるときだけ受ける。なければ画面のどこにあっても受ける */
+  scope?: () => HTMLElement | undefined
+  /** row は、再生のボタン・track・時間・音量を 1 行に並べる。再生位置は track の側で操る */
+  layout?: 'bar' | 'row'
+  /** 再生のボタンの前に出すもの */
+  lead?: JSX.Element
+  track?: JSX.Element
+  /** 再生速度のボタンを出すか。既定は出す */
+  rate?: boolean
+  class?: string
+}
+
+const RATES = [1, 1.5, 2, 0.5]
+
+const SKIP = 5
+
+const pct = (v: number, max: number) => `${max > 0 ? Math.min(100, (v / max) * 100) : 0}%`
+
+const typing = (t: EventTarget | null, within?: HTMLElement) => {
+  const hit =
+    t instanceof HTMLElement &&
+    t.closest('input:not([type="range"]), select, textarea, [contenteditable], [role="dialog"], [role="menu"]')
+  return !!hit && (!within || within.contains(hit))
+}
+
+export function PlayerBar(props: PlayerBarProps) {
+  const { playing, at, length, muted, volume, rate } = createMediaState(props.media)
+  const { full, toggle: toggleFull } = useFullscreen(() => props.fullscreen?.())
+  const toggle = () => {
+    const m = props.media()
+    if (!m) return
+    if (m.paused) void m.play().catch(() => undefined)
+    else m.pause()
+  }
+  const seekTo = (t: number) => {
+    const m = props.media()
+    if (m) m.currentTime = Math.min(Math.max(0, t), m.duration || 0)
+  }
+  const toggleMute = () => {
+    const m = props.media()
+    if (m) m.muted = !m.muted
+  }
+  const nextRate = () => {
+    const m = props.media()
+    if (m) m.playbackRate = RATES[(RATES.indexOf(m.playbackRate) + 1) % RATES.length] ?? 1
+  }
+  const active = useTabActive()
+  const onKey = (e: KeyboardEvent) => {
+    if (!active()) return
+    const scope = props.scope?.()
+    if (scope && !(e.target instanceof Node && scope.contains(e.target))) return
+    if (e.ctrlKey || e.metaKey || e.altKey || typing(e.target, scope)) return
+    if (e.key === ' ') {
+      // ボタンにフォーカスがあっても、押したことにはせず再生を切り替える
+      e.preventDefault()
+      if (e.type === 'keydown' && !e.repeat) toggle()
+    } else if (e.type !== 'keydown') return
+    else if (e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      e.preventDefault()
+      seekTo((props.media()?.currentTime ?? 0) + (e.key === 'ArrowLeft' ? -SKIP : SKIP))
+    } else if (!e.shiftKey && e.key.toLowerCase() === 'm') toggleMute()
+  }
+  onMount(() => {
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('keyup', onKey)
+  })
+  onCleanup(() => {
+    window.removeEventListener('keydown', onKey)
+    window.removeEventListener('keyup', onKey)
+  })
+  const playButton = (
+    <button
+      type="button"
+      class={`${styles.btn} ${styles.play}`}
+      aria-label={playing() ? '一時停止' : '再生'}
+      data-tip={playing() ? '一時停止（Space）' : '再生（Space）'}
+      onClick={toggle}
+    >
+      <Icon name={playing() ? 'pause' : 'play'} />
+    </button>
+  )
+  const volumeControl = (
+    <span class={styles.vol}>
+      <button
+        type="button"
+        class={styles.btn}
+        aria-label={muted() ? '消音を解除' : '消音'}
+        data-tip={muted() ? '消音を解除（M）' : '消音（M）'}
+        onClick={toggleMute}
+      >
+        <Icon name={muted() || volume() === 0 ? 'muted' : 'volume'} />
+      </button>
+      <input
+        type="range"
+        class={`${styles.range} ${styles.level}`}
+        aria-label="音量"
+        min={0}
+        max={1}
+        step={0.05}
+        value={muted() ? 0 : volume()}
+        style={{ '--p': pct(muted() ? 0 : volume(), 1) }}
+        onInput={(e) => {
+          const m = props.media()
+          if (!m) return
+          m.volume = e.currentTarget.valueAsNumber
+          m.muted = m.volume === 0
+        }}
+      />
+    </span>
+  )
+  return (
+    <div
+      class={`${styles.root} ${props.class ?? ''}`}
+      data-layout={props.layout ?? 'bar'}
+      role="group"
+      aria-label="再生の操作"
+    >
+      {props.lead}
+      {playButton}
+      <Show
+        when={props.layout === 'row'}
+        fallback={
+          <>
+            <span class={styles.time}>{clock(at())}</span>
+            <input
+              type="range"
+              class={styles.range}
+              aria-label="再生位置"
+              min={0}
+              max={length() || 0}
+              step="any"
+              value={at()}
+              style={{ '--p': pct(at(), length()) }}
+              onInput={(e) => seekTo(e.currentTarget.valueAsNumber)}
+            />
+            <span class={styles.time}>{clock(length())}</span>
+            <Show when={props.rate !== false}>
+              <button type="button" class={styles.rate} aria-label="再生速度" data-tip="再生速度" onClick={nextRate}>
+                {rate()}×
+              </button>
+            </Show>
+          </>
+        }
+      >
+        {props.track}
+        <span class={styles.time}>
+          {clock(at())} / {clock(length())}
+        </span>
+      </Show>
+      {volumeControl}
+      <Show when={props.fullscreen && props.layout !== 'row'}>
+        <button
+          type="button"
+          class={styles.btn}
+          aria-label={full() ? '全画面を終了' : '全画面'}
+          data-tip={full() ? '全画面を終了' : '全画面'}
+          onClick={toggleFull}
+        >
+          <Icon name={full() ? 'unfullscreen' : 'fullscreen'} />
+        </button>
+      </Show>
+    </div>
+  )
+}

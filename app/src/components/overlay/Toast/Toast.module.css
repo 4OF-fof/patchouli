@@ -1,0 +1,81 @@
+.root {
+  --tone: var(--muted);
+  --act: var(--accent);
+  --edge: var(--line-2);
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  max-width: 100%;
+  padding: 0 var(--space-16) 0 var(--space-14);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius-lg);
+  background: color-mix(in oklab, var(--tone) var(--tint, 0%), var(--card));
+  box-shadow: var(--shadow-float);
+  color: color-mix(in oklab, var(--tone) var(--tint, 0%), var(--ink));
+  font-size: var(--fs-list);
+}
+.success {
+  --tone: var(--ok);
+}
+.warning {
+  --tone: var(--warm-ink);
+}
+.error {
+  --tone: var(--danger);
+}
+.success,
+.warning,
+.error {
+  --act: var(--tone);
+  --edge: color-mix(in oklab, var(--tone) 75%, transparent);
+  --tint: 26%;
+}
+.root:has(button) {
+  padding-right: var(--space-6);
+}
+.icon {
+  flex: none;
+  margin-right: var(--space-10);
+  color: var(--tone);
+}
+.msg {
+  padding: var(--space-8) 0;
+}
+.root button {
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.root .act {
+  margin-left: var(--space-14);
+  padding: 0 var(--space-6);
+  color: var(--act);
+  font-weight: 600;
+}
+.root .quiet {
+  padding: 0 var(--space-10) 0 var(--space-6);
+  color: var(--muted);
+}
+.root .quiet:hover {
+  color: var(--ink);
+}
+.msg + .quiet {
+  margin-left: var(--space-14);
+}
+.x {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  margin-left: var(--space-10);
+  color: var(--muted);
+}
+.act + .x {
+  margin-left: var(--space-4);
+}
+.x:hover {
+  color: var(--ink);
+}

@@ -1,0 +1,22 @@
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: start;
+  gap: var(--space-20) var(--space-28);
+  padding-top: var(--space-16);
+}
+.body[data-wide] {
+  grid-template-columns: minmax(0, 1fr);
+}
+.body [data-first] {
+  padding-top: 0;
+}
+.side {
+  display: grid;
+  gap: var(--space-10);
+}
+@media (max-width: 760px) {
+  .body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

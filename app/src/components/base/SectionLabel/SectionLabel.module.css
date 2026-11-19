@@ -1,0 +1,33 @@
+.root {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  margin: 0 0 var(--space-8);
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.root b {
+  font-weight: 600;
+  color: var(--muted);
+}
+.root em {
+  font: normal 400 var(--fs-tiny) var(--f-mono);
+}
+.btn {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: inherit;
+  cursor: pointer;
+}
+.btn:hover b {
+  color: var(--ink);
+}
+.btn:focus-visible {
+  border-radius: var(--radius-sm);
+  outline-offset: 3px;
+}

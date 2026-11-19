@@ -1,0 +1,73 @@
+.root {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-12);
+  font-size: var(--fs-list);
+}
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+/* 置き場所の側で、--setting-label-size と --setting-label-color で名前の見た目を変えられる */
+.label {
+  font-size: var(--setting-label-size, inherit);
+  color: var(--setting-label-color, var(--ink-2));
+}
+.help {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.input {
+  height: 28px;
+  min-width: 160px;
+  padding: 0 var(--space-8);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+}
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.choice {
+  --select-width: auto;
+  --select-min-width: 160px;
+}
+.toggle {
+  appearance: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border-radius: var(--radius-md);
+  background: var(--line-2);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.toggle::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-md);
+  background: var(--card);
+  transition: transform 0.15s;
+}
+.toggle:checked {
+  background: var(--accent);
+}
+.toggle:checked::after {
+  transform: translateX(14px);
+}
+.toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

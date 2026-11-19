@@ -1,0 +1,25 @@
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  width: 100%;
+}
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 var(--space-8);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-list);
+}
+.input:focus-visible {
+  border-color: var(--accent);
+  outline: 0;
+}
+.open {
+  flex: none;
+}

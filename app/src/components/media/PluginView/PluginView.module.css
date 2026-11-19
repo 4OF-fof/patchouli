@@ -1,0 +1,89 @@
+.root {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.mount {
+  flex: 1;
+  min-height: 0;
+  font: var(--fs-list) var(--f-sans);
+}
+.error {
+  margin: auto;
+  padding: var(--space-8) var(--space-12);
+  border-radius: var(--radius-md);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: var(--fs-list);
+}
+
+/* プラグインが描く素の要素の既定の見た目。:where で詳細度を 0 にして、プラグインの CSS で上書きできるようにする */
+:where(.mount) :where(button) {
+  height: 28px;
+  padding: 0 var(--space-10);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-meta);
+  cursor: pointer;
+}
+:where(.mount) :where(button:hover) {
+  border-color: var(--muted);
+}
+:where(.mount) :where(button:disabled) {
+  color: var(--muted);
+  cursor: default;
+}
+:where(.mount) :where(input:not([type='checkbox'], [type='radio'], [type='range']), select, textarea) {
+  min-width: 0;
+  height: 28px;
+  padding: 0 var(--space-8);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--fs-list);
+}
+/* 一覧は本体の Select と同じものを出すので、閉じているときも Select と同じ形にし、山形は背景で描く */
+:where(.mount) :where(select:not([multiple])) {
+  appearance: none;
+  padding-right: var(--space-24);
+  background-image:
+    linear-gradient(45deg, transparent 38%, var(--muted) 38% 62%, transparent 62%),
+    linear-gradient(-45deg, transparent 38%, var(--muted) 38% 62%, transparent 62%);
+  background-position:
+    right 13px center,
+    right 9px center;
+  background-size: 4px 4px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+:where(.mount) :where(select:not([multiple]):hover) {
+  border-color: var(--muted);
+}
+:where(.mount) :where(textarea) {
+  height: auto;
+  padding: var(--space-6) var(--space-8);
+}
+:where(.mount) :where(input, select, textarea, button):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+:where(.mount) :where(input[type='checkbox'], input[type='radio'], input[type='range']) {
+  accent-color: var(--accent);
+}
+:where(.mount) :where(a) {
+  color: var(--accent);
+}
+:where(.mount) :where(code, pre, kbd) {
+  font-family: var(--f-mono);
+}
+:where(.mount) :where(hr) {
+  border: 0;
+  border-top: 1px solid var(--line);
+}

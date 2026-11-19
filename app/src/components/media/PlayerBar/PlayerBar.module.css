@@ -1,0 +1,148 @@
+/* 素材の上に重ねる帯。置き場所の側で、--player-controls（0〜1）と --player-events で隠せる */
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  height: 40px;
+  box-sizing: border-box;
+  padding: 0 var(--space-10);
+  border-radius: var(--radius-lg);
+  background: var(--overlay);
+  color: var(--overlay-ink);
+  backdrop-filter: blur(var(--blur));
+  opacity: var(--player-controls, 1);
+  pointer-events: var(--player-events, auto);
+  transition: opacity 0.2s ease;
+}
+.btn,
+.rate {
+  flex: none;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.btn {
+  width: 28px;
+}
+.btn svg {
+  width: 15px;
+  height: 15px;
+}
+.rate {
+  padding: 0 var(--space-6);
+  font-family: var(--f-mono);
+  font-size: var(--fs-meta);
+}
+.btn:hover,
+.rate:hover {
+  background: var(--overlay-hover);
+}
+.btn:focus-visible,
+.rate:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.time {
+  flex: none;
+  min-width: 34px;
+  font-family: var(--f-mono);
+  font-size: var(--fs-meta);
+  opacity: 0.85;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 塗った部分の割合は --p で受け取る */
+.range {
+  flex: 1;
+  min-width: 40px;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(to right, currentColor var(--p, 0%), var(--overlay-track) var(--p, 0%));
+}
+.range::-moz-range-track {
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(to right, currentColor var(--p, 0%), var(--overlay-track) var(--p, 0%));
+}
+.range::-webkit-slider-thumb {
+  width: 11px;
+  height: 11px;
+  margin-top: calc(-1 * var(--space-4));
+  border: 0;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  appearance: none;
+}
+.range::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: currentColor;
+}
+.range:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.vol {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.level {
+  flex: none;
+  width: 64px;
+  min-width: 0;
+}
+
+/* 1 行に並べるとき（ノートの音声）。紙面の上に置くので、重ねる帯の地は使わない */
+.root[data-layout='row'] {
+  height: auto;
+  gap: var(--space-12);
+  padding: var(--space-10) var(--space-12) var(--space-10) var(--space-10);
+  border: 1px solid var(--card);
+  border-radius: var(--radius-lg);
+  background: var(--side);
+  color: var(--muted);
+  backdrop-filter: none;
+  --overlay-track: var(--line-2);
+  --overlay-hover: var(--card);
+}
+.root[data-layout='row'] > .play {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-full);
+  background: var(--ink);
+  color: var(--paper);
+}
+.root[data-layout='row'] > .play svg {
+  width: 14px;
+  height: 14px;
+}
+.root[data-layout='row'] .time {
+  opacity: 1;
+}
+
+@media (max-width: 520px) {
+  .level,
+  .rate {
+    display: none;
+  }
+}

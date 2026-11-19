@@ -1,0 +1,79 @@
+.root {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+.view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  touch-action: none;
+}
+.view[data-pan] {
+  cursor: grab;
+}
+.view[data-dragging] {
+  cursor: grabbing;
+}
+.img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  transform-origin: 0 0;
+  user-select: none;
+  visibility: hidden;
+}
+/* visible にすると、裏に回したタブの visibility: hidden を上書きして残るので、親に従わせる */
+.img[data-ready] {
+  visibility: inherit;
+}
+/* 画像の上に重ねる。置き場所の側で、--player-controls（0〜1）と --player-events で隠せる */
+.bar {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-lg);
+  background: var(--overlay);
+  color: var(--overlay-ink);
+  backdrop-filter: blur(var(--blur));
+  transform: translateX(-50%);
+  opacity: var(--player-controls, 1);
+  pointer-events: var(--player-events, auto);
+  transition: opacity 0.2s ease;
+}
+.btn {
+  width: 30px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.btn:hover {
+  background: var(--overlay-hover);
+}
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.pct {
+  min-width: 46px;
+  font-family: var(--f-mono);
+  font-size: var(--fs-meta);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,45 @@
+.add {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+}
+.add:hover {
+  border-color: var(--accent);
+}
+.menu {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-6);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.menu button {
+  display: flex;
+  gap: var(--space-8);
+  padding: var(--space-6) var(--space-10);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font-size: var(--fs-list);
+  text-align: left;
+  cursor: pointer;
+}
+.menu button:hover,
+.menu button:focus-visible {
+  background: var(--accent-soft);
+}
+.menu small {
+  margin-left: auto;
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}

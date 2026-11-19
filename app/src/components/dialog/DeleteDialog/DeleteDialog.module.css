@@ -1,0 +1,16 @@
+.names {
+  margin: var(--space-8) 0 0;
+  padding: 0 0 0 var(--space-16);
+  color: var(--muted);
+  font-size: var(--fs-meta);
+}
+.names li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.more {
+  list-style: none;
+  margin-left: calc(-1 * var(--space-16));
+  color: var(--muted);
+}

@@ -1,0 +1,163 @@
+/* 表のタブは、タイトルバーの下の線にかぶせて、下の本文とつなげる */
+.root {
+  align-self: stretch;
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  margin-bottom: -1px;
+}
+.list {
+  display: flex;
+  align-items: flex-end;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+/* タブを上と左右の線で囲む。隣どうしは線を重ねて 1 本にする */
+.tab {
+  position: relative;
+  flex: 0 1 auto;
+  width: 180px;
+  min-width: 72px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  margin-right: -1px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  color: var(--muted);
+}
+.seg {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  border-radius: inherit;
+}
+.seg:hover {
+  color: var(--ink);
+}
+.tab[data-current='true'] {
+  z-index: 1;
+  background: var(--paper);
+  color: var(--ink);
+}
+.main {
+  flex: 1;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  padding: 0 var(--space-4) 0 var(--space-10);
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.main:focus-visible {
+  outline-offset: -2px;
+}
+.main svg {
+  flex: none;
+}
+/* かなは字面の中心が高く見えるので、アイコンの中心より 1px 下げる */
+.label {
+  min-width: 0;
+  padding-top: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.close {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  margin-right: var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  visibility: hidden;
+}
+.seg:hover .close,
+.close:focus-visible {
+  visibility: visible;
+}
+.close:hover {
+  background: var(--card);
+  color: var(--ink);
+}
+/* タイトルバーの中央ではなく、下に寄せたタブの中央にそろえる */
+.add {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  margin: 0 0 1px var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.add:hover {
+  background: var(--card);
+  color: var(--ink);
+}
+.count {
+  flex: none;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--space-4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: var(--fs-meta);
+  font-variant-numeric: tabular-nums;
+}
+/* ドラッグ中は、ほかのタブがよけて入る場所を空ける。つかんだタブはカーソルに付けて動かす */
+.list[data-dragging] .tab {
+  transition: transform 0.15s ease;
+}
+.list[data-dragging] .tab[data-dragged] {
+  z-index: 3;
+  background: var(--paper);
+  box-shadow: var(--shadow-pill);
+  transition: none;
+  cursor: grabbing;
+}
+/* 列の外へ引き出したタブは、もとの場所を薄くして残す */
+.list[data-dragging] .tab[data-lifted] {
+  box-shadow: none;
+  opacity: 0.4;
+}
+/* ほかの列から運んできたタブが入るところ */
+.tab[data-drop]::before {
+  content: '';
+  position: absolute;
+  z-index: 4;
+  top: 4px;
+  bottom: 4px;
+  left: -2px;
+  width: 2px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+.tab[data-drop='after']::before {
+  left: auto;
+  right: -2px;
+}

@@ -1,0 +1,10 @@
+{
+  "id": "example_zip",
+  "name": "example_zip",
+  "version": "0.1.0",
+  "description": "ZIP ファイルのサムネイル生成と、アーカイブ内のフォルダツリー表示",
+  "script": "ui.js",
+  "formats": [
+    { "ext": ["zip"], "label": "ZIP", "ratio": 1, "fit": "contain", "parts": ["thumbnail", "view"], "script": ["view"] }
+  ]
+}

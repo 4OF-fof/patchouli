@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title></title>
+  </head>
+  <body>
+    <script>
+      // つかんだタブを窓の外へ運んでいるあいだ、それを描く小さな窓の中身。
+      // 本体の窓が、本体の CSS と html の属性、写しを # の後ろに入れて開く。本体と同じオリジンなので、フォントもそのまま読める
+      let css = ''
+      let nodes = []
+      const show = () => {
+        if (location.hash.length < 2) return
+        const v = JSON.parse(decodeURIComponent(location.hash.slice(1)))
+        const root = document.documentElement
+        for (const n of root.getAttributeNames()) root.removeAttribute(n)
+        for (const [n, x] of v.attrs) root.setAttribute(n, x)
+        root.style.background = 'transparent'
+        if (v.css !== css) {
+          for (const n of nodes) n.remove()
+          const t = document.createElement('template')
+          t.innerHTML = v.css
+          nodes = [...t.content.childNodes]
+          document.head.append(...nodes)
+          css = v.css
+        }
+        document.body.innerHTML = v.tab
+        document.body.style.background = 'transparent'
+        document.body.style.overflow = 'hidden'
+      }
+      addEventListener('hashchange', show)
+      show()
+    </script>
+  </body>
+</html>

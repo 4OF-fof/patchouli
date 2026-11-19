@@ -1,0 +1,80 @@
+.root {
+  display: flex;
+  align-items: center;
+  gap: var(--space-12);
+  padding: var(--space-6) var(--space-8);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.root[aria-selected='true'] {
+  background: var(--card);
+}
+.ic {
+  width: 44px;
+  height: 34px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+}
+.ic .thumb {
+  height: 100%;
+  border-radius: var(--radius-sm);
+}
+.root[data-kind='note'] .ic {
+  background: var(--card);
+  border: 1px solid var(--line-2);
+}
+.root[data-kind='project'] .ic {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+.root[data-kind='create'] .ic {
+  border: 1px dashed var(--accent);
+  color: var(--accent);
+}
+.tx {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.tx b {
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tx > span {
+  font-size: var(--fs-meta);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aside {
+  flex: none;
+  font-family: var(--f-mono);
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.root[data-kind='create'] .tx b {
+  color: var(--accent);
+  font-weight: 400;
+}
+.root mark {
+  background: none;
+  color: var(--accent);
+}
+.sec {
+  padding: var(--space-6) var(--space-8) var(--space-2);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--muted);
+}

@@ -1,0 +1,85 @@
+import { createSignal } from 'solid-js'
+import { PlayerBar } from '../PlayerBar/PlayerBar'
+import { undecodable } from '../PlayerBar/undecodable'
+import styles from './VideoPlayer.module.css'
+
+export interface VideoPlayerProps {
+  src: string
+  poster?: string
+  name: string
+  /** あれば、置き場所の幅いっぱいに、この縦横比（幅 / 高さ）の枠で描く。なければ置き場所に収まる大きさで描く */
+  ratio?: number
+  /** キーを、この中にフォーカスがあるときだけ受ける */
+  local?: boolean
+  /** 再生速度のボタンを出すか。既定は出す */
+  rate?: boolean
+  /** 全画面にする要素。既定はこの部品 */
+  fullscreen?: () => HTMLElement | undefined
+  class?: string
+  /** あれば、読み込めたときにこの秒から再生する */
+  start?: number
+  /** 読み込めたとき。読めなかったときも呼ぶ */
+  onReady?: () => void
+  /** WebView のデコーダーが、入れ物か映像の形式に対応していなかったとき */
+  onUnsupported?: () => void
+}
+
+export function VideoPlayer(props: VideoPlayerProps) {
+  const [root, setRoot] = createSignal<HTMLDivElement>()
+  const [video, setVideo] = createSignal<HTMLVideoElement>()
+  const [natural, setNatural] = createSignal<number>()
+  const [playing, setPlaying] = createSignal(false)
+  const toggle = () => {
+    const v = video()
+    if (!v) return
+    if (v.paused) void v.play().catch(() => undefined)
+    else v.pause()
+  }
+  return (
+    <div
+      ref={setRoot}
+      class={`${styles.root} ${props.class ?? ''}`}
+      data-flow={!!props.ratio}
+      data-playing={playing() || undefined}
+    >
+      <div class={styles.frame} style={{ '--ratio': props.ratio ?? natural() ?? 16 / 9 }}>
+        {/* oxlint-disable-next-line jsx-a11y/media-has-caption -- 素材に字幕はない */}
+        <video
+          ref={setVideo}
+          class={styles.video}
+          src={props.src}
+          poster={props.poster}
+          preload="metadata"
+          aria-label={props.name}
+          onClick={toggle}
+          onPlay={() => setPlaying(true)}
+          onPause={() => setPlaying(false)}
+          onLoadedMetadata={(e) => {
+            const v = e.currentTarget
+            if (v.videoWidth && v.videoHeight) setNatural(v.videoWidth / v.videoHeight)
+            if (props.start !== undefined) {
+              v.currentTime = props.start
+              void v.play().catch(() => undefined)
+            }
+          }}
+          onLoadedData={(e) => {
+            // 映像を読めず音だけ流れるときは、エラーにならず大きさが 0 になる
+            if (!e.currentTarget.videoWidth) props.onUnsupported?.()
+            props.onReady?.()
+          }}
+          onError={(e) => {
+            if (undecodable(e.currentTarget.error)) props.onUnsupported?.()
+            props.onReady?.()
+          }}
+        />
+        <PlayerBar
+          media={video}
+          fullscreen={props.fullscreen ?? root}
+          scope={props.local ? root : undefined}
+          rate={props.rate}
+          class={styles.bar}
+        />
+      </div>
+    </div>
+  )
+}

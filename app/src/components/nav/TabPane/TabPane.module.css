@@ -1,0 +1,23 @@
+/* display: none にするとスクロールの位置が消えるので、場所は取ったまま見えなくする */
+/* 中の浮かべた部品の重なり順をペインの中に閉じ込め、移動先の印などをペインの上に重ねられるようにする */
+.root {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  isolation: isolate;
+}
+.top {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+.body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.root[data-active='false'] {
+  visibility: hidden;
+}

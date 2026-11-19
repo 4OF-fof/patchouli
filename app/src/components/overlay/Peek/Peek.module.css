@@ -1,0 +1,46 @@
+.ov {
+  --w: min(1440px, calc(100% - 112px));
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-panel);
+  background: var(--scrim);
+}
+.panel {
+  position: absolute;
+  top: 24px;
+  bottom: 24px;
+  left: calc(50% - var(--w) / 2);
+  width: var(--w);
+  overflow: hidden;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+.panel:focus {
+  outline: none;
+}
+.tools {
+  position: absolute;
+  top: 24px;
+  left: calc(50% + var(--w) / 2 + 10px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+.tools button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--float);
+  box-shadow: var(--shadow-pill);
+  color: var(--muted);
+  cursor: pointer;
+}
+.tools button:hover {
+  color: var(--ink);
+}

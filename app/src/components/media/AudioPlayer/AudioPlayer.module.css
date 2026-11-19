@@ -1,0 +1,120 @@
+.root[data-look='stage'] {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+}
+.body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  container-type: size;
+}
+.box {
+  flex: 1;
+  min-height: 0;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.wave {
+  position: relative;
+  cursor: pointer;
+  touch-action: none;
+}
+.root[data-look='stage'] .wave {
+  height: clamp(110px, 40cqh, 320px);
+}
+.wave:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+  border-radius: var(--radius-sm);
+}
+.base,
+.done {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: currentColor;
+}
+.base {
+  color: var(--disabled);
+}
+.done {
+  color: var(--overlay-ink);
+}
+.head {
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.bubble {
+  position: absolute;
+  top: -26px;
+  left: 50%;
+  padding: 1px var(--space-6);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--stage);
+  font: var(--fs-meta) var(--f-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.hover {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--overlay-ink);
+  opacity: 0.35;
+  pointer-events: none;
+}
+.hoverTime {
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  font: var(--fs-tiny) var(--f-mono);
+  color: var(--muted);
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.bar {
+  flex: none;
+  width: min(600px, 100%);
+  margin-bottom: var(--space-16);
+}
+
+.root[data-look='row'] .wave {
+  flex: 1;
+  min-width: 60px;
+  height: 44px;
+}
+.root[data-look='row'] .done {
+  color: var(--accent);
+}
+.jacket {
+  flex: none;
+  width: auto;
+  max-width: 78px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}

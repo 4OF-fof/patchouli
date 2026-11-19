@@ -1,0 +1,618 @@
+.root {
+  container-type: inline-size;
+  min-height: 300px;
+}
+.root :global(.cm-editor) {
+  min-height: 300px;
+  background: none;
+  color: var(--ink-2);
+  font-size: var(--note-body);
+}
+.root :global(.cm-editor.cm-focused) {
+  outline: none;
+}
+.root :global(.cm-scroller) {
+  overflow: visible;
+  font-family: inherit;
+  line-height: 1.9;
+}
+.root :global(.cm-content) {
+  min-height: 300px;
+  padding: 0;
+  caret-color: var(--ink);
+}
+.root :global(.cm-line) {
+  padding: 0;
+}
+.root :global(.cm-content ::selection) {
+  background: var(--accent-soft);
+}
+/* 本文の選択は selection.ts が描く */
+.root :global(.cm-line ::selection),
+.root :global(.cm-line::selection) {
+  background: transparent;
+}
+.selection {
+  background: var(--accent-soft);
+}
+/* 置き換えた部分の両側に入る画像は、そこで行を折り返させて「。」だけを次の行に送ってしまう。
+   文中の隠した記号はカーソルが近づくと元の文字に戻るので、カーソルの隣に来ることはなく、要らない。
+   行の頭の印と埋め込みは戻さないので残す。消すと、上下の移動でその行を飛ばしてしまう */
+.root :global(.cm-widgetBuffer) {
+  display: none;
+}
+.root :global(.cm-widgetBuffer):has(+ .lineMark),
+.root .lineMark + :global(.cm-widgetBuffer),
+.root :global(.cm-widgetBuffer):has(+ .embed),
+.root .embed + :global(.cm-widgetBuffer) {
+  display: inline;
+}
+
+.h1,
+.h2,
+.h3,
+.h4,
+.h5,
+.h6 {
+  padding-top: 0.5em;
+  line-height: 1.5;
+  color: var(--ink);
+}
+.h1 {
+  font-size: var(--note-h1);
+  font-weight: 700;
+}
+.h2 {
+  font-size: var(--note-h2);
+  font-weight: 700;
+}
+.h3 {
+  font-size: var(--note-h3);
+  font-weight: 600;
+}
+.h4 {
+  font-size: var(--note-h4);
+  font-weight: 600;
+}
+.h5 {
+  font-size: var(--note-h5);
+  font-weight: 600;
+}
+.h6 {
+  font-size: var(--note-h6);
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.mark {
+  color: var(--muted);
+}
+.strong {
+  font-weight: 700;
+  color: var(--ink);
+}
+.em {
+  font-style: italic;
+}
+.del {
+  text-decoration: line-through;
+}
+.code,
+.codeBack {
+  border-radius: var(--radius-sm);
+  background: var(--side);
+}
+.code {
+  padding: 1px var(--space-4);
+  font-family: var(--f-mono);
+  font-size: 0.88em;
+}
+/* 本文の行の中は、地を selection.ts の backLayer が選択の色より下に描く */
+.root :global(.cm-line) .code {
+  background: none;
+}
+.raw {
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.link,
+.extLink {
+  color: var(--accent);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.extLink {
+  text-decoration-style: solid;
+}
+.missing {
+  color: var(--danger);
+  text-decoration: underline wavy var(--danger-line);
+}
+.missing[data-ref]::after {
+  content: ' ' attr(data-ref);
+  font-family: var(--f-mono);
+  font-size: 0.75em;
+}
+
+.listLine {
+  padding-left: calc((var(--depth) - 1) * 1.6em) !important;
+}
+.bullet {
+  display: inline-block;
+  min-width: 0.9em;
+  color: var(--muted);
+}
+.check {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  margin-right: 0.35em;
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  vertical-align: -0.08em;
+  cursor: pointer;
+}
+.check[aria-checked='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.done {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.quote {
+  padding-left: var(--space-14) !important;
+  border-left: 3px solid var(--line-2);
+  color: var(--muted);
+}
+.hr {
+  display: inline-block;
+  width: 100%;
+  vertical-align: middle;
+  border-top: 1px solid var(--line-2);
+}
+
+.codeLine {
+  position: relative;
+  padding: 0 var(--space-14) !important;
+  color: var(--base05);
+  font-family: var(--f-mono);
+  font-size: var(--fs-list);
+  line-height: 1.6;
+}
+/* 選択の色は CodeMirror の層に本文より下（z-index が -1 から下）で描くので、行に地を塗ると隠れる。地はその層より下に敷く */
+.codeLine::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -100;
+  background: var(--base00);
+}
+.codeTop {
+  padding-top: var(--space-10) !important;
+}
+.codeTop::before {
+  border-top-left-radius: var(--radius-md);
+  border-top-right-radius: var(--radius-md);
+}
+.codeBottom {
+  padding-bottom: var(--space-10) !important;
+}
+.codeBottom::before {
+  border-bottom-left-radius: var(--radius-md);
+  border-bottom-right-radius: var(--radius-md);
+}
+
+.codeLine .base03 {
+  color: var(--base03);
+}
+.codeLine .base04 {
+  color: var(--base04);
+}
+.codeLine .base08 {
+  color: var(--base08);
+}
+.codeLine .base09 {
+  color: var(--base09);
+}
+.codeLine .base0a {
+  color: var(--base0a);
+}
+.codeLine .base0b {
+  color: var(--base0b);
+}
+.codeLine .base0c {
+  color: var(--base0c);
+}
+.codeLine .base0d {
+  color: var(--base0d);
+}
+.codeLine .base0e {
+  color: var(--base0e);
+}
+.codeLine .base0f {
+  color: var(--base0f);
+}
+
+.math {
+  cursor: text;
+}
+.mathBlock {
+  padding: var(--space-4) 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  line-height: normal;
+  cursor: text;
+}
+.mathBlock:empty {
+  display: none;
+}
+.mathError {
+  color: var(--danger);
+  font-family: var(--f-mono);
+  font-size: 0.88em;
+  text-decoration: underline wavy var(--danger-line);
+}
+.mathBlock.mathError {
+  white-space: pre-wrap;
+}
+
+.codeView {
+  position: relative;
+  display: block;
+  line-height: normal;
+  white-space: normal;
+}
+.codeEdit {
+  position: absolute;
+  top: var(--space-4);
+  right: 0;
+  padding: var(--space-2) var(--space-8);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  background: var(--side);
+  font: inherit;
+  font-size: var(--fs-meta);
+  color: var(--muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.codeView:hover > .codeEdit,
+.codeEdit:focus-visible {
+  opacity: 1;
+}
+.codeEdit:hover {
+  color: var(--ink);
+}
+
+/* 左右を空け、隣に来たカーソルを選んだときの枠の外に出す。--embed-room は、その分を除いた本文の幅 */
+.embed {
+  --embed-room: calc(100cqw - 12px);
+  display: inline-block;
+  max-width: var(--embed-room);
+  margin: 0 var(--space-6);
+  vertical-align: bottom;
+}
+.embed[data-selected='true'] {
+  border-radius: var(--radius-md);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* 名前は画像の幅に合わせて切り、埋め込みの幅を広げない */
+.caption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  width: 0;
+  min-width: 100%;
+  margin-top: var(--space-8);
+  overflow: hidden;
+  font-size: var(--fs-meta);
+  line-height: 1.4;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.caption b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  color: var(--ink);
+}
+.caption svg {
+  flex: none;
+}
+/* 大きさは、ふだんの大きさ（本文の幅か、高さ 520px までに収めた画像）に --embed-scale を掛ける */
+.embed[data-wide='true'] {
+  width: calc(var(--embed-room) * var(--embed-scale, 1));
+}
+.embed > img {
+  display: block;
+  max-width: 100%;
+  max-height: 520px;
+  border-radius: var(--radius-md);
+}
+.embed[data-scaled='true'] > img {
+  width: calc(min(var(--natural-width), var(--embed-room), 520px * var(--natural-ratio)) * var(--embed-scale));
+  max-width: var(--embed-room);
+  max-height: none;
+}
+.mounted {
+  --player-screen-max: 520px;
+  display: block;
+  line-height: normal;
+  cursor: auto;
+  white-space: normal;
+}
+.card {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-8);
+  padding: var(--space-4) var(--space-10) var(--space-4) var(--space-4);
+  border: 1px solid var(--card);
+  border-radius: var(--radius-md);
+  background: var(--side);
+  font-size: var(--fs-list);
+  line-height: 1.6;
+  color: var(--ink);
+}
+.card img {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+.cardLabel {
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.cardError {
+  border-color: var(--danger-line);
+}
+.cardNote {
+  font-size: var(--fs-meta);
+  color: var(--danger);
+}
+.page {
+  display: block;
+  overflow: hidden;
+  border: 1px solid var(--card);
+  border-radius: var(--radius-md);
+  background: var(--side);
+  line-height: 1.5;
+  white-space: normal;
+}
+.pageCover {
+  position: relative;
+  display: block;
+}
+.pageCover[data-image] {
+  aspect-ratio: 1.91;
+  background: var(--card);
+}
+.pageCover > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pageCover:not([data-image]) {
+  padding: var(--space-10) var(--space-10) 0;
+}
+.pageTitle {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  padding: var(--space-4) var(--space-10);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--float);
+  box-shadow: var(--shadow-pill);
+  font-size: var(--fs-list);
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink);
+}
+.pageCover[data-image] > .pageTitle {
+  position: absolute;
+  left: var(--space-10);
+  bottom: var(--space-10);
+  max-width: calc(100% - var(--space-10) * 2);
+}
+.pageSite {
+  display: block;
+  padding: var(--space-6) var(--space-12) var(--space-8);
+  overflow: hidden;
+  font-size: var(--fs-meta);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+
+.table {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  padding: var(--space-6) 0;
+}
+.tableScroll {
+  overflow-x: auto;
+}
+.table table {
+  border-collapse: collapse;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+}
+.cell {
+  min-width: 80px;
+  height: 34px;
+  padding: var(--space-6) var(--space-10);
+  border: 1px solid var(--line-2);
+  vertical-align: top;
+  cursor: text;
+}
+.table th {
+  background: var(--side);
+  font-weight: 600;
+  color: var(--ink);
+}
+.cellEditing {
+  padding: 0;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.cellEditing input {
+  box-sizing: border-box;
+  field-sizing: content;
+  width: 100%;
+  min-width: 80px;
+  height: 34px;
+  padding: var(--space-6) var(--space-10);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+.tableTools {
+  position: absolute;
+  top: -30px;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--float);
+  box-shadow: var(--shadow-float);
+}
+.tableTools[hidden] {
+  display: none;
+}
+.tableTools button {
+  height: 22px;
+  padding: 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font-size: var(--fs-meta);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tableTools button:hover {
+  background: var(--accent-soft);
+}
+
+.menu {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--float);
+  box-shadow: var(--shadow-float);
+}
+.menuScroll {
+  max-height: 320px;
+}
+.menuList {
+  padding: var(--space-4);
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  height: 30px;
+  padding: 0 var(--space-10);
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-body);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.item[aria-selected='true'] {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.linkMenu {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--float);
+  box-shadow: var(--shadow-float);
+}
+.linkMenu button {
+  height: 26px;
+  padding: 0 var(--space-8);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink);
+  font-size: var(--fs-list);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.linkMenu button:hover,
+.linkMenu button[aria-expanded='true'] {
+  background: var(--accent-soft);
+}
+.linkMenu button[aria-pressed='true'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+.menuSep {
+  align-self: stretch;
+  width: 1px;
+  margin: var(--space-2) var(--space-2);
+  background: var(--line-2);
+}
+.caret {
+  position: fixed;
+  z-index: var(--z-popover);
+  width: 2px;
+  margin-left: -1px;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  pointer-events: none;
+}
+.bar {
+  position: fixed;
+  z-index: var(--z-popover);
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  transform: translateY(-100%);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-md);
+  background: var(--float);
+  box-shadow: var(--shadow-float);
+}
+.bar button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.bar button:hover {
+  background: var(--accent-soft);
+}
+.bar button[aria-pressed='true'] {
+  color: var(--accent);
+}

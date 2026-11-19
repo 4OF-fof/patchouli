@@ -1,0 +1,323 @@
+import { createSignal } from 'solid-js'
+import type { Meta, StoryObj } from 'storybook-solidjs-vite'
+import { expect, fn } from 'storybook/test'
+import { builtinReport } from '../../../plugins/builtin'
+import type {
+  CommandStatus,
+  PluginActions,
+  PluginReport,
+  PluginStatus,
+  Prepared,
+  SettingValue,
+} from '../../../plugins/types'
+import { sampleReport } from '../../../samples/plugins'
+import { PluginsDialog } from './PluginsDialog'
+
+const ffmpeg: CommandStatus = { name: 'ffmpeg', path: 'C:\\Users\\me\\scoop\\shims\\ffmpeg.exe' }
+const none = { commands: {}, plugins: {} }
+
+const text: PluginStatus = {
+  id: 'example.text',
+  name: 'テキスト',
+  version: '0.1.0',
+  recorded: '0.1.0',
+  source: { local: 'D:\\plugins\\patchouli-text' },
+  description: 'テキストファイルの表示とサムネイル生成',
+  builtin: false,
+  dev: false,
+  enabled: true,
+  state: 'active',
+  required: none,
+  optional: { commands: { pandoc: {} }, plugins: {} },
+  via: [],
+  caps: [
+    { part: 'thumbnail', by: 'script' },
+    { part: 'view', by: 'script' },
+  ],
+  formats: ['log', 'txt'],
+  settings: [
+    { key: 'wrap', label: '行を折り返す', kind: 'toggle', default: true, value: true },
+    { key: 'size', label: '文字サイズ', kind: 'number', min: 10, max: 32, step: 1, default: 14, value: 14 },
+    {
+      key: 'font',
+      label: 'フォント',
+      help: '詳細表示で使用するフォント',
+      kind: 'choice',
+      choices: [
+        { value: 'mono', label: '等幅' },
+        { value: 'sans', label: 'ゴシック' },
+      ],
+      default: 'mono',
+      value: 'mono',
+    },
+  ],
+  problems: [{ level: 'warning', text: '外部ツール「pandoc」が見つからないため、一部の機能を利用できません' }],
+}
+
+const found: PluginReport = {
+  plugins: [...builtinReport().plugins, text],
+  commands: [ffmpeg, { name: 'pandoc' }],
+}
+
+const external: PluginReport = {
+  commands: [ffmpeg],
+  plugins: [
+    ...builtinReport().plugins,
+    {
+      ...text,
+      optional: none,
+      version: '0.1.0',
+      recorded: '0.2.0',
+      problems: [
+        { level: 'warning', text: 'インストール済みのバージョン（0.1.0）がライブラリの記録（0.2.0）と異なります' },
+      ],
+    },
+    {
+      id: 'example.psd',
+      name: 'example.psd',
+      recorded: '1.2.0',
+      source: { local: 'D:\\plugins\\psd.zip' },
+      description: '',
+      builtin: false,
+      dev: false,
+      enabled: true,
+      state: 'missing',
+      required: none,
+      optional: none,
+      via: [],
+      caps: [],
+      formats: [],
+      settings: [],
+      problems: [{ level: 'error', text: 'この端末にインストールされていません' }],
+    },
+    {
+      ...text,
+      id: 'example.web',
+      name: 'Web ページ',
+      version: '0.3.0',
+      recorded: '0.3.0',
+      source: { github: 'owner/patchouli-web' },
+      tag: 'v0.3.0',
+      prerelease: false,
+      optional: none,
+      settings: [],
+    },
+    {
+      id: 'example.feed',
+      name: 'example.feed',
+      recorded: '0.2.0',
+      source: { github: 'owner/patchouli-feed' },
+      tag: 'v0.2.0',
+      description: '',
+      builtin: false,
+      dev: false,
+      enabled: true,
+      state: 'missing',
+      required: none,
+      optional: none,
+      via: [],
+      caps: [],
+      formats: [],
+      settings: [],
+      problems: [{ level: 'error', text: 'この端末にインストールされていません' }],
+    },
+  ],
+}
+
+const troubled: PluginReport = {
+  commands: [{ name: 'ffmpeg' }, { name: 'magick' }],
+  plugins: [
+    ...builtinReport().plugins.map((p) => ({
+      ...p,
+      problems: p.optional.commands?.ffmpeg
+        ? [
+            {
+              level: 'warning' as const,
+              text: '外部ツール「ffmpeg」が見つからないため、一部の機能を利用できません',
+            },
+          ]
+        : [],
+    })),
+    {
+      id: 'example.photoshop',
+      name: 'Photoshop',
+      version: '1.2.0',
+      recorded: '1.2.0',
+      source: { local: 'D:\\plugins\\psd' },
+      description: 'PSD ファイルのサムネイル生成',
+      builtin: false,
+      dev: false,
+      enabled: true,
+      state: 'blocked',
+      required: {
+        commands: { magick: { min: '7.0' } },
+        plugins: { 'patchouli.image': {}, 'example.layers': { min: '0.2.0' } },
+      },
+      optional: none,
+      via: [{ name: 'ffmpeg', plugin: '画像', required: true }],
+      caps: [{ part: 'thumbnail', by: 'wasm' }],
+      formats: [],
+      settings: [],
+      problems: [
+        { level: 'error', text: '必須の外部ツール「magick」が見つかりません' },
+        {
+          level: 'error',
+          text: '必須プラグイン「example.layers」が有効ではありません',
+        },
+      ],
+    },
+  ],
+}
+
+const wait = () => new Promise<void>((r) => setTimeout(r, 600))
+const prepared = (first: boolean): Prepared => ({
+  token: 'token',
+  plugin: { ...text, source: { github: 'owner/patchouli-text' }, tag: 'v0.2.0', version: '0.2.0' },
+  first,
+  added: first
+    ? { full: true, permissions: ['library'], commands: ['pandoc'], fetch: [] }
+    : { full: false, permissions: [], commands: [], fetch: ['example.com'] },
+})
+const actions: PluginActions = {
+  pickZip: async () => 'D:\\plugins\\text.zip',
+  prepare: async () => {
+    await wait()
+    return prepared(true)
+  },
+  prepareUpdate: async () => {
+    await wait()
+    return prepared(false)
+  },
+  latest: async () => 'v0.4.0',
+  commit: wait,
+  cancel: async () => {},
+  setPrerelease: wait,
+  remove: wait,
+  setSetting: wait,
+  setEnabled: wait,
+}
+
+const developing: PluginReport = {
+  commands: [ffmpeg],
+  plugins: [
+    ...builtinReport().plugins,
+    {
+      ...text,
+      optional: none,
+      version: '0.3.0-dev',
+      recorded: undefined,
+      source: undefined,
+      dev: true,
+      problems: [],
+    },
+    {
+      ...text,
+      optional: none,
+      state: 'disabled',
+      settings: [],
+      problems: [{ level: 'warning', text: '同じ ID の開発版を使用しているため、使用していません' }],
+    },
+    {
+      id: 'example.csv',
+      name: 'CSV',
+      version: '0.1.0',
+      description: 'CSV の表の表示とサムネイル生成',
+      builtin: false,
+      dev: true,
+      enabled: false,
+      state: 'disabled',
+      required: none,
+      optional: none,
+      via: [],
+      caps: [
+        { part: 'thumbnail', by: 'script' },
+        { part: 'view', by: 'script' },
+      ],
+      formats: ['csv'],
+      settings: [],
+      problems: [],
+    },
+  ],
+}
+
+const meta = {
+  title: '部品/dialog/PluginsDialog',
+  component: PluginsDialog,
+  parameters: { layout: 'fullscreen' },
+  args: {
+    report: found,
+    actions,
+    commandPaths: {},
+    onPickCommand: fn(async () => undefined),
+    onCommandPathChange: fn(async () => {}),
+    onClose: () => {},
+  },
+  decorators: [
+    (Story) => (
+      <div style={{ position: 'relative', height: '100vh', 'min-height': '640px', background: 'var(--paper)' }}>
+        <Story />
+      </div>
+    ),
+  ],
+} satisfies Meta<typeof PluginsDialog>
+export default meta
+type Story = StoryObj<typeof meta>
+
+export const Default: Story = {}
+export const External: Story = { name: '更新・未導入', args: { report: external } }
+export const Problems: Story = { name: 'エラーと警告', args: { report: troubled } }
+export const Failed: Story = {
+  name: 'インストールに失敗',
+  args: {
+    actions: {
+      ...actions,
+      prepare: async () => {
+        await wait()
+        throw new Error('owner/name: リリースが見つかりません')
+      },
+    },
+  },
+}
+export const Refresh: Story = {
+  name: '設定を変更して再読み込み',
+  render: (args) => {
+    const values = new Map<string, SettingValue>()
+    const load = (): PluginReport => ({
+      ...found,
+      plugins: found.plugins.map((p) => ({
+        ...p,
+        settings: p.settings.map((x) => ({ ...x, value: values.get(`${p.id}/${x.key}`) ?? x.value })),
+      })),
+    })
+    const [report, setReport] = createSignal(load())
+    return (
+      <PluginsDialog
+        {...args}
+        report={report()}
+        actions={{
+          ...actions,
+          setSetting: async (id, key, value) => {
+            await wait()
+            values.set(`${id}/${key}`, value)
+          },
+        }}
+        onRefresh={() => setReport(load())}
+      />
+    )
+  },
+}
+export const Developing: Story = {
+  name: '開発版',
+  args: { report: developing, actions: { ...actions, setEnabled: fn(async () => {}) } },
+  play: async ({ args, canvas, userEvent }) => {
+    await userEvent.click(canvas.getByRole('button', { name: 'CSV' }))
+    await userEvent.click(await canvas.findByRole('button', { name: '有効化' }))
+    await expect(args.actions?.setEnabled).toHaveBeenCalledWith('example.csv', true, true)
+  },
+}
+export const Disabled: Story = {
+  name: '無効化したプラグイン',
+  args: { report: { ...found, plugins: [...builtinReport().plugins, { ...text, state: 'disabled', enabled: false }] } },
+}
+export const Sample: Story = { name: '見本（例のプラグインも）', args: { report: sampleReport(), actions: {} } }
+export const Loading: Story = { name: '読み込み中', args: { report: undefined } }

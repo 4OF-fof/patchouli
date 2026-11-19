@@ -1,0 +1,7 @@
+{
+  "id": "example_psd",
+  "name": "example_psd",
+  "version": "0.1.0",
+  "description": "PSD ファイルのサムネイル生成・詳細表示・ファイル情報の取得",
+  "formats": [{ "ext": ["psd"], "label": "PSD", "ratio": 1.6, "parts": ["thumbnail", "view", "details"] }]
+}

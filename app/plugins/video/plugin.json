@@ -1,0 +1,25 @@
+{
+  "id": "patchouli.video",
+  "name": "動画",
+  "version": "0.5.0",
+  "description": "動画のサムネイルと再生、解像度と再生時間",
+  "script": "ui/frame.js",
+  "optional": {
+    "commands": {
+      "ffmpeg": {
+        "version": { "args": ["-version"], "pattern": "ffmpeg version n?([0-9][^ ]*)" },
+        "description": "H.265・ProRes などのサムネイル生成と、Opus・AC-3 などの音声の AI 解析"
+      }
+    }
+  },
+  "formats": [
+    {
+      "ext": ["mp4", "webm", "mov", "m4v"],
+      "label": "動画",
+      "ratio": 1.7778,
+      "media": "video",
+      "parts": ["thumbnail", "details", "excerpt"],
+      "script": ["thumbnail", "excerpt"]
+    }
+  ]
+}

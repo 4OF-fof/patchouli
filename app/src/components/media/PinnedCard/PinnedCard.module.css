@@ -1,0 +1,46 @@
+.root {
+  flex: 1 1 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-8);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.root[data-large] .cover {
+  flex: 1 0 auto;
+}
+.root:focus-visible {
+  border-radius: var(--radius-sm);
+  outline-offset: 3px;
+}
+.t {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-8);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.t b {
+  flex: none;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--ink);
+}
+.t span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-meta);
+  color: var(--muted);
+}
+.root:focus-visible .t b {
+  color: var(--accent);
+}
