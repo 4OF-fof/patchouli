@@ -6,7 +6,7 @@ set -euo pipefail
 
 base="${1:?比べる先の ref を渡す}"
 manifest='app/package.json'
-semver='^[0-9]+\.[0-9]+\.[0-9]+$'
+semver='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
 version_of() { node -p 'JSON.parse(require("fs").readFileSync(0, "utf8")).version ?? ""'; }
 
 new="$(version_of < "$manifest")"
@@ -16,7 +16,7 @@ if git cat-file -e "$base:$manifest" 2>/dev/null; then
 fi
 
 if ! [[ "$new" =~ $semver ]]; then
-  echo "$manifest の version が X.Y.Z の形ではない: '$new'" >&2
+  echo "$manifest の version が X.Y.Z か X.Y.Z-プレリリースの形ではない: '$new'" >&2
   exit 1
 fi
 if [[ "$new" == "$old" ]] || [[ "$(printf '%s\n%s\n' "$old" "$new" | sort -V | tail -n1)" != "$new" ]]; then
